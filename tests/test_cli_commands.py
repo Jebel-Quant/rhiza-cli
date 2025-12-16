@@ -13,11 +13,10 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-from typer.testing import CliRunner
-
 from rhiza import cli
 from rhiza.commands.hello import hello
 from rhiza.commands.inject import expand_paths, inject
+from typer.testing import CliRunner
 
 
 class TestHelloCommand:
@@ -460,7 +459,7 @@ class TestMaterializeCommand:
         runner = CliRunner()
         with runner.isolated_filesystem():
             # Create a dummy directory to pass validation
-            Path(".").mkdir(exist_ok=True)
+            Path("test_rhiza").mkdir(exist_ok=True)
             runner.invoke(cli.app, ["materialize"])
             # Note: the command will fail because . is not a git repo, but we're mocking inject
             # Check that inject was called (even if validation fails in typer)
@@ -470,7 +469,7 @@ class TestMaterializeCommand:
         """Test materialize command with custom branch option."""
         runner = CliRunner()
         with runner.isolated_filesystem():
-            Path(".").mkdir(exist_ok=True)
+            Path("test_rhiza").mkdir(exist_ok=True)
             runner.invoke(cli.app, ["materialize", "--branch", "dev"])
 
     @patch("rhiza.cli.inject_cmd")
@@ -478,5 +477,5 @@ class TestMaterializeCommand:
         """Test materialize command with force option."""
         runner = CliRunner()
         with runner.isolated_filesystem():
-            Path(".").mkdir(exist_ok=True)
+            Path("test_rhiza").mkdir(exist_ok=True)
             runner.invoke(cli.app, ["materialize", "--force"])
