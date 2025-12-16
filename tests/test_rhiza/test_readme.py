@@ -42,8 +42,12 @@ def test_readme_runs(logger, root):
         logger.debug("Stderr from README code:\n%s", result.stderr)
     logger.debug("Stdout from README code:\n%s", stdout)
 
-    assert result.returncode == 0, f"README code exited with {result.returncode}. Stderr:\n{result.stderr}"
-    logger.info("README code executed successfully; comparing output to expected result")
+    assert result.returncode == 0, (
+        f"README code exited with {result.returncode}. Stderr:\n{result.stderr}"
+    )
+    logger.info(
+        "README code executed successfully; comparing output to expected result"
+    )
     assert stdout.strip() == expected.strip()
     logger.info("README code output matches expected result")
 
