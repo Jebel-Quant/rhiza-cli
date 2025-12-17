@@ -10,6 +10,7 @@ import typer
 
 from rhiza.commands.hello import hello as hello_cmd
 from rhiza.commands.inject import inject as inject_cmd
+from rhiza.commands.diff import diff as diff_cmd
 
 app = typer.Typer(help="rhiza — configuration materialization tools")
 
@@ -45,3 +46,27 @@ def materialize(
         If True, overwrite existing files without prompting.
     """
     inject_cmd(target, branch, force)
+
+
+@app.command()
+def diff(
+    target: Path = typer.Argument(
+        default=Path("."),  # default to current directory
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        help="Target git repository (defaults to current directory)",
+    ),
+    branch: str = typer.Option("main", "--branch", "-b", help="Rhiza branch to use"),
+):
+    """Show differences between rhiza templates and target repository.
+
+    Parameters
+    ----------
+    target:
+        Path to the target Git repository directory. Defaults to the
+        current working directory.
+    branch:
+        Name of the Rhiza branch to use when sourcing templates.
+    """
+    diff_cmd(target, branch)

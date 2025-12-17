@@ -5,6 +5,7 @@ This module tests:
 - The cli.py Typer app and command wrappers
 - The hello command
 - The inject/materialize command
+- The diff command
 """
 
 import subprocess
@@ -18,6 +19,7 @@ from typer.testing import CliRunner
 from rhiza import cli
 from rhiza.commands.hello import hello
 from rhiza.commands.inject import expand_paths, inject
+from rhiza.commands.diff import diff
 
 
 class TestHelloCommand:
@@ -480,3 +482,157 @@ class TestMaterializeCommand:
         with runner.isolated_filesystem():
             Path("test_rhiza").mkdir(exist_ok=True)
             runner.invoke(cli.app, ["materialize", "--force"])
+
+
+class TestDiffCommand:
+    """Tests for the diff command."""
+
+    def test_diff_fails_on_non_git_directory(self, tmp_path):
+        """Test that diff fails when target is not a git repository."""
+        with pytest.raises(SystemExit):
+            diff(tmp_path, "main")
+
+    def test_diff_fails_without_template_yml(self, tmp_path):
+        """Test that diff fails when template.yml doesn't exist."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Run diff and expect it to fail
+        with pytest.raises(SystemExit):
+            diff(tmp_path, "main")
+
+    @patch("rhiza.commands.diff.subprocess.run")
+    @patch("rhiza.commands.diff.shutil.rmtree")
+    @patch("rhiza.commands.diff.tempfile.mkdtemp")
+    def test_diff_shows_new_files(self, mock_mkdtemp, mock_rmtree, mock_subprocess, tmp_path):
+        """Test that diff shows new files that would be added."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        import yaml
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": ["test.txt"]}, f
+            )
+
+        # Mock tempfile with a file that doesn't exist in target
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        src_file = temp_dir / "test.txt"
+        src_file.write_text("new content")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run diff
+        diff(tmp_path, "main")
+
+        # Verify rmtree was called to clean up
+        assert mock_rmtree.called
+
+    @patch("rhiza.commands.diff.subprocess.run")
+    @patch("rhiza.commands.diff.shutil.rmtree")
+    @patch("rhiza.commands.diff.tempfile.mkdtemp")
+    def test_diff_shows_modified_files(self, mock_mkdtemp, mock_rmtree, mock_subprocess, tmp_path):
+        """Test that diff shows modified files."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create existing file in target
+        existing_file = tmp_path / "test.txt"
+        existing_file.write_text("old content")
+
+        # Create template.yml
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        import yaml
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": ["test.txt"]}, f
+            )
+
+        # Mock tempfile with different content
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        src_file = temp_dir / "test.txt"
+        src_file.write_text("new content")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run diff
+        diff(tmp_path, "main")
+
+        # Verify rmtree was called
+        assert mock_rmtree.called
+
+    @patch("rhiza.commands.diff.subprocess.run")
+    @patch("rhiza.commands.diff.shutil.rmtree")
+    @patch("rhiza.commands.diff.tempfile.mkdtemp")
+    def test_diff_shows_identical_files(self, mock_mkdtemp, mock_rmtree, mock_subprocess, tmp_path):
+        """Test that diff shows identical files."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create existing file in target
+        existing_file = tmp_path / "test.txt"
+        existing_file.write_text("same content")
+
+        # Create template.yml
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        import yaml
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": ["test.txt"]}, f
+            )
+
+        # Mock tempfile with same content
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        src_file = temp_dir / "test.txt"
+        src_file.write_text("same content")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run diff
+        diff(tmp_path, "main")
+
+        # Verify rmtree was called
+        assert mock_rmtree.called
+
+    @patch("rhiza.cli.diff_cmd")
+    def test_diff_cli_command(self, mock_diff):
+        """Test the CLI diff command via Typer runner."""
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            Path("test_rhiza").mkdir(exist_ok=True)
+            runner.invoke(cli.app, ["diff"])
+
+    @patch("rhiza.cli.diff_cmd")
+    def test_diff_with_custom_branch(self, mock_diff):
+        """Test diff command with custom branch option."""
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            Path("test_rhiza").mkdir(exist_ok=True)
+            runner.invoke(cli.app, ["diff", "--branch", "dev"])
