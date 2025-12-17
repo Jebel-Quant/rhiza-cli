@@ -340,3 +340,107 @@ class TestInjectCommand:
         # Run CLI command
         result = runner.invoke(cli.app, ["materialize", str(tmp_path), "--branch", "main"])
         assert result.exit_code == 0
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_creates_rhiza_history_file(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize creates a .rhiza.history file listing all template files."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": ["file1.txt", "file2.txt"],
+                },
+                f,
+            )
+
+        # Mock tempfile with actual files
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        file1 = temp_dir / "file1.txt"
+        file2 = temp_dir / "file2.txt"
+        file1.write_text("content1")
+        file2.write_text("content2")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize
+        materialize(tmp_path, "main", False)
+
+        # Verify .rhiza.history was created
+        history_file = tmp_path / ".rhiza.history"
+        assert history_file.exists()
+
+        # Verify content
+        history_content = history_file.read_text()
+        assert "# Rhiza Template History" in history_content
+        assert "# Template repository: jebel-quant/rhiza" in history_content
+        assert "# Template branch: main" in history_content
+        assert "file1.txt" in history_content
+        assert "file2.txt" in history_content
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_history_includes_skipped_files(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that .rhiza.history includes files that already exist (were skipped)."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create existing file that will be skipped
+        existing_file = tmp_path / "existing.txt"
+        existing_file.write_text("existing content")
+
+        # Create template.yml
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": ["existing.txt"],
+                },
+                f,
+            )
+
+        # Mock tempfile with the file to copy
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        src_file = temp_dir / "existing.txt"
+        src_file.write_text("new content")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize without force (should skip existing file)
+        materialize(tmp_path, "main", False)
+
+        # Verify .rhiza.history includes the skipped file
+        history_file = tmp_path / ".rhiza.history"
+        assert history_file.exists()
+        history_content = history_file.read_text()
+        assert "existing.txt" in history_content
