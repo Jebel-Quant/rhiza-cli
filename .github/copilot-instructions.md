@@ -72,17 +72,12 @@ def my_function(arg1: str, arg2: int) -> bool:
     Longer description if needed. Explain complex behavior,
     side effects, or important context.
 
-    Parameters
-    ----------
-    arg1:
-        Description of arg1
-    arg2:
-        Description of arg2
+    Args:
+        arg1: Description of arg1
+        arg2: Description of arg2
 
-    Returns
-    -------
-    bool
-        Description of return value
+    Returns:
+        Description of return value (bool)
     """
     return True
 ```
