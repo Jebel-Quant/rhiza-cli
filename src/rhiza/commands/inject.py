@@ -42,11 +42,6 @@ def inject(target: Path, branch: str, force: bool):
     # Convert to absolute path to avoid surprises
     target = target.resolve()
 
-    # Validate target is a git repository
-    if not (target / ".git").is_dir():
-        logger.error(f"Target directory is not a git repository: {target}")
-        raise sys.exit(1)
-
     logger.info(f"Target repository: {target}")
     logger.info(f"Rhiza branch: {branch}")
 
@@ -54,7 +49,7 @@ def inject(target: Path, branch: str, force: bool):
     # Ensure template.yml
     # -----------------------
     template_file = target / ".github" / "template.yml"
-    template_file.parent.mkdir(parents=True, exist_ok=True)
+    # template_file.parent.mkdir(parents=True, exist_ok=True)
 
     # Initialize rhiza if not already initialized, e.g. construct a template.yml file
     init(target)
