@@ -65,7 +65,8 @@ def inject(target: Path, branch: str, force: bool):
     template = RhizaTemplate.from_yaml(template_file)
 
     rhiza_repo = template.template_repository
-    rhiza_branch = template.template_branch or branch
+    # Use template branch if specified, otherwise fall back to CLI parameter
+    rhiza_branch = template.template_branch if template.template_branch else branch
     include_paths = template.include
     excluded_paths = template.exclude
 

@@ -20,8 +20,9 @@ class RhizaTemplate:
     template_repository : str | None
         The GitHub repository containing templates (e.g., "jebel-quant/rhiza").
         Can be None if not specified in the template file.
-    template_branch : str
-        The branch to use from the template repository (default: "main").
+    template_branch : str | None
+        The branch to use from the template repository.
+        Can be None if not specified in the template file (defaults to "main" when creating).
     include : list[str]
         List of paths to include from the template repository.
     exclude : list[str]
@@ -29,7 +30,7 @@ class RhizaTemplate:
     """
 
     template_repository: str | None = None
-    template_branch: str = "main"
+    template_branch: str | None = None
     include: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
 
@@ -64,7 +65,7 @@ class RhizaTemplate:
 
         return cls(
             template_repository=config.get("template-repository"),
-            template_branch=config.get("template-branch", "main"),
+            template_branch=config.get("template-branch"),
             include=config.get("include", []),
             exclude=config.get("exclude", []),
         )
@@ -87,7 +88,10 @@ class RhizaTemplate:
         if self.template_repository:
             config["template-repository"] = self.template_repository
 
-        config["template-branch"] = self.template_branch
+        # Only include template-branch if it's not None
+        if self.template_branch:
+            config["template-branch"] = self.template_branch
+
         config["include"] = self.include
 
         # Only include exclude if it's not empty

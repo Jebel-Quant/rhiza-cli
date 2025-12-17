@@ -55,7 +55,7 @@ class TestRhizaTemplate:
         assert template.exclude == [".github/workflows/docker.yml"]
 
     def test_rhiza_template_from_yaml_default_branch(self, tmp_path):
-        """Test that template-branch defaults to 'main' if not provided."""
+        """Test that template-branch is None if not provided."""
         template_file = tmp_path / "template.yml"
         config = {
             "template-repository": "jebel-quant/rhiza",
@@ -67,7 +67,7 @@ class TestRhizaTemplate:
 
         template = RhizaTemplate.from_yaml(template_file)
 
-        assert template.template_branch == "main"
+        assert template.template_branch is None
 
     def test_rhiza_template_from_yaml_missing_repository(self, tmp_path):
         """Test that loading succeeds when template-repository is missing (returns None)."""

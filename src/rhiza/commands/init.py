@@ -51,7 +51,7 @@ def init(target: Path):
 
             logger.success("✓ .github/template.yml is valid")
             logger.info(f"  Template repository: {template.template_repository or 'NOT SET'}")
-            logger.info(f"  Template branch: {template.template_branch or 'NOT SET'}")
+            logger.info(f"  Template branch: {template.template_branch or 'NOT SET (defaults to main)'}")
             logger.info(f"  Include paths: {len(template.include)} path(s)")
             if template.exclude:
                 logger.info(f"  Exclude paths: {len(template.exclude)} path(s)")
