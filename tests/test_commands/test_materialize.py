@@ -7,6 +7,7 @@ underlying inject logic and that basic paths and options are handled.
 from unittest.mock import Mock, patch
 
 import pytest
+import yaml
 from typer.testing import CliRunner
 
 from rhiza import cli
@@ -44,7 +45,6 @@ class TestInjectCommand:
         assert template_file.exists()
 
         # Verify it contains expected content
-        import yaml
 
         with open(template_file) as f:
             config = yaml.safe_load(f)
@@ -68,7 +68,6 @@ class TestInjectCommand:
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
 
-        import yaml
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -105,7 +104,6 @@ class TestInjectCommand:
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
 
-        import yaml
 
         with open(template_file, "w") as f:
             yaml.dump({"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": []}, f)
@@ -129,7 +127,6 @@ class TestInjectCommand:
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
 
-        import yaml
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -173,7 +170,6 @@ class TestInjectCommand:
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
 
-        import yaml
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -217,7 +213,6 @@ class TestInjectCommand:
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
 
-        import yaml
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -255,7 +250,6 @@ class TestInjectCommand:
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
 
-        import yaml
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -305,7 +299,6 @@ class TestInjectCommand:
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
 
-        import yaml
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -338,7 +331,6 @@ class TestInjectCommand:
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
 
-        import yaml
 
         with open(template_file, "w") as f:
             yaml.dump(
