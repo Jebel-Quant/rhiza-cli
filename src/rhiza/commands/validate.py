@@ -44,7 +44,7 @@ def validate(target: Path) -> bool:
     template_file = target / ".github" / "template.yml"
     if not template_file.exists():
         logger.error(f"Template file not found: {template_file}")
-        logger.info("Run 'rhiza materialize' to create a default template.yml")
+        logger.info("Run 'rhiza materialize' or 'rhiza inject' to create a default template.yml")
         return False
 
     logger.success(f"Found template file: {template_file}")

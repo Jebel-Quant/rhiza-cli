@@ -87,8 +87,7 @@ def validate(
         Path to the target Git repository directory. Defaults to the
         current working directory.
     """
-    import sys
-
     if not validate_cmd(target):
         raise typer.Exit(code=1)
+
 
