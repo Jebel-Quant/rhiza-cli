@@ -92,6 +92,7 @@ class RhizaTemplate:
         if self.template_branch:
             config["template-branch"] = self.template_branch
 
+        # Include is always present as it's a required field for the config to be useful
         config["include"] = self.include
 
         # Only include exclude if it's not empty
