@@ -318,4 +318,3 @@ class TestInjectCommand:
 
         # Verify rmtree was called to clean up
         assert mock_rmtree.called
-
