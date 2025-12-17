@@ -3,7 +3,6 @@
 This module tests:
 - The __main__.py entry point
 - The cli.py Typer app and command wrappers
-- The hello command
 - The inject/materialize command
 """
 
@@ -16,29 +15,11 @@ import pytest
 from typer.testing import CliRunner
 
 from rhiza import cli
-from rhiza.commands.hello import hello
 from rhiza.commands.inject import expand_paths, inject
-
-
-class TestHelloCommand:
-    """Tests for the hello command."""
-
-    def test_hello_prints_greeting(self, capsys):
-        """Test that hello() prints the expected greeting."""
-        hello()
-        captured = capsys.readouterr()
-        assert "Hello from Rhiza!" in captured.out
 
 
 class TestCliApp:
     """Tests for the CLI Typer app."""
-
-    def test_cli_hello_command(self):
-        """Test the CLI hello command via Typer runner."""
-        runner = CliRunner()
-        result = runner.invoke(cli.app, ["hello"])
-        assert result.exit_code == 0
-        assert "Hello from Rhiza!" in result.output
 
 
 class TestExpandPaths:
@@ -422,9 +403,9 @@ class TestMainEntry:
     def test_main_entry_point(self):
         """Test that the module can be run with python -m rhiza."""
         # Test that the module is executable
-        result = subprocess.run([sys.executable, "-m", "rhiza", "hello"], capture_output=True, text=True)
+        result = subprocess.run([sys.executable, "-m", "rhiza", "--help"], capture_output=True, text=True)
         assert result.returncode == 0
-        assert "Hello from Rhiza!" in result.stdout
+        assert "rhiza" in result.stdout.lower()
 
     def test_main_block_coverage(self, capsys):
         """Test the __main__ block to achieve coverage."""
@@ -434,8 +415,8 @@ class TestMainEntry:
 
         original_argv = sys.argv[:]
         try:
-            # Set up argv for hello command
-            sys.argv = ["rhiza", "hello"]
+            # Set up argv for help command
+            sys.argv = ["rhiza", "--help"]
 
             # Execute the module as __main__ to trigger the if __name__ == "__main__": block
             try:
@@ -444,9 +425,9 @@ class TestMainEntry:
                 # Typer may call sys.exit(0) on success
                 assert e.code == 0 or e.code is None
 
-            # Verify the hello command output
+            # Verify we get help output
             captured = capsys.readouterr()
-            assert "Hello from Rhiza!" in captured.out
+            assert "rhiza" in captured.out.lower()
         finally:
             sys.argv = original_argv
 

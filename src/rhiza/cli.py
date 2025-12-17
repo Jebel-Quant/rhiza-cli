@@ -8,16 +8,9 @@ from pathlib import Path
 
 import typer
 
-from rhiza.commands.hello import hello as hello_cmd
 from rhiza.commands.inject import inject as inject_cmd
 
 app = typer.Typer(help="rhiza — configuration materialization tools")
-
-
-@app.command()
-def hello():
-    """Sanity check command."""
-    hello_cmd()
 
 
 @app.command()
