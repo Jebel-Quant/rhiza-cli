@@ -9,6 +9,7 @@ from pathlib import Path
 import typer
 
 from rhiza.commands.hello import hello as hello_cmd
+from rhiza.commands.init import init as init_cmd
 from rhiza.commands.inject import inject as inject_cmd
 
 app = typer.Typer(help="rhiza — configuration materialization tools")
@@ -18,6 +19,29 @@ app = typer.Typer(help="rhiza — configuration materialization tools")
 def hello():
     """Sanity check command."""
     hello_cmd()
+
+
+@app.command()
+def init(
+    target: Path = typer.Argument(
+        default=Path("."),  # default to current directory
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        help="Target directory (defaults to current directory)",
+    ),
+):
+    """Initialize or validate .github/template.yml.
+
+    Creates a default .github/template.yml file if it doesn't exist,
+    or validates an existing one.
+
+    Parameters
+    ----------
+    target:
+        Path to the target directory. Defaults to the current working directory.
+    """
+    init_cmd(target)
 
 
 @app.command()
