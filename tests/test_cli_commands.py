@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+import yaml
 from typer.testing import CliRunner
 
 from rhiza import cli
@@ -495,8 +496,6 @@ class TestInitCommand:
         assert template_file.exists()
 
         # Verify it contains expected content
-        import yaml
-
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
@@ -512,8 +511,6 @@ class TestInitCommand:
         github_dir = tmp_path / ".github"
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
-
-        import yaml
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -542,8 +539,6 @@ class TestInitCommand:
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
 
-        import yaml
-
         with open(template_file, "w") as f:
             yaml.dump({"template-branch": "main", "include": [".github"]}, f)
 
@@ -557,8 +552,6 @@ class TestInitCommand:
         github_dir = tmp_path / ".github"
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
-
-        import yaml
 
         with open(template_file, "w") as f:
             yaml.dump({"template-repository": "jebel-quant/rhiza", "template-branch": "main"}, f)
