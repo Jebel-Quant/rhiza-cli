@@ -12,8 +12,10 @@ import sys
 import tempfile
 from pathlib import Path
 
-import yaml
 from loguru import logger
+
+from rhiza.commands.init import init
+from rhiza.models import RhizaTemplate
 
 
 def expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
@@ -35,15 +37,10 @@ def expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
     return all_files
 
 
-def inject(target: Path, branch: str, force: bool):
+def materialize(target: Path, branch: str, force: bool):
     """Materialize rhiza templates into TARGET repository."""
     # Convert to absolute path to avoid surprises
     target = target.resolve()
-
-    # Validate target is a git repository
-    if not (target / ".git").is_dir():
-        logger.error(f"Target directory is not a git repository: {target}")
-        raise sys.exit(1)
 
     logger.info(f"Target repository: {target}")
     logger.info(f"Rhiza branch: {branch}")
@@ -52,38 +49,21 @@ def inject(target: Path, branch: str, force: bool):
     # Ensure template.yml
     # -----------------------
     template_file = target / ".github" / "template.yml"
-    template_file.parent.mkdir(parents=True, exist_ok=True)
+    # template_file.parent.mkdir(parents=True, exist_ok=True)
 
-    if not template_file.exists():
-        logger.info("Creating default .github/template.yml")
-        template_content = {
-            "template-repository": "jebel-quant/rhiza",
-            "template-branch": branch,
-            "include": [
-                ".github",
-                ".editorconfig",
-                ".gitignore",
-                ".pre-commit-config.yaml",
-                "Makefile",
-                "pytest.ini",
-            ],
-        }
-        with open(template_file, "w") as f:
-            yaml.dump(template_content, f)
-        logger.success(".github/template.yml created")
-    else:
-        logger.info("Using existing .github/template.yml")
+    # Initialize rhiza if not already initialized, e.g. construct a template.yml file
+    init(target)
 
     # -----------------------
     # Load template.yml
     # -----------------------
-    with open(template_file) as f:
-        config = yaml.safe_load(f)
+    template = RhizaTemplate.from_yaml(template_file)
 
-    rhiza_repo = config.get("template-repository")
-    rhiza_branch = config.get("template-branch", branch)
-    include_paths = config.get("include", [])
-    excluded_paths = config.get("exclude", [])
+    rhiza_repo = template.template_repository
+    # Use template branch if specified, otherwise fall back to CLI parameter
+    rhiza_branch = template.template_branch if template.template_branch else branch
+    include_paths = template.include
+    excluded_paths = template.exclude
 
     if not include_paths:
         logger.error("No include paths found in template.yml")

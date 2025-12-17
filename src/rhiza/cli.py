@@ -9,16 +9,34 @@ from pathlib import Path
 import typer
 
 from rhiza.commands.diff import diff as diff_cmd
-from rhiza.commands.hello import hello as hello_cmd
-from rhiza.commands.inject import inject as inject_cmd
+from rhiza.commands.init import init as init_cmd
+from rhiza.commands.materialize import materialize as materialize_cmd
+from rhiza.commands.validate import validate as validate_cmd
 
 app = typer.Typer(help="rhiza — configuration materialization tools")
 
 
 @app.command()
-def hello():
-    """Sanity check command."""
-    hello_cmd()
+def init(
+    target: Path = typer.Argument(
+        default=Path("."),  # default to current directory
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        help="Target directory (defaults to current directory)",
+    ),
+):
+    """Initialize or validate .github/template.yml.
+
+    Creates a default .github/template.yml file if it doesn't exist,
+    or validates an existing one.
+
+    Parameters
+    ----------
+    target:
+        Path to the target directory. Defaults to the current working directory.
+    """
+    init_cmd(target)
 
 
 @app.command()
@@ -45,11 +63,11 @@ def materialize(
     force:
         If True, overwrite existing files without prompting.
     """
-    inject_cmd(target, branch, force)
+    materialize_cmd(target, branch, force)
 
 
 @app.command()
-def diff(
+def validate(
     target: Path = typer.Argument(
         default=Path("."),  # default to current directory
         exists=True,
@@ -57,16 +75,18 @@ def diff(
         dir_okay=True,
         help="Target git repository (defaults to current directory)",
     ),
-    branch: str = typer.Option("main", "--branch", "-b", help="Rhiza branch to use"),
 ):
-    """Show differences between rhiza templates and target repository.
+    """Validate Rhiza template configuration.
+
+    Validates the .github/template.yml file to ensure it is syntactically
+    correct and semantically valid. This performs authoritative validation,
+    not just syntactic checks.
 
     Parameters
     ----------
     target:
         Path to the target Git repository directory. Defaults to the
         current working directory.
-    branch:
-        Name of the Rhiza branch to use when sourcing templates.
     """
-    diff_cmd(target, branch)
+    if not validate_cmd(target):
+        raise typer.Exit(code=1)
