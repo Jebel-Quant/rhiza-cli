@@ -114,16 +114,18 @@ def materialize(target: Path, branch: str, force: bool):
         materialized_files = []
         for src_file in files_to_copy:
             dst_file = target / src_file.relative_to(tmp_dir)
+            relative_path = dst_file.relative_to(target)
+
+            # Track this file as being under template control
+            materialized_files.append(relative_path)
+
             if dst_file.exists() and not force:
-                logger.warning(f"{dst_file.relative_to(target)} already exists — use force=True to overwrite")
-                # Still track this file as being under template control
-                materialized_files.append(dst_file.relative_to(target))
+                logger.warning(f"{relative_path} already exists — use force=True to overwrite")
                 continue
 
             dst_file.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src_file, dst_file)
-            materialized_files.append(dst_file.relative_to(target))
-            logger.success(f"[ADD] {dst_file.relative_to(target)}")
+            logger.success(f"[ADD] {relative_path}")
 
     finally:
         shutil.rmtree(tmp_dir)
