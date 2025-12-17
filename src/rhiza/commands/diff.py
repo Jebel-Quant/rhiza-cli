@@ -24,7 +24,7 @@ def diff(target: Path, branch: str):
     # Validate target is a git repository
     if not (target / ".git").is_dir():
         logger.error(f"Target directory is not a git repository: {target}")
-        raise sys.exit(1)
+        sys.exit(1)
 
     logger.info(f"Target repository: {target}")
     logger.info(f"Rhiza branch: {branch}")
@@ -37,7 +37,7 @@ def diff(target: Path, branch: str):
     if not template_file.exists():
         logger.warning("No .github/template.yml found")
         logger.info("Run 'rhiza materialize' first to create a default template.yml")
-        raise sys.exit(1)
+        sys.exit(1)
 
     # -----------------------
     # Load template.yml
@@ -52,7 +52,7 @@ def diff(target: Path, branch: str):
 
     if not include_paths:
         logger.error("No include paths found in template.yml")
-        raise sys.exit(1)
+        sys.exit(1)
 
     logger.info("Include paths:")
     for p in include_paths:
