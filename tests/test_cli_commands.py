@@ -3,7 +3,7 @@
 This module tests:
 - The __main__.py entry point
 - The cli.py Typer app and command wrappers
-- The inject/materialize command
+- The inject/materialize commands
 """
 
 import subprocess
