@@ -1,5 +1,10 @@
-import yaml
+"""Tests for the validate command and CLI wiring.
 
+This module verifies that `validate` checks `.github/template.yml` and that
+the Typer CLI entry `rhiza validate` behaves as expected across scenarios.
+"""
+
+import yaml
 from typer.testing import CliRunner
 
 from rhiza import cli

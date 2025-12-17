@@ -85,6 +85,7 @@ class TestExpandPaths:
 
 class TestInjectCommand:
     """Tests for the inject/materialize command."""
+
     @patch("rhiza.commands.inject.subprocess.run")
     @patch("rhiza.commands.inject.shutil.rmtree")
     @patch("rhiza.commands.inject.shutil.copy2")
@@ -455,5 +456,3 @@ class TestMaterializeCommand:
         with runner.isolated_filesystem():
             Path("test_rhiza").mkdir(exist_ok=True)
             runner.invoke(cli.app, ["materialize", "--force"])
-
-

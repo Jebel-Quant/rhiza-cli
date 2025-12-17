@@ -6,7 +6,6 @@ that the Typer CLI entry `rhiza init` works as expected.
 
 from pathlib import Path
 
-import pytest
 import yaml
 from typer.testing import CliRunner
 
