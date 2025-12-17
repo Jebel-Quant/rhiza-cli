@@ -19,14 +19,10 @@ def validate(target: Path) -> bool:
     - Validates required fields
     - Validates field values are appropriate
 
-    Parameters
-    ----------
-    target:
-        Path to the target Git repository directory.
+    Args:
+        target: Path to the target Git repository directory.
 
     Returns:
-    -------
-    bool
         True if validation passes, False otherwise.
     """
     # Convert to absolute path
