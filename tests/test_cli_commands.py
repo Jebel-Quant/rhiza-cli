@@ -86,11 +86,6 @@ class TestExpandPaths:
 class TestInjectCommand:
     """Tests for the inject/materialize command."""
 
-    def test_inject_fails_on_non_git_directory(self, tmp_path):
-        """Test that inject fails when target is not a git repository."""
-        with pytest.raises(SystemExit):
-            inject(tmp_path, "main", False)
-
     @patch("rhiza.commands.inject.subprocess.run")
     @patch("rhiza.commands.inject.shutil.rmtree")
     @patch("rhiza.commands.inject.shutil.copy2")

@@ -10,6 +10,8 @@ from pathlib import Path
 import yaml
 from loguru import logger
 
+from rhiza.commands.validate import validate
+
 
 def init(target: Path):
     """Initialize or validate .github/template.yml in the target repository.
@@ -34,38 +36,7 @@ def init(target: Path):
     # Define the template file path
     template_file = github_dir / "template.yml"
 
-    if template_file.exists():
-        # Validate existing template.yml
-        logger.info("Found existing .github/template.yml")
-        try:
-            with open(template_file) as f:
-                config = yaml.safe_load(f)
-
-            # Validate required fields
-            if not config:
-                logger.error(".github/template.yml is empty")
-                raise SystemExit(1)
-
-            if "template-repository" not in config:
-                logger.warning("Missing 'template-repository' field in .github/template.yml")
-
-            if "include" not in config or not config["include"]:
-                logger.warning("Missing or empty 'include' field in .github/template.yml")
-
-            logger.success("✓ .github/template.yml is valid")
-            logger.info(f"  Template repository: {config.get('template-repository', 'NOT SET')}")
-            logger.info(f"  Template branch: {config.get('template-branch', 'NOT SET')}")
-            logger.info(f"  Include paths: {len(config.get('include', []))} path(s)")
-            if config.get("exclude"):
-                logger.info(f"  Exclude paths: {len(config.get('exclude', []))} path(s)")
-
-        except yaml.YAMLError as e:
-            logger.error(f"Failed to parse .github/template.yml: {e}")
-            raise SystemExit(1)
-        except Exception as e:
-            logger.error(f"Error validating .github/template.yml: {e}")
-            raise SystemExit(1)
-    else:
+    if not template_file.exists():
         # Create default template.yml
         logger.info("Creating default .github/template.yml")
 
@@ -91,3 +62,6 @@ Next steps:
   1. Review and customize .github/template.yml to match your project needs
   2. Run 'rhiza materialize' to inject templates into your repository
 """)
+
+    # the template file exists, so validate it
+    validate(target)
