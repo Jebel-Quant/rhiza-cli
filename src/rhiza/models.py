@@ -15,7 +15,7 @@ import yaml
 class RhizaTemplate:
     """Represents the structure of .github/template.yml.
 
-    Attributes
+    Attributes:
     ----------
     template_repository : str | None
         The GitHub repository containing templates (e.g., "jebel-quant/rhiza").
@@ -43,12 +43,12 @@ class RhizaTemplate:
         file_path : Path
             Path to the template.yml file.
 
-        Returns
+        Returns:
         -------
         RhizaTemplate
             The loaded template configuration.
 
-        Raises
+        Raises:
         ------
         FileNotFoundError
             If the file does not exist.

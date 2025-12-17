@@ -4,8 +4,6 @@ This module verifies that the RhizaTemplate dataclass correctly represents
 and handles .github/template.yml configuration.
 """
 
-from pathlib import Path
-
 import pytest
 import yaml
 

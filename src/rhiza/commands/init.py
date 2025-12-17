@@ -7,11 +7,10 @@ and what paths are governed by Rhiza.
 
 from pathlib import Path
 
-import yaml
 from loguru import logger
 
-from rhiza.models import RhizaTemplate
 from rhiza.commands.validate import validate
+from rhiza.models import RhizaTemplate
 
 
 def init(target: Path):
