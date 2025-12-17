@@ -208,6 +208,137 @@ def my_command(
     """Command docstring."""
 ```
 
+## Security Considerations
+
+- **No secrets in code:** Never commit API keys, passwords, or sensitive data
+- **Path traversal:** Always use `Path.resolve()` to normalize paths and prevent directory traversal attacks
+- **Input validation:** Validate all user inputs, especially file paths and command arguments
+- **YAML parsing:** Use safe YAML loading (PyYAML uses safe loading by default)
+- **File permissions:** Be mindful of file permissions when creating files
+
+## Error Handling Patterns
+
+### Exception Handling
+
+```python
+from loguru import logger
+from pathlib import Path
+
+def safe_operation(path: Path):
+    """Safe operation with proper error handling."""
+    try:
+        # Normalize path to prevent traversal
+        path = path.resolve()
+        
+        if not path.exists():
+            logger.error(f"Path does not exist: {path}")
+            raise FileNotFoundError(f"Path not found: {path}")
+            
+        # Perform operation
+        return True
+        
+    except PermissionError as e:
+        logger.error(f"Permission denied: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        raise
+```
+
+### CLI Exit Codes
+
+Use Typer's `Exit` for non-zero exit codes on errors:
+
+```python
+import typer
+
+if not success:
+    raise typer.Exit(code=1)
+```
+
+## Common Tasks
+
+### Adding a New Command
+
+1. Create a new file in `src/rhiza/commands/` (e.g., `newcommand.py`)
+2. Implement the command logic with proper docstrings
+3. Add a wrapper in `src/rhiza/cli.py` using Typer decorators
+4. Add tests in `tests/` for the new command
+5. Update documentation if needed
+
+Example:
+
+```python
+# In src/rhiza/commands/newcommand.py
+from pathlib import Path
+from loguru import logger
+
+def my_new_command(target: Path):
+    """Execute the new command.
+    
+    Parameters
+    ----------
+    target:
+        Path to the target directory.
+    """
+    target = target.resolve()
+    logger.info(f"Running new command on: {target}")
+    # Implementation here
+```
+
+```python
+# In src/rhiza/cli.py
+from rhiza.commands.newcommand import my_new_command
+
+@app.command()
+def newcommand(
+    target: Path = typer.Argument(
+        default=Path("."),
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        help="Target directory"
+    ),
+):
+    """Short description of the command."""
+    my_new_command(target)
+```
+
+### Running the CLI in Development
+
+```bash
+# Install in editable mode
+make install
+
+# Run the CLI
+uv run rhiza --help
+uv run rhiza init
+uv run rhiza materialize --branch main
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**Import errors after adding dependencies:**
+- Run `make install` to sync dependencies
+- Ensure `pyproject.toml` is updated with new dependencies
+
+**Linting failures:**
+- Run `make fmt` to auto-fix most issues
+- Check `ruff.toml` for configured rules
+- Ensure docstrings follow Google convention
+
+**Test failures:**
+- Run `make test` to see detailed output
+- Check test coverage report in `_tests/html-coverage/`
+- Ensure new code has corresponding tests
+
+**Pre-commit hook failures:**
+- Run `make fmt` to fix formatting issues
+- Check `.pre-commit-config.yaml` for hook configuration
+- Install hooks with `uv run pre-commit install`
+
 ## When Making Changes
 
 1. Run `make fmt` to ensure code follows style guidelines
