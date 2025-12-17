@@ -1,3 +1,9 @@
+"""Tests for the init command and CLI wiring.
+
+This module verifies that `init` creates/validates `.github/template.yml` and
+that the Typer CLI entry `rhiza init` works as expected.
+"""
+
 from pathlib import Path
 
 import pytest
