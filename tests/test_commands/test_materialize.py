@@ -68,7 +68,6 @@ class TestInjectCommand:
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
 
-
         with open(template_file, "w") as f:
             yaml.dump(
                 {"template-repository": "custom/repo", "template-branch": "custom-branch", "include": [".github"]}, f
@@ -104,7 +103,6 @@ class TestInjectCommand:
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
 
-
         with open(template_file, "w") as f:
             yaml.dump({"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": []}, f)
 
@@ -126,7 +124,6 @@ class TestInjectCommand:
         github_dir = tmp_path / ".github"
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
-
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -170,7 +167,6 @@ class TestInjectCommand:
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
 
-
         with open(template_file, "w") as f:
             yaml.dump(
                 {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": ["test.txt"]}, f
@@ -213,7 +209,6 @@ class TestInjectCommand:
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
 
-
         with open(template_file, "w") as f:
             yaml.dump(
                 {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": ["test.txt"]}, f
@@ -249,7 +244,6 @@ class TestInjectCommand:
         github_dir = tmp_path / ".github"
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
-
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -299,7 +293,6 @@ class TestInjectCommand:
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
 
-
         with open(template_file, "w") as f:
             yaml.dump(
                 {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": [".github"]}, f
@@ -330,7 +323,6 @@ class TestInjectCommand:
         github_dir = tmp_path / ".github"
         github_dir.mkdir()
         template_file = github_dir / "template.yml"
-
 
         with open(template_file, "w") as f:
             yaml.dump(
