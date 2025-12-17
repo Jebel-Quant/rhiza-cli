@@ -37,7 +37,7 @@ def expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
     return all_files
 
 
-def inject(target: Path, branch: str, force: bool):
+def materialize(target: Path, branch: str, force: bool):
     """Materialize rhiza templates into TARGET repository."""
     # Convert to absolute path to avoid surprises
     target = target.resolve()

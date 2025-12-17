@@ -9,7 +9,7 @@ from pathlib import Path
 import typer
 
 from rhiza.commands.init import init as init_cmd
-from rhiza.commands.inject import inject as inject_cmd
+from rhiza.commands.materialize import materialize as materialize_cmd
 from rhiza.commands.validate import validate as validate_cmd
 
 app = typer.Typer(help="rhiza — configuration materialization tools")
@@ -62,7 +62,7 @@ def materialize(
     force:
         If True, overwrite existing files without prompting.
     """
-    inject_cmd(target, branch, force)
+    materialize_cmd(target, branch, force)
 
 
 @app.command()
