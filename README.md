@@ -2,6 +2,7 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![PyPI version](https://img.shields.io/pypi/v/rhiza.svg)](https://pypi.org/project/rhiza/)
 
 Command-line interface for managing reusable configuration templates for modern Python projects.
 
@@ -642,6 +643,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Links
 
+- **PyPI:** https://pypi.org/project/rhiza/
 - **Repository:** https://github.com/jebel-quant/rhiza-cli
 - **Issues:** https://github.com/jebel-quant/rhiza-cli/issues
 - **Documentation:** Generated with `make docs`
