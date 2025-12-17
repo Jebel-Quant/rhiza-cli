@@ -3,6 +3,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PyPI version](https://img.shields.io/pypi/v/rhiza.svg)](https://pypi.org/project/rhiza/)
+[![Coverage](https://img.shields.io/badge/coverage-report-brightgreen.svg)](https://jebel-quant.github.io/rhiza-cli/tests/html-coverage/index.html)
 [![Downloads](https://static.pepy.tech/personalized-badge/rhiza?period=month&units=international_system&left_color=black&right_color=orange&left_text=PyPI%20downloads%20per%20month)](https://pepy.tech/project/rhiza)
 
 Command-line interface for managing reusable configuration templates for modern Python projects.
@@ -648,6 +649,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Repository:** https://github.com/jebel-quant/rhiza-cli
 - **Issues:** https://github.com/jebel-quant/rhiza-cli/issues
 - **Documentation:** Generated with `make docs`
+- **Companion Book:** https://jebel-quant.github.io/rhiza-cli/ (includes coverage report, API docs, and notebooks)
 
 ## Architecture
 
