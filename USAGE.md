@@ -545,14 +545,15 @@ template-branch: v1.0
 When updating templates, explain why:
 
 ```bash
-git commit -m "chore: update rhiza templates
-
-Updated from template repo v1.0 to v2.0:
-- New GitHub Actions workflows
-- Updated linting rules in ruff.toml
-- Added security scanning workflow
-
-Refs: https://github.com/org/templates/releases/v2.0"
+# Use proper multi-line commit message
+git commit -m "chore: update rhiza templates" \
+  -m "" \
+  -m "Updated from template repo v1.0 to v2.0:" \
+  -m "- New GitHub Actions workflows" \
+  -m "- Updated linting rules in ruff.toml" \
+  -m "- Added security scanning workflow" \
+  -m "" \
+  -m "Refs: https://github.com/org/templates/releases/v2.0"
 ```
 
 ## Troubleshooting Scenarios
