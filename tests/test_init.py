@@ -1,11 +1,3 @@
-"""Tests for the rhiza init command.
-
-This module tests the init command functionality including:
-- Creating default .github/template.yml
-- Validating existing template.yml files
-- Error handling for invalid configurations
-"""
-
 from pathlib import Path
 
 import pytest
