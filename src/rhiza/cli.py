@@ -8,9 +8,9 @@ from pathlib import Path
 
 import typer
 
-from rhiza.commands.init import init as init_cmd
-from rhiza.commands.materialize import materialize as materialize_cmd
-from rhiza.commands.validate import validate as validate_cmd
+from rhiza.commands import init as init_cmd
+from rhiza.commands import materialize as materialize_cmd
+from rhiza.commands import validate as validate_cmd
 
 app = typer.Typer(
     help="Rhiza - Manage reusable configuration templates for Python projects",
