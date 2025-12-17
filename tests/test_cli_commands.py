@@ -520,8 +520,9 @@ class TestValidateCommand:
 
     def test_validate_fails_on_missing_required_fields(self, tmp_path):
         """Test that validate fails when required fields are missing."""
-        from rhiza.commands.validate import validate
         import yaml
+
+        from rhiza.commands.validate import validate
 
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -540,8 +541,9 @@ class TestValidateCommand:
 
     def test_validate_fails_on_invalid_repository_format(self, tmp_path):
         """Test that validate fails on invalid repository format."""
-        from rhiza.commands.validate import validate
         import yaml
+
+        from rhiza.commands.validate import validate
 
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -566,8 +568,9 @@ class TestValidateCommand:
 
     def test_validate_fails_on_empty_include_list(self, tmp_path):
         """Test that validate fails when include list is empty."""
-        from rhiza.commands.validate import validate
         import yaml
+
+        from rhiza.commands.validate import validate
 
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -592,8 +595,9 @@ class TestValidateCommand:
 
     def test_validate_succeeds_on_valid_template(self, tmp_path):
         """Test that validate succeeds on a valid template.yml."""
-        from rhiza.commands.validate import validate
         import yaml
+
+        from rhiza.commands.validate import validate
 
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -619,8 +623,9 @@ class TestValidateCommand:
 
     def test_validate_succeeds_with_exclude(self, tmp_path):
         """Test that validate succeeds with exclude list."""
-        from rhiza.commands.validate import validate
         import yaml
+
+        from rhiza.commands.validate import validate
 
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -686,4 +691,3 @@ class TestValidateCommand:
 
         result = runner.invoke(cli.app, ["validate", str(tmp_path)])
         assert result.exit_code == 1
-

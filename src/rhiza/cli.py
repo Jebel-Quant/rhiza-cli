@@ -89,5 +89,3 @@ def validate(
     """
     if not validate_cmd(target):
         raise typer.Exit(code=1)
-
-

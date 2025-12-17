@@ -4,7 +4,6 @@ This module provides functionality to validate .github/template.yml files
 to ensure they are syntactically correct and semantically valid.
 """
 
-import sys
 from pathlib import Path
 
 import yaml
@@ -25,7 +24,7 @@ def validate(target: Path) -> bool:
     target:
         Path to the target Git repository directory.
 
-    Returns
+    Returns:
     -------
     bool
         True if validation passes, False otherwise.
@@ -76,7 +75,9 @@ def validate(target: Path) -> bool:
             logger.error(f"Missing required field: {field}")
             validation_passed = False
         elif not isinstance(config[field], expected_type):
-            logger.error(f"Field '{field}' must be of type {expected_type.__name__}, got {type(config[field]).__name__}")
+            logger.error(
+                f"Field '{field}' must be of type {expected_type.__name__}, got {type(config[field]).__name__}"
+            )
             validation_passed = False
         else:
             logger.success(f"Field '{field}' is present and valid")
