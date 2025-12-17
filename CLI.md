@@ -83,6 +83,7 @@ rhiza materialize -b main -y                # Short form
 - Copies only specified files/directories
 - Respects exclude patterns
 - Skips existing files unless `--force` is used
+- Creates `.rhiza.history` file listing all files under template control
 
 ---
 
@@ -116,6 +117,41 @@ rhiza validate ..                 # Validate parent directory
 - ✓ Field types correct
 - ✓ Repository format (owner/repo)
 - ✓ Include list not empty
+
+---
+
+## Generated Files
+
+### .rhiza.history
+
+After running `rhiza materialize`, a `.rhiza.history` file is created in the project root. This file:
+
+- Lists all files managed by the template
+- Includes metadata about the template repository and branch
+- Is regenerated each time `rhiza materialize` runs
+- Should be committed to version control
+
+**Example:**
+```
+# Rhiza Template History
+# This file lists all files managed by the Rhiza template.
+# Template repository: jebel-quant/rhiza
+# Template branch: main
+#
+# Files under template control:
+.editorconfig
+.gitignore
+Makefile
+```
+
+**Usage:**
+```bash
+# View tracked files
+cat .rhiza.history
+
+# Check if a file is managed by template
+grep "myfile.txt" .rhiza.history
+```
 
 ---
 

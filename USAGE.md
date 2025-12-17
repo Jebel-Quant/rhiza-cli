@@ -94,6 +94,36 @@ git add .
 git commit -m "chore: initialize project with rhiza templates"
 ```
 
+### Understanding the History File
+
+After materialization, Rhiza creates a `.rhiza.history` file that tracks all files under template control:
+
+```bash
+cat .rhiza.history
+```
+
+You'll see:
+```
+# Rhiza Template History
+# This file lists all files managed by the Rhiza template.
+# Template repository: jebel-quant/rhiza
+# Template branch: main
+#
+# Files under template control:
+.editorconfig
+.gitignore
+Makefile
+.github/workflows/ci.yml
+...
+```
+
+This file helps you:
+- Track which files are managed by the template
+- Understand what will be updated when you re-run `rhiza materialize`
+- Identify which files to be careful with when making local modifications
+
+**Important:** The `.rhiza.history` file is regenerated each time you run `rhiza materialize`, so you should commit it along with your other template files.
+
 ## Basic Workflows
 
 ### Workflow 1: Starting a New Project

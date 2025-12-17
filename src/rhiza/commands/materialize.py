@@ -111,18 +111,37 @@ def materialize(target: Path, branch: str, force: bool):
         # print(files_to_copy)
 
         # Copy loop
+        materialized_files = []
         for src_file in files_to_copy:
             dst_file = target / src_file.relative_to(tmp_dir)
+            relative_path = dst_file.relative_to(target)
+
+            # Track this file as being under template control
+            materialized_files.append(relative_path)
+
             if dst_file.exists() and not force:
-                logger.warning(f"{dst_file.relative_to(target)} already exists — use force=True to overwrite")
+                logger.warning(f"{relative_path} already exists — use force=True to overwrite")
                 continue
 
             dst_file.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src_file, dst_file)
-            logger.success(f"[ADD] {dst_file.relative_to(target)}")
+            logger.success(f"[ADD] {relative_path}")
 
     finally:
         shutil.rmtree(tmp_dir)
+
+    # Write .rhiza.history file listing all files under template control
+    history_file = target / ".rhiza.history"
+    with open(history_file, "w") as f:
+        f.write("# Rhiza Template History\n")
+        f.write("# This file lists all files managed by the Rhiza template.\n")
+        f.write(f"# Template repository: {rhiza_repo}\n")
+        f.write(f"# Template branch: {rhiza_branch}\n")
+        f.write("#\n")
+        f.write("# Files under template control:\n")
+        for file_path in sorted(materialized_files):
+            f.write(f"{file_path}\n")
+    logger.info(f"Created {history_file.relative_to(target)} with {len(materialized_files)} files")
 
     logger.success("Rhiza templates materialized successfully")
     logger.info("""
