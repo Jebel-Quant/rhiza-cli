@@ -17,9 +17,9 @@ import pytest
 from typer.testing import CliRunner
 
 from rhiza import cli
+from rhiza.commands.diff import diff
 from rhiza.commands.hello import hello
 from rhiza.commands.inject import expand_paths, inject
-from rhiza.commands.diff import diff
 
 
 class TestHelloCommand:
