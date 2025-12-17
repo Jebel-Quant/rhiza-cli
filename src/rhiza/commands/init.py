@@ -7,10 +7,10 @@ and what paths are governed by Rhiza.
 
 from pathlib import Path
 
-import yaml
 from loguru import logger
 
 from rhiza.commands.validate import validate
+from rhiza.models import RhizaTemplate
 
 
 def init(target: Path):
@@ -40,10 +40,10 @@ def init(target: Path):
         # Create default template.yml
         logger.info("Creating default .github/template.yml")
 
-        default_config = {
-            "template-repository": "jebel-quant/rhiza",
-            "template-branch": "main",
-            "include": [
+        default_template = RhizaTemplate(
+            template_repository="jebel-quant/rhiza",
+            template_branch="main",
+            include=[
                 ".github",
                 ".editorconfig",
                 ".gitignore",
@@ -51,10 +51,9 @@ def init(target: Path):
                 "Makefile",
                 "pytest.ini",
             ],
-        }
+        )
 
-        with open(template_file, "w") as f:
-            yaml.dump(default_config, f, default_flow_style=False, sort_keys=False)
+        default_template.to_yaml(template_file)
 
         logger.success("✓ Created .github/template.yml")
         logger.info("""

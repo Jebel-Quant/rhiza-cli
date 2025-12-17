@@ -12,10 +12,10 @@ import sys
 import tempfile
 from pathlib import Path
 
-import yaml
 from loguru import logger
 
 from rhiza.commands.init import init
+from rhiza.models import RhizaTemplate
 
 
 def expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
@@ -37,7 +37,7 @@ def expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
     return all_files
 
 
-def inject(target: Path, branch: str, force: bool):
+def materialize(target: Path, branch: str, force: bool):
     """Materialize rhiza templates into TARGET repository."""
     # Convert to absolute path to avoid surprises
     target = target.resolve()
@@ -57,13 +57,13 @@ def inject(target: Path, branch: str, force: bool):
     # -----------------------
     # Load template.yml
     # -----------------------
-    with open(template_file) as f:
-        config = yaml.safe_load(f)
+    template = RhizaTemplate.from_yaml(template_file)
 
-    rhiza_repo = config.get("template-repository")
-    rhiza_branch = config.get("template-branch", branch)
-    include_paths = config.get("include", [])
-    excluded_paths = config.get("exclude", [])
+    rhiza_repo = template.template_repository
+    # Use template branch if specified, otherwise fall back to CLI parameter
+    rhiza_branch = template.template_branch if template.template_branch else branch
+    include_paths = template.include
+    excluded_paths = template.exclude
 
     if not include_paths:
         logger.error("No include paths found in template.yml")
