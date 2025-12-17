@@ -15,6 +15,8 @@ from pathlib import Path
 import yaml
 from loguru import logger
 
+from rhiza.commands.init import init
+
 
 def expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
     """Expand files/directories relative to base_dir into a flat list of files.
@@ -54,25 +56,8 @@ def inject(target: Path, branch: str, force: bool):
     template_file = target / ".github" / "template.yml"
     template_file.parent.mkdir(parents=True, exist_ok=True)
 
-    if not template_file.exists():
-        logger.info("Creating default .github/template.yml")
-        template_content = {
-            "template-repository": "jebel-quant/rhiza",
-            "template-branch": branch,
-            "include": [
-                ".github",
-                ".editorconfig",
-                ".gitignore",
-                ".pre-commit-config.yaml",
-                "Makefile",
-                "pytest.ini",
-            ],
-        }
-        with open(template_file, "w") as f:
-            yaml.dump(template_content, f)
-        logger.success(".github/template.yml created")
-    else:
-        logger.info("Using existing .github/template.yml")
+    # Initialize rhiza if not already initialized, e.g. construct a template.yml file
+    init(target)
 
     # -----------------------
     # Load template.yml
