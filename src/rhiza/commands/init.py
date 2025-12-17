@@ -10,6 +10,8 @@ from pathlib import Path
 import yaml
 from loguru import logger
 
+from rhiza.models import RhizaTemplate
+
 
 def init(target: Path):
     """Initialize or validate .github/template.yml in the target repository.
@@ -38,28 +40,23 @@ def init(target: Path):
         # Validate existing template.yml
         logger.info("Found existing .github/template.yml")
         try:
-            with open(template_file) as f:
-                config = yaml.safe_load(f)
+            template = RhizaTemplate.from_yaml(template_file)
 
             # Validate required fields
-            if not config:
-                logger.error(".github/template.yml is empty")
-                raise SystemExit(1)
-
-            if "template-repository" not in config:
+            if not template.template_repository:
                 logger.warning("Missing 'template-repository' field in .github/template.yml")
 
-            if "include" not in config or not config["include"]:
+            if not template.include:
                 logger.warning("Missing or empty 'include' field in .github/template.yml")
 
             logger.success("✓ .github/template.yml is valid")
-            logger.info(f"  Template repository: {config.get('template-repository', 'NOT SET')}")
-            logger.info(f"  Template branch: {config.get('template-branch', 'NOT SET')}")
-            logger.info(f"  Include paths: {len(config.get('include', []))} path(s)")
-            if config.get("exclude"):
-                logger.info(f"  Exclude paths: {len(config.get('exclude', []))} path(s)")
+            logger.info(f"  Template repository: {template.template_repository or 'NOT SET'}")
+            logger.info(f"  Template branch: {template.template_branch or 'NOT SET'}")
+            logger.info(f"  Include paths: {len(template.include)} path(s)")
+            if template.exclude:
+                logger.info(f"  Exclude paths: {len(template.exclude)} path(s)")
 
-        except yaml.YAMLError as e:
+        except (yaml.YAMLError, ValueError) as e:
             logger.error(f"Failed to parse .github/template.yml: {e}")
             raise SystemExit(1)
         except Exception as e:
@@ -69,10 +66,10 @@ def init(target: Path):
         # Create default template.yml
         logger.info("Creating default .github/template.yml")
 
-        default_config = {
-            "template-repository": "jebel-quant/rhiza",
-            "template-branch": "main",
-            "include": [
+        default_template = RhizaTemplate(
+            template_repository="jebel-quant/rhiza",
+            template_branch="main",
+            include=[
                 ".github",
                 ".editorconfig",
                 ".gitignore",
@@ -80,10 +77,9 @@ def init(target: Path):
                 "Makefile",
                 "pytest.ini",
             ],
-        }
+        )
 
-        with open(template_file, "w") as f:
-            yaml.dump(default_config, f, default_flow_style=False, sort_keys=False)
+        default_template.to_yaml(template_file)
 
         logger.success("✓ Created .github/template.yml")
         logger.info("""
