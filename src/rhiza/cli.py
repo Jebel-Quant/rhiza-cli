@@ -9,8 +9,8 @@ from pathlib import Path
 import typer
 
 from rhiza.commands.hello import hello as hello_cmd
-from rhiza.commands.inject import inject as inject_cmd
 from rhiza.commands.init import init as init_cmd
+from rhiza.commands.inject import inject as inject_cmd
 
 app = typer.Typer(help="rhiza — configuration materialization tools")
 

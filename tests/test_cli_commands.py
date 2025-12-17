@@ -18,8 +18,8 @@ from typer.testing import CliRunner
 
 from rhiza import cli
 from rhiza.commands.hello import hello
-from rhiza.commands.inject import expand_paths, inject
 from rhiza.commands.init import init
+from rhiza.commands.inject import expand_paths, inject
 
 
 class TestHelloCommand:
