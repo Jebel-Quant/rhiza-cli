@@ -12,7 +12,10 @@ from rhiza.commands.init import init as init_cmd
 from rhiza.commands.materialize import materialize as materialize_cmd
 from rhiza.commands.validate import validate as validate_cmd
 
-app = typer.Typer(help="rhiza — configuration materialization tools")
+app = typer.Typer(
+    help="Rhiza - Manage reusable configuration templates for Python projects",
+    add_completion=True,
+)
 
 
 @app.command()
@@ -27,13 +30,21 @@ def init(
 ):
     """Initialize or validate .github/template.yml.
 
-    Creates a default .github/template.yml file if it doesn't exist,
-    or validates an existing one.
+    Creates a default .github/template.yml configuration file if one doesn't
+    exist, or validates the existing configuration.
 
-    Parameters
-    ----------
-    target:
-        Path to the target directory. Defaults to the current working directory.
+    The default template includes common Python project files:
+    - .github (workflows, actions, etc.)
+    - .editorconfig
+    - .gitignore
+    - .pre-commit-config.yaml
+    - Makefile
+    - pytest.ini
+
+    Examples:
+        rhiza init
+        rhiza init /path/to/project
+        rhiza init ..
     """
     init_cmd(target)
 
@@ -50,17 +61,23 @@ def materialize(
     branch: str = typer.Option("main", "--branch", "-b", help="Rhiza branch to use"),
     force: bool = typer.Option(False, "--force", "-y", help="Overwrite existing files"),
 ):
-    """Inject Rhiza configuration into a target repository.
+    """Inject Rhiza configuration templates into a target repository.
 
-    Parameters
-    ----------
-    target:
-        Path to the target Git repository directory. Defaults to the
-        current working directory.
-    branch:
-        Name of the Rhiza branch to use when sourcing templates.
-    force:
-        If True, overwrite existing files without prompting.
+    Materializes configuration files from the template repository specified
+    in .github/template.yml into your project. This command:
+
+    1. Reads .github/template.yml configuration
+    2. Performs a sparse clone of the template repository
+    3. Copies specified files/directories to your project
+    4. Respects exclusion patterns defined in the configuration
+
+    Files that already exist will NOT be overwritten unless --force is used.
+
+    Examples:
+        rhiza materialize
+        rhiza materialize --branch develop
+        rhiza materialize --force
+        rhiza materialize /path/to/project -b v2.0 -y
     """
     materialize_cmd(target, branch, force)
 
@@ -78,14 +95,21 @@ def validate(
     """Validate Rhiza template configuration.
 
     Validates the .github/template.yml file to ensure it is syntactically
-    correct and semantically valid. This performs authoritative validation,
-    not just syntactic checks.
+    correct and semantically valid. Performs comprehensive validation:
 
-    Parameters
-    ----------
-    target:
-        Path to the target Git repository directory. Defaults to the
-        current working directory.
+    - Checks if template.yml exists
+    - Validates YAML syntax
+    - Verifies required fields are present (template-repository, include)
+    - Validates field types and formats
+    - Ensures repository name follows owner/repo format
+    - Confirms include paths are not empty
+
+    Returns exit code 0 on success, 1 on validation failure.
+
+    Examples:
+        rhiza validate
+        rhiza validate /path/to/project
+        rhiza validate ..
     """
     if not validate_cmd(target):
         raise typer.Exit(code=1)
