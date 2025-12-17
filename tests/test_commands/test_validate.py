@@ -209,3 +209,148 @@ class TestValidateCommand:
 
         result = runner.invoke(cli.app, ["validate", str(tmp_path)])
         assert result.exit_code == 1
+
+    def test_validate_fails_on_wrong_type_template_repository(self, tmp_path):
+        """Test that validate fails when template-repository is not a string."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template with wrong type for template-repository
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": 12345,  # Should be string
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is False
+
+    def test_validate_fails_on_wrong_type_include(self, tmp_path):
+        """Test that validate fails when include is not a list."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template with wrong type for include
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "include": "should-be-a-list",  # Should be list
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is False
+
+    def test_validate_warns_on_non_string_include_items(self, tmp_path):
+        """Test that validate warns about non-string items in include list."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template with non-string items in include
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "include": [".github", 123, "Makefile"],  # 123 is not a string
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        # Should still pass but with warnings
+        assert result is True
+
+    def test_validate_warns_on_wrong_type_template_branch(self, tmp_path):
+        """Test that validate warns when template-branch is not a string."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template with wrong type for template-branch
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "include": [".github"],
+                    "template-branch": 123,  # Should be string
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        # Should still pass but with warnings
+        assert result is True
+
+    def test_validate_warns_on_wrong_type_exclude(self, tmp_path):
+        """Test that validate warns when exclude is not a list."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template with wrong type for exclude
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "include": [".github"],
+                    "exclude": "should-be-a-list",  # Should be list
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        # Should still pass but with warnings
+        assert result is True
+
+    def test_validate_warns_on_non_string_exclude_items(self, tmp_path):
+        """Test that validate warns about non-string items in exclude list."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template with non-string items in exclude
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "include": [".github"],
+                    "exclude": ["tests", 456],  # 456 is not a string
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        # Should still pass but with warnings
+        assert result is True

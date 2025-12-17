@@ -7,7 +7,9 @@ underlying inject logic and that basic paths and options are handled.
 from unittest.mock import Mock, patch
 
 import pytest
+from typer.testing import CliRunner
 
+from rhiza import cli
 from rhiza.commands.materialize import materialize
 
 
@@ -318,3 +320,39 @@ class TestInjectCommand:
 
         # Verify rmtree was called to clean up
         assert mock_rmtree.called
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_cli_materialize_command(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+        """Test the CLI materialize command via Typer runner."""
+        runner = CliRunner()
+
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        import yaml
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": [".github"]}, f
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run CLI command
+        result = runner.invoke(cli.app, ["materialize", str(tmp_path), "--branch", "main"])
+        assert result.exit_code == 0
