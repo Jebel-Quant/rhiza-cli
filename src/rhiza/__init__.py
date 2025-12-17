@@ -6,4 +6,4 @@ the command line or other automation scripts.
 
 from rhiza.models import RhizaTemplate
 
-__all__ = ["RhizaTemplate"]
+__all__ = ["RhizaTemplate", "cli", "commands", "models"]
