@@ -16,6 +16,7 @@ Rhiza is a CLI tool that helps you maintain consistent configuration across mult
 
 ## Table of Contents
 
+- [Overview](#overview)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Commands](#commands)
@@ -25,6 +26,16 @@ Rhiza is a CLI tool that helps you maintain consistent configuration across mult
 - [Configuration](#configuration)
 - [Examples](#examples)
 - [Development](#development)
+- [Additional Documentation](#additional-documentation)
+
+## Additional Documentation
+
+For more detailed information, see:
+
+- **[CLI Quick Reference](CLI.md)** - Command syntax and quick examples
+- **[Usage Guide](USAGE.md)** - Practical tutorials and workflows
+- **[Contributing Guidelines](CONTRIBUTING.md)** - How to contribute to the project
+- **[Code of Conduct](CODE_OF_CONDUCT.md)** - Community guidelines
 
 ## Installation
 
