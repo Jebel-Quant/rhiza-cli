@@ -19,10 +19,8 @@ def init(target: Path):
     Creates a default .github/template.yml file if it doesn't exist,
     or validates an existing one.
 
-    Parameters
-    ----------
-    target:
-        Path to the target directory. Defaults to the current working directory.
+    Args:
+        target: Path to the target directory. Defaults to the current working directory.
     """
     # Convert to absolute path to avoid surprises
     target = target.resolve()

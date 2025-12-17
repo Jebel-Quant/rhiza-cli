@@ -16,17 +16,12 @@ class RhizaTemplate:
     """Represents the structure of .github/template.yml.
 
     Attributes:
-    ----------
-    template_repository : str | None
-        The GitHub repository containing templates (e.g., "jebel-quant/rhiza").
-        Can be None if not specified in the template file.
-    template_branch : str | None
-        The branch to use from the template repository.
-        Can be None if not specified in the template file (defaults to "main" when creating).
-    include : list[str]
-        List of paths to include from the template repository.
-    exclude : list[str]
-        List of paths to exclude from the template repository (default: empty list).
+        template_repository: The GitHub repository containing templates (e.g., "jebel-quant/rhiza").
+            Can be None if not specified in the template file.
+        template_branch: The branch to use from the template repository.
+            Can be None if not specified in the template file (defaults to "main" when creating).
+        include: List of paths to include from the template repository.
+        exclude: List of paths to exclude from the template repository (default: empty list).
     """
 
     template_repository: str | None = None
@@ -38,24 +33,16 @@ class RhizaTemplate:
     def from_yaml(cls, file_path: Path) -> "RhizaTemplate":
         """Load RhizaTemplate from a YAML file.
 
-        Parameters
-        ----------
-        file_path : Path
-            Path to the template.yml file.
+        Args:
+            file_path: Path to the template.yml file.
 
         Returns:
-        -------
-        RhizaTemplate
             The loaded template configuration.
 
         Raises:
-        ------
-        FileNotFoundError
-            If the file does not exist.
-        yaml.YAMLError
-            If the YAML is malformed.
-        ValueError
-            If the file is empty.
+            FileNotFoundError: If the file does not exist.
+            yaml.YAMLError: If the YAML is malformed.
+            ValueError: If the file is empty.
         """
         with open(file_path) as f:
             config = yaml.safe_load(f)
@@ -73,10 +60,8 @@ class RhizaTemplate:
     def to_yaml(self, file_path: Path) -> None:
         """Save RhizaTemplate to a YAML file.
 
-        Parameters
-        ----------
-        file_path : Path
-            Path where the template.yml file should be saved.
+        Args:
+            file_path: Path where the template.yml file should be saved.
         """
         # Ensure parent directory exists
         file_path.parent.mkdir(parents=True, exist_ok=True)
