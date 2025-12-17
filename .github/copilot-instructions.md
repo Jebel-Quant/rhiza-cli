@@ -156,11 +156,15 @@ The CLI uses Typer for command definitions. Commands are thin wrappers in `cli.p
 
 ### Core Dependencies
 
-- `typer>=0.20.0` - CLI framework
-- `loguru>=0.7.3` - Logging
-- `PyYAML==6.0.3` - YAML parsing
+See `pyproject.toml` for exact versions. Key dependencies:
+
+- `typer` - CLI framework
+- `loguru` - Logging
+- `PyYAML` - YAML parsing
 
 ### Development Dependencies
+
+See `pyproject.toml` for complete list. Key dev dependencies:
 
 - `pytest`, `pytest-cov`, `pytest-html` - Testing
 - `pre-commit` - Git hooks
