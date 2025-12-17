@@ -11,6 +11,7 @@ import yaml
 from loguru import logger
 
 from rhiza.models import RhizaTemplate
+from rhiza.commands.validate import validate
 
 
 def init(target: Path):
@@ -36,33 +37,7 @@ def init(target: Path):
     # Define the template file path
     template_file = github_dir / "template.yml"
 
-    if template_file.exists():
-        # Validate existing template.yml
-        logger.info("Found existing .github/template.yml")
-        try:
-            template = RhizaTemplate.from_yaml(template_file)
-
-            # Validate required fields
-            if not template.template_repository:
-                logger.warning("Missing 'template-repository' field in .github/template.yml")
-
-            if not template.include:
-                logger.warning("Missing or empty 'include' field in .github/template.yml")
-
-            logger.success("✓ .github/template.yml is valid")
-            logger.info(f"  Template repository: {template.template_repository or 'NOT SET'}")
-            logger.info(f"  Template branch: {template.template_branch or 'NOT SET (defaults to main)'}")
-            logger.info(f"  Include paths: {len(template.include)} path(s)")
-            if template.exclude:
-                logger.info(f"  Exclude paths: {len(template.exclude)} path(s)")
-
-        except (yaml.YAMLError, ValueError) as e:
-            logger.error(f"Failed to parse .github/template.yml: {e}")
-            raise SystemExit(1)
-        except Exception as e:
-            logger.error(f"Error validating .github/template.yml: {e}")
-            raise SystemExit(1)
-    else:
+    if not template_file.exists():
         # Create default template.yml
         logger.info("Creating default .github/template.yml")
 
@@ -87,3 +62,6 @@ Next steps:
   1. Review and customize .github/template.yml to match your project needs
   2. Run 'rhiza materialize' to inject templates into your repository
 """)
+
+    # the template file exists, so validate it
+    validate(target)

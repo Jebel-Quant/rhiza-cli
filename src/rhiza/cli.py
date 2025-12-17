@@ -10,6 +10,7 @@ import typer
 
 from rhiza.commands.init import init as init_cmd
 from rhiza.commands.inject import inject as inject_cmd
+from rhiza.commands.validate import validate as validate_cmd
 
 app = typer.Typer(help="rhiza — configuration materialization tools")
 
@@ -62,3 +63,29 @@ def materialize(
         If True, overwrite existing files without prompting.
     """
     inject_cmd(target, branch, force)
+
+
+@app.command()
+def validate(
+    target: Path = typer.Argument(
+        default=Path("."),  # default to current directory
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        help="Target git repository (defaults to current directory)",
+    ),
+):
+    """Validate Rhiza template configuration.
+
+    Validates the .github/template.yml file to ensure it is syntactically
+    correct and semantically valid. This performs authoritative validation,
+    not just syntactic checks.
+
+    Parameters
+    ----------
+    target:
+        Path to the target Git repository directory. Defaults to the
+        current working directory.
+    """
+    if not validate_cmd(target):
+        raise typer.Exit(code=1)

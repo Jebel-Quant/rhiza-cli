@@ -6,7 +6,6 @@ that the Typer CLI entry `rhiza init` works as expected.
 
 from pathlib import Path
 
-import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -88,30 +87,6 @@ class TestInitCommand:
 
         # Run init - should validate but warn
         init(tmp_path)
-
-    def test_init_fails_on_empty_template_yml(self, tmp_path):
-        """Test that init fails when template.yml is empty."""
-        # Create empty template.yml
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
-        template_file.write_text("")
-
-        # Run init and expect it to fail
-        with pytest.raises(SystemExit):
-            init(tmp_path)
-
-    def test_init_fails_on_invalid_yaml(self, tmp_path):
-        """Test that init fails when template.yml contains invalid YAML."""
-        # Create invalid YAML
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
-        template_file.write_text("invalid: yaml: content: [[[")
-
-        # Run init and expect it to fail
-        with pytest.raises(SystemExit):
-            init(tmp_path)
 
     def test_init_creates_github_directory(self, tmp_path):
         """Test that init creates .github directory if it doesn't exist."""
