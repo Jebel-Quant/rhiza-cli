@@ -1,7 +1,7 @@
 """Command implementations for the Rhiza CLI.
 
 This package contains the functions that back Typer commands exposed by
-`rhiza.cli`, such as `hello` and `inject`.
+`rhiza.cli`, such as `init`, `materialize`, and `validate`.
 """
 
 from .init import init  # noqa: F401
