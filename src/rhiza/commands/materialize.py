@@ -149,18 +149,23 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
             ],
             check=True,
             stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
 
         subprocess.run(
             ["git", "sparse-checkout", "init", "--cone"],
             cwd=tmp_dir,
             check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
 
         subprocess.run(
             ["git", "sparse-checkout", "set", "--skip-checks", *include_paths],
             cwd=tmp_dir,
             check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
 
         # -----------------------
