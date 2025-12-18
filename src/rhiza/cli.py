@@ -8,6 +8,7 @@ from pathlib import Path
 
 import typer
 
+from rhiza import __version__
 from rhiza.commands import init as init_cmd
 from rhiza.commands import materialize as materialize_cmd
 from rhiza.commands import validate as validate_cmd
@@ -16,6 +17,41 @@ app = typer.Typer(
     help="Rhiza - Manage reusable configuration templates for Python projects",
     add_completion=True,
 )
+
+
+def version_callback(value: bool):
+    """Print version information and exit.
+
+    Args:
+        value: Whether the --version flag was provided.
+
+    Raises:
+        typer.Exit: Always exits after printing version.
+    """
+    if value:
+        typer.echo(f"rhiza version {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def main(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        "-v",
+        help="Show version and exit",
+        callback=version_callback,
+        is_eager=True,
+    ),
+):
+    """Rhiza CLI main callback.
+
+    This callback is executed before any command. It handles global options
+    like --version.
+
+    Args:
+        version: Version flag (handled by callback).
+    """
 
 
 @app.command()
