@@ -9,6 +9,7 @@ This module tests:
 import subprocess
 import sys
 
+import pytest
 import typer
 from typer.testing import CliRunner
 
@@ -44,8 +45,6 @@ class TestCliApp:
 
     def test_version_callback_with_true(self, capsys):
         """Test that version_callback prints version and exits when value is True."""
-        import pytest
-
         # When version_callback is called with True, it should print version and exit
         with pytest.raises(typer.Exit):
             version_callback(True)

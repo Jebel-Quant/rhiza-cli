@@ -5,8 +5,10 @@ This module tests:
 - Fallback version when package is not installed
 """
 
+import sys
 from unittest.mock import patch
 
+import pytest
 from importlib.metadata import PackageNotFoundError
 
 
@@ -20,31 +22,31 @@ class TestPackageInit:
 
         assert hasattr(rhiza, "__version__")
         assert isinstance(rhiza.__version__, str)
-        # Version should not be the fallback when package is installed
-        assert rhiza.__version__ != "0.0.0+dev" or True  # Allow dev version in tests
+        # Version should follow semantic versioning (e.g., "0.5.3" or "0.0.0+dev")
+        assert rhiza.__version__.count(".") >= 2
 
     def test_version_fallback_when_not_installed(self):
         """Test that __version__ falls back to 0.0.0+dev when package is not found."""
         # We need to test the exception handling in __init__.py
         # To do this, we patch the version function at import time
-        import sys
         
         # Remove rhiza from sys.modules to force reimport
         if "rhiza" in sys.modules:
             del sys.modules["rhiza"]
         
-        # Patch version to raise PackageNotFoundError
-        with patch("importlib.metadata.version", side_effect=PackageNotFoundError):
-            # Import rhiza - this should trigger the fallback
-            import rhiza as test_rhiza
-            
-            # The version should be the fallback
-            assert test_rhiza.__version__ == "0.0.0+dev"
-        
-        # Clean up and re-import normally
-        if "rhiza" in sys.modules:
-            del sys.modules["rhiza"]
-        import rhiza  # Re-import for other tests
+        try:
+            # Patch version to raise PackageNotFoundError
+            with patch("importlib.metadata.version", side_effect=PackageNotFoundError):
+                # Import rhiza - this should trigger the fallback
+                import rhiza as test_rhiza
+                
+                # The version should be the fallback
+                assert test_rhiza.__version__ == "0.0.0+dev"
+        finally:
+            # Clean up and re-import normally for other tests
+            if "rhiza" in sys.modules:
+                del sys.modules["rhiza"]
+            import rhiza  # Re-import for other tests
 
     def test_all_exports(self):
         """Test that __all__ contains expected exports."""
