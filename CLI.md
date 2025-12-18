@@ -165,6 +165,9 @@ grep "myfile.txt" .rhiza.history
 # Required: Template repository (owner/repo format)
 template-repository: jebel-quant/rhiza
 
+# Optional: Hosting platform (default: github)
+template-host: github
+
 # Optional: Branch to use (default: main)
 template-branch: main
 
@@ -184,7 +187,8 @@ exclude:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `template-repository` | string | Yes | GitHub repo in `owner/repo` format |
+| `template-repository` | string | Yes | GitHub or GitLab repo in `owner/repo` format |
+| `template-host` | string | No | Hosting platform: `github` (default) or `gitlab` |
 | `template-branch` | string | No | Branch name (default: `main`) |
 | `include` | list | Yes | Paths to copy from template |
 | `exclude` | list | No | Paths to skip when copying |
