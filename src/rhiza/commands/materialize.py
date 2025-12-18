@@ -1,20 +1,11 @@
-"""Command-line helpers for working with Rhiza templates.
-
-This module currently exposes a thin wrapper that shells out to the
-`tools/inject_rhiza.sh` script. It exists so the functionality can be
-invoked via a Python entry point while delegating the heavy lifting to
-the maintained shell script.
-"""
-
 import shutil
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
 from loguru import logger
 
-from rhiza.commands.init import init
+from rhiza.commands import init
 from rhiza.models import RhizaTemplate
 
 
@@ -37,46 +28,44 @@ def expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
     return all_files
 
 
-def materialize(target: Path, branch: str, force: bool):
-    """Materialize rhiza templates into TARGET repository."""
-    # Convert to absolute path to avoid surprises
+def materialize(target: Path, branch: str, force: bool) -> None:
+    """Materialize Rhiza templates into the target repository.
+
+    This performs a sparse checkout of the template repository and copies
+    the selected files into the target repository, recording all files
+    under template control in `.rhiza.history`.
+    """
     target = target.resolve()
 
     logger.info(f"Target repository: {target}")
     logger.info(f"Rhiza branch: {branch}")
 
     # -----------------------
-    # Ensure template.yml
+    # Ensure Rhiza is initialized
     # -----------------------
-    template_file = target / ".github" / "template.yml"
-    # template_file.parent.mkdir(parents=True, exist_ok=True)
-
-    # Initialize rhiza if not already initialized, e.g. construct a template.yml file
     init(target)
 
-    # -----------------------
-    # Load template.yml
-    # -----------------------
+    template_file = target / ".github" / "template.yml"
     template = RhizaTemplate.from_yaml(template_file)
 
     rhiza_repo = template.template_repository
-    # Use template branch if specified, otherwise fall back to CLI parameter
-    rhiza_branch = template.template_branch if template.template_branch else branch
+    rhiza_branch = template.template_branch or branch
     include_paths = template.include
     excluded_paths = template.exclude
 
     if not include_paths:
-        logger.error("No include paths found in template.yml")
-        raise sys.exit(1)
+        raise RuntimeError("No include paths found in template.yml")
 
     logger.info("Include paths:")
     for p in include_paths:
         logger.info(f"  - {p}")
 
     # -----------------------
-    # Sparse clone rhiza
+    # Sparse clone template repo
     # -----------------------
     tmp_dir = Path(tempfile.mkdtemp())
+    materialized_files: list[Path] = []
+
     logger.info(f"Cloning {rhiza_repo}@{rhiza_branch} into temporary directory")
 
     try:
@@ -84,12 +73,10 @@ def materialize(target: Path, branch: str, force: bool):
             [
                 "git",
                 "clone",
-                "--depth",
-                "1",
+                "--depth", "1",
                 "--filter=blob:none",
                 "--sparse",
-                "--branch",
-                rhiza_branch,
+                "--branch", rhiza_branch,
                 f"https://github.com/{rhiza_repo}.git",
                 str(tmp_dir),
             ],
@@ -97,30 +84,46 @@ def materialize(target: Path, branch: str, force: bool):
             stdout=subprocess.DEVNULL,
         )
 
-        subprocess.run(["git", "sparse-checkout", "init"], cwd=tmp_dir, check=True)
-        subprocess.run(["git", "sparse-checkout", "set", "--skip-checks", *include_paths], cwd=tmp_dir, check=True)
+        subprocess.run(
+            ["git", "sparse-checkout", "init", "--cone"],
+            cwd=tmp_dir,
+            check=True,
+        )
 
-        # After sparse-checkout
+        subprocess.run(
+            ["git", "sparse-checkout", "set", "--skip-checks", *include_paths],
+            cwd=tmp_dir,
+            check=True,
+        )
+
+        # -----------------------
+        # Expand include/exclude paths
+        # -----------------------
         all_files = expand_paths(tmp_dir, include_paths)
 
-        # Filter out excluded files
-        # excluded_set = {tmp_dir / e for e in excluded_paths}
-        excluded_files = expand_paths(tmp_dir, excluded_paths)
+        excluded_files = {
+            f.resolve()
+            for f in expand_paths(tmp_dir, excluded_paths)
+        }
 
-        files_to_copy = [f for f in all_files if f not in excluded_files]
-        # print(files_to_copy)
+        files_to_copy = [
+            f for f in all_files
+            if f.resolve() not in excluded_files
+        ]
 
-        # Copy loop
-        materialized_files = []
+        # -----------------------
+        # Copy files into target repo
+        # -----------------------
         for src_file in files_to_copy:
             dst_file = target / src_file.relative_to(tmp_dir)
             relative_path = dst_file.relative_to(target)
 
-            # Track this file as being under template control
             materialized_files.append(relative_path)
 
             if dst_file.exists() and not force:
-                logger.warning(f"{relative_path} already exists — use force=True to overwrite")
+                logger.warning(
+                    f"{relative_path} already exists — use --force to overwrite"
+                )
                 continue
 
             dst_file.parent.mkdir(parents=True, exist_ok=True)
@@ -130,9 +133,25 @@ def materialize(target: Path, branch: str, force: bool):
     finally:
         shutil.rmtree(tmp_dir)
 
-    # Write .rhiza.history file listing all files under template control
+    # -----------------------
+    # Warn about workflow files
+    # -----------------------
+    workflow_files = [
+        p for p in materialized_files
+        if p.parts[:2] == (".github", "workflows")
+    ]
+
+    if workflow_files:
+        logger.warning(
+            "Workflow files were materialized. Updating these files requires "
+            "a token with the 'workflow' permission in GitHub Actions."
+        )
+
+    # -----------------------
+    # Write .rhiza.history
+    # -----------------------
     history_file = target / ".rhiza.history"
-    with open(history_file, "w") as f:
+    with history_file.open("w", encoding="utf-8") as f:
         f.write("# Rhiza Template History\n")
         f.write("# This file lists all files managed by the Rhiza template.\n")
         f.write(f"# Template repository: {rhiza_repo}\n")
@@ -141,19 +160,22 @@ def materialize(target: Path, branch: str, force: bool):
         f.write("# Files under template control:\n")
         for file_path in sorted(materialized_files):
             f.write(f"{file_path}\n")
-    logger.info(f"Created {history_file.relative_to(target)} with {len(materialized_files)} files")
+
+    logger.info(
+        f"Created {history_file.relative_to(target)} "
+        f"with {len(materialized_files)} files"
+    )
 
     logger.success("Rhiza templates materialized successfully")
-    logger.info("""
-Next steps:
-  1. Review changes:
-       git status
-       git diff
 
-  2. Commit:
-       git add .
-       git commit -m "chore: import rhiza templates"
-
-This is a one-shot snapshot.
-Re-run this script to update templates explicitly.
-""")
+    logger.info(
+        "Next steps:\n"
+        "  1. Review changes:\n"
+        "       git status\n"
+        "       git diff\n\n"
+        "  2. Commit:\n"
+        "       git add .\n"
+        '       git commit -m "chore: import rhiza templates"\n\n'
+        "This is a one-shot snapshot.\n"
+        "Re-run this command to update templates explicitly."
+    )
