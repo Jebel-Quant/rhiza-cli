@@ -21,6 +21,7 @@ on:
 
 jobs:
   materialize:
+    if: ${{ github.ref_name != 'update_rhiza' }}
     runs-on: ubuntu-latest
 
     steps:
