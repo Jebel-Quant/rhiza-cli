@@ -36,7 +36,7 @@ def version_callback(value: bool):
 @app.callback()
 def main(
     version: bool = typer.Option(
-        None,
+        False,
         "--version",
         "-v",
         help="Show version and exit",
