@@ -93,7 +93,6 @@ def init(
 
 
     Examples:
-
         rhiza init
 
         rhiza init /path/to/project
@@ -113,6 +112,12 @@ def materialize(
         help="Target git repository (defaults to current directory)",
     ),
     branch: str = typer.Option("main", "--branch", "-b", help="Rhiza branch to use"),
+    target_branch: str = typer.Option(
+        None,
+        "--target-branch",
+        "--checkout-branch",
+        help="Create and checkout a new branch in the target repository for changes",
+    ),
     force: bool = typer.Option(False, "--force", "-y", help="Overwrite existing files"),
 ):
     """Inject Rhiza configuration templates into a target repository.
@@ -141,16 +146,17 @@ def materialize(
 
 
     Examples:
-
         rhiza materialize
 
         rhiza materialize --branch develop
 
         rhiza materialize --force
 
+        rhiza materialize --target-branch feature/update-templates
+
         rhiza materialize /path/to/project -b v2.0 -y
     """
-    materialize_cmd(target, branch, force)
+    materialize_cmd(target, branch, target_branch, force)
 
 
 @app.command()
@@ -193,7 +199,6 @@ def validate(
 
 
     Examples:
-
         rhiza validate
 
         rhiza validate /path/to/project
