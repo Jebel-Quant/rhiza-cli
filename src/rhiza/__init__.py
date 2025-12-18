@@ -1,5 +1,5 @@
-'''markdown
-# Rhiza
+'''
+
 Rhiza - Manage reusable configuration templates for Python projects.
 
 Rhiza is a command-line interface (CLI) tool that helps you maintain consistent
