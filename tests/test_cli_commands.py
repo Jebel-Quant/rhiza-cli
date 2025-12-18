@@ -9,11 +9,34 @@ This module tests:
 import subprocess
 import sys
 
+from rhiza import __version__
 from rhiza.commands.materialize import expand_paths
 
 
 class TestCliApp:
     """Tests for the CLI Typer app."""
+
+    def test_version_flag(self):
+        """Test that --version flag shows version information."""
+        result = subprocess.run(
+            [sys.executable, "-m", "rhiza", "--version"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert "rhiza version" in result.stdout
+        assert __version__ in result.stdout
+
+    def test_version_short_flag(self):
+        """Test that -v flag shows version information."""
+        result = subprocess.run(
+            [sys.executable, "-m", "rhiza", "-v"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert "rhiza version" in result.stdout
+        assert __version__ in result.stdout
 
 
 class TestExpandPaths:

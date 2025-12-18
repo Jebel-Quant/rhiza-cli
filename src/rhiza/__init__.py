@@ -4,4 +4,5 @@ This package groups small, user-facing utilities that can be invoked from
 the command line or other automation scripts.
 """
 
+__version__ = "0.5.2"
 __all__ = ["commands", "models"]
