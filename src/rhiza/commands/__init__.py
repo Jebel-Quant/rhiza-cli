@@ -1,4 +1,6 @@
-"""Command implementations for the Rhiza CLI.
+'''markdown
+
+Command implementations for the Rhiza CLI.
 
 This package contains the core implementation functions that back the Typer
 commands exposed by `rhiza.cli`. These commands help you manage reusable
@@ -48,7 +50,7 @@ rhiza.cli : Main CLI entry points and command-line interface
 README.md : Project overview and quick start guide
 
 USAGE.md : Detailed usage examples and best practices
-"""
+'''
 
 from .init import init  # noqa: F401
 from .materialize import materialize  # noqa: F401
