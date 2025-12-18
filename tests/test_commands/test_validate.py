@@ -3,7 +3,7 @@
 This module verifies that `validate` checks `.github/template.yml` and that
 the Typer CLI entry `rhiza validate` behaves as expected across scenarios.
 """
-import pytest
+
 import yaml
 from typer.testing import CliRunner
 

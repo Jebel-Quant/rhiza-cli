@@ -1,3 +1,11 @@
+"""Command for materializing Rhiza template files into a repository.
+
+This module implements the `materialize` command. It performs a sparse
+checkout of the configured template repository, copies the selected files
+into the target Git repository, and records managed files in
+`.rhiza.history`. Use this to take a one-shot snapshot of template files.
+"""
+
 import shutil
 import subprocess
 import sys
@@ -78,10 +86,12 @@ def materialize(target: Path, branch: str, force: bool) -> None:
             [
                 "git",
                 "clone",
-                "--depth", "1",
+                "--depth",
+                "1",
                 "--filter=blob:none",
                 "--sparse",
-                "--branch", rhiza_branch,
+                "--branch",
+                rhiza_branch,
                 f"https://github.com/{rhiza_repo}.git",
                 str(tmp_dir),
             ],
@@ -106,15 +116,9 @@ def materialize(target: Path, branch: str, force: bool) -> None:
         # -----------------------
         all_files = expand_paths(tmp_dir, include_paths)
 
-        excluded_files = {
-            f.resolve()
-            for f in expand_paths(tmp_dir, excluded_paths)
-        }
+        excluded_files = {f.resolve() for f in expand_paths(tmp_dir, excluded_paths)}
 
-        files_to_copy = [
-            f for f in all_files
-            if f.resolve() not in excluded_files
-        ]
+        files_to_copy = [f for f in all_files if f.resolve() not in excluded_files]
 
         # -----------------------
         # Copy files into target repo
@@ -126,9 +130,7 @@ def materialize(target: Path, branch: str, force: bool) -> None:
             materialized_files.append(relative_path)
 
             if dst_file.exists() and not force:
-                logger.warning(
-                    f"{relative_path} already exists — use --force to overwrite"
-                )
+                logger.warning(f"{relative_path} already exists — use --force to overwrite")
                 continue
 
             dst_file.parent.mkdir(parents=True, exist_ok=True)
@@ -141,10 +143,7 @@ def materialize(target: Path, branch: str, force: bool) -> None:
     # -----------------------
     # Warn about workflow files
     # -----------------------
-    workflow_files = [
-        p for p in materialized_files
-        if p.parts[:2] == (".github", "workflows")
-    ]
+    workflow_files = [p for p in materialized_files if p.parts[:2] == (".github", "workflows")]
 
     if workflow_files:
         logger.warning(
@@ -166,10 +165,7 @@ def materialize(target: Path, branch: str, force: bool) -> None:
         for file_path in sorted(materialized_files):
             f.write(f"{file_path}\n")
 
-    logger.info(
-        f"Created {history_file.relative_to(target)} "
-        f"with {len(materialized_files)} files"
-    )
+    logger.info(f"Created {history_file.relative_to(target)} with {len(materialized_files)} files")
 
     logger.success("Rhiza templates materialized successfully")
 
