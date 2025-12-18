@@ -61,4 +61,4 @@ Next steps:
 """)
 
     # the template file exists, so validate it
-    validate(target)
+    return validate(target)

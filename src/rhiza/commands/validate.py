@@ -133,4 +133,5 @@ def validate(target: Path) -> bool:
         return True
     else:
         logger.error("✗ Validation failed: template.yml has errors")
+        #raise AssertionError("Invalid template.yml")
         return False

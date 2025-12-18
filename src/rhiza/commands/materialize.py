@@ -1,5 +1,6 @@
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -43,7 +44,11 @@ def materialize(target: Path, branch: str, force: bool) -> None:
     # -----------------------
     # Ensure Rhiza is initialized
     # -----------------------
-    init(target)
+    valid = init(target)
+
+    if not valid:
+        logger.error(f"Rhiza template is invalid. {target}")
+        sys.exit(1)
 
     template_file = target / ".github" / "template.yml"
     template = RhizaTemplate.from_yaml(template_file)
