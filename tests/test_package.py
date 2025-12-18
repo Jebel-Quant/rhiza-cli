@@ -29,7 +29,6 @@ class TestPackageInit:
         """Test that __version__ falls back to 0.0.0+dev when package is not found."""
         # We need to test the exception handling in __init__.py
         # To do this, we patch the version function at import time
-        
         # Remove rhiza from sys.modules to force reimport
         if "rhiza" in sys.modules:
             del sys.modules["rhiza"]
