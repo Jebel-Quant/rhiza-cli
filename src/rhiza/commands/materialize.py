@@ -73,7 +73,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                 capture_output=True,
                 text=True,
             )
-            
+
             if result.returncode == 0:
                 # Branch exists, checkout
                 logger.info(f"Branch '{target_branch}' exists, checking out...")
