@@ -137,6 +137,3 @@ jobs:
 
             Changes were generated automatically using **rhiza**.
 
-      - name: Delete branch
-        if: ${{ steps.sync.outputs.changes_detected == 'false' }}
-        run: git push origin --delete rhiza_update
