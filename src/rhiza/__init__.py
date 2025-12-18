@@ -1,69 +1,54 @@
-"""Rhiza - Manage reusable configuration templates for Python projects.
+"""Rhiza — Manage reusable configuration templates for Python projects.
 
-Rhiza is a command-line interface (CLI) tool that helps you maintain consistent
-configuration across multiple Python projects by using templates stored in a
-central repository. It enables you to initialize projects with standard
-configuration templates, materialize (inject) templates into target repositories,
-validate template configurations, and keep project configurations synchronized
-with template repositories.
+Rhiza is a command‑line interface (CLI) that helps you maintain consistent
+configuration across multiple Python projects using templates stored in a
+central repository. It can initialize projects with standard configuration,
+materialize (inject) template files into a target repository, and validate the
+template configuration.
 
-## Key Features
+## Key features
 
-- **Template Initialization**: Create default configuration templates for new
-  or existing Python projects with a single command.
+- Template initialization for new or existing projects.
+- Template materialization with selective include/exclude support.
+- Configuration validation (syntax and basic semantics).
+- Multi‑host support (GitHub and GitLab).
+- Non‑destructive updates by default, with an explicit `--force` flag.
 
-- **Template Materialization**: Fetch and apply configuration files from a
-  central template repository to your projects, with support for selective
-  inclusion/exclusion of files.
-
-- **Configuration Validation**: Validate template configurations to ensure
-  they are syntactically correct and semantically valid before use.
-
-- **Multi-Host Support**: Work with templates from both GitHub and GitLab
-  repositories.
-
-- **Non-Destructive Updates**: Preserve existing files by default, with
-  explicit `--force` flag for intentional overwrites.
-
-## Quick Start
+## Quick start
 
 Initialize a project with Rhiza templates:
 
-    $ cd your-project
-    $ rhiza init
-
-Customize the template configuration in `.github/template.yml`, then
-materialize templates into your project:
-
-    $ rhiza materialize
+```bash
+cd your-project
+rhiza init
+```
 
 Validate your configuration:
 
-    $ rhiza validate
+```bash
+rhiza validate
+```
 
-## Main Modules
+Customize `.github/template.yml`, then materialize templates into your project:
 
-commands : module
-    Core command implementations for init, materialize, and validate operations.
+```bash
+rhiza materialize
+```
 
-models : module
-    Data models and schemas for template configuration.
+## Main modules
 
-cli : module
-    Typer-based command-line interface and entry points.
+- `rhiza.commands` — Core command implementations (init, materialize, validate).
+- `rhiza.models` — Data models and schemas for template configuration.
 
 ## Documentation
 
-For comprehensive documentation, see:
+For an overview and usage guides, see the repository files:
 
-- README.md : Project overview and installation instructions
+- [README.md](https://github.com/jebel-quant/rhiza-cli/blob/main/README.md) — Project overview and installation instructions.
+- [USAGE.md](https://github.com/jebel-quant/rhiza-cli/blob/main/USAGE.md) — Practical examples, workflows, and best practices.
+- [CLI.md](https://github.com/jebel-quant/rhiza-cli/blob/main/CLI.md) — Command reference with examples.
 
-- USAGE.md : Practical examples, workflows, and best practices
-
-- CLI.md : Command syntax reference and quick examples
-
-For the latest version and updates, visit:
-https://github.com/jebel-quant/rhiza-cli
+Latest version and updates: https://github.com/jebel-quant/rhiza-cli
 """
 
 from importlib.metadata import PackageNotFoundError, version
