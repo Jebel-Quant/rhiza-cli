@@ -6,6 +6,7 @@ into the target Git repository, and records managed files in
 `.rhiza.history`. Use this to take a one-shot snapshot of template files.
 """
 
+import os
 import shutil
 import subprocess
 import sys
@@ -131,6 +132,10 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     tmp_dir = Path(tempfile.mkdtemp())
     materialized_files: list[Path] = []
 
+    # Set environment to prevent git from prompting for credentials
+    git_env = os.environ.copy()
+    git_env["GIT_TERMINAL_PROMPT"] = "0"
+
     logger.info(f"Cloning {rhiza_repo}@{rhiza_branch} from {rhiza_host} into temporary directory")
 
     try:
@@ -152,6 +157,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                 check=True,
                 capture_output=True,
                 text=True,
+                env=git_env,
             )
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to clone repository: {e}")
@@ -167,6 +173,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                 check=True,
                 capture_output=True,
                 text=True,
+                env=git_env,
             )
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to initialize sparse checkout: {e}")
@@ -182,6 +189,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                 check=True,
                 capture_output=True,
                 text=True,
+                env=git_env,
             )
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to set sparse checkout paths: {e}")
