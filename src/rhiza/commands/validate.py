@@ -115,6 +115,15 @@ def validate(target: Path) -> bool:
         else:
             logger.success(f"template-branch is valid: {branch}")
 
+    if "template-host" in config:
+        host = config["template-host"]
+        if not isinstance(host, str):
+            logger.warning(f"template-host should be a string, got {type(host).__name__}: {host}")
+        elif host not in ("github", "gitlab"):
+            logger.warning(f"template-host should be 'github' or 'gitlab', got: {host}")
+        else:
+            logger.success(f"template-host is valid: {host}")
+
     if "exclude" in config:
         exclude = config["exclude"]
         if not isinstance(exclude, list):

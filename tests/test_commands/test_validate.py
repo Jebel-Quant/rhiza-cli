@@ -354,3 +354,77 @@ class TestValidateCommand:
         result = validate(tmp_path)
         # Should still pass but with warnings
         assert result is True
+
+    def test_validate_gitlab_host(self, tmp_path):
+        """Test that validate accepts gitlab as template-host."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template with gitlab host
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "mygroup/myproject",
+                    "template-host": "gitlab",
+                    "include": [".gitlab-ci.yml"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_warns_on_invalid_host(self, tmp_path):
+        """Test that validate warns about invalid template-host values."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template with invalid host
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "template-host": "bitbucket",
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        # Should still pass with warning since template-host is optional
+        assert result is True
+
+    def test_validate_warns_on_wrong_type_template_host(self, tmp_path):
+        """Test that validate warns about wrong type for template-host."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template with wrong type for template-host
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "template-host": 123,  # Should be string
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        # Should still pass with warning since template-host is optional
+        assert result is True
