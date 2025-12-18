@@ -57,7 +57,9 @@ Documentation
 For comprehensive documentation, see:
 
 - README.md : Project overview and installation instructions
+
 - USAGE.md : Practical examples, workflows, and best practices
+
 - CLI.md : Command syntax reference and quick examples
 
 For the latest version and updates, visit:

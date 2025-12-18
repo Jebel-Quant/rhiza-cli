@@ -34,7 +34,9 @@ Usage Example
 These functions are typically invoked through the CLI:
 
     $ rhiza init                    # Initialize configuration
+
     $ rhiza materialize             # Apply templates to project
+
     $ rhiza validate                # Validate template configuration
 
 For more detailed usage examples and workflows, see the USAGE.md guide.
@@ -42,7 +44,9 @@ For more detailed usage examples and workflows, see the USAGE.md guide.
 See Also:
 ---------
 rhiza.cli : Main CLI entry points and command-line interface
+
 README.md : Project overview and quick start guide
+
 USAGE.md : Detailed usage examples and best practices
 """
 
