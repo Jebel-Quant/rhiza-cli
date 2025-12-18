@@ -4,6 +4,7 @@ This module focuses on ensuring that `rhiza materialize` delegates to the
 underlying inject logic and that basic paths and options are handled.
 """
 
+import subprocess
 from unittest.mock import Mock, patch
 
 import pytest
@@ -38,7 +39,7 @@ class TestInjectCommand:
         mock_subprocess.return_value = Mock(returncode=0)
 
         # Run inject
-        materialize(tmp_path, "main", False)
+        materialize(tmp_path, "main", None, False)
 
         # Verify template.yml was created
         template_file = tmp_path / ".github" / "template.yml"
@@ -82,7 +83,7 @@ class TestInjectCommand:
         mock_subprocess.return_value = Mock(returncode=0)
 
         # Run inject
-        materialize(tmp_path, "main", False)
+        materialize(tmp_path, "main", None, False)
 
         # Verify the git clone command used the custom repo
         clone_call = mock_subprocess.call_args_list[0]
@@ -108,7 +109,7 @@ class TestInjectCommand:
 
         # Run inject and expect it to fail
         with pytest.raises(SystemExit):
-            materialize(tmp_path, "main", False)
+            materialize(tmp_path, "main", None, False)
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -141,7 +142,7 @@ class TestInjectCommand:
         mock_subprocess.return_value = Mock(returncode=0)
 
         # Run inject
-        materialize(tmp_path, "main", False)
+        materialize(tmp_path, "main", None, False)
 
         # Verify copy2 was called
         assert mock_copy2.called
@@ -183,7 +184,7 @@ class TestInjectCommand:
         mock_subprocess.return_value = Mock(returncode=0)
 
         # Run inject without force
-        materialize(tmp_path, "main", False)
+        materialize(tmp_path, "main", None, False)
 
         # Verify existing file was not overwritten
         assert existing_file.read_text() == "existing"
@@ -225,7 +226,7 @@ class TestInjectCommand:
         mock_subprocess.return_value = Mock(returncode=0)
 
         # Run inject with force
-        materialize(tmp_path, "main", True)
+        materialize(tmp_path, "main", None, True)
 
         # Verify copy2 was called (force should allow overwrite)
         assert mock_copy2.called
@@ -271,7 +272,7 @@ class TestInjectCommand:
         mock_subprocess.return_value = Mock(returncode=0)
 
         # Run inject
-        materialize(tmp_path, "main", False)
+        materialize(tmp_path, "main", None, False)
 
         # Check that only included file was copied
         # This is implementation-specific, but we can check copy2 calls
@@ -302,7 +303,7 @@ class TestInjectCommand:
         mock_subprocess.return_value = Mock(returncode=0)
 
         # Run inject
-        materialize(tmp_path, "main", False)
+        materialize(tmp_path, "main", None, False)
 
         # Verify rmtree was called to clean up
         assert mock_rmtree.called
@@ -381,7 +382,7 @@ class TestInjectCommand:
         mock_subprocess.return_value = Mock(returncode=0)
 
         # Run materialize
-        materialize(tmp_path, "main", False)
+        materialize(tmp_path, "main", None, False)
 
         # Verify .rhiza.history was created
         history_file = tmp_path / ".rhiza.history"
@@ -437,7 +438,7 @@ class TestInjectCommand:
         mock_subprocess.return_value = Mock(returncode=0)
 
         # Run materialize without force (should skip existing file)
-        materialize(tmp_path, "main", False)
+        materialize(tmp_path, "main", None, False)
 
         # Verify .rhiza.history includes the skipped file
         history_file = tmp_path / ".rhiza.history"
@@ -480,7 +481,7 @@ class TestInjectCommand:
         mock_subprocess.return_value = Mock(returncode=0)
 
         # Run materialize
-        materialize(tmp_path, "main", False)
+        materialize(tmp_path, "main", None, False)
 
         # Verify the git clone command used GitLab URL
         clone_call = mock_subprocess.call_args_list[0]
@@ -524,7 +525,7 @@ class TestInjectCommand:
         mock_subprocess.return_value = Mock(returncode=0)
 
         # Run materialize
-        materialize(tmp_path, "main", False)
+        materialize(tmp_path, "main", None, False)
 
         # Verify the git clone command used GitHub URL
         clone_call = mock_subprocess.call_args_list[0]
@@ -563,7 +564,7 @@ class TestInjectCommand:
 
         # Run materialize and expect it to fail with ValueError
         with pytest.raises(ValueError, match="Unsupported template-host"):
-            materialize(tmp_path, "main", False)
+            materialize(tmp_path, "main", None, False)
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -607,7 +608,7 @@ class TestInjectCommand:
         # Patch logger.warning to verify it's called
         with patch("rhiza.commands.materialize.logger.warning") as mock_warning:
             # Run materialize
-            materialize(tmp_path, "main", False)
+            materialize(tmp_path, "main", None, False)
 
             # Verify warning was called
             mock_warning.assert_called_once()
@@ -643,4 +644,191 @@ class TestInjectCommand:
 
         # Run materialize and expect RuntimeError
         with pytest.raises(RuntimeError, match="No include paths found"):
-            materialize(tmp_path, "main", False)
+            materialize(tmp_path, "main", None, False)
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_creates_new_branch(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+        """Test that materialize creates a new branch when target_branch is specified and doesn't exist."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": [".github"]}, f
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess calls
+        # First call: git rev-parse (branch doesn't exist)
+        # Remaining calls: git clone, git sparse-checkout, etc.
+        def subprocess_side_effect(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if "rev-parse" in cmd:
+                # Return non-zero to indicate branch doesn't exist
+                mock_result = Mock()
+                mock_result.returncode = 1
+                mock_result.stdout = ""
+                mock_result.stderr = "fatal: Needed a single revision"
+                return mock_result
+            # Other commands succeed
+            mock_result = Mock()
+            mock_result.returncode = 0
+            return mock_result
+
+        mock_subprocess.side_effect = subprocess_side_effect
+
+        # Run materialize with target_branch
+        materialize(tmp_path, "main", "feature/test-branch", False)
+
+        # Verify git checkout -b was called to create the branch
+        checkout_calls = [
+            call for call in mock_subprocess.call_args_list if "checkout" in str(call) and "-b" in str(call)
+        ]
+        assert len(checkout_calls) > 0, "Expected git checkout -b to be called"
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_checks_out_existing_branch(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize checks out an existing branch when target_branch is specified."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": [".github"]}, f
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess calls
+        def subprocess_side_effect(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if "rev-parse" in cmd:
+                # Return zero to indicate branch exists
+                mock_result = Mock()
+                mock_result.returncode = 0
+                mock_result.stdout = "abc123"
+                return mock_result
+            # Other commands succeed
+            mock_result = Mock()
+            mock_result.returncode = 0
+            return mock_result
+
+        mock_subprocess.side_effect = subprocess_side_effect
+
+        # Run materialize with target_branch
+        materialize(tmp_path, "main", "existing-branch", False)
+
+        # Verify git checkout (without -b) was called to checkout existing branch
+        checkout_calls = [
+            call for call in mock_subprocess.call_args_list if "checkout" in str(call) and "existing-branch" in str(call)
+        ]
+        assert len(checkout_calls) > 0, "Expected git checkout to be called"
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_no_branch_stays_on_current(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize stays on current branch when target_branch is not specified."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": [".github"]}, f
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize without target_branch
+        materialize(tmp_path, "main", None, False)
+
+        # Verify no checkout commands were called
+        checkout_calls = [call for call in mock_subprocess.call_args_list if "checkout" in str(call)]
+        # Filter out the git clone sparse checkout commands
+        branch_checkout_calls = [
+            call
+            for call in checkout_calls
+            if "checkout" in str(call) and "sparse" not in str(call) and "clone" not in str(call)
+        ]
+        assert len(branch_checkout_calls) == 0, "No git checkout for branch switching should be called"
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_exits_on_branch_checkout_failure(self, mock_mkdtemp, mock_rmtree, mock_subprocess, tmp_path):
+        """Test that materialize exits when branch checkout fails."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": [".github"]}, f
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to fail on checkout
+        def subprocess_side_effect(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if "checkout" in cmd:
+                raise subprocess.CalledProcessError(1, cmd, stderr="error: pathspec 'bad' did not match")
+            mock_result = Mock()
+            mock_result.returncode = 0
+            return mock_result
+
+        mock_subprocess.side_effect = subprocess_side_effect
+
+        # Run materialize and expect it to exit
+        with pytest.raises(SystemExit):
+            materialize(tmp_path, "main", "bad-branch", False)

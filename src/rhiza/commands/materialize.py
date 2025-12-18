@@ -37,17 +37,62 @@ def expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
     return all_files
 
 
-def materialize(target: Path, branch: str, force: bool) -> None:
+def materialize(target: Path, branch: str, target_branch: str | None, force: bool) -> None:
     """Materialize Rhiza templates into the target repository.
 
     This performs a sparse checkout of the template repository and copies
     the selected files into the target repository, recording all files
     under template control in `.rhiza.history`.
+
+    Parameters
+    ----------
+    target:
+        Path to the target repository.
+    branch:
+        The Rhiza template branch to use.
+    target_branch:
+        Optional branch name to create/checkout in target repository.
+    force:
+        Whether to overwrite existing files.
     """
     target = target.resolve()
 
     logger.info(f"Target repository: {target}")
     logger.info(f"Rhiza branch: {branch}")
+
+    # -----------------------
+    # Handle target branch creation/checkout if specified
+    # -----------------------
+    if target_branch:
+        logger.info(f"Creating/checking out target branch: {target_branch}")
+        try:
+            # Check if branch already exists
+            result = subprocess.run(
+                ["git", "rev-parse", "--verify", target_branch],
+                cwd=target,
+                capture_output=True,
+                text=True,
+            )
+            
+            if result.returncode == 0:
+                # Branch exists, checkout
+                logger.info(f"Branch '{target_branch}' exists, checking out...")
+                subprocess.run(
+                    ["git", "checkout", target_branch],
+                    cwd=target,
+                    check=True,
+                )
+            else:
+                # Branch doesn't exist, create and checkout
+                logger.info(f"Creating new branch '{target_branch}'...")
+                subprocess.run(
+                    ["git", "checkout", "-b", target_branch],
+                    cwd=target,
+                    check=True,
+                )
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to create/checkout branch '{target_branch}': {e}")
+            sys.exit(1)
 
     # -----------------------
     # Ensure Rhiza is initialized
