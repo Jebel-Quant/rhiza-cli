@@ -127,8 +127,6 @@ def materialize(
 
     Files that already exist will NOT be overwritten unless --force is used.
 
-
-
     Examples:
         rhiza materialize
 
@@ -155,6 +153,7 @@ def validate(
 
     Validates the .github/template.yml file to ensure it is syntactically
     correct and semantically valid. Performs comprehensive validation:
+
 
     - Checks if template.yml exists
 
