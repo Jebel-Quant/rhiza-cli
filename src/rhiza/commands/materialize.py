@@ -57,6 +57,10 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     logger.info(f"Target repository: {target}")
     logger.info(f"Rhiza branch: {branch}")
 
+    # Set environment to prevent git from prompting for credentials
+    git_env = os.environ.copy()
+    git_env["GIT_TERMINAL_PROMPT"] = "0"
+
     # -----------------------
     # Handle target branch creation/checkout if specified
     # -----------------------
@@ -69,6 +73,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                 cwd=target,
                 capture_output=True,
                 text=True,
+                env=git_env,
             )
 
             if result.returncode == 0:
@@ -78,6 +83,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                     ["git", "checkout", target_branch],
                     cwd=target,
                     check=True,
+                    env=git_env,
                 )
             else:
                 # Branch doesn't exist, create and checkout
@@ -86,6 +92,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                     ["git", "checkout", "-b", target_branch],
                     cwd=target,
                     check=True,
+                    env=git_env,
                 )
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to create/checkout branch '{target_branch}': {e}")
@@ -131,10 +138,6 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     # -----------------------
     tmp_dir = Path(tempfile.mkdtemp())
     materialized_files: list[Path] = []
-
-    # Set environment to prevent git from prompting for credentials
-    git_env = os.environ.copy()
-    git_env["GIT_TERMINAL_PROMPT"] = "0"
 
     logger.info(f"Cloning {rhiza_repo}@{rhiza_branch} from {rhiza_host} into temporary directory")
 
