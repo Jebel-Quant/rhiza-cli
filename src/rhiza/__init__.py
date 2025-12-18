@@ -1,4 +1,6 @@
-"""Rhiza - Manage reusable configuration templates for Python projects.
+'''markdown
+# Rhiza
+Rhiza - Manage reusable configuration templates for Python projects.
 
 Rhiza is a command-line interface (CLI) tool that helps you maintain consistent
 configuration across multiple Python projects by using templates stored in a
@@ -7,8 +9,8 @@ configuration templates, materialize (inject) templates into target repositories
 validate template configurations, and keep project configurations synchronized
 with template repositories.
 
-Key Features
-------------
+## Key Features
+
 - **Template Initialization**: Create default configuration templates for new
   or existing Python projects with a single command.
 
@@ -25,8 +27,8 @@ Key Features
 - **Non-Destructive Updates**: Preserve existing files by default, with
   explicit `--force` flag for intentional overwrites.
 
-Quick Start
------------
+## Quick Start
+
 Initialize a project with Rhiza templates:
 
     $ cd your-project
@@ -41,8 +43,8 @@ Validate your configuration:
 
     $ rhiza validate
 
-Main Modules
-------------
+## Main Modules
+
 commands : module
     Core command implementations for init, materialize, and validate operations.
 
@@ -52,8 +54,8 @@ models : module
 cli : module
     Typer-based command-line interface and entry points.
 
-Documentation
--------------
+## Documentation
+
 For comprehensive documentation, see:
 
 - README.md : Project overview and installation instructions
@@ -64,7 +66,7 @@ For comprehensive documentation, see:
 
 For the latest version and updates, visit:
 https://github.com/jebel-quant/rhiza-cli
-"""
+'''
 
 from importlib.metadata import PackageNotFoundError, version
 
