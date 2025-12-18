@@ -44,9 +44,12 @@ rhiza materialize
 
 For an overview and usage guides, see the repository files:
 
-- [README.md](https://github.com/jebel-quant/rhiza-cli/blob/main/README.md) — Project overview and installation instructions.
-- [USAGE.md](https://github.com/jebel-quant/rhiza-cli/blob/main/USAGE.md) — Practical examples, workflows, and best practices.
-- [CLI.md](https://github.com/jebel-quant/rhiza-cli/blob/main/CLI.md) — Command reference with examples.
+- [README.md](https://github.com/jebel-quant/rhiza-cli/blob/main/README.md) —
+Project overview and installation instructions.
+- [USAGE.md](https://github.com/jebel-quant/rhiza-cli/blob/main/USAGE.md) —
+Practical examples, workflows, and best practices.
+- [CLI.md](https://github.com/jebel-quant/rhiza-cli/blob/main/CLI.md) —
+Command reference with examples.
 
 Latest version and updates: https://github.com/jebel-quant/rhiza-cli
 """

@@ -1,5 +1,4 @@
-"""
-Command implementations for the Rhiza CLI.
+"""Command implementations for the Rhiza CLI.
 
 This package contains the core implementation functions that back the Typer
 commands exposed by `rhiza.cli`. These commands help you manage reusable

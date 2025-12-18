@@ -70,7 +70,7 @@ def init(
         help="Target directory (defaults to current directory)",
     ),
 ):
-    """Initialize or validate .github/template.yml.
+    r"""Initialize or validate .github/template.yml.
 
     \b
     Creates a default `.github/template.yml` configuration file if one
@@ -112,7 +112,7 @@ def materialize(
     ),
     force: bool = typer.Option(False, "--force", "-y", help="Overwrite existing files"),
 ):
-    """Inject Rhiza configuration templates into a target repository.
+    r"""Inject Rhiza configuration templates into a target repository.
 
     \b
     Materializes configuration files from the template repository specified
@@ -146,7 +146,7 @@ def validate(
         help="Target git repository (defaults to current directory)",
     ),
 ):
-    """Validate Rhiza template configuration.
+    r"""Validate Rhiza template configuration.
 
     Validates the .github/template.yml file to ensure it is syntactically
     correct and semantically valid.
