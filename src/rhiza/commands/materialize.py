@@ -134,34 +134,60 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     logger.info(f"Cloning {rhiza_repo}@{rhiza_branch} from {rhiza_host} into temporary directory")
 
     try:
-        subprocess.run(
-            [
-                "git",
-                "clone",
-                "--depth",
-                "1",
-                "--filter=blob:none",
-                "--sparse",
-                "--branch",
-                rhiza_branch,
-                git_url,
-                str(tmp_dir),
-            ],
-            check=True,
-            stdout=subprocess.DEVNULL,
-        )
+        # Clone the repository - capture output to avoid blocking
+        try:
+            subprocess.run(
+                [
+                    "git",
+                    "clone",
+                    "--depth",
+                    "1",
+                    "--filter=blob:none",
+                    "--sparse",
+                    "--branch",
+                    rhiza_branch,
+                    git_url,
+                    str(tmp_dir),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to clone repository: {e}")
+            if e.stderr:
+                logger.error(f"Git error: {e.stderr.strip()}")
+            raise
 
-        subprocess.run(
-            ["git", "sparse-checkout", "init", "--cone"],
-            cwd=tmp_dir,
-            check=True,
-        )
+        # Initialize sparse checkout
+        try:
+            subprocess.run(
+                ["git", "sparse-checkout", "init", "--cone"],
+                cwd=tmp_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to initialize sparse checkout: {e}")
+            if e.stderr:
+                logger.error(f"Git error: {e.stderr.strip()}")
+            raise
 
-        subprocess.run(
-            ["git", "sparse-checkout", "set", "--skip-checks", *include_paths],
-            cwd=tmp_dir,
-            check=True,
-        )
+        # Set sparse checkout paths
+        try:
+            subprocess.run(
+                ["git", "sparse-checkout", "set", "--skip-checks", *include_paths],
+                cwd=tmp_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to set sparse checkout paths: {e}")
+            if e.stderr:
+                logger.error(f"Git error: {e.stderr.strip()}")
+            raise
 
         # -----------------------
         # Expand include/exclude paths
