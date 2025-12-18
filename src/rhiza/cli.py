@@ -83,6 +83,8 @@ def init(
 
     - pytest.ini
 
+
+
     Examples:
         rhiza init
 
@@ -119,6 +121,8 @@ def materialize(
     4. Respects exclusion patterns defined in the configuration
 
     Files that already exist will NOT be overwritten unless --force is used.
+
+
 
     Examples:
         rhiza materialize
@@ -160,6 +164,8 @@ def validate(
     - Confirms include paths are not empty
 
     Returns exit code 0 on success, 1 on validation failure.
+
+
 
     Examples:
         rhiza validate
