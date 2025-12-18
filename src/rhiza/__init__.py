@@ -1,6 +1,4 @@
-'''
-
-Rhiza - Manage reusable configuration templates for Python projects.
+"""Rhiza - Manage reusable configuration templates for Python projects.
 
 Rhiza is a command-line interface (CLI) tool that helps you maintain consistent
 configuration across multiple Python projects by using templates stored in a
@@ -66,7 +64,7 @@ For comprehensive documentation, see:
 
 For the latest version and updates, visit:
 https://github.com/jebel-quant/rhiza-cli
-'''
+"""
 
 from importlib.metadata import PackageNotFoundError, version
 

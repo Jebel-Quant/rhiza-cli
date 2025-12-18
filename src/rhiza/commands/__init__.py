@@ -1,4 +1,4 @@
-'''markdown
+"""markdown.
 
 Command implementations for the Rhiza CLI.
 
@@ -50,7 +50,7 @@ rhiza.cli : Main CLI entry points and command-line interface
 README.md : Project overview and quick start guide
 
 USAGE.md : Detailed usage examples and best practices
-'''
+"""
 
 from .init import init  # noqa: F401
 from .materialize import materialize  # noqa: F401
