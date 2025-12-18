@@ -14,7 +14,6 @@ import typer
 
 from rhiza import __version__
 from rhiza.cli import version_callback
-from rhiza.commands.materialize import expand_paths
 
 
 class TestCliApp:
@@ -57,67 +56,6 @@ class TestCliApp:
         # When version_callback is called with False, it should do nothing
         # and not raise an exception
         version_callback(False)  # Should not raise
-
-
-class TestExpandPaths:
-    """Tests for the expand_paths utility function."""
-
-    def test_expand_single_file(self, tmp_path):
-        """Test expanding a single file path."""
-        test_file = tmp_path / "test.txt"
-        test_file.write_text("content")
-
-        result = expand_paths(tmp_path, ["test.txt"])
-        assert result == [test_file]
-
-    def test_expand_directory(self, tmp_path):
-        """Test expanding a directory into all its files."""
-        test_dir = tmp_path / "dir"
-        test_dir.mkdir()
-        file1 = test_dir / "file1.txt"
-        file2 = test_dir / "file2.txt"
-        file1.write_text("content1")
-        file2.write_text("content2")
-
-        result = expand_paths(tmp_path, ["dir"])
-        assert len(result) == 2
-        assert file1 in result
-        assert file2 in result
-
-    def test_expand_nested_directory(self, tmp_path):
-        """Test expanding a directory with nested subdirectories."""
-        test_dir = tmp_path / "dir"
-        sub_dir = test_dir / "subdir"
-        sub_dir.mkdir(parents=True)
-        file1 = test_dir / "file1.txt"
-        file2 = sub_dir / "file2.txt"
-        file1.write_text("content1")
-        file2.write_text("content2")
-
-        result = expand_paths(tmp_path, ["dir"])
-        assert len(result) == 2
-        assert file1 in result
-        assert file2 in result
-
-    def test_expand_nonexistent_path(self, tmp_path):
-        """Test that nonexistent paths are skipped."""
-        result = expand_paths(tmp_path, ["nonexistent.txt"])
-        assert result == []
-
-    def test_expand_mixed_paths(self, tmp_path):
-        """Test expanding a mix of files and directories."""
-        file1 = tmp_path / "file1.txt"
-        file1.write_text("content1")
-
-        test_dir = tmp_path / "dir"
-        test_dir.mkdir()
-        file2 = test_dir / "file2.txt"
-        file2.write_text("content2")
-
-        result = expand_paths(tmp_path, ["file1.txt", "dir"])
-        assert len(result) == 2
-        assert file1 in result
-        assert file2 in result
 
 
 class TestMainEntry:

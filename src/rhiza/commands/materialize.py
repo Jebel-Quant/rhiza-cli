@@ -18,7 +18,7 @@ from rhiza.commands import init
 from rhiza.models import RhizaTemplate
 
 
-def expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
+def __expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
     """Expand files/directories relative to base_dir into a flat list of files.
 
     Given a list of paths relative to ``base_dir``, return a flat list of all
@@ -40,20 +40,16 @@ def expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
 def materialize(target: Path, branch: str, target_branch: str | None, force: bool) -> None:
     """Materialize Rhiza templates into the target repository.
 
-    This performs a sparse checkout of the template repository and copies
-    the selected files into the target repository, recording all files
-    under template control in `.rhiza.history`.
+    This performs a sparse checkout of the template repository and copies the
+    selected files into the target repository, recording all files under
+    template control in `.rhiza.history`.
 
-    Parameters
-    ----------
-    target:
-        Path to the target repository.
-    branch:
-        The Rhiza template branch to use.
-    target_branch:
-        Optional branch name to create/checkout in target repository.
-    force:
-        Whether to overwrite existing files.
+    Args:
+        target (Path): Path to the target repository.
+        branch (str): The Rhiza template branch to use.
+        target_branch (str | None): Optional branch name to create/checkout in
+            the target repository.
+        force (bool): Whether to overwrite existing files.
     """
     target = target.resolve()
 
@@ -170,9 +166,9 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         # -----------------------
         # Expand include/exclude paths
         # -----------------------
-        all_files = expand_paths(tmp_dir, include_paths)
+        all_files = __expand_paths(tmp_dir, include_paths)
 
-        excluded_files = {f.resolve() for f in expand_paths(tmp_dir, excluded_paths)}
+        excluded_files = {f.resolve() for f in __expand_paths(tmp_dir, excluded_paths)}
 
         files_to_copy = [f for f in all_files if f.resolve() not in excluded_files]
 
