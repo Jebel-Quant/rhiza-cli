@@ -16,8 +16,8 @@ from rhiza.commands import validate as validate_cmd
 app = typer.Typer(
     help=(
         "Rhiza - Manage reusable configuration templates for Python projects\n\n"
-        "You probably want to install completion for the rhiza command:\n"
-        "$ rhiza --install-completion\n"
+        "You probably want to install completion for the rhiza command:\n\n"
+        "$ rhiza --install-completion\n\n"
         "https://jebel-quant.github.io/rhiza-cli/"
     ),
     add_completion=True,
