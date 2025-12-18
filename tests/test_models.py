@@ -181,3 +181,93 @@ class TestRhizaTemplate:
 
         assert template_file.exists()
         assert template_file.parent.exists()
+
+    def test_rhiza_template_defaults_to_github(self, tmp_path):
+        """Test that template-host defaults to github when not specified."""
+        template_file = tmp_path / "template.yml"
+        config = {
+            "template-repository": "jebel-quant/rhiza",
+            "template-branch": "main",
+            "include": [".github"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(config, f)
+
+        template = RhizaTemplate.from_yaml(template_file)
+
+        assert template.template_host == "github"
+
+    def test_rhiza_template_gitlab_host(self, tmp_path):
+        """Test loading a template.yml with gitlab as template-host."""
+        template_file = tmp_path / "template.yml"
+        config = {
+            "template-repository": "mygroup/myproject",
+            "template-branch": "main",
+            "template-host": "gitlab",
+            "include": [".gitlab-ci.yml", "Makefile"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(config, f)
+
+        template = RhizaTemplate.from_yaml(template_file)
+
+        assert template.template_repository == "mygroup/myproject"
+        assert template.template_branch == "main"
+        assert template.template_host == "gitlab"
+        assert template.include == [".gitlab-ci.yml", "Makefile"]
+
+    def test_rhiza_template_to_yaml_github_not_included(self, tmp_path):
+        """Test that template-host is not saved when it's 'github' (default)."""
+        template = RhizaTemplate(
+            template_repository="jebel-quant/rhiza",
+            template_branch="main",
+            template_host="github",
+            include=[".github"],
+        )
+
+        template_file = tmp_path / "template.yml"
+        template.to_yaml(template_file)
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        # GitHub is default, should not appear in the file
+        assert "template-host" not in config
+
+    def test_rhiza_template_to_yaml_gitlab_included(self, tmp_path):
+        """Test that template-host is saved when it's 'gitlab'."""
+        template = RhizaTemplate(
+            template_repository="mygroup/myproject",
+            template_branch="main",
+            template_host="gitlab",
+            include=[".gitlab-ci.yml"],
+        )
+
+        template_file = tmp_path / "template.yml"
+        template.to_yaml(template_file)
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        assert config["template-host"] == "gitlab"
+
+    def test_rhiza_template_round_trip_with_gitlab(self, tmp_path):
+        """Test that loading and saving preserves gitlab host."""
+        original = RhizaTemplate(
+            template_repository="mygroup/myproject",
+            template_branch="main",
+            template_host="gitlab",
+            include=[".gitlab-ci.yml", "Makefile"],
+        )
+
+        template_file = tmp_path / "template.yml"
+        original.to_yaml(template_file)
+
+        loaded = RhizaTemplate.from_yaml(template_file)
+
+        assert loaded.template_repository == original.template_repository
+        assert loaded.template_branch == original.template_branch
+        assert loaded.template_host == original.template_host
+        assert loaded.include == original.include

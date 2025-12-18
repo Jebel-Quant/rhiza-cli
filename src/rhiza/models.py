@@ -16,16 +16,19 @@ class RhizaTemplate:
     """Represents the structure of .github/template.yml.
 
     Attributes:
-        template_repository: The GitHub repository containing templates (e.g., "jebel-quant/rhiza").
+        template_repository: The GitHub or GitLab repository containing templates (e.g., "jebel-quant/rhiza").
             Can be None if not specified in the template file.
         template_branch: The branch to use from the template repository.
             Can be None if not specified in the template file (defaults to "main" when creating).
+        template_host: The git hosting platform ("github" or "gitlab").
+            Defaults to "github" if not specified in the template file.
         include: List of paths to include from the template repository.
         exclude: List of paths to exclude from the template repository (default: empty list).
     """
 
     template_repository: str | None = None
     template_branch: str | None = None
+    template_host: str = "github"
     include: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
 
@@ -53,6 +56,7 @@ class RhizaTemplate:
         return cls(
             template_repository=config.get("template-repository"),
             template_branch=config.get("template-branch"),
+            template_host=config.get("template-host", "github"),
             include=config.get("include", []),
             exclude=config.get("exclude", []),
         )
@@ -76,6 +80,10 @@ class RhizaTemplate:
         # Only include template-branch if it's not None
         if self.template_branch:
             config["template-branch"] = self.template_branch
+
+        # Only include template-host if it's not the default "github"
+        if self.template_host and self.template_host != "github":
+            config["template-host"] = self.template_host
 
         # Include is always present as it's a required field for the config to be useful
         config["include"] = self.include

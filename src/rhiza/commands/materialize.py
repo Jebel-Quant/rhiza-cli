@@ -63,6 +63,7 @@ def materialize(target: Path, branch: str, force: bool) -> None:
 
     rhiza_repo = template.template_repository
     rhiza_branch = template.template_branch or branch
+    rhiza_host = template.template_host or "github"
     include_paths = template.include
     excluded_paths = template.exclude
 
@@ -74,12 +75,22 @@ def materialize(target: Path, branch: str, force: bool) -> None:
         logger.info(f"  - {p}")
 
     # -----------------------
+    # Construct git clone URL based on host
+    # -----------------------
+    if rhiza_host == "gitlab":
+        git_url = f"https://gitlab.com/{rhiza_repo}.git"
+    elif rhiza_host == "github":
+        git_url = f"https://github.com/{rhiza_repo}.git"
+    else:
+        raise ValueError(f"Unsupported template-host: {rhiza_host}. Must be 'github' or 'gitlab'.")
+
+    # -----------------------
     # Sparse clone template repo
     # -----------------------
     tmp_dir = Path(tempfile.mkdtemp())
     materialized_files: list[Path] = []
 
-    logger.info(f"Cloning {rhiza_repo}@{rhiza_branch} into temporary directory")
+    logger.info(f"Cloning {rhiza_repo}@{rhiza_branch} from {rhiza_host} into temporary directory")
 
     try:
         subprocess.run(
@@ -92,7 +103,7 @@ def materialize(target: Path, branch: str, force: bool) -> None:
                 "--sparse",
                 "--branch",
                 rhiza_branch,
-                f"https://github.com/{rhiza_repo}.git",
+                git_url,
                 str(tmp_dir),
             ],
             check=True,

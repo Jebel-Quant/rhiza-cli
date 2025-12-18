@@ -444,3 +444,123 @@ class TestInjectCommand:
         assert history_file.exists()
         history_content = history_file.read_text()
         assert "existing.txt" in history_content
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_gitlab_repository(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+        """Test that materialize uses GitLab URL when template-host is gitlab."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml with gitlab host
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "mygroup/myproject",
+                    "template-branch": "main",
+                    "template-host": "gitlab",
+                    "include": [".gitlab-ci.yml"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize
+        materialize(tmp_path, "main", False)
+
+        # Verify the git clone command used GitLab URL
+        clone_call = mock_subprocess.call_args_list[0]
+        assert "gitlab.com" in str(clone_call)
+        assert "mygroup/myproject.git" in str(clone_call)
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_github_repository_explicit(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize uses GitHub URL when template-host is explicitly github."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml with explicit github host
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "template-host": "github",
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize
+        materialize(tmp_path, "main", False)
+
+        # Verify the git clone command used GitHub URL
+        clone_call = mock_subprocess.call_args_list[0]
+        assert "github.com" in str(clone_call)
+        assert "jebel-quant/rhiza.git" in str(clone_call)
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_fails_with_invalid_host(self, mock_mkdtemp, mock_rmtree, mock_subprocess, tmp_path):
+        """Test that materialize fails with an unsupported template-host."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml with invalid host
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "invalid/repo",
+                    "template-branch": "main",
+                    "template-host": "bitbucket",
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Run materialize and expect it to fail with ValueError
+        with pytest.raises(ValueError, match="Unsupported template-host"):
+            materialize(tmp_path, "main", False)

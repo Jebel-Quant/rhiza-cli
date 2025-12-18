@@ -252,6 +252,37 @@ vim .github/template.yml  # Change template-branch to 'develop'
 rhiza materialize
 ```
 
+### Using GitLab Repositories
+
+Configure Rhiza to use a GitLab template repository:
+
+**Edit `.github/template.yml`:**
+
+```yaml
+template-repository: mygroup/python-templates
+template-host: gitlab
+template-branch: main
+include:
+  - .gitlab-ci.yml
+  - .editorconfig
+  - .gitignore
+  - Makefile
+  - pytest.ini
+exclude:
+  - .gitlab-ci.yml  # Example exclusion
+```
+
+**Materialize:**
+
+```bash
+rhiza materialize --force
+```
+
+**Notes:**
+- The `template-host` field supports `github` (default) and `gitlab`
+- Repository format is the same: `owner/repo` for GitHub or `group/project` for GitLab
+- All other Rhiza features work identically with GitLab repositories
+
 ### Selective Inclusion
 
 Include only specific files:

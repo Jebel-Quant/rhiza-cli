@@ -337,8 +337,11 @@ Rhiza uses a `.github/template.yml` file to define template sources and what to 
 The `template.yml` file uses YAML format with the following structure:
 
 ```yaml
-# Required: GitHub repository containing templates (format: owner/repo)
+# Required: GitHub or GitLab repository containing templates (format: owner/repo)
 template-repository: jebel-quant/rhiza
+
+# Optional: Git hosting platform (default: github)
+template-host: github
 
 # Optional: Branch to use from template repository (default: main)
 template-branch: main
@@ -365,8 +368,16 @@ exclude:
 
 - **Type:** String
 - **Format:** `owner/repository`
-- **Description:** GitHub repository containing your configuration templates
-- **Example:** `jebel-quant/rhiza`, `myorg/python-templates`
+- **Description:** GitHub or GitLab repository containing your configuration templates
+- **Example:** `jebel-quant/rhiza`, `myorg/python-templates`, `mygroup/gitlab-templates`
+
+#### `template-host` (optional)
+
+- **Type:** String
+- **Default:** `github`
+- **Options:** `github`, `gitlab`
+- **Description:** Git hosting platform where the template repository is hosted
+- **Example:** `github`, `gitlab`
 
 #### `template-branch` (optional)
 
@@ -410,6 +421,7 @@ exclude:
 
 ### Complete Configuration Example
 
+#### GitHub Example
 ```yaml
 template-repository: jebel-quant/rhiza
 template-branch: main
@@ -426,6 +438,21 @@ include:
 exclude:
   - .github/workflows/release.yml
   - .github/CODEOWNERS
+```
+
+#### GitLab Example
+```yaml
+template-repository: mygroup/python-templates
+template-host: gitlab
+template-branch: main
+include:
+  - .gitlab-ci.yml
+  - .editorconfig
+  - .gitignore
+  - Makefile
+  - pytest.ini
+exclude:
+  - .gitlab-ci.yml
 ```
 
 ## Examples
@@ -499,7 +526,29 @@ Then materialize:
 rhiza materialize --force
 ```
 
-### Example 4: Validating before CI/CD
+### Example 4: Using a GitLab template repository
+
+Edit `.github/template.yml`:
+
+```yaml
+template-repository: mygroup/python-templates
+template-host: gitlab
+template-branch: main
+include:
+  - .gitlab-ci.yml
+  - .editorconfig
+  - .gitignore
+  - Makefile
+  - pytest.ini
+```
+
+Then materialize:
+
+```bash
+rhiza materialize --force
+```
+
+### Example 5: Validating before CI/CD
 
 Add to your CI pipeline:
 
@@ -703,8 +752,9 @@ Run `rhiza validate` for detailed error messages.
 Ensure:
 1. The template repository exists and is accessible
 2. The specified branch exists
-3. You have network connectivity to GitHub
+3. You have network connectivity to GitHub or GitLab
 4. The repository is public (or you have appropriate credentials configured)
+5. The `template-host` field matches your repository's hosting platform (defaults to "github")
 
 ### Files not being copied
 
@@ -722,7 +772,18 @@ A: Yes, as long as you have Git credentials configured that allow access to the 
 
 **Q: Does Rhiza support template repositories hosted outside GitHub?**
 
-A: Currently, Rhiza is designed for GitHub repositories. Support for other Git hosting services could be added in the future.
+A: Yes! Rhiza supports both GitHub and GitLab repositories. Use the `template-host` field in your `.github/template.yml` to specify "github" (default) or "gitlab".
+
+**Q: How do I use a GitLab repository as a template source?**
+
+A: Add `template-host: gitlab` to your `.github/template.yml` file. For example:
+```yaml
+template-repository: mygroup/myproject
+template-host: gitlab
+include:
+  - .gitlab-ci.yml
+  - Makefile
+```
 
 **Q: Can I materialize templates from multiple repositories?**
 
