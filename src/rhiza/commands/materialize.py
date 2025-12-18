@@ -154,7 +154,9 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                 text=True,
             )
         except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to clone repository: {e.stderr}")
+            logger.error(f"Failed to clone repository: {e}")
+            if e.stderr:
+                logger.error(f"Git error: {e.stderr.strip()}")
             raise
 
         # Initialize sparse checkout
@@ -167,7 +169,9 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                 text=True,
             )
         except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to initialize sparse checkout: {e.stderr}")
+            logger.error(f"Failed to initialize sparse checkout: {e}")
+            if e.stderr:
+                logger.error(f"Git error: {e.stderr.strip()}")
             raise
 
         # Set sparse checkout paths
@@ -180,7 +184,9 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                 text=True,
             )
         except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to set sparse checkout paths: {e.stderr}")
+            logger.error(f"Failed to set sparse checkout paths: {e}")
+            if e.stderr:
+                logger.error(f"Git error: {e.stderr.strip()}")
             raise
 
         # -----------------------
