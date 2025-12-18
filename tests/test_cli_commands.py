@@ -9,7 +9,11 @@ This module tests:
 import subprocess
 import sys
 
+import typer
+from typer.testing import CliRunner
+
 from rhiza import __version__
+from rhiza.cli import version_callback
 from rhiza.commands.materialize import expand_paths
 
 
@@ -37,6 +41,24 @@ class TestCliApp:
         assert result.returncode == 0
         assert "rhiza version" in result.stdout
         assert __version__ in result.stdout
+
+    def test_version_callback_with_true(self, capsys):
+        """Test that version_callback prints version and exits when value is True."""
+        import pytest
+
+        # When version_callback is called with True, it should print version and exit
+        with pytest.raises(typer.Exit):
+            version_callback(True)
+
+        # Capture the output
+        captured = capsys.readouterr()
+        assert f"rhiza version {__version__}" in captured.out
+
+    def test_version_callback_with_false(self):
+        """Test that version_callback does nothing when value is False."""
+        # When version_callback is called with False, it should do nothing
+        # and not raise an exception
+        version_callback(False)  # Should not raise
 
 
 class TestExpandPaths:

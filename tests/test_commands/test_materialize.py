@@ -564,3 +564,81 @@ class TestInjectCommand:
         # Run materialize and expect it to fail with ValueError
         with pytest.raises(ValueError, match="Unsupported template-host"):
             materialize(tmp_path, "main", False)
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_warns_for_workflow_files(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+        """Test that materialize warns when workflow files are materialized."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml including workflow files
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": [".github/workflows"],
+                },
+                f,
+            )
+
+        # Mock tempfile with workflow files
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        workflows_dir = temp_dir / ".github" / "workflows"
+        workflows_dir.mkdir(parents=True)
+        workflow_file = workflows_dir / "ci.yml"
+        workflow_file.write_text("name: CI")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Patch logger.warning to verify it's called
+        with patch("rhiza.commands.materialize.logger.warning") as mock_warning:
+            # Run materialize
+            materialize(tmp_path, "main", False)
+
+            # Verify warning was called
+            mock_warning.assert_called_once()
+            # Verify the warning message contains expected text
+            call_args = mock_warning.call_args[0][0]
+            assert "workflow" in call_args.lower()
+            assert "permission" in call_args.lower()
+
+    @patch("rhiza.commands.materialize.init")
+    def test_materialize_empty_include_paths_raises_error(self, mock_init, tmp_path):
+        """Test that materialize raises RuntimeError when include_paths is empty after validation."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml with empty include (bypassing normal validation)
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": [],
+                },
+                f,
+            )
+
+        # Mock init to return True (bypass validation that would catch this)
+        mock_init.return_value = True
+
+        # Run materialize and expect RuntimeError
+        with pytest.raises(RuntimeError, match="No include paths found"):
+            materialize(tmp_path, "main", False)
