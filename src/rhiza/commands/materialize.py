@@ -136,7 +136,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     try:
         # Clone the repository - capture output to avoid blocking
         try:
-            result = subprocess.run(
+            subprocess.run(
                 [
                     "git",
                     "clone",
@@ -159,7 +159,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
 
         # Initialize sparse checkout
         try:
-            result = subprocess.run(
+            subprocess.run(
                 ["git", "sparse-checkout", "init", "--cone"],
                 cwd=tmp_dir,
                 check=True,
@@ -172,7 +172,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
 
         # Set sparse checkout paths
         try:
-            result = subprocess.run(
+            subprocess.run(
                 ["git", "sparse-checkout", "set", "--skip-checks", *include_paths],
                 cwd=tmp_dir,
                 check=True,
