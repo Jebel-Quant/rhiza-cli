@@ -6,10 +6,8 @@ This module tests:
 """
 
 import sys
-from unittest.mock import patch
-
-import pytest
 from importlib.metadata import PackageNotFoundError
+from unittest.mock import patch
 
 
 class TestPackageInit:
@@ -32,20 +30,19 @@ class TestPackageInit:
         # Remove rhiza from sys.modules to force reimport
         if "rhiza" in sys.modules:
             del sys.modules["rhiza"]
-        
+
         try:
             # Patch version to raise PackageNotFoundError
             with patch("importlib.metadata.version", side_effect=PackageNotFoundError):
                 # Import rhiza - this should trigger the fallback
                 import rhiza as test_rhiza
-                
+
                 # The version should be the fallback
                 assert test_rhiza.__version__ == "0.0.0+dev"
         finally:
             # Clean up and re-import normally for other tests
             if "rhiza" in sys.modules:
                 del sys.modules["rhiza"]
-            import rhiza  # Re-import for other tests
 
     def test_all_exports(self):
         """Test that __all__ contains expected exports."""

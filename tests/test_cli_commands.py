@@ -11,7 +11,6 @@ import sys
 
 import pytest
 import typer
-from typer.testing import CliRunner
 
 from rhiza import __version__
 from rhiza.cli import version_callback
