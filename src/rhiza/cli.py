@@ -90,7 +90,8 @@ def init(
 
 
 
-    Examples:
+    Examples::
+
         rhiza init
 
         rhiza init /path/to/project
@@ -133,7 +134,8 @@ def materialize(
 
     Files that already exist will NOT be overwritten unless --force is used.
 
-    Examples:
+    Examples::
+
         rhiza materialize
 
         rhiza materialize --branch develop
@@ -179,7 +181,8 @@ def validate(
 
 
 
-    Examples:
+    Examples::
+
         rhiza validate
 
         rhiza validate /path/to/project
