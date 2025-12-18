@@ -695,7 +695,8 @@ class TestInjectCommand:
 
         # Verify git checkout -b was called to create the branch
         checkout_calls = [
-            call for call in mock_subprocess.call_args_list
+            call
+            for call in mock_subprocess.call_args_list
             if len(call[0]) > 0 and call[0][0] == ["git", "checkout", "-b", "feature/test-branch"]
         ]
         assert len(checkout_calls) > 0, "Expected git checkout -b feature/test-branch to be called"
@@ -748,7 +749,8 @@ class TestInjectCommand:
 
         # Verify git checkout (without -b) was called to checkout existing branch
         checkout_calls = [
-            call for call in mock_subprocess.call_args_list
+            call
+            for call in mock_subprocess.call_args_list
             if len(call[0]) > 0 and call[0][0] == ["git", "checkout", "existing-branch"]
         ]
         assert len(checkout_calls) > 0, "Expected git checkout existing-branch to be called"
@@ -789,12 +791,15 @@ class TestInjectCommand:
         # Verify no git checkout commands were called for branch switching
         # We check for git commands that start with ["git", "checkout", ...] but exclude sparse-checkout
         branch_checkout_calls = [
-            call for call in mock_subprocess.call_args_list
-            if (len(call[0]) > 0 and
-                len(call[0][0]) >= 2 and
-                call[0][0][0] == "git" and
-                call[0][0][1] == "checkout" and
-                "sparse-checkout" not in " ".join(call[0][0]))
+            call
+            for call in mock_subprocess.call_args_list
+            if (
+                len(call[0]) > 0
+                and len(call[0][0]) >= 2
+                and call[0][0][0] == "git"
+                and call[0][0][1] == "checkout"
+                and "sparse-checkout" not in " ".join(call[0][0])
+            )
         ]
         assert len(branch_checkout_calls) == 0, "No git checkout for branch switching should be called"
 
