@@ -93,7 +93,6 @@ def init(
 
 
     Examples:
-
         rhiza init
 
         rhiza init /path/to/project
@@ -147,7 +146,6 @@ def materialize(
 
 
     Examples:
-
         rhiza materialize
 
         rhiza materialize --branch develop
@@ -201,7 +199,6 @@ def validate(
 
 
     Examples:
-
         rhiza validate
 
         rhiza validate /path/to/project
