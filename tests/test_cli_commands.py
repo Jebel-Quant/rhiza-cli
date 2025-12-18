@@ -14,7 +14,6 @@ import typer
 
 from rhiza import __version__
 from rhiza.cli import version_callback
-from rhiza.commands.materialize import __expand_paths
 
 
 class TestCliApp:
