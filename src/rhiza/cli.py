@@ -12,6 +12,7 @@ from rhiza import __version__
 from rhiza.commands import init as init_cmd
 from rhiza.commands import materialize as materialize_cmd
 from rhiza.commands import validate as validate_cmd
+from rhiza.commands.welcome import welcome as welcome_cmd
 
 app = typer.Typer(
     help=(
@@ -171,3 +172,17 @@ def validate(
     """
     if not validate_cmd(target):
         raise typer.Exit(code=1)
+
+
+@app.command()
+def welcome():
+    r"""Display a friendly welcome message and explain what Rhiza is.
+
+    Shows a welcome message, explains Rhiza's purpose, key features,
+    and provides guidance on getting started with the tool.
+
+    \b
+    Examples:
+        rhiza welcome
+    """
+    welcome_cmd()
