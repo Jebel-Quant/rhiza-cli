@@ -7,8 +7,6 @@ This module provides the welcome command that displays a friendly greeting
 and explains what Rhiza is and how it can help manage configuration templates.
 """
 
-from loguru import logger
-
 from rhiza import __version__
 
 
@@ -18,8 +16,6 @@ def welcome():
     Shows a friendly greeting, explains Rhiza's purpose, and provides
     next steps for getting started with the tool.
     """
-    logger.remove()  # Remove default logger to avoid timestamp prefixes
-
     welcome_message = f"""
 ╭───────────────────────────────────────────────────────────────╮
 │                                                               │
