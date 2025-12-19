@@ -91,3 +91,35 @@ class TestMainEntry:
             assert "rhiza" in captured.out.lower()
         finally:
             sys.argv = original_argv
+
+
+class TestWelcomeCommand:
+    """Tests for the welcome command."""
+
+    def test_welcome_command(self, capsys):
+        """Test that the welcome command displays welcome message."""
+        result = subprocess.run(
+            [sys.executable, "-m", "rhiza", "welcome"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        output = result.stdout
+
+        # Check for key elements of the welcome message
+        assert "Welcome to Rhiza" in output
+        assert __version__ in output
+        assert "What Rhiza can do" in output
+        assert "Getting started" in output
+        assert "rhiza init" in output
+        assert "rhiza materialize" in output
+
+    def test_welcome_command_function_coverage(self, capsys):
+        """Test the welcome command function directly for coverage."""
+        from rhiza.commands.welcome import welcome
+
+        welcome()
+
+        captured = capsys.readouterr()
+        assert "Welcome to Rhiza" in captured.out
+        assert __version__ in captured.out
