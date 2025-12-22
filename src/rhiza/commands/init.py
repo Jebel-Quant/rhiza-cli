@@ -32,11 +32,11 @@ def init(target: Path):
     github_dir.mkdir(parents=True, exist_ok=True)
 
     # Define the template file path
-    template_file = github_dir / "template.yml"
+    template_file = github_dir / "rhiza" / "template.yml"
 
     if not template_file.exists():
         # Create default template.yml
-        logger.info("Creating default .github/template.yml")
+        logger.info("Creating default .github/rhiza/template.yml")
 
         default_template = RhizaTemplate(
             template_repository="jebel-quant/rhiza",
@@ -56,7 +56,7 @@ def init(target: Path):
         logger.success("✓ Created .github/template.yml")
         logger.info("""
 Next steps:
-  1. Review and customize .github/template.yml to match your project needs
+  1. Review and customize .github/rhiza/template.yml to match your project needs
   2. Run 'rhiza materialize' to inject templates into your repository
 """)
 

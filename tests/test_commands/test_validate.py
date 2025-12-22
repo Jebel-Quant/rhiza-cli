@@ -35,9 +35,9 @@ class TestValidateCommand:
         git_dir.mkdir()
 
         # Create invalid YAML
-        github_dir = tmp_path / ".github"
+        github_dir = tmp_path / "rhiza" / ".github"
         github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        template_file = github_dir / "rhiza" / "template.yml"
         template_file.write_text("invalid: yaml: syntax: :")
 
         result = validate(tmp_path)

@@ -79,11 +79,11 @@ rhiza --help
    rhiza init
    ```
 
-   This creates a `.github/template.yml` file with default configuration.
+   This creates a `.github/rhiza/template.yml` file with default configuration.
 
 2. **Customize the template configuration:**
 
-   Edit `.github/template.yml` to specify which files/directories to include from your template repository.
+   Edit `.github/rhiza/template.yml` to specify which files/directories to include from your template repository.
 
 3. **Materialize templates into your project:**
 
@@ -99,13 +99,13 @@ rhiza --help
    rhiza validate
    ```
 
-   This checks that your `.github/template.yml` is correctly formatted and valid.
+   This checks that your `.github/rhiza/template.yml` is correctly formatted and valid.
 
 ## Commands
 
 ### `rhiza init`
 
-Initialize or validate `.github/template.yml` in a target directory.
+Initialize or validate `.github/rhiza/template.yml` in a target directory.
 
 **Usage:**
 
@@ -119,7 +119,7 @@ rhiza init [TARGET]
 
 **Description:**
 
-Creates a default `.github/template.yml` file if it doesn't exist, or validates an existing one. The default configuration includes common Python project files like `.github`, `.editorconfig`, `.gitignore`, `.pre-commit-config.yaml`, `Makefile`, and `pytest.ini`.
+Creates a default `.github/rhiza/template.yml` file if it doesn't exist, or validates an existing one. The default configuration includes common Python project files like `.github`, `.editorconfig`, `.gitignore`, `.pre-commit-config.yaml`, `Makefile`, and `pytest.ini`.
 
 **Examples:**
 
@@ -139,18 +139,18 @@ rhiza init ..
 When creating a new template file:
 ```
 [INFO] Initializing Rhiza configuration in: /path/to/project
-[INFO] Creating default .github/template.yml
-✓ Created .github/template.yml
+[INFO] Creating default .github/rhiza/template.yml
+✓ Created .github/rhiza/template.yml
 
 Next steps:
-  1. Review and customize .github/template.yml to match your project needs
+  1. Review and customize .github/rhiza/template.yml to match your project needs
   2. Run 'rhiza materialize' to inject templates into your repository
 ```
 
 When validating an existing file:
 ```
 [INFO] Validating template configuration in: /path/to/project
-✓ Found template file: /path/to/project/.github/template.yml
+✓ Found template file: /path/to/project/.github/rhiza/template.yml
 ✓ YAML syntax is valid
 ✓ Field 'template-repository' is present and valid
 ✓ Field 'include' is present and valid
@@ -185,7 +185,7 @@ rhiza materialize [OPTIONS] [TARGET]
 
 Materializes template files from the configured template repository into your target project. This command:
 
-1. Reads the `.github/template.yml` configuration
+1. Reads the `.github/rhiza/template.yml` configuration
 2. Performs a sparse clone of the template repository
 3. Copies specified files/directories to your project
 4. Respects exclusion patterns defined in the configuration
@@ -267,7 +267,7 @@ rhiza validate [TARGET]
 
 **Description:**
 
-Validates the `.github/template.yml` file to ensure it is syntactically correct and semantically valid. This performs authoritative validation including:
+Validates the `.github/rhiza/template.yml` file to ensure it is syntactically correct and semantically valid. This performs authoritative validation including:
 
 - Checking if the file exists
 - Validating YAML syntax
@@ -298,7 +298,7 @@ rhiza validate ..
 
 ```
 [INFO] Validating template configuration in: /path/to/project
-✓ Found template file: /path/to/project/.github/template.yml
+✓ Found template file: /path/to/project/.github/rhiza/template.yml
 ✓ YAML syntax is valid
 ✓ Field 'template-repository' is present and valid
 ✓ Field 'include' is present and valid
@@ -322,7 +322,7 @@ rhiza validate ..
 or
 
 ```
-[ERROR] Template file not found: /path/to/project/.github/template.yml
+[ERROR] Template file not found: /path/to/project/.github/rhiza/template.yml
 [INFO] Run 'rhiza materialize' or 'rhiza init' to create a default template.yml
 ```
 
@@ -330,7 +330,7 @@ or
 
 ## Configuration
 
-Rhiza uses a `.github/template.yml` file to define template sources and what to include in your project.
+Rhiza uses a `.github/rhiza/template.yml` file to define template sources and what to include in your project.
 
 ### Configuration File Format
 
@@ -471,7 +471,7 @@ git init
 rhiza init
 
 # Review the generated template.yml
-cat .github/template.yml
+cat .github/rhiza/template.yml
 
 # Materialize templates
 rhiza materialize
@@ -506,7 +506,7 @@ git commit -m "chore: update rhiza templates"
 
 ### Example 3: Using a custom template repository
 
-Edit `.github/template.yml`:
+Edit `.github/rhiza/template.yml`:
 
 ```yaml
 template-repository: myorg/my-templates
@@ -528,7 +528,7 @@ rhiza materialize --force
 
 ### Example 4: Using a GitLab template repository
 
-Edit `.github/template.yml`:
+Edit `.github/rhiza/template.yml`:
 
 ```yaml
 template-repository: mygroup/python-templates
@@ -668,7 +668,7 @@ Releasing and Versioning
   post-release     perform post-release tasks
 
 Meta
-  sync             sync with template repository as defined in .github/template.yml
+  sync             sync with template repository as defined in .github/rhiza/template.yml
   help             Display this help message
   customisations   list available customisation scripts
   update-readme    update README.md with current Makefile help output
@@ -740,7 +740,7 @@ export PATH="$HOME/.local/bin:$PATH"
 ### Template validation fails
 
 Check that:
-1. Your `.github/template.yml` file exists
+1. Your `.github/rhiza/template.yml` file exists
 2. The YAML syntax is valid
 3. Required fields (`template-repository` and `include`) are present
 4. The repository format is `owner/repo`
@@ -772,11 +772,11 @@ A: Yes, as long as you have Git credentials configured that allow access to the 
 
 **Q: Does Rhiza support template repositories hosted outside GitHub?**
 
-A: Yes! Rhiza supports both GitHub and GitLab repositories. Use the `template-host` field in your `.github/template.yml` to specify "github" (default) or "gitlab".
+A: Yes! Rhiza supports both GitHub and GitLab repositories. Use the `template-host` field in your `.github/rhiza/template.yml` to specify "github" (default) or "gitlab".
 
 **Q: How do I use a GitLab repository as a template source?**
 
-A: Add `template-host: gitlab` to your `.github/template.yml` file. For example:
+A: Add `template-host: gitlab` to your `.github/rhiza/template.yml` file. For example:
 ```yaml
 template-repository: mygroup/myproject
 template-host: gitlab
@@ -791,7 +791,7 @@ A: Not directly. However, you can run `rhiza materialize` multiple times with di
 
 **Q: What's the difference between `rhiza init` and `rhiza materialize`?**
 
-A: `init` creates or validates the `.github/template.yml` configuration file. `materialize` reads that configuration and actually copies the template files into your project.
+A: `init` creates or validates the `.github/rhiza/template.yml` configuration file. `materialize` reads that configuration and actually copies the template files into your project.
 
 **Q: How do I update my project's templates?**
 
@@ -799,7 +799,7 @@ A: Simply run `rhiza materialize --force` to fetch and overwrite with the latest
 
 **Q: Can I customize which files are included?**
 
-A: Yes, edit the `include` and `exclude` lists in `.github/template.yml` to control exactly which files are copied.
+A: Yes, edit the `include` and `exclude` lists in `.github/rhiza/template.yml` to control exactly which files are copied.
 
 ## Acknowledgments
 

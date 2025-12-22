@@ -80,7 +80,7 @@ class TestInitCommand:
         # Create template.yml without include
         github_dir = tmp_path / ".github"
         github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        template_file = github_dir / "rhiza" / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump({"template-repository": "jebel-quant/rhiza", "template-branch": "main"}, f)
