@@ -15,7 +15,9 @@ class TestRhizaTemplate:
 
     def test_rhiza_template_from_yaml_basic(self, tmp_path):
         """Test loading a basic template.yml file."""
-        template_file = tmp_path / "rhiza" / "template.yml"
+        rhiza_dir = tmp_path / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
         config = {
             "template-repository": "jebel-quant/rhiza",
             "template-branch": "main",
@@ -34,7 +36,9 @@ class TestRhizaTemplate:
 
     def test_rhiza_template_from_yaml_with_exclude(self, tmp_path):
         """Test loading a template.yml file with exclude field."""
-        template_file = tmp_path / "rhiza" / "template.yml"
+        rhiza_dir = tmp_path / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
         config = {
             "template-repository": "custom/repo",
             "template-branch": "dev",
