@@ -134,7 +134,7 @@ post-release: install-uv ## perform post-release tasks
 	fi
 
 ##@ Meta
-sync: install-uv ## sync with template repository as defined in .github/template.yml
+sync: install-uv ## sync with template repository as defined in .github/rhiza/template.yml
 	@${UVX_BIN} rhiza materialize --force .
 
 help: ## Display this help message

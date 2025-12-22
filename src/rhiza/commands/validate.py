@@ -1,6 +1,6 @@
 """Command for validating Rhiza template configuration.
 
-This module provides functionality to validate .github/template.yml files
+This module provides functionality to validate .github/rhiza/template.yml files
 to ensure they are syntactically correct and semantically valid.
 """
 
@@ -36,7 +36,7 @@ def validate(target: Path) -> bool:
     logger.info(f"Validating template configuration in: {target}")
 
     # Check if template.yml exists
-    template_file = target / ".github" / "template.yml"
+    template_file = target / ".github" / "rhiza" / "template.yml"
     if not template_file.exists():
         logger.error(f"Template file not found: {template_file}")
         logger.info("Run 'rhiza init' to create a default template.yml")

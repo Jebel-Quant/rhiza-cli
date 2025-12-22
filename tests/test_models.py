@@ -1,7 +1,7 @@
 """Tests for the RhizaTemplate dataclass and related models.
 
 This module verifies that the RhizaTemplate dataclass correctly represents
-and handles .github/template.yml configuration.
+and handles .github/rhiza/template.yml configuration.
 """
 
 import pytest
@@ -15,7 +15,9 @@ class TestRhizaTemplate:
 
     def test_rhiza_template_from_yaml_basic(self, tmp_path):
         """Test loading a basic template.yml file."""
-        template_file = tmp_path / "template.yml"
+        rhiza_dir = tmp_path / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
         config = {
             "template-repository": "jebel-quant/rhiza",
             "template-branch": "main",
@@ -34,7 +36,9 @@ class TestRhizaTemplate:
 
     def test_rhiza_template_from_yaml_with_exclude(self, tmp_path):
         """Test loading a template.yml file with exclude field."""
-        template_file = tmp_path / "template.yml"
+        rhiza_dir = tmp_path / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
         config = {
             "template-repository": "custom/repo",
             "template-branch": "dev",
@@ -114,7 +118,7 @@ class TestRhizaTemplate:
             include=[".github", "Makefile"],
         )
 
-        template_file = tmp_path / ".github" / "template.yml"
+        template_file = tmp_path / ".github" / "rhiza" / "template.yml"
         template.to_yaml(template_file)
 
         assert template_file.exists()

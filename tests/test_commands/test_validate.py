@@ -1,6 +1,6 @@
 """Tests for the validate command and CLI wiring.
 
-This module verifies that `validate` checks `.github/template.yml` and that
+This module verifies that `validate` checks `.github/rhiza/template.yml` and that
 the Typer CLI entry `rhiza validate` behaves as expected across scenarios.
 """
 
@@ -35,9 +35,9 @@ class TestValidateCommand:
         git_dir.mkdir()
 
         # Create invalid YAML
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
         template_file.write_text("invalid: yaml: syntax: :")
 
         result = validate(tmp_path)
@@ -50,9 +50,9 @@ class TestValidateCommand:
         git_dir.mkdir()
 
         # Create empty template
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
         template_file.write_text("")
 
         result = validate(tmp_path)
@@ -65,9 +65,9 @@ class TestValidateCommand:
         git_dir.mkdir()
 
         # Create template without required fields
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump({"some-field": "value"}, f)
@@ -82,9 +82,9 @@ class TestValidateCommand:
         git_dir.mkdir()
 
         # Create template with invalid repository format
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -105,9 +105,9 @@ class TestValidateCommand:
         git_dir.mkdir()
 
         # Create template with empty include
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -128,9 +128,9 @@ class TestValidateCommand:
         git_dir.mkdir()
 
         # Create valid template
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -152,9 +152,9 @@ class TestValidateCommand:
         git_dir.mkdir()
 
         # Create valid template with exclude
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -178,9 +178,9 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -202,9 +202,9 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
         template_file.write_text("{}")
 
         result = runner.invoke(cli.app, ["validate", str(tmp_path)])
@@ -217,9 +217,9 @@ class TestValidateCommand:
         git_dir.mkdir()
 
         # Create template with wrong type for template-repository
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -240,9 +240,9 @@ class TestValidateCommand:
         git_dir.mkdir()
 
         # Create template with wrong type for include
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -263,9 +263,9 @@ class TestValidateCommand:
         git_dir.mkdir()
 
         # Create template with non-string items in include
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -287,9 +287,9 @@ class TestValidateCommand:
         git_dir.mkdir()
 
         # Create template with wrong type for template-branch
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -312,9 +312,9 @@ class TestValidateCommand:
         git_dir.mkdir()
 
         # Create template with wrong type for exclude
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -337,9 +337,9 @@ class TestValidateCommand:
         git_dir.mkdir()
 
         # Create template with non-string items in exclude
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -362,9 +362,9 @@ class TestValidateCommand:
         git_dir.mkdir()
 
         # Create template with gitlab host
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -386,9 +386,9 @@ class TestValidateCommand:
         git_dir.mkdir()
 
         # Create template with invalid host
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -411,9 +411,9 @@ class TestValidateCommand:
         git_dir.mkdir()
 
         # Create template with wrong type for template-host
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(

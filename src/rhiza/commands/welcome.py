@@ -19,7 +19,7 @@ def welcome():
     welcome_message = f"""
 ╭───────────────────────────────────────────────────────────────╮
 │                                                               │
-│  🌿 Welcome to Rhiza v{__version__:<43} │
+│  🌿 Welcome to Rhiza v{__version__:<39} │
 │                                                               │
 ╰───────────────────────────────────────────────────────────────╯
 
@@ -38,7 +38,7 @@ Python projects using reusable templates stored in a central repository.
   1. Initialize a project:
      $ rhiza init
 
-  2. Customize .github/template.yml to match your needs
+  2. Customize .github/rhiza/template.yml to match your needs
 
   3. Materialize templates into your project:
      $ rhiza materialize

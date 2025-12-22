@@ -13,7 +13,7 @@ import yaml
 
 @dataclass
 class RhizaTemplate:
-    """Represents the structure of .github/template.yml.
+    """Represents the structure of .github/rhiza/template.yml.
 
     Attributes:
         template_repository: The GitHub or GitLab repository containing templates (e.g., "jebel-quant/rhiza").
