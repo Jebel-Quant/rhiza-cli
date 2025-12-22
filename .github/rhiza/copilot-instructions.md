@@ -125,7 +125,7 @@ The project uses pre-commit hooks that run automatically on commit:
 
 The CLI uses Typer for command definitions. Commands are thin wrappers in `cli.py` that delegate to implementations in `rhiza.commands.*`:
 
-- `init`: Initialize or validate `.github/template.yml`
+- `init`: Initialize or validate `.github/rhiza/template.yml`
 - `materialize` (alias `inject`): Apply templates to a target repository
 - `validate`: Validate template configuration
 
