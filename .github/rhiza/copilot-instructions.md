@@ -178,9 +178,9 @@ See `pyproject.toml` for complete list. Key dev dependencies:
 ```python
 from pathlib import Path
 
-target = Path(".")  # Use Path objects, not strings
+target = Path("..")  # Use Path objects, not strings
 if target.exists():
-    # Do something
+# Do something
 ```
 
 ### Logging
@@ -229,14 +229,14 @@ def safe_operation(path: Path):
     try:
         # Normalize path to prevent traversal
         path = path.resolve()
-        
+
         if not path.exists():
             logger.error(f"Path does not exist: {path}")
             raise FileNotFoundError(f"Path not found: {path}")
-            
+
         # Perform operation
         return True
-        
+
     except PermissionError as e:
         logger.error(f"Permission denied: {e}")
         raise
@@ -275,7 +275,7 @@ from loguru import logger
 
 def my_new_command(target: Path):
     """Execute the new command.
-    
+
     Parameters
     ----------
     target:
