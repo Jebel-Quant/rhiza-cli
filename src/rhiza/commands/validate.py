@@ -1,6 +1,6 @@
 """Command for validating Rhiza template configuration.
 
-This module provides functionality to validate .github/template.yml files
+This module provides functionality to validate .github/rhiza/template.yml files
 to ensure they are syntactically correct and semantically valid.
 """
 

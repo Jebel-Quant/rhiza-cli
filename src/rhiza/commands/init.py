@@ -1,7 +1,7 @@
-"""Command to initialize or validate .github/template.yml.
+"""Command to initialize or validate .github/rhiza/template.yml.
 
 This module provides the init command that creates or validates the
-.github/template.yml file, which defines where templates come from
+.github/rhiza/template.yml file, which defines where templates come from
 and what paths are governed by Rhiza.
 """
 
@@ -14,9 +14,9 @@ from rhiza.models import RhizaTemplate
 
 
 def init(target: Path):
-    """Initialize or validate .github/template.yml in the target repository.
+    """Initialize or validate .github/rhiza/template.yml in the target repository.
 
-    Creates a default .github/template.yml file if it doesn't exist,
+    Creates a default .github/rhiza/template.yml file if it doesn't exist,
     or validates an existing one.
 
     Args:
@@ -27,9 +27,9 @@ def init(target: Path):
 
     logger.info(f"Initializing Rhiza configuration in: {target}")
 
-    # Create .github directory if it doesn't exist
-    github_dir = target / ".github"
-    github_dir.mkdir(parents=True, exist_ok=True)
+    # Create .github/rhiza directory if it doesn't exist
+    rhiza_dir = target / ".github" / "rhiza"
+    rhiza_dir.mkdir(parents=True, exist_ok=True)
 
     # Define the template file path
     template_file = github_dir / "rhiza" / "template.yml"
@@ -53,7 +53,7 @@ def init(target: Path):
 
         default_template.to_yaml(template_file)
 
-        logger.success("✓ Created .github/template.yml")
+        logger.success("✓ Created .github/rhiza/template.yml")
         logger.info("""
 Next steps:
   1. Review and customize .github/rhiza/template.yml to match your project needs

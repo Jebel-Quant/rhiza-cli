@@ -1,6 +1,6 @@
 """Tests for the init command and CLI wiring.
 
-This module verifies that `init` creates/validates `.github/template.yml` and
+This module verifies that `init` creates/validates `.github/rhiza/template.yml` and
 that the Typer CLI entry `rhiza init` works as expected.
 """
 
@@ -21,7 +21,7 @@ class TestInitCommand:
         init(tmp_path)
 
         # Verify template.yml was created
-        template_file = tmp_path / ".github" / "template.yml"
+        template_file = tmp_path / ".github" / "rhiza" / "template.yml"
         assert template_file.exists()
 
         # Verify it contains expected content
@@ -37,9 +37,9 @@ class TestInitCommand:
     def test_init_validates_existing_template_yml(self, tmp_path):
         """Test that init validates an existing template.yml."""
         # Create existing template.yml
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -64,9 +64,9 @@ class TestInitCommand:
     def test_init_warns_on_missing_template_repository(self, tmp_path):
         """Test that init warns when template-repository is missing."""
         # Create template.yml without template-repository
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump({"template-branch": "main", "include": [".github"]}, f)
@@ -102,4 +102,4 @@ class TestInitCommand:
         with runner.isolated_filesystem():
             result = runner.invoke(cli.app, ["init"])
             assert result.exit_code == 0
-            assert Path(".github/template.yml").exists()
+            assert Path(".github/rhiza/template.yml").exists()

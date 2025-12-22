@@ -1,7 +1,7 @@
 """Tests for the RhizaTemplate dataclass and related models.
 
 This module verifies that the RhizaTemplate dataclass correctly represents
-and handles .github/template.yml configuration.
+and handles .github/rhiza/template.yml configuration.
 """
 
 import pytest
@@ -114,7 +114,7 @@ class TestRhizaTemplate:
             include=[".github", "Makefile"],
         )
 
-        template_file = tmp_path / ".github" / "template.yml"
+        template_file = tmp_path / ".github" / "rhiza" / "template.yml"
         template.to_yaml(template_file)
 
         assert template_file.exists()

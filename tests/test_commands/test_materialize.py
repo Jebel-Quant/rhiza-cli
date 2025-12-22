@@ -42,7 +42,7 @@ class TestInjectCommand:
         materialize(tmp_path, "main", None, False)
 
         # Verify template.yml was created
-        template_file = tmp_path / ".github" / "template.yml"
+        template_file = tmp_path / ".github" / "rhiza" / "template.yml"
         assert template_file.exists()
 
         # Verify it contains expected content
@@ -65,9 +65,9 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create existing template.yml
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -100,9 +100,9 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml with empty include
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump({"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": []}, f)
@@ -122,9 +122,9 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -164,9 +164,9 @@ class TestInjectCommand:
         existing_file.write_text("existing")
 
         # Create template.yml
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -206,9 +206,9 @@ class TestInjectCommand:
         existing_file.write_text("existing")
 
         # Create template.yml
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -242,9 +242,9 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml with exclude
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -290,9 +290,9 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create minimal template.yml
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -321,9 +321,9 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -355,9 +355,9 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -413,9 +413,9 @@ class TestInjectCommand:
         existing_file.write_text("existing content")
 
         # Create template.yml
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -457,9 +457,9 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml with gitlab host
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -501,9 +501,9 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml with explicit github host
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -542,9 +542,9 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml with invalid host
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -579,9 +579,9 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml including workflow files
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -625,9 +625,9 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml with empty include (bypassing normal validation)
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -657,9 +657,9 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -714,9 +714,9 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -768,9 +768,9 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -813,9 +813,9 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir()
-        template_file = github_dir / "template.yml"
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
