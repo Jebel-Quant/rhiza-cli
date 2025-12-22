@@ -841,3 +841,147 @@ class TestInjectCommand:
         # Run materialize and expect it to exit
         with pytest.raises(SystemExit):
             materialize(tmp_path, "main", "bad-branch", False)
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_git_clone_failure_with_stderr(self, mock_mkdtemp, mock_rmtree, mock_subprocess, tmp_path):
+        """Test that materialize handles git clone failure with stderr."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": [".github"]}, f
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to fail on git clone with stderr
+        error = subprocess.CalledProcessError(128, ["git", "clone"], stderr="fatal: repository not found")
+        mock_subprocess.side_effect = error
+
+        # Run materialize and expect CalledProcessError to be raised
+        with pytest.raises(subprocess.CalledProcessError):
+            materialize(tmp_path, "main", None, False)
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_sparse_checkout_init_failure_with_stderr(
+        self, mock_mkdtemp, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize handles sparse-checkout init failure with stderr."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": [".github"]}, f
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed on clone but fail on sparse-checkout init with stderr
+        call_count = [0]
+
+        def subprocess_side_effect(*args, **kwargs):
+            call_count[0] += 1
+            cmd = args[0] if args else kwargs.get("args", [])
+
+            # First call is git clone - succeed
+            if call_count[0] == 1:
+                mock_result = Mock()
+                mock_result.returncode = 0
+                return mock_result
+
+            # Second call is sparse-checkout init - fail with stderr
+            if call_count[0] == 2 and "sparse-checkout" in cmd and "init" in cmd:
+                raise subprocess.CalledProcessError(1, cmd, stderr="fatal: not a git repository")
+
+            mock_result = Mock()
+            mock_result.returncode = 0
+            return mock_result
+
+        mock_subprocess.side_effect = subprocess_side_effect
+
+        # Run materialize and expect CalledProcessError to be raised
+        with pytest.raises(subprocess.CalledProcessError):
+            materialize(tmp_path, "main", None, False)
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_sparse_checkout_set_failure_with_stderr(
+        self, mock_mkdtemp, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize handles sparse-checkout set failure with stderr."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": [".github"]}, f
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed on clone and init, but fail on sparse-checkout set with stderr
+        call_count = [0]
+
+        def subprocess_side_effect(*args, **kwargs):
+            call_count[0] += 1
+            cmd = args[0] if args else kwargs.get("args", [])
+
+            # First call is git clone - succeed
+            if call_count[0] == 1:
+                mock_result = Mock()
+                mock_result.returncode = 0
+                return mock_result
+
+            # Second call is sparse-checkout init - succeed
+            if call_count[0] == 2:
+                mock_result = Mock()
+                mock_result.returncode = 0
+                return mock_result
+
+            # Third call is sparse-checkout set - fail with stderr
+            if call_count[0] == 3 and "sparse-checkout" in cmd and "set" in cmd:
+                raise subprocess.CalledProcessError(1, cmd, stderr="fatal: failed to set sparse-checkout")
+
+            mock_result = Mock()
+            mock_result.returncode = 0
+            return mock_result
+
+        mock_subprocess.side_effect = subprocess_side_effect
+
+        # Run materialize and expect CalledProcessError to be raised
+        with pytest.raises(subprocess.CalledProcessError):
+            materialize(tmp_path, "main", None, False)
