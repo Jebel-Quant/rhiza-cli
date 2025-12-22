@@ -107,7 +107,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         logger.error(f"Rhiza template is invalid. {target}")
         sys.exit(1)
 
-    template_file = target / ".github" / "template.yml"
+    template_file = target / ".github" / "rhiza" / "template.yml"
     template = RhizaTemplate.from_yaml(template_file)
 
     rhiza_repo = template.template_repository
