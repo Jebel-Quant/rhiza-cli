@@ -78,9 +78,9 @@ class TestInitCommand:
     def test_init_warns_on_missing_include(self, tmp_path):
         """Test that init warns when include field is missing or empty."""
         # Create template.yml without include
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
-        template_file = rhiza_dir / "template.yml"
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir()
+        template_file = github_dir / "rhiza" / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump({"template-repository": "jebel-quant/rhiza", "template-branch": "main"}, f)

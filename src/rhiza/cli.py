@@ -71,10 +71,10 @@ def init(
         help="Target directory (defaults to current directory)",
     ),
 ):
-    r"""Initialize or validate .github/template.yml.
+    r"""Initialize or validate .github/rhiza/template.yml.
 
     \b
-    Creates a default `.github/template.yml` configuration file if one
+    Creates a default `.github/rhiza/template.yml` configuration file if one
     doesn't exist, or validates the existing configuration.
 
     \b
@@ -117,10 +117,10 @@ def materialize(
 
     \b
     Materializes configuration files from the template repository specified
-    in .github/template.yml into your project. This command:
+    in .github/rhiza/template.yml into your project. This command:
 
     \b
-    - Reads .github/template.yml configuration
+    - Reads .github/rhiza/template.yml configuration
     - Performs a sparse clone of the template repository
     - Copies specified files/directories to your project
     - Respects exclusion patterns defined in the configuration
@@ -149,7 +149,7 @@ def validate(
 ):
     r"""Validate Rhiza template configuration.
 
-    Validates the .github/template.yml file to ensure it is syntactically
+    Validates the .github/rhiza/template.yml file to ensure it is syntactically
     correct and semantically valid.
 
     \b

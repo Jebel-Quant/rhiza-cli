@@ -32,7 +32,7 @@ def init(target: Path):
     rhiza_dir.mkdir(parents=True, exist_ok=True)
 
     # Define the template file path
-    template_file = rhiza_dir / "template.yml"
+    template_file = github_dir / "rhiza" / "template.yml"
 
     if not template_file.exists():
         # Create default template.yml

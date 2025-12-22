@@ -8,7 +8,7 @@ configuration templates for Python projects.
 
 ### init
 
-Initialize or validate `.github/template.yml` in a target directory.
+Initialize or validate `.github/rhiza/template.yml` in a target directory.
 
 Creates a default configuration file if it doesn't exist, or validates
 an existing one. The default configuration includes common Python project
@@ -29,7 +29,7 @@ is used.
 
 Validate Rhiza template configuration.
 
-Validates the `.github/template.yml` file to ensure it is syntactically
+Validates the `.github/rhiza/template.yml` file to ensure it is syntactically
 correct and semantically valid. Performs comprehensive validation including
 YAML syntax checking, required field verification, field type validation,
 and repository format verification.
