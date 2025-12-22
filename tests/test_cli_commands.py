@@ -123,3 +123,15 @@ class TestWelcomeCommand:
         captured = capsys.readouterr()
         assert "Welcome to Rhiza" in captured.out
         assert __version__ in captured.out
+
+    def test_welcome_cli_wrapper_coverage(self, capsys):
+        """Test the CLI welcome command wrapper directly for coverage."""
+        from rhiza.cli import app
+        from typer.testing import CliRunner
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["welcome"])
+
+        assert result.exit_code == 0
+        assert "Welcome to Rhiza" in result.stdout
+        assert __version__ in result.stdout
