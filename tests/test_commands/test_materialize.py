@@ -867,9 +867,7 @@ class TestInjectCommand:
         mock_mkdtemp.return_value = str(temp_dir)
 
         # Mock subprocess to fail on git clone with stderr
-        error = subprocess.CalledProcessError(
-            128, ["git", "clone"], stderr="fatal: repository not found"
-        )
+        error = subprocess.CalledProcessError(128, ["git", "clone"], stderr="fatal: repository not found")
         mock_subprocess.side_effect = error
 
         # Run materialize and expect CalledProcessError to be raised
@@ -917,9 +915,7 @@ class TestInjectCommand:
 
             # Second call is sparse-checkout init - fail with stderr
             if call_count[0] == 2 and "sparse-checkout" in cmd and "init" in cmd:
-                raise subprocess.CalledProcessError(
-                    1, cmd, stderr="fatal: not a git repository"
-                )
+                raise subprocess.CalledProcessError(1, cmd, stderr="fatal: not a git repository")
 
             mock_result = Mock()
             mock_result.returncode = 0
@@ -978,9 +974,7 @@ class TestInjectCommand:
 
             # Third call is sparse-checkout set - fail with stderr
             if call_count[0] == 3 and "sparse-checkout" in cmd and "set" in cmd:
-                raise subprocess.CalledProcessError(
-                    1, cmd, stderr="fatal: failed to set sparse-checkout"
-                )
+                raise subprocess.CalledProcessError(1, cmd, stderr="fatal: failed to set sparse-checkout")
 
             mock_result = Mock()
             mock_result.returncode = 0

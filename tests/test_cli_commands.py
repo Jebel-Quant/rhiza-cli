@@ -126,8 +126,9 @@ class TestWelcomeCommand:
 
     def test_welcome_cli_wrapper_coverage(self, capsys):
         """Test the CLI welcome command wrapper directly for coverage."""
-        from rhiza.cli import app
         from typer.testing import CliRunner
+
+        from rhiza.cli import app
 
         runner = CliRunner()
         result = runner.invoke(app, ["welcome"])
