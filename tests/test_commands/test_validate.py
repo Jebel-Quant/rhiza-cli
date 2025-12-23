@@ -170,6 +170,30 @@ class TestValidateCommand:
         result = validate(tmp_path)
         assert result is True
 
+    def test_validate_succeeds_with_old_template_location(self, tmp_path):
+        """Test that validate succeeds and warns when template.yml is in old location."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create valid template in old location (.github/template.yml)
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir(parents=True)
+        template_file = github_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "template-branch": "main",
+                    "include": [".github", "Makefile"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is True
+
     def test_cli_validate_command(self, tmp_path):
         """Test the CLI validate command via Typer runner."""
         runner = CliRunner()
