@@ -72,5 +72,49 @@ Next steps:
   2. Run 'rhiza materialize' to inject templates into your repository
 """)
 
+    # name of the folder we are in?
+    parent = target.parent.name
+
+    src_folder = (target / "src" / parent)
+    if not src_folder.exists():
+        src_folder.mkdir(parents=True)
+
+        init_file = src_folder / "__init__.py"
+        init_file.touch()
+
+        main_file = src_folder / "main.py"
+        main_file.touch()
+
+        code = '''\
+        def say_hello(name: str) -> str:
+            return f"Hello, {name}!"
+
+        def main():
+            print(say_hello("World"))
+
+        if __name__ == "__main__":
+            main()
+        '''
+        main_file.write_text(code)
+
+    pyproject_file = target / "pyproject.toml"
+    if not pyproject_file.exists():
+        pyproject_file.touch()
+
+        code = f'''\
+        [project]
+        name = "{parent}"
+        version = "0.1.0"
+        description = "Add your description here"
+        readme = "README.md"
+        requires-python = ">=3.11"
+        dependencies = []
+        '''
+        pyproject_file.write_text(code)
+
+    readme_file = target / "README.md"
+    if not readme_file.exists():
+        readme_file.touch()
+
     # the template file exists, so validate it
     return validate(target)

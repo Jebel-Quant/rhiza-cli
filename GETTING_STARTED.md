@@ -94,47 +94,7 @@ Rhiza requires a git repository to work:
 git init
 ```
 
-### Step 3: Create a pyproject.toml File
-
-**Important:** For Python projects, you should have a `pyproject.toml` file that defines your project metadata and dependencies. This is the modern standard for Python projects (PEP 518, PEP 621).
-
-Create a minimal `pyproject.toml`:
-
-```bash
-cat > pyproject.toml << 'EOF'
-[build-system]
-requires = ["hatchling>=1.25"]
-build-backend = "hatchling.build"
-
-[project]
-name = "my-python-project"
-version = "0.1.0"
-description = "My awesome Python project"
-readme = "README.md"
-requires-python = ">=3.11"
-license = { text = "MIT" }
-authors = [
-  { name = "Your Name", email = "your.email@example.com" }
-]
-
-dependencies = []
-
-[project.optional-dependencies]
-dev = []
-EOF
-```
-
-**Why is pyproject.toml important?**
-
-- It's the standard way to define Python projects (replaces setup.py)
-- Contains project metadata (name, version, description, authors)
-- Manages dependencies and their versions
-- Configures build tools and other tooling
-- Required by modern package managers like `pip`, `uv`, and `poetry`
-
-**Note:** If you're adding Rhiza to an existing project, you likely already have a `pyproject.toml` file, so you can skip this step!
-
-### Step 4: Initialize Rhiza
+### Step 3: Initialize Rhiza
 
 Create the Rhiza configuration:
 
@@ -151,6 +111,8 @@ When you run `uvx rhiza init`, several things happen automatically:
 2. **Rhiza creates the configuration directory** - A `.github/rhiza/` directory is created in your project to store Rhiza configuration.
 
 3. **A default template file is generated** - The file `.github/rhiza/template.yml` is created with sensible defaults that fetch common Python project files from the `jebel-quant/rhiza` template repository.
+
+
 
 You should see:
 ```
