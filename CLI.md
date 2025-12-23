@@ -339,11 +339,18 @@ rhiza validate --help
 ## Version Information
 
 ```bash
-# Check installed version
+# Check installed version (pip)
 pip show rhiza
 
-# Upgrade to latest
+# Check version with uvx
+uvx rhiza --version
+
+# Upgrade to latest (pip)
 pip install --upgrade rhiza
+
+# With uvx - no upgrade needed!
+# uvx always uses the latest version automatically
+uvx rhiza --help
 ```
 
 ---
