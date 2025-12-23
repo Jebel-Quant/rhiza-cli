@@ -96,6 +96,38 @@ class TestInitCommand:
         assert github_dir.exists()
         assert github_dir.is_dir()
 
+    def test_init_migrates_old_template_location(self, tmp_path):
+        """Test that init migrates template.yml from old location to new location."""
+        # Create old location template.yml
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir(parents=True)
+        old_template_file = github_dir / "template.yml"
+
+        with open(old_template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "old/repo",
+                    "template-branch": "legacy",
+                    "include": [".github", "old-file"],
+                },
+                f,
+            )
+
+        # Run init - should migrate to new location
+        init(tmp_path)
+
+        # Verify template was copied to new location
+        new_template_file = tmp_path / ".github" / "rhiza" / "template.yml"
+        assert new_template_file.exists()
+
+        # Verify content was preserved
+        with open(new_template_file) as f:
+            config = yaml.safe_load(f)
+
+        assert config["template-repository"] == "old/repo"
+        assert config["template-branch"] == "legacy"
+        assert "old-file" in config["include"]
+
     def test_init_cli_command(self):
         """Test the CLI init command via Typer runner."""
         runner = CliRunner()
