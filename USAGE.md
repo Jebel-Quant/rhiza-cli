@@ -129,8 +129,9 @@ This file helps you:
 - Track which files are managed by the template
 - Understand what will be updated when you re-run `rhiza materialize`
 - Identify which files to be careful with when making local modifications
+- **Detect orphaned files** - when you re-run `rhiza materialize`, any files listed in `.rhiza.history` but no longer in the current template configuration will be automatically deleted
 
-**Important:** The `.rhiza.history` file is regenerated each time you run `rhiza materialize`, so you should commit it along with your other template files.
+**Important:** The `.rhiza.history` file is regenerated each time you run `rhiza materialize`, so you should commit it along with your other template files. When re-running materialize, Rhiza will compare the old history with the new configuration and remove any files that are no longer being managed.
 
 ## Basic Workflows
 
