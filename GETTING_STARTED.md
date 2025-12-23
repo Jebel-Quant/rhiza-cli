@@ -41,6 +41,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
+**Security Note:** The commands above download and execute installation scripts from [astral.sh](https://astral.sh/uv/). You can review the installation scripts before running them, or visit the [official uv documentation](https://docs.astral.sh/uv/) for alternative installation methods.
+
 Now you can run Rhiza directly:
 
 ```bash
@@ -427,6 +429,18 @@ Or install Rhiza with pip and ensure it's in your PATH:
 pip install --user rhiza
 export PATH="$HOME/.local/bin:$PATH"
 ```
+
+**Note:** The `export` command above is temporary and only affects your current shell session. To make it permanent, add it to your shell profile:
+
+```bash
+# For bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+
+# For zsh
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+```
+
+Then restart your terminal or run `source ~/.bashrc` (or `source ~/.zshrc`).
 
 ### "Target directory is not a git repository"
 
