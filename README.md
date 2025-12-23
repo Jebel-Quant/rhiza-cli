@@ -8,6 +8,8 @@
 
 Command-line interface for managing reusable configuration templates for modern Python projects.
 
+**📖 New to Rhiza? Check out the [Getting Started Guide](GETTING_STARTED.md) for a beginner-friendly introduction!**
+
 ## Overview
 
 Rhiza is a CLI tool that helps you maintain consistent configuration across multiple Python projects by using templates stored in a central repository. It allows you to:
@@ -35,6 +37,7 @@ Rhiza is a CLI tool that helps you maintain consistent configuration across mult
 
 For more detailed information, see:
 
+- **[Getting Started Guide](GETTING_STARTED.md)** - Beginner-friendly introduction and walkthrough
 - **[CLI Quick Reference](CLI.md)** - Command syntax and quick examples
 - **[Usage Guide](USAGE.md)** - Practical tutorials and workflows
 - **[Contributing Guidelines](CONTRIBUTING.md)** - How to contribute to the project
