@@ -20,6 +20,14 @@ Install Rhiza using pip:
 pip install rhiza
 ```
 
+Or use uvx to run without installation:
+
+```bash
+uvx rhiza --help
+```
+
+With uvx, you don't need to install rhiza - it automatically uses the latest version each time you run it.
+
 Verify installation:
 
 ```bash

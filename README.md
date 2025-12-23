@@ -48,6 +48,35 @@ For more detailed information, see:
 pip install rhiza
 ```
 
+To update to the latest version:
+
+```bash
+pip install --upgrade rhiza
+```
+
+### Using uvx (run without installation)
+
+[uvx](https://docs.astral.sh/uv/) is part of the `uv` package manager and allows you to run CLI tools directly without installing them:
+
+```bash
+uvx rhiza --help
+```
+
+With uvx, you don't need to install rhiza globally. Each time you run `uvx rhiza`, it will automatically use the latest version available on PyPI. To ensure you're using the latest version, simply run your command - uvx will fetch updates as needed:
+
+```bash
+# Always uses the latest version
+uvx rhiza init
+uvx rhiza materialize
+uvx rhiza validate
+```
+
+If you want to use a specific version:
+
+```bash
+uvx rhiza@0.5.6 --help
+```
+
 ### From source
 
 ```bash
@@ -796,6 +825,14 @@ A: `init` creates or validates the `.github/rhiza/template.yml` configuration fi
 **Q: How do I update my project's templates?**
 
 A: Simply run `rhiza materialize --force` to fetch and overwrite with the latest versions from your template repository.
+
+**Q: How do I update rhiza-cli itself?**
+
+A: The update method depends on how you installed rhiza:
+
+- **Using pip**: Run `pip install --upgrade rhiza`
+- **Using uvx**: No action needed! `uvx` automatically uses the latest version each time you run it. Just run your command: `uvx rhiza <command>`
+- **From source**: Run `git pull` in the repository directory and then `pip install -e .` again
 
 **Q: Can I customize which files are included?**
 
