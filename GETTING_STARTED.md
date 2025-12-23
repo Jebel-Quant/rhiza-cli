@@ -477,7 +477,15 @@ You've learned how to:
 - ✅ Customize template configurations
 - ✅ Work with both new and existing projects safely
 
-**Key Takeaway:** Rhiza's powerful `init` command sets up your entire Python project structure (package layout, pyproject.toml, README) while also configuring template management. It then helps you maintain consistent tooling and configuration files (like `.github/`, Makefile, linting configs) across all your projects.
+**Key Takeaway:** Rhiza's powerful `init` command sets up
+your entire Python project structure (package layout, pyproject.toml, README)
+while also configuring template management. It then helps you maintain
+consistent tooling and configuration files (like `.github/`, Makefile, linting configs) across all your projects.
+
+Rhiza’s killer feature? **Scheduled materializations**.
+Set it, forget it, and your repo automatically updates itself from .github/rhiza/template.yml.
+When your template is always changing, this keeps everything perfectly
+in sync—like a self-updating repo on autopilot.
 
 Rhiza makes it easy to bootstrap and maintain consistent Python projects. Start using it today!
 
