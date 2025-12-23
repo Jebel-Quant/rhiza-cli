@@ -485,7 +485,7 @@ consistent tooling and configuration files (like `.github/`, Makefile, linting c
 Rhiza’s killer feature? **Scheduled materializations**.
 Set it, forget it, and your repo automatically updates itself from .github/rhiza/template.yml.
 When your template is always changing, this keeps everything perfectly
-in sync—like a self-updating repo on autopilot.
+in sync—like a self-updating repo on autopilot. We discuss details in [USAGE](USAGE.md)
 
 Rhiza makes it easy to bootstrap and maintain consistent Python projects. Start using it today!
 
