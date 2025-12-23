@@ -485,13 +485,13 @@ class TestInjectCommand:
 
         # Verify the git clone command used GitLab URL
         clone_call = mock_subprocess.call_args_list[0]
-        #print(clone_call)
-        #print(str(clone_call))
-        #assert False
+        # print(clone_call)
+        # print(str(clone_call))
+        # assert False
         assert "https://gitlab.com/mygroup/myproject.git" in str(clone_call)
 
-        #assert "gitlab.com" in str(clone_call)
-        #assert "mygroup/myproject.git" in str(clone_call)
+        # assert "gitlab.com" in str(clone_call)
+        # assert "mygroup/myproject.git" in str(clone_call)
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -536,7 +536,6 @@ class TestInjectCommand:
         clone_call = mock_subprocess.call_args_list[0]
         print(clone_call)
         assert "https://github.com/jebel-quant/rhiza.git" in str(clone_call)
-
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
