@@ -321,12 +321,51 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         logger.info(f"Workflow files affected: {len(workflow_files)}")
 
     # -----------------------
+    # Clean up orphaned files
+    # -----------------------
+    # Read the old .rhiza.history file to find files that are no longer
+    # part of the current materialization and should be deleted
+    history_file = target / ".rhiza.history"
+    old_tracked_files: set[Path] = set()
+    
+    if history_file.exists():
+        logger.debug("Reading existing .rhiza.history file")
+        with history_file.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                # Skip comments and empty lines
+                if line and not line.startswith("#"):
+                    old_tracked_files.add(Path(line))
+        
+        logger.debug(f"Found {len(old_tracked_files)} file(s) in previous .rhiza.history")
+    
+    # Convert materialized_files list to a set for comparison
+    new_tracked_files = set(materialized_files)
+    
+    # Find orphaned files (in old history but not in new materialization)
+    orphaned_files = old_tracked_files - new_tracked_files
+    
+    if orphaned_files:
+        logger.info(f"Found {len(orphaned_files)} orphaned file(s) no longer maintained by template")
+        for file_path in sorted(orphaned_files):
+            full_path = target / file_path
+            if full_path.exists():
+                try:
+                    full_path.unlink()
+                    logger.success(f"[DEL] {file_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete {file_path}: {e}")
+            else:
+                logger.debug(f"Skipping {file_path} (already deleted)")
+    else:
+        logger.debug("No orphaned files to clean up")
+    
+    # -----------------------
     # Write .rhiza.history
     # -----------------------
     # This file tracks which files were materialized by Rhiza
     # Useful for understanding which files came from the template
     logger.debug("Writing .rhiza.history file")
-    history_file = target / ".rhiza.history"
     with history_file.open("w", encoding="utf-8") as f:
         f.write("# Rhiza Template History\n")
         f.write("# This file lists all files managed by the Rhiza template.\n")
@@ -338,7 +377,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         for file_path in sorted(materialized_files):
             f.write(f"{file_path}\n")
 
-    logger.info(f"Created {history_file.relative_to(target)} with {len(materialized_files)} file(s)")
+    logger.info(f"Updated {history_file.relative_to(target)} with {len(materialized_files)} file(s)")
 
     logger.success("Rhiza templates materialized successfully")
 

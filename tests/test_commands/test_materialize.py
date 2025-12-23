@@ -990,3 +990,179 @@ class TestInjectCommand:
         # Run materialize and expect CalledProcessError to be raised
         with pytest.raises(subprocess.CalledProcessError):
             materialize(tmp_path, "main", None, False)
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_deletes_orphaned_files(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+        """Test that materialize deletes files in old .rhiza.history but not in new materialization."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create an old .rhiza.history file with files that will become orphaned
+        old_history = tmp_path / ".rhiza.history"
+        old_history.write_text(
+            "# Rhiza Template History\n"
+            "# Template repository: jebel-quant/rhiza\n"
+            "# Template branch: main\n"
+            "#\n"
+            "# Files under template control:\n"
+            "file1.txt\n"
+            "orphaned.txt\n"
+            "dir/nested_orphaned.txt\n"
+        )
+
+        # Create the orphaned files that should be deleted
+        orphaned_file = tmp_path / "orphaned.txt"
+        orphaned_file.write_text("orphaned content")
+        nested_dir = tmp_path / "dir"
+        nested_dir.mkdir()
+        nested_orphaned = nested_dir / "nested_orphaned.txt"
+        nested_orphaned.write_text("nested orphaned content")
+
+        # Create template.yml that only includes file1.txt (not orphaned.txt)
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": ["file1.txt"],
+                },
+                f,
+            )
+
+        # Mock tempfile with only file1.txt
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        file1 = temp_dir / "file1.txt"
+        file1.write_text("content1")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize
+        materialize(tmp_path, "main", None, False)
+
+        # Verify orphaned files were deleted
+        assert not orphaned_file.exists(), "orphaned.txt should have been deleted"
+        assert not nested_orphaned.exists(), "dir/nested_orphaned.txt should have been deleted"
+
+        # Verify .rhiza.history was updated and only contains file1.txt
+        history_content = old_history.read_text()
+        assert "file1.txt" in history_content
+        assert "orphaned.txt" not in history_content
+        assert "nested_orphaned.txt" not in history_content
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_handles_missing_orphaned_files(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize handles orphaned files that don't exist gracefully."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create an old .rhiza.history file with a file that doesn't exist
+        old_history = tmp_path / ".rhiza.history"
+        old_history.write_text(
+            "# Rhiza Template History\n"
+            "# Template repository: jebel-quant/rhiza\n"
+            "# Template branch: main\n"
+            "#\n"
+            "# Files under template control:\n"
+            "file1.txt\n"
+            "nonexistent.txt\n"
+        )
+
+        # Don't create nonexistent.txt
+
+        # Create template.yml that only includes file1.txt
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": ["file1.txt"],
+                },
+                f,
+            )
+
+        # Mock tempfile with file1.txt
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        file1 = temp_dir / "file1.txt"
+        file1.write_text("content1")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize - should not fail even though nonexistent.txt doesn't exist
+        materialize(tmp_path, "main", None, False)
+
+        # Verify .rhiza.history was updated
+        history_content = old_history.read_text()
+        assert "file1.txt" in history_content
+        assert "nonexistent.txt" not in history_content
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_no_cleanup_when_no_history(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize works correctly when no .rhiza.history exists yet."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # No old .rhiza.history file
+
+        # Create template.yml
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": ["file1.txt"],
+                },
+                f,
+            )
+
+        # Mock tempfile with file1.txt
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        file1 = temp_dir / "file1.txt"
+        file1.write_text("content1")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize - should work fine without old history
+        materialize(tmp_path, "main", None, False)
+
+        # Verify .rhiza.history was created
+        history_file = tmp_path / ".rhiza.history"
+        assert history_file.exists()
+        history_content = history_file.read_text()
+        assert "file1.txt" in history_content
