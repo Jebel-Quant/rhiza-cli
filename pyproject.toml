@@ -50,8 +50,15 @@ dev = [
 [tool.hatch.build.targets.wheel]
 # Use src-layout: package code is under src/config
 packages = ["src/rhiza"]
+
+[tool.hatch.build.targets.wheel.force-include]
 # Include documentation files in the wheel distribution
-force-include = { "README.md" = "rhiza/README.md", "CLI.md" = "rhiza/CLI.md", "USAGE.md" = "rhiza/USAGE.md", "GETTING_STARTED.md" = "rhiza/GETTING_STARTED.md", "CONTRIBUTING.md" = "rhiza/CONTRIBUTING.md", "CODE_OF_CONDUCT.md" = "rhiza/CODE_OF_CONDUCT.md" }
+"README.md" = "rhiza/README.md"
+"CLI.md" = "rhiza/CLI.md"
+"USAGE.md" = "rhiza/USAGE.md"
+"GETTING_STARTED.md" = "rhiza/GETTING_STARTED.md"
+"CONTRIBUTING.md" = "rhiza/CONTRIBUTING.md"
+"CODE_OF_CONDUCT.md" = "rhiza/CODE_OF_CONDUCT.md"
 
 [tool.deptry]
 # see https://deptry.com/usage/#pep-621-dev-dependency-groups
