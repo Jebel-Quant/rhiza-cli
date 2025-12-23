@@ -77,7 +77,7 @@ make install
 
 ## Your First Rhiza Project
 
-Let's create a new Python project with Rhiza templates in 6 simple steps:
+Let's create a new Python project with Rhiza templates in just 4 simple steps:
 
 ### Step 1: Create a Project Directory
 
@@ -96,7 +96,7 @@ git init
 
 ### Step 3: Initialize Rhiza
 
-Create the Rhiza configuration:
+Create your complete Python project structure with one command:
 
 ```bash
 uvx rhiza init
@@ -104,15 +104,23 @@ uvx rhiza init
 
 **💡 What does `uvx rhiza init` do?**
 
-When you run `uvx rhiza init`, several things happen automatically:
+When you run `uvx rhiza init`, it sets up your entire Python project automatically:
 
 1. **uvx downloads and caches Rhiza** - The first time you run this, `uvx` downloads the latest version of Rhiza from PyPI and caches it. Subsequent runs are instant!
 
-2. **Rhiza creates the configuration directory** - A `.github/rhiza/` directory is created in your project to store Rhiza configuration.
+2. **Creates the Rhiza configuration** - A `.github/rhiza/` directory is created with a `template.yml` file that defines which template files to fetch from the `jebel-quant/rhiza` template repository.
 
-3. **A default template file is generated** - The file `.github/rhiza/template.yml` is created with sensible defaults that fetch common Python project files from the `jebel-quant/rhiza` template repository.
+3. **Creates your Python package structure** - Automatically creates a `src/<project-name>/` directory with:
+   - `__init__.py` - Makes it a Python package
+   - `main.py` - A starter Python file with a simple "Hello, World!" example
 
+4. **Creates `pyproject.toml`** - Generates a modern Python project configuration file with:
+   - Project name (based on your directory name)
+   - Version set to "0.1.0"
+   - Python version requirement (>=3.11)
+   - Empty dependencies list (ready for you to add)
 
+5. **Creates `README.md`** - An empty README file for your project documentation
 
 You should see:
 ```
@@ -122,12 +130,26 @@ You should see:
 
 Next steps:
   1. Review and customize .github/rhiza/template.yml to match your project needs
-  2. Run 'uvx rhiza materialize' to inject templates into your repository
+  2. Run 'rhiza materialize' to inject templates into your repository
+```
+
+**What gets created:**
+```
+my-python-project/
+├── .github/
+│   └── rhiza/
+│       └── template.yml
+├── src/
+│   └── my-python-project/
+│       ├── __init__.py
+│       └── main.py
+├── pyproject.toml
+└── README.md
 ```
 
 **Note:** If you installed Rhiza with pip, you can use `rhiza init` instead of `uvx rhiza init`.
 
-### Step 5: Review the Configuration
+### Step 4: Review the Configuration
 
 Take a look at what was created:
 
@@ -151,7 +173,17 @@ include:
 
 This configuration will fetch common Python project files from the template repository.
 
-### Step 6: Materialize Templates
+You can also check the generated Python files:
+
+```bash
+# View the project metadata
+cat pyproject.toml
+
+# Check the starter Python code
+cat src/my-python-project/main.py
+```
+
+### Step 5: Materialize Templates
 
 Apply the templates to your project:
 
@@ -171,7 +203,7 @@ When you run this command, Rhiza performs several actions:
 
 4. **Creates `.rhiza.history`** - A tracking file is created that lists all files under Rhiza's control, along with metadata about the template repository and branch used
 
-5. **Respects existing files** - By default, Rhiza won't overwrite existing files (including your `pyproject.toml`) unless you use the `--force` flag
+5. **Respects existing files** - By default, Rhiza won't overwrite existing files (including your `pyproject.toml` and source code) unless you use the `--force` flag
 
 You'll see output like:
 ```
@@ -192,7 +224,7 @@ You'll see output like:
 ✓ Rhiza templates materialized successfully
 ```
 
-**Important:** Your `pyproject.toml` file is preserved! Rhiza doesn't overwrite it unless you explicitly include it in your template configuration and use the `--force` flag.
+**Important:** Your project files (`pyproject.toml`, source code in `src/`) are preserved! Rhiza doesn't overwrite them unless you explicitly include them in your template configuration and use the `--force` flag.
 
 Review what was added:
 
@@ -207,18 +239,32 @@ git add .
 git commit -m "chore: initialize project with rhiza templates"
 ```
 
-**Congratulations!** 🎉 You've successfully set up your first Rhiza project!
+**Congratulations!** 🎉 You've successfully set up your first Rhiza project with a complete Python package structure!
 
 ## Understanding What Just Happened
 
-Let's break down what Rhiza did:
+Let's break down what Rhiza did across the two commands:
 
-1. **Created `.github/rhiza/template.yml`**: This configuration file defines:
-   - Which template repository to use
-   - Which branch to use
-   - Which files/directories to include
+### From `uvx rhiza init`:
 
-2. **Materialized templates**: Rhiza copied files from the template repository to your project:
+1. **Created your Python package structure**:
+   - `src/<project-name>/` - Following the modern "src layout" pattern
+   - `__init__.py` - Makes your directory a Python package
+   - `main.py` - A starter file with a simple example function
+
+2. **Created `pyproject.toml`**: Your project's metadata and configuration file with:
+   - Project name (based on directory)
+   - Version (0.1.0)
+   - Python requirement (>=3.11)
+   - Empty dependencies list
+
+3. **Created `README.md`**: An empty file ready for your documentation
+
+4. **Created `.github/rhiza/template.yml`**: Configuration defining which template files to fetch
+
+### From `uvx rhiza materialize`:
+
+1. **Materialized templates**: Rhiza copied configuration and tooling files from the template repository:
    - `.github/` - GitHub workflows and configurations
    - `.editorconfig` - Editor configuration
    - `.gitignore` - Git ignore rules
@@ -226,9 +272,9 @@ Let's break down what Rhiza did:
    - `Makefile` - Build and development commands
    - `pytest.ini` - Test configuration
 
-3. **Created `.rhiza.history`**: This file tracks all files under Rhiza's control, making it easy to see what's managed by templates.
+2. **Created `.rhiza.history`**: Tracks all files under Rhiza's control
 
-4. **Preserved your `pyproject.toml`**: Your project-specific configuration file remains untouched! Rhiza doesn't manage `pyproject.toml` by default since it contains your project's unique metadata and dependencies.
+3. **Preserved your code**: Your `pyproject.toml` and `src/` directory remain untouched since they're not in the template's `include` list
 
 ## Common Use Cases
 
@@ -239,15 +285,15 @@ Already have a project? No problem! Rhiza works perfectly with existing projects
 ```bash
 cd existing-project
 
-# Verify you have a pyproject.toml (required for Python projects)
-ls pyproject.toml
-
-# Initialize Rhiza
+# Initialize Rhiza (creates missing files only, won't overwrite existing)
 uvx rhiza init
 
+# If you didn't have a pyproject.toml, Rhiza created one!
+# If you didn't have a src/ directory, Rhiza created it!
+# Check what was created:
+ls -la
+
 # Review and edit .github/rhiza/template.yml if needed
-# TIP: Make sure NOT to include pyproject.toml in the template
-# unless you want to overwrite your existing one!
 cat .github/rhiza/template.yml
 
 # Materialize templates (won't overwrite existing files by default)
@@ -263,10 +309,10 @@ git commit -m "chore: add rhiza template management"
 ```
 
 **Important for existing projects:**
-- Rhiza will NOT overwrite your existing files (including `pyproject.toml`) by default
-- Your project-specific configuration remains intact
-- Only new files from the template are added
-- Use `--force` only if you want to overwrite existing files
+- `uvx rhiza init` is **safe** - it only creates files that don't exist
+- If you already have `pyproject.toml`, `src/`, or `README.md`, they're left untouched
+- If you're missing these files, Rhiza helpfully creates them with sensible defaults
+- `uvx rhiza materialize` won't overwrite existing files unless you use `--force`
 
 ### Use Case 2: Update Templates Periodically
 
@@ -424,16 +470,15 @@ uvx rhiza init
 You've learned how to:
 
 - ✅ Install `uv`/`uvx` for running Rhiza without installation
-- ✅ Create a `pyproject.toml` file for Python projects (or work with an existing one)
-- ✅ Initialize a project with `uvx rhiza init`
+- ✅ Initialize a complete Python project with `uvx rhiza init` (creates `pyproject.toml`, `src/` structure, `README.md`)
 - ✅ Understand what `uvx rhiza init` and `uvx rhiza materialize` do under the hood
 - ✅ Materialize templates with `uvx rhiza materialize`
 - ✅ Validate configuration with `uvx rhiza validate`
 - ✅ Customize template configurations
-- ✅ Work with both new and existing projects
+- ✅ Work with both new and existing projects safely
 
-**Key Takeaway:** Rhiza helps you maintain consistent tooling and configuration files (like `.github/`, Makefile, linting configs) across projects, while respecting your project-specific files like `pyproject.toml`.
+**Key Takeaway:** Rhiza's powerful `init` command sets up your entire Python project structure (package layout, pyproject.toml, README) while also configuring template management. It then helps you maintain consistent tooling and configuration files (like `.github/`, Makefile, linting configs) across all your projects.
 
-Rhiza makes it easy to maintain consistent configurations across all your Python projects. Start using it in your projects today!
+Rhiza makes it easy to bootstrap and maintain consistent Python projects. Start using it today!
 
 **Happy coding!** 🚀
