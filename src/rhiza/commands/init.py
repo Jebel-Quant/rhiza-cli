@@ -62,15 +62,15 @@ def init(target: Path):
             template_repository="jebel-quant/rhiza",
             template_branch="main",
             include=[
-                ".github",           # GitHub configuration and workflows
-                ".editorconfig",     # Editor configuration
-                ".gitignore",        # Git ignore patterns
+                ".github",  # GitHub configuration and workflows
+                ".editorconfig",  # Editor configuration
+                ".gitignore",  # Git ignore patterns
                 ".pre-commit-config.yaml",  # Pre-commit hooks
-                "Makefile",          # Build and development tasks
-                "pytest.ini",        # Pytest configuration
-                "book",              # Documentation book
-                "presentation",      # Presentation materials
-                "tests",             # Test structure
+                "Makefile",  # Build and development tasks
+                "pytest.ini",  # Pytest configuration
+                "book",  # Documentation book
+                "presentation",  # Presentation materials
+                "tests",  # Test structure
             ],
         )
 
