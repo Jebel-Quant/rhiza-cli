@@ -36,15 +36,10 @@ def validate(target: Path) -> bool:
     logger.info(f"Validating template configuration in: {target}")
 
     # Check one of the possible template.yml exists
-    template_file = [
-        target / ".github" / "rhiza" / "template.yml",
-        target / ".github" / "template.yml"
-    ]
+    template_file = [target / ".github" / "rhiza" / "template.yml", target / ".github" / "template.yml"]
 
     # Check the exists
-    exists = [
-        file.exists() for file in template_file
-    ]
+    exists = [file.exists() for file in template_file]
 
     if not any(exists):
         logger.error(f"No template file found: {template_file}")

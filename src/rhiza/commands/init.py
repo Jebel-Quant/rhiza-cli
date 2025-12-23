@@ -5,6 +5,7 @@ This module provides the init command that creates or validates the
 and what paths are governed by Rhiza.
 """
 
+import shutil
 from pathlib import Path
 
 from loguru import logger
@@ -28,8 +29,16 @@ def init(target: Path):
     logger.info(f"Initializing Rhiza configuration in: {target}")
 
     # Create .github/rhiza directory if it doesn't exist
-    rhiza_dir = target / ".github" / "rhiza"
+    github_dir = target / ".github"
+    rhiza_dir = github_dir / "rhiza"
     rhiza_dir.mkdir(parents=True, exist_ok=True)
+
+    # check the old location and copy over if existent
+    # todo: remove this logic later
+    template_file = github_dir / "template.yml"
+    if template_file.exists():
+        # move the file into rhiza_dir
+        shutil.copyfile(template_file, rhiza_dir / "template.yml")
 
     # Define the template file path
     template_file = rhiza_dir / "template.yml"
