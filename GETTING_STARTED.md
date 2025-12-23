@@ -340,7 +340,6 @@ template-repository: myorg/python-templates
 template-branch: main
 include:
   - .github/workflows
-  - pyproject.toml
   - Makefile
 ```
 
@@ -384,7 +383,7 @@ Now that you have the basics, here's what to explore next:
 ### 📚 Dive Deeper into Rhiza
 
 - **[CLI Quick Reference](CLI.md)** - Command syntax and options
-- **[Usage Guide](USAGE.md)** - Advanced workflows and best practices  
+- **[Usage Guide](USAGE.md)** - Advanced workflows and best practices
 - **[README](README.md)** - Complete documentation
 
 ### 🔧 Customize Your Setup
