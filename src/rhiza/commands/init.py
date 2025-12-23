@@ -59,7 +59,7 @@ def init(target: Path):
                 "pytest.ini",
                 "book",
                 "presentation",
-                "tests"
+                "tests",
             ],
         )
 
