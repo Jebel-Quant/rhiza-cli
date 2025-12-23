@@ -75,7 +75,7 @@ Next steps:
     # name of the folder we are in?
     parent = target.parent.name
 
-    src_folder = (target / "src" / parent)
+    src_folder = target / "src" / parent
     if not src_folder.exists():
         src_folder.mkdir(parents=True)
 
@@ -85,7 +85,7 @@ Next steps:
         main_file = src_folder / "main.py"
         main_file.touch()
 
-        code = '''\
+        code = """\
         def say_hello(name: str) -> str:
             return f"Hello, {name}!"
 
@@ -94,7 +94,7 @@ Next steps:
 
         if __name__ == "__main__":
             main()
-        '''
+        """
         main_file.write_text(code)
 
     pyproject_file = target / "pyproject.toml"
