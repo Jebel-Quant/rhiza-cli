@@ -22,47 +22,60 @@ def init(target: Path):
 
     Args:
         target: Path to the target directory. Defaults to the current working directory.
+
+    Returns:
+        bool: True if validation passes, False otherwise.
     """
     # Convert to absolute path to avoid surprises
     target = target.resolve()
 
     logger.info(f"Initializing Rhiza configuration in: {target}")
 
-    # Create .github/rhiza directory if it doesn't exist
+    # Create .github/rhiza directory structure if it doesn't exist
+    # This is where Rhiza stores its configuration
     github_dir = target / ".github"
     rhiza_dir = github_dir / "rhiza"
+    logger.debug(f"Ensuring directory exists: {rhiza_dir}")
     rhiza_dir.mkdir(parents=True, exist_ok=True)
 
-    # check the old location and copy over if existent
-    # todo: remove this logic later
+    # Check for old location and migrate if necessary
+    # TODO: This migration logic can be removed in a future version
+    # after users have had time to migrate
     template_file = github_dir / "template.yml"
     if template_file.exists():
-        # move the file into rhiza_dir
+        logger.warning(f"Found template.yml in old location: {template_file}")
+        logger.info(f"Copying to new location: {rhiza_dir / 'template.yml'}")
+        # Copy the file to the new location (not move, to preserve old one temporarily)
         shutil.copyfile(template_file, rhiza_dir / "template.yml")
 
-    # Define the template file path
+    # Define the template file path (new location)
     template_file = rhiza_dir / "template.yml"
 
     if not template_file.exists():
-        # Create default template.yml
+        # Create default template.yml with sensible defaults
         logger.info("Creating default .github/rhiza/template.yml")
+        logger.debug("Using default template configuration")
 
+        # Default template points to the jebel-quant/rhiza repository
+        # and includes common Python project configuration files
         default_template = RhizaTemplate(
             template_repository="jebel-quant/rhiza",
             template_branch="main",
             include=[
-                ".github",
-                ".editorconfig",
-                ".gitignore",
-                ".pre-commit-config.yaml",
-                "Makefile",
-                "pytest.ini",
-                "book",
-                "presentation",
-                "tests",
+                ".github",           # GitHub configuration and workflows
+                ".editorconfig",     # Editor configuration
+                ".gitignore",        # Git ignore patterns
+                ".pre-commit-config.yaml",  # Pre-commit hooks
+                "Makefile",          # Build and development tasks
+                "pytest.ini",        # Pytest configuration
+                "book",              # Documentation book
+                "presentation",      # Presentation materials
+                "tests",             # Test structure
             ],
         )
 
+        # Write the default template to the file
+        logger.debug(f"Writing default template to: {template_file}")
         default_template.to_yaml(template_file)
 
         logger.success("✓ Created .github/rhiza/template.yml")
@@ -72,19 +85,28 @@ Next steps:
   2. Run 'rhiza materialize' to inject templates into your repository
 """)
 
-    # name of the folder we are in?
+    # Bootstrap basic Python project structure if it doesn't exist
+    # Get the name of the parent directory to use as package name
     parent = target.parent.name
+    logger.debug(f"Parent directory name: {parent}")
 
+    # Create src/{parent} directory structure following src-layout
     src_folder = target / "src" / parent
     if not src_folder.exists():
+        logger.info(f"Creating Python package structure: {src_folder}")
         src_folder.mkdir(parents=True)
 
+        # Create __init__.py to make it a proper Python package
         init_file = src_folder / "__init__.py"
+        logger.debug(f"Creating {init_file}")
         init_file.touch()
 
+        # Create main.py with a simple "Hello World" example
         main_file = src_folder / "main.py"
+        logger.debug(f"Creating {main_file} with example code")
         main_file.touch()
 
+        # Write example code to main.py
         code = """\
         def say_hello(name: str) -> str:
             return f"Hello, {name}!"
@@ -96,11 +118,16 @@ Next steps:
             main()
         """
         main_file.write_text(code)
+        logger.success(f"Created Python package structure in {src_folder}")
 
+    # Create pyproject.toml if it doesn't exist
+    # This is the standard Python package metadata file (PEP 621)
     pyproject_file = target / "pyproject.toml"
     if not pyproject_file.exists():
+        logger.info("Creating pyproject.toml with basic project metadata")
         pyproject_file.touch()
 
+        # Write minimal pyproject.toml content
         code = f'''\
         [project]
         name = "{parent}"
@@ -111,10 +138,17 @@ Next steps:
         dependencies = []
         '''
         pyproject_file.write_text(code)
+        logger.success("Created pyproject.toml")
 
+    # Create README.md if it doesn't exist
+    # Every project should have a README
     readme_file = target / "README.md"
     if not readme_file.exists():
+        logger.info("Creating README.md")
         readme_file.touch()
+        logger.success("Created README.md")
 
-    # the template file exists, so validate it
+    # Validate the template file to ensure it's correct
+    # This will catch any issues early
+    logger.debug("Validating template configuration")
     return validate(target)
