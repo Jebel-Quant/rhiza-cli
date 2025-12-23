@@ -102,7 +102,7 @@ class TestInitCommand:
         github_dir = tmp_path / ".github"
         github_dir.mkdir(parents=True)
         old_template_file = github_dir / "template.yml"
-        
+
         with open(old_template_file, "w") as f:
             yaml.dump(
                 {
@@ -112,18 +112,18 @@ class TestInitCommand:
                 },
                 f,
             )
-        
+
         # Run init - should migrate to new location
         init(tmp_path)
-        
+
         # Verify template was copied to new location
         new_template_file = tmp_path / ".github" / "rhiza" / "template.yml"
         assert new_template_file.exists()
-        
+
         # Verify content was preserved
         with open(new_template_file) as f:
             config = yaml.safe_load(f)
-        
+
         assert config["template-repository"] == "old/repo"
         assert config["template-branch"] == "legacy"
         assert "old-file" in config["include"]
