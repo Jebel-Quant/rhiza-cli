@@ -327,7 +327,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     # part of the current materialization and should be deleted
     history_file = target / ".rhiza.history"
     old_tracked_files: set[Path] = set()
-    
+
     if history_file.exists():
         logger.debug("Reading existing .rhiza.history file")
         with history_file.open("r", encoding="utf-8") as f:
@@ -336,15 +336,15 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                 # Skip comments and empty lines
                 if line and not line.startswith("#"):
                     old_tracked_files.add(Path(line))
-        
+
         logger.debug(f"Found {len(old_tracked_files)} file(s) in previous .rhiza.history")
-    
+
     # Convert materialized_files list to a set for comparison
     new_tracked_files = set(materialized_files)
-    
+
     # Find orphaned files (in old history but not in new materialization)
     orphaned_files = old_tracked_files - new_tracked_files
-    
+
     if orphaned_files:
         logger.info(f"Found {len(orphaned_files)} orphaned file(s) no longer maintained by template")
         for file_path in sorted(orphaned_files):
@@ -359,7 +359,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                 logger.debug(f"Skipping {file_path} (already deleted)")
     else:
         logger.debug("No orphaned files to clean up")
-    
+
     # -----------------------
     # Write .rhiza.history
     # -----------------------
