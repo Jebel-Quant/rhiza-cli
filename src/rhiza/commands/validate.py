@@ -35,14 +35,28 @@ def validate(target: Path) -> bool:
 
     logger.info(f"Validating template configuration in: {target}")
 
-    # Check if template.yml exists
-    template_file = target / ".github" / "rhiza" / "template.yml"
-    if not template_file.exists():
-        logger.error(f"Template file not found: {template_file}")
+    # Check one of the possible template.yml exists
+    template_file = [
+        target / ".github" / "rhiza" / "template.yml",
+        target / ".github" / "template.yml"
+    ]
+
+    # Check the exists
+    exists = [
+        file.exists() for file in template_file
+    ]
+
+    if not any(exists):
+        logger.error(f"No template file found: {template_file}")
         logger.info("Run 'rhiza init' to create a default template.yml")
         return False
 
-    logger.success(f"Found template file: {template_file}")
+    if exists[0]:
+        logger.success(f"Template file exists: {template_file[0]}")
+        template_file = template_file[0]
+    else:
+        logger.warning(f"Template file exists but in old location: {template_file[1]}")
+        template_file = template_file[1]
 
     # Validate YAML syntax
     try:
