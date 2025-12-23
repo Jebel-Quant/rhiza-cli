@@ -15,7 +15,13 @@ def welcome():
 
     Shows a friendly greeting, explains Rhiza's purpose, and provides
     next steps for getting started with the tool.
+
+    This command is useful for new users to understand what Rhiza does
+    and how to get started. It provides a high-level overview without
+    performing any operations on the file system.
     """
+    # Construct a nicely formatted welcome message with ASCII art border
+    # The version is dynamically inserted from the package metadata
     welcome_message = f"""
 ╭───────────────────────────────────────────────────────────────╮
 │                                                               │
@@ -52,4 +58,5 @@ Python projects using reusable templates stored in a central repository.
 Happy templating! 🎉
 """
 
+    # Print the welcome message to stdout
     print(welcome_message)
