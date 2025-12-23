@@ -135,8 +135,10 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     # Extract template configuration settings
     # These define where to clone from and what to materialize
     rhiza_repo = template.template_repository
-    rhiza_branch = template.template_branch or branch  # Use CLI arg if template doesn't specify
-    rhiza_host = template.template_host or "github"    # Default to GitHub if not specified
+    # Use CLI arg if template doesn't specify a branch
+    rhiza_branch = template.template_branch or branch
+    # Default to GitHub if not specified
+    rhiza_host = template.template_host or "github"
     include_paths = template.include
     excluded_paths = template.exclude
 

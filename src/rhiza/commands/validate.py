@@ -40,25 +40,27 @@ def validate(target: Path) -> bool:
     # Check for template.yml in both new and old locations
     # New location: .github/rhiza/template.yml
     # Old location: .github/template.yml (deprecated but still supported)
-    template_file = [target / ".github" / "rhiza" / "template.yml", target / ".github" / "template.yml"]
+    new_location = target / ".github" / "rhiza" / "template.yml"
+    deprecated_location = target / ".github" / "template.yml"
 
     # Check which file(s) exist
-    exists = [file.exists() for file in template_file]
+    new_exists = new_location.exists()
+    deprecated_exists = deprecated_location.exists()
 
-    if not any(exists):
-        logger.error(f"No template file found at: {template_file[0]}")
-        logger.error(f"Also checked deprecated location: {template_file[1]}")
+    if not (new_exists or deprecated_exists):
+        logger.error(f"No template file found at: {new_location}")
+        logger.error(f"Also checked deprecated location: {deprecated_location}")
         logger.info("Run 'rhiza init' to create a default template.yml")
         return False
 
     # Prefer the new location but support the old one with a warning
-    if exists[0]:
-        logger.success(f"Template file exists: {template_file[0]}")
-        template_file = template_file[0]
+    if new_exists:
+        logger.success(f"Template file exists: {new_location}")
+        template_file = new_location
     else:
-        logger.warning(f"Template file exists but in old location: {template_file[1]}")
+        logger.warning(f"Template file exists but in old location: {deprecated_location}")
         logger.warning("Consider moving it to .github/rhiza/template.yml")
-        template_file = template_file[1]
+        template_file = deprecated_location
 
     # Validate YAML syntax by attempting to parse the file
     logger.debug(f"Parsing YAML file: {template_file}")
