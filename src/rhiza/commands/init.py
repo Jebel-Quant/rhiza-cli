@@ -57,6 +57,9 @@ def init(target: Path):
                 ".pre-commit-config.yaml",
                 "Makefile",
                 "pytest.ini",
+                "book",
+                "presentation",
+                "tests"
             ],
         )
 
