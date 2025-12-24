@@ -45,6 +45,7 @@ def init(
     target: Path,
     project_name: str | None = None,
     package_name: str | None = None,
+    with_dev_dependencies: bool = False,
 ):
     """Initialize or validate .github/rhiza/template.yml in the target repository.
 
@@ -55,6 +56,7 @@ def init(
         target: Path to the target directory. Defaults to the current working directory.
         project_name: Custom project name. Defaults to target directory name.
         package_name: Custom package name. Defaults to normalized project name.
+        with_dev_dependencies: Include development dependencies in pyproject.toml.
 
     Returns:
         bool: True if validation passes, False otherwise.
@@ -172,7 +174,11 @@ Next steps:
             importlib.resources.files("rhiza").joinpath("_templates/basic/pyproject.toml.jinja2").read_text()
         )
         template = Template(template_content)
-        code = template.render(project_name=project_name, package_name=package_name)
+        code = template.render(
+            project_name=project_name,
+            package_name=package_name,
+            with_dev_dependencies=with_dev_dependencies,
+        )
         pyproject_file.write_text(code)
         logger.success("Created pyproject.toml")
 

@@ -80,6 +80,11 @@ def init(
         "--package-name",
         help="Custom package name (defaults to normalized project name)",
     ),
+    with_dev_dependencies: bool = typer.Option(
+        False,
+        "--with-dev-dependencies",
+        help="Include development dependencies in pyproject.toml",
+    ),
 ):
     r"""Initialize or validate .github/rhiza/template.yml.
 
@@ -103,6 +108,7 @@ def init(
         target,
         project_name=project_name,
         package_name=package_name,
+        with_dev_dependencies=with_dev_dependencies,
     )
 
 
