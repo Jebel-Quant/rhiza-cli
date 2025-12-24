@@ -144,29 +144,62 @@ class TestInitCommand:
         pyproject_file = tmp_path / "pyproject.toml"
         assert pyproject_file.exists()
 
-        expected_pyproject = f"""\
-[project]
-name = "{tmp_path.name}"
-version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-requires-python = ">=3.11"
-dependencies = []
-"""
-        assert pyproject_file.read_text() == expected_pyproject
+        # We expect the default template output
+        content = pyproject_file.read_text()
+        assert f'name = "{tmp_path.name}"' in content
+        assert 'packages = ["src/' in content
 
         # Check main.py content
         main_file = tmp_path / "src" / tmp_path.name / "main.py"
         assert main_file.exists()
 
-        expected_main = """\
-def say_hello(name: str) -> str:
-    return f"Hello, {name}!"
+        content = main_file.read_text()
+        assert f'"""Main module for {tmp_path.name}."""' in content
+        assert "def say_hello(name: str) -> str:" in content
 
-def main():
-    print(say_hello("World"))
+    def test_init_with_custom_names(self, tmp_path):
+        """Test init with custom project and package names."""
+        init(tmp_path, project_name="My Project", package_name="my_pkg")
 
-if __name__ == "__main__":
-    main()
-"""
-        assert main_file.read_text() == expected_main
+        # Check pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        content = pyproject_file.read_text()
+        assert 'name = "My Project"' in content
+        assert 'packages = ["src/my_pkg"]' in content
+
+        # Check directory structure
+        assert (tmp_path / "src" / "my_pkg").exists()
+        assert (tmp_path / "src" / "my_pkg" / "__init__.py").exists()
+        assert (tmp_path / "src" / "my_pkg" / "main.py").exists()
+
+        # Check __init__.py docstring
+        init_file = tmp_path / "src" / "my_pkg" / "__init__.py"
+        assert '"""My Project."""' in init_file.read_text()
+
+    def test_init_with_dev_dependencies(self, tmp_path):
+        """Test init with dev dependencies enabled."""
+        init(tmp_path, with_dev_dependencies=True)
+
+        pyproject_file = tmp_path / "pyproject.toml"
+        content = pyproject_file.read_text()
+
+        assert "[project.optional-dependencies]" in content
+        assert "dev = [" in content
+        assert '"pytest==9.0.2",' in content
+        assert "[tool.deptry]" in content
+
+    def test_init_generates_valid_toml(self, tmp_path):
+        """Test that the generated pyproject.toml is valid TOML."""
+        import tomllib
+
+        init(tmp_path)
+
+        pyproject_file = tmp_path / "pyproject.toml"
+        assert pyproject_file.exists()
+
+        with open(pyproject_file, "rb") as f:
+            data = tomllib.load(f)
+
+        assert "project" in data
+        assert "name" in data["project"]
+        assert data["project"]["name"] == tmp_path.name

@@ -70,14 +70,27 @@ def init(
         dir_okay=True,
         help="Target directory (defaults to current directory)",
     ),
+    project_name: str = typer.Option(
+        None,
+        "--project-name",
+        help="Custom project name (defaults to directory name)",
+    ),
+    package_name: str = typer.Option(
+        None,
+        "--package-name",
+        help="Custom package name (defaults to normalized project name)",
+    ),
+    with_dev_dependencies: bool = typer.Option(
+        False,
+        "--with-dev-dependencies",
+        help="Include development dependencies in pyproject.toml",
+    ),
 ):
     r"""Initialize or validate .github/rhiza/template.yml.
 
-    \b
     Creates a default `.github/rhiza/template.yml` configuration file if one
     doesn't exist, or validates the existing configuration.
 
-    \b
     The default template includes common Python project files:
     - .github (workflows, actions, etc.)
     - .editorconfig
@@ -86,13 +99,17 @@ def init(
     - Makefile
     - pytest.ini
 
-    \b
     Examples:
       rhiza init
       rhiza init /path/to/project
       rhiza init ..
     """
-    init_cmd(target)
+    init_cmd(
+        target,
+        project_name=project_name,
+        package_name=package_name,
+        with_dev_dependencies=with_dev_dependencies,
+    )
 
 
 @app.command()
@@ -115,18 +132,15 @@ def materialize(
 ):
     r"""Inject Rhiza configuration templates into a target repository.
 
-    \b
     Materializes configuration files from the template repository specified
     in .github/rhiza/template.yml into your project. This command:
 
-    \b
     - Reads .github/rhiza/template.yml configuration
     - Performs a sparse clone of the template repository
     - Copies specified files/directories to your project
     - Respects exclusion patterns defined in the configuration
     - Files that already exist will NOT be overwritten unless --force is used.
 
-    \b
     Examples:
         rhiza materialize
         rhiza materialize --branch develop
@@ -152,7 +166,6 @@ def validate(
     Validates the .github/rhiza/template.yml file to ensure it is syntactically
     correct and semantically valid.
 
-    \b
     Performs comprehensive validation:
     - Checks if template.yml exists
     - Validates YAML syntax
@@ -164,7 +177,6 @@ def validate(
 
     Returns exit code 0 on success, 1 on validation failure.
 
-    \b
     Examples:
         rhiza validate
         rhiza validate /path/to/project
@@ -181,7 +193,6 @@ def welcome():
     Shows a welcome message, explains Rhiza's purpose, key features,
     and provides guidance on getting started with the tool.
 
-    \b
     Examples:
         rhiza welcome
     """

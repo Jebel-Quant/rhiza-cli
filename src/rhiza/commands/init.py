@@ -5,17 +5,48 @@ This module provides the init command that creates or validates the
 and what paths are governed by Rhiza.
 """
 
+import importlib.resources
+import keyword
+import re
 import shutil
-import textwrap
 from pathlib import Path
 
+from jinja2 import Template
 from loguru import logger
 
 from rhiza.commands.validate import validate
 from rhiza.models import RhizaTemplate
 
 
-def init(target: Path):
+def _normalize_package_name(name: str) -> str:
+    """Normalize a string into a valid Python package name.
+
+    Args:
+        name: The input string (e.g., project name).
+
+    Returns:
+        A valid Python identifier safe for use as a package name.
+    """
+    # Replace any character that is not a letter, number, or underscore with an underscore
+    name = re.sub(r"[^a-zA-Z0-9_]", "_", name)
+
+    # Ensure it doesn't start with a number
+    if name[0].isdigit():
+        name = f"_{name}"
+
+    # Ensure it's not a Python keyword
+    if keyword.iskeyword(name):
+        name = f"{name}_"
+
+    return name
+
+
+def init(
+    target: Path,
+    project_name: str | None = None,
+    package_name: str | None = None,
+    with_dev_dependencies: bool = False,
+):
     """Initialize or validate .github/rhiza/template.yml in the target repository.
 
     Creates a default .github/rhiza/template.yml file if it doesn't exist,
@@ -23,6 +54,9 @@ def init(target: Path):
 
     Args:
         target: Path to the target directory. Defaults to the current working directory.
+        project_name: Custom project name. Defaults to target directory name.
+        package_name: Custom package name. Defaults to normalized project name.
+        with_dev_dependencies: Include development dependencies in pyproject.toml.
 
     Returns:
         bool: True if validation passes, False otherwise.
@@ -67,6 +101,7 @@ def init(target: Path):
                 ".editorconfig",  # Editor configuration
                 ".gitignore",  # Git ignore patterns
                 ".pre-commit-config.yaml",  # Pre-commit hooks
+                "ruff.toml",  # Ruff linter configuration
                 "Makefile",  # Build and development tasks
                 "pytest.ini",  # Pytest configuration
                 "book",  # Documentation book
@@ -88,11 +123,17 @@ Next steps:
 
     # Bootstrap basic Python project structure if it doesn't exist
     # Get the name of the parent directory to use as package name
-    parent = target.name
-    logger.debug(f"Parent directory name: {parent}")
+    if project_name is None:
+        project_name = target.name
 
-    # Create src/{parent} directory structure following src-layout
-    src_folder = target / "src" / parent
+    if package_name is None:
+        package_name = _normalize_package_name(project_name)
+
+    logger.debug(f"Project name: {project_name}")
+    logger.debug(f"Package name: {package_name}")
+
+    # Create src/{package_name} directory structure following src-layout
+    src_folder = target / "src" / package_name
     if not (target / "src").exists():
         logger.info(f"Creating Python package structure: {src_folder}")
         src_folder.mkdir(parents=True)
@@ -102,22 +143,22 @@ Next steps:
         logger.debug(f"Creating {init_file}")
         init_file.touch()
 
+        template_content = (
+            importlib.resources.files("rhiza").joinpath("_templates/basic/__init__.py.jinja2").read_text()
+        )
+        template = Template(template_content)
+        code = template.render(project_name=project_name)
+        init_file.write_text(code)
+
         # Create main.py with a simple "Hello World" example
         main_file = src_folder / "main.py"
         logger.debug(f"Creating {main_file} with example code")
         main_file.touch()
 
         # Write example code to main.py
-        code = textwrap.dedent("""\
-        def say_hello(name: str) -> str:
-            return f"Hello, {name}!"
-
-        def main():
-            print(say_hello("World"))
-
-        if __name__ == "__main__":
-            main()
-        """)
+        template_content = importlib.resources.files("rhiza").joinpath("_templates/basic/main.py.jinja2").read_text()
+        template = Template(template_content)
+        code = template.render(project_name=project_name)
         main_file.write_text(code)
         logger.success(f"Created Python package structure in {src_folder}")
 
@@ -129,15 +170,15 @@ Next steps:
         pyproject_file.touch()
 
         # Write minimal pyproject.toml content
-        code = textwrap.dedent(f'''\
-        [project]
-        name = "{parent}"
-        version = "0.1.0"
-        description = "Add your description here"
-        readme = "README.md"
-        requires-python = ">=3.11"
-        dependencies = []
-        ''')
+        template_content = (
+            importlib.resources.files("rhiza").joinpath("_templates/basic/pyproject.toml.jinja2").read_text()
+        )
+        template = Template(template_content)
+        code = template.render(
+            project_name=project_name,
+            package_name=package_name,
+            with_dev_dependencies=with_dev_dependencies,
+        )
         pyproject_file.write_text(code)
         logger.success("Created pyproject.toml")
 
