@@ -6,9 +6,9 @@ Welcome! This guide will help you get started with Rhiza, a CLI tool for managin
 
 **Rhiza is more than just a template or a starting point** — it's a continuous synchronization system that keeps your projects aligned with a moving target.
 
-Think of it as **an autopilot for syncing hundreds of repos with a central "mothership"**. You have full control over which template repository serves as your mothership — whether it's the default `jebel-quant/rhiza`, your organization's custom templates, or your personal configuration hub. Rhiza actively maintains consistency across all your Python projects by pulling from your chosen central repository template.
+Think of it as **an autopilot for syncing hundreds of repos with one or multiple "motherships"**. You have full control over which template repositories serve as your motherships — whether it's the default `jebel-quant/rhiza`, your organization's custom templates, your personal configuration hub, or a combination of multiple sources. Rhiza actively maintains consistency across all your Python projects by pulling from your chosen central repository templates.
 
-When your central template evolves (new workflows, updated linting rules, security improvements), Rhiza ensures all your projects can stay in sync with a single command — or even automatically through scheduled materializations.
+When your central templates evolve (new workflows, updated linting rules, security improvements), Rhiza ensures all your projects can stay in sync with a single command — or even automatically through scheduled materializations.
 
 **Works for both new and existing projects!** Whether you're starting fresh or want to add template management to an existing codebase, Rhiza has you covered.
 
