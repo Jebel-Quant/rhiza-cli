@@ -4,7 +4,11 @@ Welcome! This guide will help you get started with Rhiza, a CLI tool for managin
 
 ## What is Rhiza?
 
-Rhiza helps you maintain consistent configuration across multiple Python projects by using templates stored in a central repository. Instead of manually copying configuration files between projects, Rhiza automates the process and keeps your projects synchronized.
+**Rhiza is more than just a template or a starting point** — it's a continuous synchronization system that keeps your projects aligned with a moving target.
+
+Think of it as **an autopilot for syncing hundreds of repos with a central "mothership"**. Instead of manually copying configuration files or using one-off templates, Rhiza actively maintains consistency across all your Python projects by pulling from a central repository template.
+
+When your central template evolves (new workflows, updated linting rules, security improvements), Rhiza ensures all your projects can stay in sync with a single command — or even automatically through scheduled materializations.
 
 **Works for both new and existing projects!** Whether you're starting fresh or want to add template management to an existing codebase, Rhiza has you covered.
 
