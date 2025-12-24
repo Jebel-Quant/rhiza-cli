@@ -5,11 +5,11 @@
 #
 # Files under template control:
 .editorconfig
-.github/actions/setup-project/action.yml
 .github/dependabot.yml
 .github/renovate.json
 .github/rhiza/CONFIG.md
 .github/rhiza/TOKEN_SETUP.md
+.github/rhiza/actions/setup-project/action.yml
 .github/scripts/book.sh
 .github/scripts/bump.sh
 .github/scripts/customisations/build-extras.sh
@@ -26,7 +26,6 @@
 .github/workflows/rhiza.yml
 .github/workflows/scripts/version_matrix.py
 .github/workflows/scripts/version_max.py
-.github/workflows/security.yml
 .github/workflows/sync.yml
 .gitignore
 .pre-commit-config.yaml
@@ -38,6 +37,8 @@ book/marimo/README.md
 book/marimo/rhiza.py
 book/minibook-templates/custom.html.jinja2
 book/pdoc-templates/module.html.jinja2
+presentation/Makefile.presentation
+presentation/README.md
 pytest.ini
 ruff.toml
 tests/Makefile.tests

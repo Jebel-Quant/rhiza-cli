@@ -1,11 +1,5 @@
 # Getting Started with Rhiza
 
-Welcome! This guide will show you how to connect a new or existing Python project with **Rhiza**, a CLI tool for managing reusable configuration templates and keeping your projects in sync.
-
----
-
-## What is Rhiza?
-
 **Rhiza helps you keep multiple Python projects consistently configured** by using templates stored in central repositories. Instead of manually copying configuration files between projects, Rhiza automates synchronization and ensures your projects stay aligned.
 
 **More than just a template or starter project**, Rhiza is a **continuous synchronization system** that adapts as standards evolve.
@@ -70,4 +64,4 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: uvx rhiza materialize
- 
+
