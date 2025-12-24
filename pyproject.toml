@@ -47,6 +47,7 @@ dev = [
     "marimo==0.18.4",
     "pdoc>=16.0.0",
 ]
+tools = ["rhiza-tools"]
 
 [tool.hatch.build.targets.wheel]
 # Use src-layout: package code is under src/config
