@@ -135,3 +135,38 @@ class TestInitCommand:
             result = runner.invoke(cli.app, ["init"])
             assert result.exit_code == 0
             assert Path(".github/rhiza/template.yml").exists()
+
+    def test_init_creates_correctly_formatted_files(self, tmp_path):
+        """Test that init creates files with correct formatting (no indentation)."""
+        init(tmp_path)
+
+        # Check pyproject.toml content
+        pyproject_file = tmp_path / "pyproject.toml"
+        assert pyproject_file.exists()
+
+        expected_pyproject = f"""\
+[project]
+name = "{tmp_path.name}"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+"""
+        assert pyproject_file.read_text() == expected_pyproject
+
+        # Check main.py content
+        main_file = tmp_path / "src" / tmp_path.name / "main.py"
+        assert main_file.exists()
+
+        expected_main = """\
+def say_hello(name: str) -> str:
+    return f"Hello, {name}!"
+
+def main():
+    print(say_hello("World"))
+
+if __name__ == "__main__":
+    main()
+"""
+        assert main_file.read_text() == expected_main
