@@ -6,6 +6,7 @@ and what paths are governed by Rhiza.
 """
 
 import shutil
+import textwrap
 from pathlib import Path
 
 from loguru import logger
@@ -107,7 +108,7 @@ Next steps:
         main_file.touch()
 
         # Write example code to main.py
-        code = """\
+        code = textwrap.dedent("""\
         def say_hello(name: str) -> str:
             return f"Hello, {name}!"
 
@@ -116,7 +117,7 @@ Next steps:
 
         if __name__ == "__main__":
             main()
-        """
+        """)
         main_file.write_text(code)
         logger.success(f"Created Python package structure in {src_folder}")
 
@@ -128,7 +129,7 @@ Next steps:
         pyproject_file.touch()
 
         # Write minimal pyproject.toml content
-        code = f'''\
+        code = textwrap.dedent(f'''\
         [project]
         name = "{parent}"
         version = "0.1.0"
@@ -136,7 +137,7 @@ Next steps:
         readme = "README.md"
         requires-python = ">=3.11"
         dependencies = []
-        '''
+        ''')
         pyproject_file.write_text(code)
         logger.success("Created pyproject.toml")
 
