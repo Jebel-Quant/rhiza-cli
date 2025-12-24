@@ -84,6 +84,7 @@ rhiza materialize -b main -y                # Short form
 - Respects exclude patterns
 - Skips existing files unless `--force` is used
 - Creates `.rhiza.history` file listing all files under template control
+- **Automatically removes orphaned files** - files that were previously managed by the template but are no longer in the current `include` list
 
 ---
 
@@ -130,6 +131,7 @@ After running `rhiza materialize`, a `.rhiza.history` file is created in the pro
 - Includes metadata about the template repository and branch
 - Is regenerated each time `rhiza materialize` runs
 - Should be committed to version control
+- Is used to detect and remove orphaned files (files that were previously managed but are no longer in the current template configuration)
 
 **Example:**
 ```
