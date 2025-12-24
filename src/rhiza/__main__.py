@@ -14,7 +14,7 @@ from rhiza.cli import app
 def load_plugins(app: typer.Typer):
     """Load plugins from entry points."""
     # 'rhiza.plugins' matches the group we defined in rhiza-tools
-    plugin_entries = entry_points(group='rhiza.plugins') 
+    plugin_entries = entry_points(group="rhiza.plugins")
 
     for entry in plugin_entries:
         try:
@@ -23,6 +23,7 @@ def load_plugins(app: typer.Typer):
             app.add_typer(plugin_app, name=entry.name)
         except Exception as e:
             print(f"Failed to load plugin {entry.name}: {e}")
+
 
 load_plugins(app)
 
