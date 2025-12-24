@@ -155,7 +155,7 @@ class TestInitCommand:
 
         content = main_file.read_text()
         assert f'"""Main module for {tmp_path.name}."""' in content
-        assert 'def say_hello(name: str) -> str:' in content
+        assert "def say_hello(name: str) -> str:" in content
 
     def test_init_with_custom_names(self, tmp_path):
         """Test init with custom project and package names."""
@@ -184,7 +184,7 @@ class TestInitCommand:
         content = pyproject_file.read_text()
 
         assert "[project.optional-dependencies]" in content
-        assert 'dev = [' in content
+        assert "dev = [" in content
         assert '"pytest==9.0.2",' in content
         assert "[tool.deptry]" in content
 
@@ -203,4 +203,3 @@ class TestInitCommand:
         assert "project" in data
         assert "name" in data["project"]
         assert data["project"]["name"] == tmp_path.name
-
