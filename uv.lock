@@ -774,6 +774,7 @@ name = "rhiza"
 version = "0.7.1"
 source = { editable = "." }
 dependencies = [
+    { name = "jinja2" },
     { name = "loguru" },
     { name = "pyyaml" },
     { name = "typer" },
@@ -791,6 +792,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "jinja2", specifier = ">=3.1.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "marimo", marker = "extra == 'dev'", specifier = "==0.18.4" },
     { name = "pdoc", marker = "extra == 'dev'", specifier = ">=16.0.0" },
