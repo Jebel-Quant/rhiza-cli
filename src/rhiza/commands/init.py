@@ -87,12 +87,12 @@ Next steps:
 
     # Bootstrap basic Python project structure if it doesn't exist
     # Get the name of the parent directory to use as package name
-    parent = target.parent.name
+    parent = target.name
     logger.debug(f"Parent directory name: {parent}")
 
     # Create src/{parent} directory structure following src-layout
     src_folder = target / "src" / parent
-    if not src_folder.exists():
+    if not (target / "src").exists():
         logger.info(f"Creating Python package structure: {src_folder}")
         src_folder.mkdir(parents=True)
 
