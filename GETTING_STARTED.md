@@ -1,6 +1,6 @@
 # Getting Started with Rhiza
 
-Welcome! This guide will help you get started with Rhiza, a CLI tool for managing reusable configuration templates for Python projects.
+Welcome! This guide will show you how to hook up a new or existing project with Rhiza, a CLI tool for managing reusable configuration templates for Python projects.
 
 ## What is Rhiza?
 
