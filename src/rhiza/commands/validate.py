@@ -60,7 +60,7 @@ def validate(target: Path) -> bool:
     # Check for pyproject.toml - this is always required
     logger.debug("Validating pyproject.toml")
     pyproject_file = target / "pyproject.toml"
-    
+
     if not pyproject_file.exists():
         logger.error(f"pyproject.toml not found: {pyproject_file}")
         logger.error("pyproject.toml is required for Python projects")
