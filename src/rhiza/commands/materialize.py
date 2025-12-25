@@ -19,33 +19,127 @@ from rhiza.commands import init
 from rhiza.models import RhizaTemplate
 
 
-def __expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
-    """Expand files/directories relative to base_dir into a flat list of files.
+def __resolve_symlinks(base_dir: Path, paths: list[str]) -> tuple[list[str], dict[str, str]]:
+    """Resolve symlinks in the given paths and return targets to checkout.
 
-    Given a list of paths relative to ``base_dir``, return a flat list of all
-    individual files.
+    Given a list of paths, detect any symlinks and return both the original paths
+    and a mapping of symlinks to their targets for sparse checkout resolution.
 
     Args:
         base_dir: The base directory to resolve paths against.
         paths: List of relative path strings (files or directories).
 
     Returns:
+        A tuple of (paths_to_checkout, symlink_mapping) where:
+        - paths_to_checkout: All paths including resolved symlink targets
+        - symlink_mapping: Dict mapping symlink path to target path
+    """
+    additional_paths = []
+    symlink_mapping = {}
+
+    for p in paths:
+        full_path = base_dir / p
+        # Check if this path is a symlink
+        if full_path.is_symlink():
+            # Get the target of the symlink (relative to the symlink location)
+            try:
+                target = full_path.readlink()
+                # Resolve to absolute path, then make relative to base_dir
+                if target.is_absolute():
+                    resolved_target = target
+                else:
+                    # Resolve relative to the symlink's parent directory
+                    resolved_target = (full_path.parent / target).resolve()
+
+                # Make it relative to base_dir for sparse checkout
+                try:
+                    relative_target = resolved_target.relative_to(base_dir)
+                    target_str = str(relative_target)
+                    if target_str not in paths and target_str not in additional_paths:
+                        additional_paths.append(target_str)
+                        symlink_mapping[p] = target_str
+                        logger.info(f"Symlink detected: {p} -> {target_str}")
+                except ValueError:
+                    # Target is outside base_dir, we'll handle this in expand_paths
+                    logger.warning(f"Symlink {p} points outside repository: {target}")
+            except Exception as e:
+                logger.warning(f"Failed to resolve symlink {p}: {e}")
+
+    return additional_paths, symlink_mapping
+
+
+def __expand_paths(base_dir: Path, paths: list[str], symlink_mapping: dict[str, str] | None = None) -> list[Path]:
+    """Expand files/directories relative to base_dir into a flat list of files.
+
+    Given a list of paths relative to ``base_dir``, return a flat list of all
+    individual files. Handles symlinks by resolving them to their targets.
+
+    Args:
+        base_dir: The base directory to resolve paths against.
+        paths: List of relative path strings (files or directories).
+        symlink_mapping: Optional dict mapping symlink paths to their target paths.
+
+    Returns:
         A flat list of Path objects representing all individual files found.
     """
+    if symlink_mapping is None:
+        symlink_mapping = {}
+
     all_files = []
     for p in paths:
         full_path = base_dir / p
+
+        # If this path was a symlink, we need to resolve it to its target
+        if p in symlink_mapping:
+            target_path = base_dir / symlink_mapping[p]
+            logger.debug(f"Processing symlink {p} via target {symlink_mapping[p]}")
+
+            # Process the target instead, but map files back to symlink path
+            if target_path.is_file():
+                # For file symlinks, add with the symlink's path
+                all_files.append((target_path, base_dir / p))
+            elif target_path.is_dir():
+                # For directory symlinks, map all files to be under symlink path
+                for f in target_path.rglob("*"):
+                    if f.is_file():
+                        # Calculate relative path from target and map to symlink location
+                        rel_from_target = f.relative_to(target_path)
+                        symlink_dest = base_dir / p / rel_from_target
+                        all_files.append((f, symlink_dest))
+            else:
+                logger.warning(f"Symlink target not found: {p} -> {symlink_mapping[p]}")
+            continue
+
+        # Check if the path is a symlink (should have been handled above, but check anyway)
+        if full_path.is_symlink():
+            # Try to resolve it
+            try:
+                resolved = full_path.resolve()
+                if resolved.is_file():
+                    all_files.append((resolved, full_path))
+                elif resolved.is_dir():
+                    for f in resolved.rglob("*"):
+                        if f.is_file():
+                            rel_path = f.relative_to(resolved)
+                            all_files.append((f, full_path / rel_path))
+            except Exception as e:
+                logger.warning(f"Failed to resolve symlink {p}: {e}")
+            continue
+
         # Check if the path is a regular file
         if full_path.is_file():
-            all_files.append(full_path)
+            all_files.append((full_path, full_path))
         # If it's a directory, recursively find all files within it
         elif full_path.is_dir():
-            all_files.extend([f for f in full_path.rglob("*") if f.is_file()])
+            for f in full_path.rglob("*"):
+                if f.is_file():
+                    all_files.append((f, f))
         else:
             # Path does not exist in the cloned repository - skip it silently
             # This can happen if the template repo doesn't have certain paths
             logger.debug(f"Path not found in template repository: {p}")
             continue
+
     return all_files
 
 
@@ -258,21 +352,48 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
             raise
 
         # -----------------------
+        # Resolve symlinks and checkout targets
+        # -----------------------
+        # Check for symlinks and resolve them to their targets
+        logger.debug("Checking for symlinks in included paths")
+        additional_paths, symlink_mapping = __resolve_symlinks(tmp_dir, include_paths)
+
+        # If we found symlink targets, add them to sparse checkout
+        if additional_paths:
+            logger.info(f"Detected {len(additional_paths)} symlink target(s), adding to sparse checkout")
+            all_checkout_paths = include_paths + additional_paths
+            try:
+                subprocess.run(
+                    ["git", "sparse-checkout", "set", "--skip-checks", *all_checkout_paths],
+                    cwd=tmp_dir,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    env=git_env,
+                )
+                logger.debug("Updated sparse checkout with symlink targets")
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to update sparse checkout with symlink targets: {e}")
+                if e.stderr:
+                    logger.error(f"Git error: {e.stderr.strip()}")
+                raise
+
+        # -----------------------
         # Expand include/exclude paths
         # -----------------------
         # Convert directory paths to individual file paths for precise control
         logger.debug("Expanding included paths to individual files")
-        all_files = __expand_paths(tmp_dir, include_paths)
+        all_files = __expand_paths(tmp_dir, include_paths, symlink_mapping)
         logger.info(f"Found {len(all_files)} file(s) in included paths")
 
         # Create a set of excluded files for fast lookup
         logger.debug("Expanding excluded paths to individual files")
-        excluded_files = {f.resolve() for f in __expand_paths(tmp_dir, excluded_paths)}
+        excluded_files = {f[1].resolve() for f in __expand_paths(tmp_dir, excluded_paths, symlink_mapping)}
         if excluded_files:
             logger.info(f"Excluding {len(excluded_files)} file(s) based on exclude patterns")
 
         # Filter out excluded files from the list of files to copy
-        files_to_copy = [f for f in all_files if f.resolve() not in excluded_files]
+        files_to_copy = [f for f in all_files if f[1].resolve() not in excluded_files]
         logger.info(f"Will materialize {len(files_to_copy)} file(s) to target repository")
 
         # -----------------------
@@ -281,9 +402,9 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         # Copy each file from the temporary clone to the target repository
         # Preserve file metadata (timestamps, permissions) with copy2
         logger.info("Copying files to target repository...")
-        for src_file in files_to_copy:
+        for src_file, dst_path in files_to_copy:
             # Calculate destination path maintaining relative structure
-            dst_file = target / src_file.relative_to(tmp_dir)
+            dst_file = target / dst_path.relative_to(tmp_dir)
             relative_path = dst_file.relative_to(target)
 
             # Track this file for .rhiza.history
