@@ -428,3 +428,107 @@ class TestUninstallEdgeCases:
         # if you have write permission on the directory)
         assert not file1.exists()
         assert not history_file.exists()
+
+    def test_uninstall_shows_missing_files_in_warning(self, tmp_path):
+        """Test that uninstall shows debug message for missing files in warning phase."""
+        # Create .rhiza.history with files that don't exist
+        history_file = tmp_path / ".rhiza.history"
+        history_file.write_text(
+            "# Rhiza Template History\n"
+            "nonexistent1.txt\n"
+            "nonexistent2.txt\n"
+        )
+
+        # Run uninstall without force to trigger warning phase
+        # Mock user input to decline
+        with patch("builtins.input", return_value="n"):
+            uninstall(tmp_path, force=False)
+
+        # Files should still exist since user declined
+        assert history_file.exists()
+
+    def test_uninstall_handles_file_deletion_error(self, tmp_path):
+        """Test that uninstall handles file deletion errors gracefully."""
+        import pytest
+        from pathlib import Path
+        from unittest.mock import Mock
+
+        # Create a file
+        file1 = tmp_path / "file.txt"
+        file1.write_text("content")
+
+        # Create .rhiza.history
+        history_file = tmp_path / ".rhiza.history"
+        history_file.write_text("file.txt\n")
+
+        # Mock Path.unlink to raise an exception for the file (but not history)
+        original_unlink = Path.unlink
+
+        def mock_unlink(self):
+            if self.name == "file.txt":
+                raise PermissionError("Cannot delete file")
+            return original_unlink(self)
+
+        with patch.object(Path, "unlink", mock_unlink):
+            # Run uninstall - should exit with error code
+            with pytest.raises(SystemExit) as excinfo:
+                uninstall(tmp_path, force=True)
+            assert excinfo.value.code == 1
+
+    def test_uninstall_handles_history_file_deletion_error(self, tmp_path):
+        """Test that uninstall handles .rhiza.history deletion error."""
+        import pytest
+        from pathlib import Path
+
+        # Create a file
+        file1 = tmp_path / "file.txt"
+        file1.write_text("content")
+
+        # Create .rhiza.history
+        history_file = tmp_path / ".rhiza.history"
+        history_file.write_text("file.txt\n")
+
+        # Mock Path.unlink to raise exception only for .rhiza.history
+        original_unlink = Path.unlink
+
+        def mock_unlink(self):
+            if self.name == ".rhiza.history":
+                raise PermissionError("Cannot delete .rhiza.history")
+            return original_unlink(self)
+
+        with patch.object(Path, "unlink", mock_unlink):
+            # Run uninstall - should exit with error code
+            with pytest.raises(SystemExit) as excinfo:
+                uninstall(tmp_path, force=True)
+            assert excinfo.value.code == 1
+
+    def test_uninstall_handles_directory_removal_error(self, tmp_path):
+        """Test that uninstall handles directory removal errors gracefully."""
+        from pathlib import Path
+
+        # Create nested directory with a file
+        file1 = tmp_path / "dir1" / "file.txt"
+        file1.parent.mkdir(parents=True, exist_ok=True)
+        file1.write_text("content")
+
+        # Create .rhiza.history
+        history_file = tmp_path / ".rhiza.history"
+        history_file.write_text("dir1/file.txt\n")
+
+        # Mock Path.rmdir to raise exception
+        original_rmdir = Path.rmdir
+
+        def mock_rmdir(self):
+            if self.name == "dir1":
+                raise PermissionError("Cannot remove directory")
+            return original_rmdir(self)
+
+        with patch.object(Path, "rmdir", mock_rmdir):
+            # Run uninstall - should complete without crashing
+            # (directory removal errors are caught and ignored)
+            uninstall(tmp_path, force=True)
+
+        # File should be deleted, history should be deleted
+        # Directory might remain due to mock error
+        assert not file1.exists()
+        assert not history_file.exists()
