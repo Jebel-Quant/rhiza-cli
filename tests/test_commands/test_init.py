@@ -203,3 +203,31 @@ class TestInitCommand:
         assert "project" in data
         assert "name" in data["project"]
         assert data["project"]["name"] == tmp_path.name
+
+    def test_init_with_project_name_starting_with_digit(self, tmp_path):
+        """Test init with project name starting with a digit (auto-normalized package name)."""
+        # Don't pass package_name, so it will be auto-normalized from project_name
+        init(tmp_path, project_name="123project")
+
+        # Check that package name was normalized to _123project
+        assert (tmp_path / "src" / "_123project").exists()
+        assert (tmp_path / "src" / "_123project" / "__init__.py").exists()
+
+        # Check pyproject.toml references the normalized package
+        pyproject_file = tmp_path / "pyproject.toml"
+        content = pyproject_file.read_text()
+        assert 'packages = ["src/_123project"]' in content
+
+    def test_init_with_project_name_as_keyword(self, tmp_path):
+        """Test init with project name that is a Python keyword (auto-normalized package name)."""
+        # Don't pass package_name, so it will be auto-normalized from project_name
+        init(tmp_path, project_name="class")
+
+        # Check that package name was normalized to class_
+        assert (tmp_path / "src" / "class_").exists()
+        assert (tmp_path / "src" / "class_" / "__init__.py").exists()
+
+        # Check pyproject.toml references the normalized package
+        pyproject_file = tmp_path / "pyproject.toml"
+        content = pyproject_file.read_text()
+        assert 'packages = ["src/class_"]' in content
