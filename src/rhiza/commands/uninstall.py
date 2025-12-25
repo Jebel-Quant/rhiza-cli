@@ -36,7 +36,7 @@ def uninstall(target: Path, force: bool) -> None:
     # Read the .rhiza.history file
     logger.debug("Reading .rhiza.history file")
     files_to_remove: list[Path] = []
-    
+
     with history_file.open("r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -61,7 +61,7 @@ def uninstall(target: Path, force: bool) -> None:
                 logger.warning(f"  - {file_path}")
             else:
                 logger.debug(f"  - {file_path} (already deleted)")
-        
+
         # Prompt for confirmation
         try:
             response = input("\nAre you sure you want to proceed? [y/N]: ").strip().lower()
@@ -80,7 +80,7 @@ def uninstall(target: Path, force: bool) -> None:
 
     for file_path in sorted(files_to_remove):
         full_path = target / file_path
-        
+
         if not full_path.exists():
             logger.debug(f"[SKIP] {file_path} (already deleted)")
             skipped_count += 1
@@ -100,7 +100,7 @@ def uninstall(target: Path, force: bool) -> None:
     for file_path in sorted(files_to_remove, reverse=True):
         full_path = target / file_path
         parent = full_path.parent
-        
+
         # Try to remove parent directories if they're empty
         # Walk up the directory tree
         while parent != target and parent.exists():
@@ -127,7 +127,7 @@ def uninstall(target: Path, force: bool) -> None:
         error_count += 1
 
     # Summary
-    logger.info(f"\nUninstall summary:")
+    logger.info("\nUninstall summary:")
     logger.info(f"  Files removed: {removed_count}")
     if skipped_count > 0:
         logger.info(f"  Files skipped (already deleted): {skipped_count}")

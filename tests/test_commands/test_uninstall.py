@@ -10,10 +10,8 @@ This module tests the uninstall command functionality, including:
 
 import subprocess
 import sys
-from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
-import pytest
 from typer.testing import CliRunner
 
 from rhiza.cli import app
@@ -29,11 +27,11 @@ class TestUninstallCommand:
         file1 = tmp_path / "file1.txt"
         file2 = tmp_path / "subdir" / "file2.txt"
         file3 = tmp_path / "another" / "deep" / "file3.txt"
-        
+
         file1.parent.mkdir(parents=True, exist_ok=True)
         file2.parent.mkdir(parents=True, exist_ok=True)
         file3.parent.mkdir(parents=True, exist_ok=True)
-        
+
         file1.write_text("content1")
         file2.write_text("content2")
         file3.write_text("content3")
@@ -67,10 +65,7 @@ class TestUninstallCommand:
 
         # Create .rhiza.history
         history_file = tmp_path / ".rhiza.history"
-        history_file.write_text(
-            "# Rhiza Template History\n"
-            "dir1/dir2/file.txt\n"
-        )
+        history_file.write_text("# Rhiza Template History\ndir1/dir2/file.txt\n")
 
         # Run uninstall
         uninstall(tmp_path, force=True)
@@ -86,17 +81,14 @@ class TestUninstallCommand:
         # Create files, some managed by Rhiza, some not
         managed_file = tmp_path / "shared" / "managed.txt"
         unmanaged_file = tmp_path / "shared" / "unmanaged.txt"
-        
+
         managed_file.parent.mkdir(parents=True, exist_ok=True)
         managed_file.write_text("managed")
         unmanaged_file.write_text("unmanaged")
 
         # Create .rhiza.history with only one file
         history_file = tmp_path / ".rhiza.history"
-        history_file.write_text(
-            "# Rhiza Template History\n"
-            "shared/managed.txt\n"
-        )
+        history_file.write_text("# Rhiza Template History\nshared/managed.txt\n")
 
         # Run uninstall
         uninstall(tmp_path, force=True)
@@ -110,10 +102,10 @@ class TestUninstallCommand:
     def test_uninstall_handles_missing_history_file(self, tmp_path):
         """Test that uninstall handles gracefully when .rhiza.history doesn't exist."""
         # Don't create .rhiza.history
-        
+
         # Run uninstall - should not raise an exception
         uninstall(tmp_path, force=True)
-        
+
         # Should complete without error
         assert True
 
@@ -121,10 +113,7 @@ class TestUninstallCommand:
         """Test that uninstall handles empty .rhiza.history file."""
         # Create empty .rhiza.history (only comments)
         history_file = tmp_path / ".rhiza.history"
-        history_file.write_text(
-            "# Rhiza Template History\n"
-            "# No files listed\n"
-        )
+        history_file.write_text("# Rhiza Template History\n# No files listed\n")
 
         # Run uninstall
         uninstall(tmp_path, force=True)
@@ -136,11 +125,7 @@ class TestUninstallCommand:
         """Test that uninstall handles files that are already deleted."""
         # Create .rhiza.history with files that don't exist
         history_file = tmp_path / ".rhiza.history"
-        history_file.write_text(
-            "# Rhiza Template History\n"
-            "nonexistent1.txt\n"
-            "nonexistent2.txt\n"
-        )
+        history_file.write_text("# Rhiza Template History\nnonexistent1.txt\nnonexistent2.txt\n")
 
         # Run uninstall - should not raise an exception
         uninstall(tmp_path, force=True)
@@ -366,18 +351,14 @@ class TestUninstallEdgeCases:
         file1 = tmp_path / "file with spaces.txt"
         file2 = tmp_path / "file-with-dashes.txt"
         file3 = tmp_path / "file_with_underscores.txt"
-        
+
         file1.write_text("content1")
         file2.write_text("content2")
         file3.write_text("content3")
 
         # Create .rhiza.history
         history_file = tmp_path / ".rhiza.history"
-        history_file.write_text(
-            "file with spaces.txt\n"
-            "file-with-dashes.txt\n"
-            "file_with_underscores.txt\n"
-        )
+        history_file.write_text("file with spaces.txt\nfile-with-dashes.txt\nfile_with_underscores.txt\n")
 
         # Run uninstall
         uninstall(tmp_path, force=True)
@@ -426,7 +407,7 @@ class TestUninstallEdgeCases:
 
     def test_uninstall_with_read_only_file(self, tmp_path):
         """Test uninstall behavior with read-only files.
-        
+
         Note: On Unix, file permissions don't prevent deletion if you have
         write permission on the parent directory. This test verifies that
         read-only files are successfully deleted, which is the expected behavior.
@@ -442,7 +423,7 @@ class TestUninstallEdgeCases:
 
         # Run uninstall - should succeed even with read-only file
         uninstall(tmp_path, force=True)
-        
+
         # Verify files are deleted (Unix allows deleting read-only files
         # if you have write permission on the directory)
         assert not file1.exists()
