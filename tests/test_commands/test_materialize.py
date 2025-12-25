@@ -583,6 +583,10 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create src and tests folders to avoid validation warnings
+        (tmp_path / "src").mkdir()
+        (tmp_path / "tests").mkdir()
+
         # Create template.yml including workflow files
         rhiza_dir = tmp_path / ".github" / "rhiza"
         rhiza_dir.mkdir(parents=True)
