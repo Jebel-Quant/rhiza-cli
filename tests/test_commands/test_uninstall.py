@@ -433,11 +433,7 @@ class TestUninstallEdgeCases:
         """Test that uninstall shows debug message for missing files in warning phase."""
         # Create .rhiza.history with files that don't exist
         history_file = tmp_path / ".rhiza.history"
-        history_file.write_text(
-            "# Rhiza Template History\n"
-            "nonexistent1.txt\n"
-            "nonexistent2.txt\n"
-        )
+        history_file.write_text("# Rhiza Template History\nnonexistent1.txt\nnonexistent2.txt\n")
 
         # Run uninstall without force to trigger warning phase
         # Mock user input to decline
@@ -449,9 +445,9 @@ class TestUninstallEdgeCases:
 
     def test_uninstall_handles_file_deletion_error(self, tmp_path):
         """Test that uninstall handles file deletion errors gracefully."""
-        import pytest
         from pathlib import Path
-        from unittest.mock import Mock
+
+        import pytest
 
         # Create a file
         file1 = tmp_path / "file.txt"
@@ -477,8 +473,9 @@ class TestUninstallEdgeCases:
 
     def test_uninstall_handles_history_file_deletion_error(self, tmp_path):
         """Test that uninstall handles .rhiza.history deletion error."""
-        import pytest
         from pathlib import Path
+
+        import pytest
 
         # Create a file
         file1 = tmp_path / "file.txt"
