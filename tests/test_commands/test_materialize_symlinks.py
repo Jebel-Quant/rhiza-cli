@@ -4,10 +4,8 @@ This module tests that symlinks in template repositories are properly resolved
 and their targets are automatically checked out and copied.
 """
 
-from pathlib import Path
 from unittest.mock import Mock, patch
 
-import pytest
 import yaml
 
 from rhiza.commands.materialize import materialize
@@ -20,9 +18,7 @@ class TestMaterializeSymlinks:
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_materialize_resolves_file_symlink(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
-    ):
+    def test_materialize_resolves_file_symlink(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
         """Test that materialize resolves file symlinks and copies target content."""
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -69,9 +65,7 @@ class TestMaterializeSymlinks:
         sparse_checkout_calls = [
             call
             for call in mock_subprocess.call_args_list
-            if len(call[0]) > 0
-            and "sparse-checkout" in call[0][0]
-            and "set" in call[0][0]
+            if len(call[0]) > 0 and "sparse-checkout" in call[0][0] and "set" in call[0][0]
         ]
 
         assert len(sparse_checkout_calls) == 2, "Should have two sparse-checkout set calls"
@@ -138,9 +132,7 @@ class TestMaterializeSymlinks:
         sparse_checkout_calls = [
             call
             for call in mock_subprocess.call_args_list
-            if len(call[0]) > 0
-            and "sparse-checkout" in call[0][0]
-            and "set" in call[0][0]
+            if len(call[0]) > 0 and "sparse-checkout" in call[0][0] and "set" in call[0][0]
         ]
 
         assert len(sparse_checkout_calls) == 2, "Should have two sparse-checkout set calls"
@@ -205,8 +197,9 @@ class TestMaterializeSymlinks:
 
         # At least one call should have .gitlab in the destination path
         destination_paths = [str(call[0][1]) for call in copy_calls]
-        assert any(".gitlab" in path for path in destination_paths), \
+        assert any(".gitlab" in path for path in destination_paths), (
             f"Expected .gitlab in destination paths, got: {destination_paths}"
+        )
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -270,9 +263,7 @@ class TestMaterializeSymlinks:
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_materialize_broken_symlink_logs_warning(
-        self, mock_mkdtemp, mock_rmtree, mock_subprocess, tmp_path
-    ):
+    def test_materialize_broken_symlink_logs_warning(self, mock_mkdtemp, mock_rmtree, mock_subprocess, tmp_path):
         """Test that broken symlinks (target doesn't exist) are handled gracefully."""
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -316,9 +307,7 @@ class TestMaterializeSymlinks:
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_materialize_multiple_symlinks(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
-    ):
+    def test_materialize_multiple_symlinks(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
         """Test that multiple symlinks are all resolved correctly."""
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -365,9 +354,7 @@ class TestMaterializeSymlinks:
         sparse_checkout_calls = [
             call
             for call in mock_subprocess.call_args_list
-            if len(call[0]) > 0
-            and "sparse-checkout" in call[0][0]
-            and "set" in call[0][0]
+            if len(call[0]) > 0 and "sparse-checkout" in call[0][0] and "set" in call[0][0]
         ]
 
         assert len(sparse_checkout_calls) == 2

@@ -68,7 +68,9 @@ def __resolve_symlinks(base_dir: Path, paths: list[str]) -> tuple[list[str], dic
     return additional_paths, symlink_mapping
 
 
-def __expand_paths(base_dir: Path, paths: list[str], symlink_mapping: dict[str, str] | None = None) -> list[tuple[Path, Path]]:
+def __expand_paths(
+    base_dir: Path, paths: list[str], symlink_mapping: dict[str, str] | None = None
+) -> list[tuple[Path, Path]]:
     """Expand files/directories relative to base_dir into a flat list of files.
 
     Given a list of paths relative to ``base_dir``, return a flat list of all
