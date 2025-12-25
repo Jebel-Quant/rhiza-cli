@@ -16,6 +16,7 @@ def validate(target: Path) -> bool:
     Performs authoritative validation of the template configuration:
     - Checks if target is a git repository
     - Checks for standard project structure (src and tests folders)
+    - Checks for pyproject.toml (required)
     - Checks if template.yml exists
     - Validates YAML syntax
     - Validates required fields
@@ -55,6 +56,18 @@ def validate(target: Path) -> bool:
         logger.warning("Consider creating a 'tests' directory for test files")
     else:
         logger.success(f"'tests' folder exists: {tests_dir}")
+
+    # Check for pyproject.toml - this is always required
+    logger.debug("Validating pyproject.toml")
+    pyproject_file = target / "pyproject.toml"
+    
+    if not pyproject_file.exists():
+        logger.error(f"pyproject.toml not found: {pyproject_file}")
+        logger.error("pyproject.toml is required for Python projects")
+        logger.info("Run 'rhiza init' to create a default pyproject.toml")
+        return False
+    else:
+        logger.success(f"pyproject.toml exists: {pyproject_file}")
 
     # Check for template.yml in both new and old locations
     # New location: .github/rhiza/template.yml
