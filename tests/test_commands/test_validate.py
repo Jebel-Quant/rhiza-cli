@@ -218,6 +218,84 @@ class TestValidateCommand:
         result = runner.invoke(cli.app, ["validate", str(tmp_path)])
         assert result.exit_code == 0
 
+    def test_validate_warns_on_missing_src_folder(self, tmp_path):
+        """Test that validate warns when src folder doesn't exist."""
+        # Setup git repo with valid template but no src folder
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        # Should still pass with warning (warnings don't fail validation)
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_warns_on_missing_tests_folder(self, tmp_path):
+        """Test that validate warns when tests folder doesn't exist."""
+        # Setup git repo with valid template but no tests folder
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create src folder but not tests folder
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        # Should still pass with warning (warnings don't fail validation)
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_succeeds_with_src_and_tests_folders(self, tmp_path):
+        """Test that validate succeeds when both src and tests folders exist."""
+        # Setup git repo with valid template and proper structure
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create src and tests folders
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is True
+
     def test_cli_validate_command_fails(self, tmp_path):
         """Test the CLI validate command fails on invalid template."""
         runner = CliRunner()

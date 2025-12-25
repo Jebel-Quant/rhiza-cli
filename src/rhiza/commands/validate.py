@@ -14,6 +14,8 @@ def validate(target: Path) -> bool:
     """Validate template.yml configuration in the target repository.
 
     Performs authoritative validation of the template configuration:
+    - Checks if target is a git repository
+    - Checks for standard project structure (src and tests folders)
     - Checks if template.yml exists
     - Validates YAML syntax
     - Validates required fields
@@ -36,6 +38,23 @@ def validate(target: Path) -> bool:
         return False
 
     logger.info(f"Validating template configuration in: {target}")
+
+    # Check for standard project structure (src and tests folders)
+    logger.debug("Validating project structure")
+    src_dir = target / "src"
+    tests_dir = target / "tests"
+
+    if not src_dir.exists():
+        logger.warning(f"Standard 'src' folder not found: {src_dir}")
+        logger.warning("Consider creating a 'src' directory for source code")
+    else:
+        logger.success(f"'src' folder exists: {src_dir}")
+
+    if not tests_dir.exists():
+        logger.warning(f"Standard 'tests' folder not found: {tests_dir}")
+        logger.warning("Consider creating a 'tests' directory for test files")
+    else:
+        logger.success(f"'tests' folder exists: {tests_dir}")
 
     # Check for template.yml in both new and old locations
     # New location: .github/rhiza/template.yml
