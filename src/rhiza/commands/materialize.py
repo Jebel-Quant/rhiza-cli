@@ -68,7 +68,7 @@ def __resolve_symlinks(base_dir: Path, paths: list[str]) -> tuple[list[str], dic
     return additional_paths, symlink_mapping
 
 
-def __expand_paths(base_dir: Path, paths: list[str], symlink_mapping: dict[str, str] | None = None) -> list[Path]:
+def __expand_paths(base_dir: Path, paths: list[str], symlink_mapping: dict[str, str] | None = None) -> list[tuple[Path, Path]]:
     """Expand files/directories relative to base_dir into a flat list of files.
 
     Given a list of paths relative to ``base_dir``, return a flat list of all
@@ -80,7 +80,8 @@ def __expand_paths(base_dir: Path, paths: list[str], symlink_mapping: dict[str, 
         symlink_mapping: Optional dict mapping symlink paths to their target paths.
 
     Returns:
-        A flat list of Path objects representing all individual files found.
+        A list of tuples (source_path, dest_path) where source_path is the actual
+        file to copy and dest_path is where it should be placed in the target.
     """
     if symlink_mapping is None:
         symlink_mapping = {}

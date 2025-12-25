@@ -4,7 +4,6 @@ This module tests that symlinks in template repositories are properly resolved
 and their targets are automatically checked out and copied.
 """
 
-import subprocess
 from pathlib import Path
 from unittest.mock import Mock, patch
 
