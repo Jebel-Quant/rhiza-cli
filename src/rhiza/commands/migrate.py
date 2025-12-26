@@ -65,12 +65,12 @@ def migrate(target: Path, force: bool) -> None:
                 logger.info(f"Skipping migration of {old_template_file.relative_to(target)}")
             else:
                 logger.info(f"Found template.yml at: {old_template_file.relative_to(target)}")
-                logger.info(f"Copying to new location: {new_template_file.relative_to(target)}")
+                logger.info(f"Moving to new location: {new_template_file.relative_to(target)}")
                 
-                # Copy the template file to new location
-                shutil.copy2(old_template_file, new_template_file)
-                logger.success(f"✓ Copied template.yml to .rhiza/template.yml")
-                migrations_performed.append("Migrated template.yml to .rhiza/template.yml")
+                # Move the template file to new location (not copy)
+                shutil.move(str(old_template_file), str(new_template_file))
+                logger.success(f"✓ Moved template.yml to .rhiza/template.yml")
+                migrations_performed.append("Moved template.yml to .rhiza/template.yml")
                 template_migrated = True
             break
     

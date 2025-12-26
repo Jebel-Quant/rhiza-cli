@@ -365,7 +365,7 @@ Next steps:
 
 - Files that already exist in `.rhiza/` will not be overwritten unless `--force` is used
 - The old `.rhiza.history` file is removed after successful migration
-- The original `.github/rhiza/template.yml` is preserved (only copied, not moved)
+- The original template file in `.github/` is moved (removed from old location)
 
 ---
 

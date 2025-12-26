@@ -26,7 +26,7 @@ class TestMigrateCommand:
         assert rhiza_dir.is_dir()
 
     def test_migrate_copies_template_from_github_rhiza(self, tmp_path):
-        """Test that migrate copies template.yml from .github/rhiza/ to .rhiza/."""
+        """Test that migrate moves template.yml from .github/rhiza/ to .rhiza/."""
         # Create existing template.yml in .github/rhiza/
         github_rhiza_dir = tmp_path / ".github" / "rhiza"
         github_rhiza_dir.mkdir(parents=True)
@@ -56,8 +56,11 @@ class TestMigrateCommand:
         assert migrated_content["template-branch"] == "main"
         assert migrated_content["include"] == [".github", "Makefile"]
 
+        # Verify old file was removed
+        assert not old_template_file.exists()
+
     def test_migrate_copies_template_from_github_root(self, tmp_path):
-        """Test that migrate copies template.yml from .github/ to .rhiza/."""
+        """Test that migrate moves template.yml from .github/ to .rhiza/."""
         # Create existing template.yml in .github/ (old location)
         github_dir = tmp_path / ".github"
         github_dir.mkdir(parents=True)
@@ -84,6 +87,9 @@ class TestMigrateCommand:
             migrated_content = yaml.safe_load(f)
 
         assert migrated_content["template-repository"] == "old/location"
+
+        # Verify old file was removed
+        assert not old_template_file.exists()
 
     def test_migrate_prefers_github_rhiza_over_github_root(self, tmp_path):
         """Test that migrate prefers .github/rhiza/template.yml over .github/template.yml."""
