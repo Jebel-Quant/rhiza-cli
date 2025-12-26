@@ -168,6 +168,50 @@ Makefile
         new_history_file = rhiza_dir / "history"
         assert not new_history_file.exists()
 
+    def test_migrate_skips_history_when_both_exist(self, tmp_path):
+        """Test that migrate skips history migration when both old and new exist."""
+        # Create existing .rhiza.history
+        old_history_file = tmp_path / ".rhiza.history"
+        old_content = "# Old history content\nold_file.txt\n"
+        old_history_file.write_text(old_content)
+
+        # Create existing .rhiza/history (already migrated)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        new_history_file = rhiza_dir / "history"
+        new_content = "# New history content\nnew_file.txt\n"
+        new_history_file.write_text(new_content)
+
+        # Run migrate
+        migrate(tmp_path)
+
+        # Verify new history file was NOT overwritten
+        assert new_history_file.read_text() == new_content
+
+        # Verify old file still exists (not removed since target exists)
+        assert old_history_file.exists()
+        assert old_history_file.read_text() == old_content
+
+    def test_migrate_handles_existing_rhiza_history(self, tmp_path):
+        """Test that migrate handles when .rhiza/history already exists but .rhiza.history doesn't."""
+        # Create existing .rhiza/history (no old file)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        new_history_file = rhiza_dir / "history"
+        existing_content = "# Existing history\nfile.txt\n"
+        new_history_file.write_text(existing_content)
+
+        # Run migrate without creating .rhiza.history
+        migrate(tmp_path)
+
+        # Verify .rhiza/history is unchanged
+        assert new_history_file.exists()
+        assert new_history_file.read_text() == existing_content
+
+        # Verify no old file was created
+        old_history_file = tmp_path / ".rhiza.history"
+        assert not old_history_file.exists()
+
     def test_migrate_skips_existing_files(self, tmp_path):
         """Test that migrate skips existing files in .rhiza."""
         # Create existing .rhiza/template.yml
