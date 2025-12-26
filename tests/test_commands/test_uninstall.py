@@ -1,8 +1,8 @@
 """Tests for the `uninstall` command.
 
 This module tests the uninstall command functionality, including:
-- Reading .rhiza.history file
-- Removing files listed in .rhiza.history
+- Reading .rhiza/history file
+- Removing files listed in .rhiza/history
 - Handling empty directories
 - Confirmation prompts
 - CLI integration
@@ -22,7 +22,7 @@ class TestUninstallCommand:
     """Tests for the uninstall command implementation."""
 
     def test_uninstall_removes_files_listed_in_history(self, tmp_path):
-        """Test that uninstall removes all files listed in .rhiza.history."""
+        """Test that uninstall removes all files listed in .rhiza/history."""
         # Create some files
         file1 = tmp_path / "file1.txt"
         file2 = tmp_path / "subdir" / "file2.txt"
@@ -36,8 +36,10 @@ class TestUninstallCommand:
         file2.write_text("content2")
         file3.write_text("content3")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = rhiza_dir / "history"
         history_file.write_text(
             "# Rhiza Template History\n"
             "# This file lists all files managed by the Rhiza template.\n"
@@ -63,8 +65,10 @@ class TestUninstallCommand:
         file1.parent.mkdir(parents=True, exist_ok=True)
         file1.write_text("content")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("# Rhiza Template History\ndir1/dir2/file.txt\n")
 
         # Run uninstall
@@ -86,8 +90,10 @@ class TestUninstallCommand:
         managed_file.write_text("managed")
         unmanaged_file.write_text("unmanaged")
 
-        # Create .rhiza.history with only one file
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history with only one file
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("# Rhiza Template History\nshared/managed.txt\n")
 
         # Run uninstall
@@ -100,8 +106,8 @@ class TestUninstallCommand:
         assert not history_file.exists()
 
     def test_uninstall_handles_missing_history_file(self, tmp_path):
-        """Test that uninstall handles gracefully when .rhiza.history doesn't exist."""
-        # Don't create .rhiza.history
+        """Test that uninstall handles gracefully when .rhiza/history doesn't exist."""
+        # Don't create .rhiza/history
 
         # Run uninstall - should not raise an exception
         uninstall(tmp_path, force=True)
@@ -110,9 +116,11 @@ class TestUninstallCommand:
         assert True
 
     def test_uninstall_handles_empty_history_file(self, tmp_path):
-        """Test that uninstall handles empty .rhiza.history file."""
-        # Create empty .rhiza.history (only comments)
-        history_file = tmp_path / ".rhiza.history"
+        """Test that uninstall handles empty .rhiza/history file."""
+        # Create empty .rhiza/history (only comments)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("# Rhiza Template History\n# No files listed\n")
 
         # Run uninstall
@@ -123,8 +131,10 @@ class TestUninstallCommand:
 
     def test_uninstall_handles_already_deleted_files(self, tmp_path):
         """Test that uninstall handles files that are already deleted."""
-        # Create .rhiza.history with files that don't exist
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history with files that don't exist
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("# Rhiza Template History\nnonexistent1.txt\nnonexistent2.txt\n")
 
         # Run uninstall - should not raise an exception
@@ -139,8 +149,10 @@ class TestUninstallCommand:
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("file.txt\n")
 
         # Run uninstall with force=True (should not prompt)
@@ -158,8 +170,10 @@ class TestUninstallCommand:
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("file.txt\n")
 
         # Mock user input to confirm
@@ -176,8 +190,10 @@ class TestUninstallCommand:
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("file.txt\n")
 
         # Mock user input to decline
@@ -194,8 +210,10 @@ class TestUninstallCommand:
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("file.txt\n")
 
         # Mock user pressing Ctrl+C
@@ -236,31 +254,6 @@ class TestUninstallCommand:
         assert not file2.exists()
         assert not history_file.exists()
 
-    def test_uninstall_prefers_new_location_over_old(self, tmp_path):
-        """Test that uninstall prefers .rhiza/history over .rhiza.history if both exist."""
-        # Create files
-        file1 = tmp_path / "file1.txt"
-        file2 = tmp_path / "file2.txt"
-        file1.write_text("content1")
-        file2.write_text("content2")
-
-        # Create both old and new history files with different content
-        old_history = tmp_path / ".rhiza.history"
-        old_history.write_text("# Old location\nfile2.txt\n")
-
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        new_history = rhiza_dir / "history"
-        new_history.write_text("# New location\nfile1.txt\n")
-
-        # Run uninstall
-        uninstall(tmp_path, force=True)
-
-        # Should have used new location (removed file1, not file2)
-        assert not file1.exists()
-        assert file2.exists()  # file2 should still exist
-        assert not new_history.exists()
-        assert old_history.exists()  # old history should still exist
 
 
 class TestUninstallCLI:
@@ -283,8 +276,10 @@ class TestUninstallCLI:
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("file.txt\n")
 
         # Run CLI command with --force
@@ -302,8 +297,10 @@ class TestUninstallCLI:
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("file.txt\n")
 
         # Run CLI command with -y
@@ -324,8 +321,10 @@ class TestUninstallCLI:
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("file.txt\n")
 
         # Run CLI command without target argument
@@ -343,8 +342,10 @@ class TestUninstallCLI:
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("file.txt\n")
 
         # Run CLI command and simulate 'y' input
@@ -362,8 +363,10 @@ class TestUninstallCLI:
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("file.txt\n")
 
         # Run CLI command and simulate 'n' input
@@ -381,8 +384,10 @@ class TestUninstallCLI:
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("file.txt\n")
 
         # Run via subprocess with --force
@@ -412,8 +417,10 @@ class TestUninstallEdgeCases:
         file2.write_text("content2")
         file3.write_text("content3")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("file with spaces.txt\nfile-with-dashes.txt\nfile_with_underscores.txt\n")
 
         # Run uninstall
@@ -432,8 +439,10 @@ class TestUninstallEdgeCases:
         deep_file.parent.mkdir(parents=True, exist_ok=True)
         deep_file.write_text("content")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("a/b/c/d/e/file.txt\n")
 
         # Run uninstall
@@ -450,8 +459,10 @@ class TestUninstallEdgeCases:
         dotfile = tmp_path / ".hidden"
         dotfile.write_text("hidden content")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text(".hidden\n")
 
         # Run uninstall
@@ -473,8 +484,10 @@ class TestUninstallEdgeCases:
         file1.write_text("content")
         file1.chmod(0o444)  # Read-only
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("readonly.txt\n")
 
         # Run uninstall - should succeed even with read-only file
@@ -487,8 +500,10 @@ class TestUninstallEdgeCases:
 
     def test_uninstall_shows_missing_files_in_warning(self, tmp_path):
         """Test that uninstall shows debug message for missing files in warning phase."""
-        # Create .rhiza.history with files that don't exist
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history with files that don't exist
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("# Rhiza Template History\nnonexistent1.txt\nnonexistent2.txt\n")
 
         # Run uninstall without force to trigger warning phase
@@ -509,8 +524,10 @@ class TestUninstallEdgeCases:
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("file.txt\n")
 
         # Mock Path.unlink to raise an exception for the file (but not history)
@@ -528,7 +545,7 @@ class TestUninstallEdgeCases:
             assert excinfo.value.code == 1
 
     def test_uninstall_handles_history_file_deletion_error(self, tmp_path):
-        """Test that uninstall handles .rhiza.history deletion error."""
+        """Test that uninstall handles .rhiza/history deletion error."""
         from pathlib import Path
 
         import pytest
@@ -537,16 +554,18 @@ class TestUninstallEdgeCases:
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("file.txt\n")
 
-        # Mock Path.unlink to raise exception only for .rhiza.history
+        # Mock Path.unlink to raise exception only for .rhiza/history
         original_unlink = Path.unlink
 
         def mock_unlink(self):
-            if self.name == ".rhiza.history":
-                raise PermissionError("Cannot delete .rhiza.history")
+            if self.name == "history" and ".rhiza" in str(self):
+                raise PermissionError("Cannot delete .rhiza/history")
             return original_unlink(self)
 
         with patch.object(Path, "unlink", mock_unlink):
@@ -564,8 +583,10 @@ class TestUninstallEdgeCases:
         file1.parent.mkdir(parents=True, exist_ok=True)
         file1.write_text("content")
 
-        # Create .rhiza.history
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = tmp_path / ".rhiza" / "history"
         history_file.write_text("dir1/file.txt\n")
 
         # Mock Path.rmdir to raise exception

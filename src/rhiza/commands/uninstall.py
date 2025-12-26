@@ -1,9 +1,8 @@
 """Command for uninstalling Rhiza template files from a repository.
 
 This module implements the `uninstall` command. It reads the `.rhiza/history`
-or `.rhiza.history` file and removes all files that were previously materialized
-by Rhiza templates. This provides a clean way to remove all template-managed
-files from a project.
+file and removes all files that were previously materialized by Rhiza templates.
+This provides a clean way to remove all template-managed files from a project.
 """
 
 import sys
@@ -15,9 +14,8 @@ from loguru import logger
 def uninstall(target: Path, force: bool) -> None:
     """Uninstall Rhiza templates from the target repository.
 
-    Reads the `.rhiza/history` or `.rhiza.history` file (checking new location first)
-    and removes all files listed in it. This effectively removes all files that were
-    materialized by Rhiza.
+    Reads the `.rhiza/history` file and removes all files listed in it.
+    This effectively removes all files that were materialized by Rhiza.
 
     Args:
         target (Path): Path to the target repository.
@@ -28,22 +26,13 @@ def uninstall(target: Path, force: bool) -> None:
 
     logger.info(f"Target repository: {target}")
 
-    # Check for history file in new location first, then fall back to old location
-    new_history_file = target / ".rhiza" / "history"
-    old_history_file = target / ".rhiza.history"
+    # Check for history file in new location only
+    history_file = target / ".rhiza" / "history"
     
-    history_file = None
-    if new_history_file.exists():
-        history_file = new_history_file
-        logger.debug(f"Found history file at new location: {new_history_file.relative_to(target)}")
-    elif old_history_file.exists():
-        history_file = old_history_file
-        logger.debug(f"Found history file at old location: {old_history_file.relative_to(target)}")
-    
-    if history_file is None:
-        logger.warning(f"No history file found in {target}")
-        logger.info("Checked locations: .rhiza/history and .rhiza.history")
+    if not history_file.exists():
+        logger.warning(f"No history file found at: {history_file.relative_to(target)}")
         logger.info("Nothing to uninstall. This repository may not have Rhiza templates materialized.")
+        logger.info("If you haven't migrated yet, run 'rhiza migrate' first.")
         return
 
     # Read the history file
