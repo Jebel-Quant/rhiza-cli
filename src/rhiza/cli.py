@@ -201,7 +201,7 @@ def migrate(
         False,
         "--force",
         "-y",
-        help="Overwrite existing files during materialization",
+        help="Overwrite existing files in .rhiza if they already exist",
     ),
 ):
     r"""Migrate project to the new .rhiza folder structure.
@@ -213,8 +213,6 @@ def migrate(
     - Creates the `.rhiza/` directory in the project root
     - Migrates `.github/rhiza/template.yml` or `.github/template.yml` to `.rhiza/template.yml`
     - Migrates `.rhiza.history` to `.rhiza/history`
-    - Validates the template configuration
-    - Re-materializes templates to ensure consistency
 
     The new `.rhiza/` folder structure separates Rhiza's state and configuration
     from the `.github/` directory, providing better organization.
