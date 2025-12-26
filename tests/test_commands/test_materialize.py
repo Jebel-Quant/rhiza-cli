@@ -666,7 +666,7 @@ class TestInjectCommand:
             assert "permission" in call_args.lower()
 
     @patch("rhiza.commands.materialize.validate")
-    def test_materialize_empty_include_paths_raises_error(self, mock_validate, tmp_path):
+    def test_materialize_raises_error_when_validate_bypassed_with_empty_include(self, mock_validate, tmp_path):
         """Test that materialize raises RuntimeError when include_paths is empty after validation."""
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -691,7 +691,8 @@ class TestInjectCommand:
                 f,
             )
 
-        # Mock validate to return True (bypass validation that would catch this)
+        # Mock validate to return True to bypass normal validation that would catch empty include lists,
+        # allowing us to test the runtime error handling
         mock_validate.return_value = True
 
         # Run materialize and expect RuntimeError
