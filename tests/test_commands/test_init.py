@@ -1,6 +1,6 @@
 """Tests for the init command and CLI wiring.
 
-This module verifies that `init` creates/validates `.github/rhiza/template.yml` and
+This module verifies that `init` creates/validates `.rhiza/template.yml` and
 that the Typer CLI entry `rhiza init` works as expected.
 """
 
@@ -21,7 +21,7 @@ class TestInitCommand:
         init(tmp_path)
 
         # Verify template.yml was created
-        template_file = tmp_path / ".github" / "rhiza" / "template.yml"
+        template_file = tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
 
         # Verify it contains expected content
@@ -37,7 +37,7 @@ class TestInitCommand:
     def test_init_validates_existing_template_yml(self, tmp_path):
         """Test that init validates an existing template.yml."""
         # Create existing template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -64,7 +64,7 @@ class TestInitCommand:
     def test_init_warns_on_missing_template_repository(self, tmp_path):
         """Test that init warns when template-repository is missing."""
         # Create template.yml without template-repository
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -78,7 +78,7 @@ class TestInitCommand:
     def test_init_warns_on_missing_include(self, tmp_path):
         """Test that init warns when include field is missing or empty."""
         # Create template.yml without include
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -88,13 +88,13 @@ class TestInitCommand:
         # Run init - should validate but warn
         init(tmp_path)
 
-    def test_init_creates_github_directory(self, tmp_path):
-        """Test that init creates .github directory if it doesn't exist."""
+    def test_init_creates_rhiza_directory(self, tmp_path):
+        """Test that init creates .rhiza directory if it doesn't exist."""
         init(tmp_path)
 
-        github_dir = tmp_path / ".github"
-        assert github_dir.exists()
-        assert github_dir.is_dir()
+        rhiza_dir = tmp_path / ".rhiza"
+        assert rhiza_dir.exists()
+        assert rhiza_dir.is_dir()
 
     def test_init_with_old_template_location(self, tmp_path):
         """Test that init works when template.yml exists in old location."""
@@ -113,11 +113,11 @@ class TestInitCommand:
                 f,
             )
 
-        # Run init - should create new template in standard location
+        # Run init - should create new template in new location
         init(tmp_path)
 
-        # Verify new template was created in standard location
-        new_template_file = tmp_path / ".github" / "rhiza" / "template.yml"
+        # Verify new template was created in new location
+        new_template_file = tmp_path / ".rhiza" / "template.yml"
         assert new_template_file.exists()
 
         # Verify it has default content (not copied from old location)
@@ -135,7 +135,7 @@ class TestInitCommand:
         with runner.isolated_filesystem():
             result = runner.invoke(cli.app, ["init"])
             assert result.exit_code == 0
-            assert Path(".github/rhiza/template.yml").exists()
+            assert Path(".rhiza/template.yml").exists()
 
     def test_init_creates_correctly_formatted_files(self, tmp_path):
         """Test that init creates files with correct formatting (no indentation)."""

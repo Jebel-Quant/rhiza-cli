@@ -42,7 +42,7 @@ class TestInjectCommand:
         materialize(tmp_path, "main", None, False)
 
         # Verify template.yml was created
-        template_file = tmp_path / ".github" / "rhiza" / "template.yml"
+        template_file = tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
 
         # Verify it contains expected content
@@ -65,8 +65,8 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create existing template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -100,8 +100,8 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml with empty include
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -122,8 +122,8 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -164,8 +164,8 @@ class TestInjectCommand:
         existing_file.write_text("existing")
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -206,8 +206,8 @@ class TestInjectCommand:
         existing_file.write_text("existing")
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -242,8 +242,8 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml with exclude
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -290,8 +290,8 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create minimal template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -321,8 +321,8 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -349,14 +349,14 @@ class TestInjectCommand:
     def test_materialize_creates_rhiza_history_file(
         self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
-        """Test that materialize creates a .rhiza.history file listing all template files."""
+        """Test that materialize creates a .rhiza/history file listing all template files."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -384,8 +384,10 @@ class TestInjectCommand:
         # Run materialize
         materialize(tmp_path, "main", None, False)
 
-        # Verify .rhiza.history was created
-        history_file = tmp_path / ".rhiza.history"
+        # Verify .rhiza/history was created
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = rhiza_dir / "history"
         assert history_file.exists()
 
         # Verify content
@@ -403,7 +405,7 @@ class TestInjectCommand:
     def test_materialize_history_includes_skipped_files(
         self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
-        """Test that .rhiza.history includes files that already exist (were skipped)."""
+        """Test that .rhiza/history includes files that already exist (were skipped)."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
@@ -413,8 +415,8 @@ class TestInjectCommand:
         existing_file.write_text("existing content")
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -440,8 +442,10 @@ class TestInjectCommand:
         # Run materialize without force (should skip existing file)
         materialize(tmp_path, "main", None, False)
 
-        # Verify .rhiza.history includes the skipped file
-        history_file = tmp_path / ".rhiza.history"
+        # Verify .rhiza/history includes the skipped file
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = rhiza_dir / "history"
         assert history_file.exists()
         history_content = history_file.read_text()
         assert "existing.txt" in history_content
@@ -457,8 +461,8 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml with gitlab host
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -506,8 +510,8 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml with explicit github host
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -547,8 +551,8 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml with invalid host
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -588,8 +592,8 @@ class TestInjectCommand:
         (tmp_path / "tests").mkdir()
 
         # Create template.yml including workflow files
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -634,8 +638,8 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml with empty include (bypassing normal validation)
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -666,8 +670,8 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -723,8 +727,8 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -777,8 +781,8 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -822,8 +826,8 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -861,8 +865,8 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -895,8 +899,8 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -948,8 +952,8 @@ class TestInjectCommand:
         git_dir.mkdir()
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -1000,13 +1004,15 @@ class TestInjectCommand:
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_deletes_orphaned_files(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
-        """Test that materialize deletes files in old .rhiza.history but not in new materialization."""
+        """Test that materialize deletes files in old .rhiza/history but not in new materialization."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
-        # Create an old .rhiza.history file with files that will become orphaned
-        old_history = tmp_path / ".rhiza.history"
+        # Create an old .rhiza/history file with files that will become orphaned
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        old_history = rhiza_dir / "history"
         old_history.write_text(
             "# Rhiza Template History\n"
             "# Template repository: jebel-quant/rhiza\n"
@@ -1027,8 +1033,8 @@ class TestInjectCommand:
         nested_orphaned.write_text("nested orphaned content")
 
         # Create template.yml that only includes file1.txt (not orphaned.txt)
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -1058,7 +1064,7 @@ class TestInjectCommand:
         assert not orphaned_file.exists(), "orphaned.txt should have been deleted"
         assert not nested_orphaned.exists(), "dir/nested_orphaned.txt should have been deleted"
 
-        # Verify .rhiza.history was updated and only contains file1.txt
+        # Verify .rhiza/history was updated and only contains file1.txt
         history_content = old_history.read_text()
         assert "file1.txt" in history_content
         assert "orphaned.txt" not in history_content
@@ -1076,8 +1082,10 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
-        # Create an old .rhiza.history file with a file that doesn't exist
-        old_history = tmp_path / ".rhiza.history"
+        # Create an old .rhiza/history file with a file that doesn't exist
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        old_history = rhiza_dir / "history"
         old_history.write_text(
             "# Rhiza Template History\n"
             "# Template repository: jebel-quant/rhiza\n"
@@ -1091,8 +1099,8 @@ class TestInjectCommand:
         # Don't create nonexistent.txt
 
         # Create template.yml that only includes file1.txt
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -1118,7 +1126,7 @@ class TestInjectCommand:
         # Run materialize - should not fail even though nonexistent.txt doesn't exist
         materialize(tmp_path, "main", None, False)
 
-        # Verify .rhiza.history was updated
+        # Verify .rhiza/history was updated
         history_content = old_history.read_text()
         assert "file1.txt" in history_content
         assert "nonexistent.txt" not in history_content
@@ -1130,16 +1138,16 @@ class TestInjectCommand:
     def test_materialize_no_cleanup_when_no_history(
         self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
-        """Test that materialize works correctly when no .rhiza.history exists yet."""
+        """Test that materialize works correctly when no .rhiza/history exists yet."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
-        # No old .rhiza.history file
+        # No old .rhiza/history file
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -1165,8 +1173,10 @@ class TestInjectCommand:
         # Run materialize - should work fine without old history
         materialize(tmp_path, "main", None, False)
 
-        # Verify .rhiza.history was created
-        history_file = tmp_path / ".rhiza.history"
+        # Verify .rhiza/history was created
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = rhiza_dir / "history"
         assert history_file.exists()
         history_content = history_file.read_text()
         assert "file1.txt" in history_content
@@ -1183,8 +1193,10 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
-        # Create .rhiza.history with a file that will be orphaned
-        history_file = tmp_path / ".rhiza.history"
+        # Create .rhiza/history with a file that will be orphaned
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = rhiza_dir / "history"
         history_file.write_text("old_file.txt\n")
 
         # Create the old file that will become orphaned
@@ -1192,8 +1204,8 @@ class TestInjectCommand:
         old_file.write_text("old content")
 
         # Create template.yml that doesn't include old_file
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:

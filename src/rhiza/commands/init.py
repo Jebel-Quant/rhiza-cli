@@ -65,10 +65,9 @@ def init(
 
     logger.info(f"Initializing Rhiza configuration in: {target}")
 
-    # Create .github/rhiza directory structure if it doesn't exist
+    # Create .rhiza directory structure if it doesn't exist
     # This is where Rhiza stores its configuration
-    github_dir = target / ".github"
-    rhiza_dir = github_dir / "rhiza"
+    rhiza_dir = target / ".rhiza"
     logger.debug(f"Ensuring directory exists: {rhiza_dir}")
     rhiza_dir.mkdir(parents=True, exist_ok=True)
 
@@ -77,7 +76,7 @@ def init(
 
     if not template_file.exists():
         # Create default template.yml with sensible defaults
-        logger.info("Creating default .github/rhiza/template.yml")
+        logger.info("Creating default .rhiza/template.yml")
         logger.debug("Using default template configuration")
 
         # Default template points to the jebel-quant/rhiza repository
@@ -103,10 +102,10 @@ def init(
         logger.debug(f"Writing default template to: {template_file}")
         default_template.to_yaml(template_file)
 
-        logger.success("✓ Created .github/rhiza/template.yml")
+        logger.success("✓ Created .rhiza/template.yml")
         logger.info("""
 Next steps:
-  1. Review and customize .github/rhiza/template.yml to match your project needs
+  1. Review and customize .rhiza/template.yml to match your project needs
   2. Run 'rhiza materialize' to inject templates into your repository
 """)
 
