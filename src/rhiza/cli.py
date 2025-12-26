@@ -197,12 +197,6 @@ def migrate(
         dir_okay=True,
         help="Target git repository (defaults to current directory)",
     ),
-    force: bool = typer.Option(
-        False,
-        "--force",
-        "-y",
-        help="Overwrite existing files in .rhiza if they already exist",
-    ),
 ):
     r"""Migrate project to the new .rhiza folder structure.
 
@@ -211,19 +205,21 @@ def migrate(
     the following migrations:
 
     - Creates the `.rhiza/` directory in the project root
-    - Migrates `.github/rhiza/template.yml` or `.github/template.yml` to `.rhiza/template.yml`
-    - Migrates `.rhiza.history` to `.rhiza/history`
+    - Moves `.github/rhiza/template.yml` or `.github/template.yml` to `.rhiza/template.yml`
+    - Moves `.rhiza.history` to `.rhiza/history`
 
     The new `.rhiza/` folder structure separates Rhiza's state and configuration
     from the `.github/` directory, providing better organization.
 
+    If files already exist in `.rhiza/`, the migration will skip them and leave
+    the old files in place. You can manually remove old files after verifying
+    the migration was successful.
+
     Examples:
         rhiza migrate
-        rhiza migrate --force
         rhiza migrate /path/to/project
-        rhiza migrate /path/to/project -y
     """
-    migrate_cmd(target, force)
+    migrate_cmd(target)
 
 
 @app.command()

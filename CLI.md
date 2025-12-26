@@ -95,28 +95,24 @@ rhiza materialize -b main -y                # Short form
 
 **Syntax:**
 ```bash
-rhiza migrate [OPTIONS] [TARGET]
+rhiza migrate [TARGET]
 ```
 
 **Parameters:**
 - `TARGET` - Target repository directory (default: current directory)
 
-**Options:**
-- `--force, -y` - Overwrite existing files in `.rhiza` if they exist
-
 **Examples:**
 ```bash
 rhiza migrate                    # Migrate current directory
-rhiza migrate --force            # Migrate and overwrite existing
 rhiza migrate /path/to/project   # Migrate specific directory
-rhiza migrate -y                 # Short form with force
 ```
 
 **What It Does:**
 - Creates the `.rhiza/` directory in the project root
-- Migrates `template.yml` from `.github/rhiza/` or `.github/` to `.rhiza/template.yml`
-- Migrates `.rhiza.history` to `.rhiza/history`
+- Moves `template.yml` from `.github/rhiza/` or `.github/` to `.rhiza/template.yml`
+- Moves `.rhiza.history` to `.rhiza/history`
 - Provides instructions for next steps
+- Skips files that already exist in `.rhiza/` (leaves old files in place for manual cleanup)
 
 **When to Use:**
 - Transitioning to the new `.rhiza/` folder structure

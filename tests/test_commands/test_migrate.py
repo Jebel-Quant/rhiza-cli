@@ -18,7 +18,7 @@ class TestMigrateCommand:
 
     def test_migrate_creates_rhiza_folder(self, tmp_path):
         """Test that migrate creates the .rhiza folder."""
-        migrate(tmp_path, force=False)
+        migrate(tmp_path)
 
         # Verify .rhiza folder was created
         rhiza_dir = tmp_path / ".rhiza"
@@ -42,7 +42,7 @@ class TestMigrateCommand:
             yaml.dump(template_content, f)
 
         # Run migrate
-        migrate(tmp_path, force=False)
+        migrate(tmp_path)
 
         # Verify new template.yml was created
         new_template_file = tmp_path / ".rhiza" / "template.yml"
@@ -76,7 +76,7 @@ class TestMigrateCommand:
             yaml.dump(template_content, f)
 
         # Run migrate
-        migrate(tmp_path, force=False)
+        migrate(tmp_path)
 
         # Verify new template.yml was created
         new_template_file = tmp_path / ".rhiza" / "template.yml"
@@ -109,7 +109,7 @@ class TestMigrateCommand:
             yaml.dump({"template-repository": "correct/repo"}, f)
 
         # Run migrate
-        migrate(tmp_path, force=False)
+        migrate(tmp_path)
 
         # Verify the correct one was migrated
         new_template_file = tmp_path / ".rhiza" / "template.yml"
@@ -121,7 +121,7 @@ class TestMigrateCommand:
     def test_migrate_handles_missing_template(self, tmp_path):
         """Test that migrate handles case when no template.yml exists."""
         # Run migrate without creating any template.yml
-        migrate(tmp_path, force=False)
+        migrate(tmp_path)
 
         # Verify .rhiza folder was still created
         rhiza_dir = tmp_path / ".rhiza"
@@ -144,7 +144,7 @@ Makefile
         old_history_file.write_text(history_content)
 
         # Run migrate
-        migrate(tmp_path, force=False)
+        migrate(tmp_path)
 
         # Verify new history file was created
         new_history_file = tmp_path / ".rhiza" / "history"
@@ -159,7 +159,7 @@ Makefile
     def test_migrate_handles_missing_history_file(self, tmp_path):
         """Test that migrate handles case when no .rhiza.history exists."""
         # Run migrate without creating .rhiza.history
-        migrate(tmp_path, force=False)
+        migrate(tmp_path)
 
         # Verify .rhiza folder was created
         rhiza_dir = tmp_path / ".rhiza"
@@ -169,8 +169,8 @@ Makefile
         new_history_file = rhiza_dir / "history"
         assert not new_history_file.exists()
 
-    def test_migrate_with_force_overwrites_existing(self, tmp_path):
-        """Test that migrate with force overwrites existing files in .rhiza."""
+    def test_migrate_skips_existing_files(self, tmp_path):
+        """Test that migrate skips existing files in .rhiza."""
         # Create existing .rhiza/template.yml
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
@@ -180,38 +180,20 @@ Makefile
         # Create new template in .github/rhiza/
         github_rhiza_dir = tmp_path / ".github" / "rhiza"
         github_rhiza_dir.mkdir(parents=True)
-        new_template = github_rhiza_dir / "template.yml"
-        new_template.write_text("template-repository: new/repo\n")
+        old_template = github_rhiza_dir / "template.yml"
+        old_template.write_text("template-repository: new/repo\n")
 
-        # Run migrate with force
-        migrate(tmp_path, force=True)
-
-        # Verify the file was overwritten
-        with open(existing_template) as f:
-            content = yaml.safe_load(f)
-
-        assert content["template-repository"] == "new/repo"
-
-    def test_migrate_without_force_skips_existing(self, tmp_path):
-        """Test that migrate without force skips existing files in .rhiza."""
-        # Create existing .rhiza/template.yml
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True)
-        existing_template = rhiza_dir / "template.yml"
-        existing_template.write_text("template-repository: existing/repo\n")
-
-        # Create new template in .github/rhiza/
-        github_rhiza_dir = tmp_path / ".github" / "rhiza"
-        github_rhiza_dir.mkdir(parents=True)
-        new_template = github_rhiza_dir / "template.yml"
-        new_template.write_text("template-repository: new/repo\n")
-
-        # Run migrate without force
-        migrate(tmp_path, force=False)
+        # Run migrate
+        migrate(tmp_path)
 
         # Verify the file was NOT overwritten
         with open(existing_template) as f:
             content = yaml.safe_load(f)
+
+        assert content["template-repository"] == "existing/repo"
+        
+        # Verify old file still exists (not moved since target exists)
+        assert old_template.exists()
 
         assert content["template-repository"] == "existing/repo"
 
@@ -237,45 +219,4 @@ class TestMigrateCLI:
 
         # Verify .rhiza folder was created
         assert (tmp_path / ".rhiza").exists()
-        assert (tmp_path / ".rhiza" / "template.yml").exists()
-
-    def test_migrate_cli_with_force_flag(self, tmp_path):
-        """Test that 'rhiza migrate --force' CLI command works."""
-        runner = CliRunner()
-
-        # Create existing .rhiza/template.yml
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True)
-        (rhiza_dir / "template.yml").write_text("template-repository: old/repo\n")
-
-        # Create new template in .github/rhiza/
-        github_rhiza_dir = tmp_path / ".github" / "rhiza"
-        github_rhiza_dir.mkdir(parents=True)
-        (github_rhiza_dir / "template.yml").write_text("template-repository: new/repo\n")
-
-        # Run CLI command with force
-        result = runner.invoke(cli.app, ["migrate", str(tmp_path), "--force"])
-
-        # Verify it succeeded
-        assert result.exit_code == 0
-
-        # Verify file was overwritten
-        with open(rhiza_dir / "template.yml") as f:
-            content = yaml.safe_load(f)
-        assert content["template-repository"] == "new/repo"
-
-    def test_migrate_cli_short_force_flag(self, tmp_path):
-        """Test that 'rhiza migrate -y' CLI command works."""
-        runner = CliRunner()
-
-        # Create a template to migrate
-        github_rhiza_dir = tmp_path / ".github" / "rhiza"
-        github_rhiza_dir.mkdir(parents=True)
-        (github_rhiza_dir / "template.yml").write_text("template-repository: test/repo\n")
-
-        # Run CLI command with short force flag
-        result = runner.invoke(cli.app, ["migrate", str(tmp_path), "-y"])
-
-        # Verify it succeeded
-        assert result.exit_code == 0
         assert (tmp_path / ".rhiza" / "template.yml").exists()

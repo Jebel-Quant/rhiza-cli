@@ -11,13 +11,13 @@ from pathlib import Path
 from loguru import logger
 
 
-def migrate(target: Path, force: bool) -> None:
+def migrate(target: Path) -> None:
     """Migrate project to use the new .rhiza folder structure.
 
     This command performs the following actions:
     1. Creates the `.rhiza/` directory in the project root
-    2. Migrates template.yml from `.github/rhiza/` or `.github/` to `.rhiza/template.yml`
-    3. Migrates `.rhiza.history` to `.rhiza/history` if it exists
+    2. Moves template.yml from `.github/rhiza/` or `.github/` to `.rhiza/template.yml`
+    3. Moves `.rhiza.history` to `.rhiza/history` if it exists
     4. Provides instructions for next steps
 
     The `.rhiza/` folder will contain:
@@ -27,7 +27,6 @@ def migrate(target: Path, force: bool) -> None:
 
     Args:
         target (Path): Path to the target repository.
-        force (bool): Whether to overwrite existing files if they exist in .rhiza.
     """
     # Resolve to absolute path
     target = target.resolve()
@@ -60,9 +59,10 @@ def migrate(target: Path, force: bool) -> None:
     template_migrated = False
     for old_template_file in possible_template_locations:
         if old_template_file.exists():
-            if new_template_file.exists() and not force:
-                logger.warning(f".rhiza/template.yml already exists. Use --force to overwrite.")
+            if new_template_file.exists():
+                logger.info(f".rhiza/template.yml already exists")
                 logger.info(f"Skipping migration of {old_template_file.relative_to(target)}")
+                logger.info(f"Note: Old file at {old_template_file.relative_to(target)} still exists")
             else:
                 logger.info(f"Found template.yml at: {old_template_file.relative_to(target)}")
                 logger.info(f"Moving to new location: {new_template_file.relative_to(target)}")
@@ -86,21 +86,18 @@ def migrate(target: Path, force: bool) -> None:
     new_history_file = rhiza_dir / "history"
 
     if old_history_file.exists():
-        if new_history_file.exists() and not force:
-            logger.warning(f".rhiza/history already exists. Use --force to overwrite.")
+        if new_history_file.exists():
+            logger.info(f".rhiza/history already exists")
             logger.info(f"Skipping migration of {old_history_file.relative_to(target)}")
+            logger.info(f"Note: Old file at {old_history_file.relative_to(target)} still exists")
         else:
             logger.info("Found existing .rhiza.history file")
-            logger.info(f"Migrating to new location: {new_history_file.relative_to(target)}")
+            logger.info(f"Moving to new location: {new_history_file.relative_to(target)}")
             
-            # Copy the content
-            shutil.copy2(old_history_file, new_history_file)
-            logger.success(f"✓ Migrated history file to .rhiza/history")
-            migrations_performed.append("Migrated history tracking to .rhiza/history")
-            
-            # Remove old file
-            old_history_file.unlink()
-            logger.success(f"✓ Removed old .rhiza.history file")
+            # Move the history file to new location
+            shutil.move(str(old_history_file), str(new_history_file))
+            logger.success(f"✓ Moved history file to .rhiza/history")
+            migrations_performed.append("Moved history tracking to .rhiza/history")
     else:
         if new_history_file.exists():
             logger.debug(".rhiza/history already exists (no migration needed)")

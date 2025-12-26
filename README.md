@@ -298,9 +298,9 @@ rhiza migrate [OPTIONS] [TARGET]
 
 - `TARGET` - Target git repository directory (defaults to current directory)
 
-**Options:**
+**Arguments:**
 
-- `--force, -y` - Overwrite existing files in `.rhiza` if they already exist
+- `TARGET` - Target git repository directory (defaults to current directory)
 
 **Description:**
 
@@ -309,8 +309,8 @@ Migrates your project to use the new `.rhiza/` folder structure for storing Rhiz
 The migration performs the following actions:
 
 1. Creates the `.rhiza/` directory in the project root
-2. Migrates `template.yml` from `.github/rhiza/` or `.github/` to `.rhiza/template.yml`
-3. Migrates `.rhiza.history` to `.rhiza/history`
+2. Moves `template.yml` from `.github/rhiza/` or `.github/` to `.rhiza/template.yml`
+3. Moves `.rhiza.history` to `.rhiza/history`
 4. Provides instructions for next steps
 
 The new `.rhiza/` folder structure provides better organization by separating Rhiza's state and configuration from the `.github/` directory.
@@ -321,14 +321,8 @@ The new `.rhiza/` folder structure provides better organization by separating Rh
 # Migrate current directory
 rhiza migrate
 
-# Migrate and overwrite existing files
-rhiza migrate --force
-
 # Migrate a specific directory
 rhiza migrate /path/to/project
-
-# Short form with force
-rhiza migrate -y
 ```
 
 **Output:**
@@ -339,14 +333,14 @@ rhiza migrate -y
 [INFO] Creating .rhiza directory at: .rhiza
 ✓ Created .rhiza
 [INFO] Found template.yml at: .github/rhiza/template.yml
-[INFO] Copying to new location: .rhiza/template.yml
-✓ Copied template.yml to .rhiza/template.yml
+[INFO] Moving to new location: .rhiza/template.yml
+✓ Moved template.yml to .rhiza/template.yml
 ✓ Migration completed successfully
 
 Migration Summary:
   - Created .rhiza/ folder
-  - Migrated template.yml to .rhiza/template.yml
-  - Migrated history tracking to .rhiza/history
+  - Moved template.yml to .rhiza/template.yml
+  - Moved history tracking to .rhiza/history
 
 Next steps:
   1. Review changes:
@@ -363,8 +357,9 @@ Next steps:
 
 **Notes:**
 
-- Files that already exist in `.rhiza/` will not be overwritten unless `--force` is used
-- The old `.rhiza.history` file is removed after successful migration
+- If files already exist in `.rhiza/`, the migration will skip them and leave the old files in place
+- You can manually remove old files after verifying the migration was successful
+- The old `.rhiza.history` file is removed after successful migration to `.rhiza/history`
 - The original template file in `.github/` is moved (removed from old location)
 
 ---
