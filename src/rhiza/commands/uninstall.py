@@ -1,6 +1,6 @@
 """Command for uninstalling Rhiza template files from a repository.
 
-This module implements the `uninstall` command. It reads the `.rhiza.history`
+This module implements the `uninstall` command. It reads the `.rhiza/history`
 file and removes all files that were previously materialized by Rhiza templates.
 This provides a clean way to remove all template-managed files from a project.
 """
@@ -14,7 +14,7 @@ from loguru import logger
 def uninstall(target: Path, force: bool) -> None:
     """Uninstall Rhiza templates from the target repository.
 
-    Reads the `.rhiza.history` file and removes all files listed in it.
+    Reads the `.rhiza/history` file and removes all files listed in it.
     This effectively removes all files that were materialized by Rhiza.
 
     Args:
@@ -26,15 +26,17 @@ def uninstall(target: Path, force: bool) -> None:
 
     logger.info(f"Target repository: {target}")
 
-    # Check if .rhiza.history exists
-    history_file = target / ".rhiza.history"
+    # Check for history file in new location only
+    history_file = target / ".rhiza" / "history"
+
     if not history_file.exists():
-        logger.warning(f"No .rhiza.history file found in {target}")
+        logger.warning(f"No history file found at: {history_file.relative_to(target)}")
         logger.info("Nothing to uninstall. This repository may not have Rhiza templates materialized.")
+        logger.info("If you haven't migrated yet, run 'rhiza migrate' first.")
         return
 
-    # Read the .rhiza.history file
-    logger.debug("Reading .rhiza.history file")
+    # Read the history file
+    logger.debug(f"Reading history file: {history_file.relative_to(target)}")
     files_to_remove: list[Path] = []
 
     with history_file.open("r", encoding="utf-8") as f:
@@ -46,7 +48,7 @@ def uninstall(target: Path, force: bool) -> None:
                 files_to_remove.append(file_path)
 
     if not files_to_remove:
-        logger.warning(".rhiza.history file is empty (only contains comments)")
+        logger.warning("History file is empty (only contains comments)")
         logger.info("Nothing to uninstall.")
         return
 
@@ -117,13 +119,13 @@ def uninstall(target: Path, force: bool) -> None:
                 # Directory not empty or other error, stop walking up
                 break
 
-    # Remove .rhiza.history file itself
+    # Remove history file itself
     try:
         history_file.unlink()
-        logger.success("[DEL] .rhiza.history")
+        logger.success(f"[DEL] {history_file.relative_to(target)}")
         removed_count += 1
     except Exception as e:
-        logger.error(f"Failed to delete .rhiza.history: {e}")
+        logger.error(f"Failed to delete {history_file.relative_to(target)}: {e}")
         error_count += 1
 
     # Summary

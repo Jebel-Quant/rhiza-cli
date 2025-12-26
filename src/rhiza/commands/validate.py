@@ -1,7 +1,7 @@
 """Command for validating Rhiza template configuration.
 
-This module provides functionality to validate .github/rhiza/template.yml files
-to ensure they are syntactically correct and semantically valid.
+This module provides functionality to validate template.yml files in the
+.rhiza/template.yml location (new standard location after migration).
 """
 
 from pathlib import Path
@@ -69,30 +69,22 @@ def validate(target: Path) -> bool:
     else:
         logger.success(f"pyproject.toml exists: {pyproject_file}")
 
-    # Check for template.yml in both new and old locations
-    # New location: .github/rhiza/template.yml
-    # Old location: .github/template.yml (deprecated but still supported)
-    new_location = target / ".github" / "rhiza" / "template.yml"
-    deprecated_location = target / ".github" / "template.yml"
+    # Check for template.yml in new location only
+    template_file = target / ".rhiza" / "template.yml"
 
-    # Check which file(s) exist
-    new_exists = new_location.exists()
-    deprecated_exists = deprecated_location.exists()
-
-    if not (new_exists or deprecated_exists):
-        logger.error(f"No template file found at: {new_location}")
-        logger.error(f"Also checked deprecated location: {deprecated_location}")
-        logger.info("Run 'rhiza init' to create a default template.yml")
+    if not template_file.exists():
+        logger.error(f"No template file found at: {template_file.relative_to(target)}")
+        logger.error("The template configuration must be in the .rhiza folder.")
+        logger.info("")
+        logger.info("To fix this:")
+        logger.info("  • If you're starting fresh, run: rhiza init")
+        logger.info("  • If you have an existing configuration, run: rhiza migrate")
+        logger.info("")
+        logger.info("The 'rhiza migrate' command will move your configuration from")
+        logger.info("  .github/rhiza/template.yml → .rhiza/template.yml")
         return False
 
-    # Prefer the new location but support the old one with a warning
-    if new_exists:
-        logger.success(f"Template file exists: {new_location}")
-        template_file = new_location
-    else:
-        logger.warning(f"Template file exists but in old location: {deprecated_location}")
-        logger.warning("Consider moving it to .github/rhiza/template.yml")
-        template_file = deprecated_location
+    logger.success(f"Template file exists: {template_file.relative_to(target)}")
 
     # Validate YAML syntax by attempting to parse the file
     logger.debug(f"Parsing YAML file: {template_file}")

@@ -1,0 +1,220 @@
+"""Tests for the migrate command.
+
+This module verifies that `migrate` creates the .rhiza folder and migrates
+configuration files from .github to the new location.
+"""
+
+import yaml
+from typer.testing import CliRunner
+
+from rhiza import cli
+from rhiza.commands.migrate import migrate
+
+
+class TestMigrateCommand:
+    """Tests for the migrate command."""
+
+    def test_migrate_creates_rhiza_folder(self, tmp_path):
+        """Test that migrate creates the .rhiza folder."""
+        migrate(tmp_path)
+
+        # Verify .rhiza folder was created
+        rhiza_dir = tmp_path / ".rhiza"
+        assert rhiza_dir.exists()
+        assert rhiza_dir.is_dir()
+
+    def test_migrate_copies_template_from_github_rhiza(self, tmp_path):
+        """Test that migrate moves template.yml from .github/rhiza/ to .rhiza/."""
+        # Create existing template.yml in .github/rhiza/
+        github_rhiza_dir = tmp_path / ".github" / "rhiza"
+        github_rhiza_dir.mkdir(parents=True)
+        old_template_file = github_rhiza_dir / "template.yml"
+
+        template_content = {
+            "template-repository": "test/repo",
+            "template-branch": "main",
+            "include": [".github", "Makefile"],
+        }
+
+        with open(old_template_file, "w") as f:
+            yaml.dump(template_content, f)
+
+        # Run migrate
+        migrate(tmp_path)
+
+        # Verify new template.yml was created
+        new_template_file = tmp_path / ".rhiza" / "template.yml"
+        assert new_template_file.exists()
+
+        # Verify content matches
+        with open(new_template_file) as f:
+            migrated_content = yaml.safe_load(f)
+
+        assert migrated_content["template-repository"] == "test/repo"
+        assert migrated_content["template-branch"] == "main"
+        assert migrated_content["include"] == [".github", "Makefile"]
+
+        # Verify old file was removed
+        assert not old_template_file.exists()
+
+    def test_migrate_copies_template_from_github_root(self, tmp_path):
+        """Test that migrate moves template.yml from .github/ to .rhiza/."""
+        # Create existing template.yml in .github/ (old location)
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir(parents=True)
+        old_template_file = github_dir / "template.yml"
+
+        template_content = {
+            "template-repository": "old/location",
+            "template-branch": "dev",
+            "include": ["src", "tests"],
+        }
+
+        with open(old_template_file, "w") as f:
+            yaml.dump(template_content, f)
+
+        # Run migrate
+        migrate(tmp_path)
+
+        # Verify new template.yml was created
+        new_template_file = tmp_path / ".rhiza" / "template.yml"
+        assert new_template_file.exists()
+
+        # Verify content matches
+        with open(new_template_file) as f:
+            migrated_content = yaml.safe_load(f)
+
+        assert migrated_content["template-repository"] == "old/location"
+
+        # Verify old file was removed
+        assert not old_template_file.exists()
+
+    def test_migrate_prefers_github_rhiza_over_github_root(self, tmp_path):
+        """Test that migrate prefers .github/rhiza/template.yml over .github/template.yml."""
+        # Create template.yml in both locations
+        github_dir = tmp_path / ".github"
+        github_rhiza_dir = github_dir / "rhiza"
+        github_rhiza_dir.mkdir(parents=True)
+
+        # Old location
+        old_template_file = github_dir / "template.yml"
+        with open(old_template_file, "w") as f:
+            yaml.dump({"template-repository": "wrong/repo"}, f)
+
+        # Preferred location
+        preferred_template_file = github_rhiza_dir / "template.yml"
+        with open(preferred_template_file, "w") as f:
+            yaml.dump({"template-repository": "correct/repo"}, f)
+
+        # Run migrate
+        migrate(tmp_path)
+
+        # Verify the correct one was migrated
+        new_template_file = tmp_path / ".rhiza" / "template.yml"
+        with open(new_template_file) as f:
+            migrated_content = yaml.safe_load(f)
+
+        assert migrated_content["template-repository"] == "correct/repo"
+
+    def test_migrate_handles_missing_template(self, tmp_path):
+        """Test that migrate handles case when no template.yml exists."""
+        # Run migrate without creating any template.yml
+        migrate(tmp_path)
+
+        # Verify .rhiza folder was still created
+        rhiza_dir = tmp_path / ".rhiza"
+        assert rhiza_dir.exists()
+
+        # Verify no template.yml was created
+        new_template_file = rhiza_dir / "template.yml"
+        assert not new_template_file.exists()
+
+    def test_migrate_copies_history_file(self, tmp_path):
+        """Test that migrate copies .rhiza.history to .rhiza/history."""
+        # Create existing .rhiza.history
+        old_history_file = tmp_path / ".rhiza.history"
+        history_content = """# Rhiza Template History
+# Files under template control:
+.editorconfig
+.gitignore
+Makefile
+"""
+        old_history_file.write_text(history_content)
+
+        # Run migrate
+        migrate(tmp_path)
+
+        # Verify new history file was created
+        new_history_file = tmp_path / ".rhiza" / "history"
+        assert new_history_file.exists()
+
+        # Verify content matches
+        assert new_history_file.read_text() == history_content
+
+        # Verify old file was removed
+        assert not old_history_file.exists()
+
+    def test_migrate_handles_missing_history_file(self, tmp_path):
+        """Test that migrate handles case when no .rhiza.history exists."""
+        # Run migrate without creating .rhiza.history
+        migrate(tmp_path)
+
+        # Verify .rhiza folder was created
+        rhiza_dir = tmp_path / ".rhiza"
+        assert rhiza_dir.exists()
+
+        # Verify no history file was created
+        new_history_file = rhiza_dir / "history"
+        assert not new_history_file.exists()
+
+    def test_migrate_skips_existing_files(self, tmp_path):
+        """Test that migrate skips existing files in .rhiza."""
+        # Create existing .rhiza/template.yml
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        existing_template = rhiza_dir / "template.yml"
+        existing_template.write_text("template-repository: existing/repo\n")
+
+        # Create new template in .github/rhiza/
+        github_rhiza_dir = tmp_path / ".github" / "rhiza"
+        github_rhiza_dir.mkdir(parents=True)
+        old_template = github_rhiza_dir / "template.yml"
+        old_template.write_text("template-repository: new/repo\n")
+
+        # Run migrate
+        migrate(tmp_path)
+
+        # Verify the file was NOT overwritten
+        with open(existing_template) as f:
+            content = yaml.safe_load(f)
+
+        assert content["template-repository"] == "existing/repo"
+
+        # Verify old file still exists (not moved since target exists)
+        assert old_template.exists()
+
+        assert content["template-repository"] == "existing/repo"
+
+
+class TestMigrateCLI:
+    """Tests for the migrate CLI command."""
+
+    def test_migrate_cli_basic(self, tmp_path):
+        """Test that 'rhiza migrate' CLI command works."""
+        runner = CliRunner()
+
+        # Create a template to migrate
+        github_rhiza_dir = tmp_path / ".github" / "rhiza"
+        github_rhiza_dir.mkdir(parents=True)
+        template_file = github_rhiza_dir / "template.yml"
+        template_file.write_text("template-repository: test/repo\n")
+
+        # Run CLI command
+        result = runner.invoke(cli.app, ["migrate", str(tmp_path)])
+
+        # Verify it succeeded (exit code 0)
+        assert result.exit_code == 0
+
+        # Verify .rhiza folder was created
+        assert (tmp_path / ".rhiza").exists()
+        assert (tmp_path / ".rhiza" / "template.yml").exists()
