@@ -13,11 +13,7 @@
 #     Can be overridden by setting PYTHON_DEFAULT_VERSION repository variable
 #   - uv-extra-index-url: Extra index URL for uv (optional)
 #
-# Outputs:
-#   - pyproject_exists: "true" if pyproject.toml exists, otherwise "false"
-#
 # Notes:
-#   - Safe to run in repositories without pyproject.toml; dependency sync will be skipped.
 #   - Used by workflows such as CI, Book, Marimo, and Release.
 
 name: 'Setup Project'
@@ -43,7 +39,7 @@ runs:
       shell: bash
       run: uv venv --python ${{ inputs.python-version }}
 
-    - name: "Sync the virtual environment for ${{ github.repository }} if pyproject.toml exists"
+    - name: "Sync the virtual environment for ${{ github.repository }}"
       shell: bash
       run: |
         if [[ -n "${{ inputs.uv-extra-index-url }}" ]]; then
@@ -51,4 +47,3 @@ runs:
         fi
 
         uv sync --all-extras --frozen
-

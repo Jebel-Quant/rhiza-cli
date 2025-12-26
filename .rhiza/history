@@ -15,8 +15,8 @@
 .github/workflows/rhiza_marimo.yml
 .github/workflows/rhiza_pre-commit.yml
 .github/workflows/rhiza_release.yml
-.github/workflows/rhiza_rhiza.yml
 .github/workflows/rhiza_sync.yml
+.github/workflows/rhiza_validate.yml
 .gitignore
 .pre-commit-config.yaml
 .rhiza/CONFIG.md
