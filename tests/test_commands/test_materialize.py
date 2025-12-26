@@ -691,8 +691,9 @@ class TestInjectCommand:
                 f,
             )
 
-        # Mock validate to return True to bypass normal validation that would catch empty include lists,
-        # allowing us to test the runtime error handling
+        # Mock validate to return True to bypass normal validation that would catch empty include lists.
+        # This test validates materialize's runtime error handling for the theoretical edge case
+        # where validation passes but include_paths is still empty (e.g., validation logic gaps).
         mock_validate.return_value = True
 
         # Run materialize and expect RuntimeError
