@@ -18,41 +18,20 @@ from rhiza.commands.materialize import materialize
 class TestInjectCommand:
     """Tests for the inject/materialize command."""
 
-    @patch("rhiza.commands.materialize.subprocess.run")
-    @patch("rhiza.commands.materialize.shutil.rmtree")
-    @patch("rhiza.commands.materialize.shutil.copy2")
-    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_inject_creates_default_template_yml(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
-    ):
-        """Test that inject creates a default template.yml when it doesn't exist."""
+    def test_inject_fails_without_template_yml(self, tmp_path):
+        """Test that materialize fails when template.yml doesn't exist."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
-        # Mock tempfile to return a controlled temp directory
-        temp_dir = tmp_path / "temp"
-        temp_dir.mkdir()
-        mock_mkdtemp.return_value = str(temp_dir)
+        # Create required pyproject.toml (needed for validation to not fail earlier)
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
 
-        # Mock subprocess to succeed
-        mock_subprocess.return_value = Mock(returncode=0)
-
-        # Run inject
-        materialize(tmp_path, "main", None, False)
-
-        # Verify template.yml was created
-        template_file = tmp_path / ".rhiza" / "template.yml"
-        assert template_file.exists()
-
-        # Verify it contains expected content
-
-        with open(template_file) as f:
-            config = yaml.safe_load(f)
-
-        assert config["template-repository"] == "jebel-quant/rhiza"
-        assert config["template-branch"] == "main"
-        assert ".github" in config["include"]
+        # Run materialize without creating template.yml first
+        # It should fail because template.yml doesn't exist
+        with pytest.raises(SystemExit):
+            materialize(tmp_path, "main", None, False)
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -63,6 +42,10 @@ class TestInjectCommand:
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
 
         # Create existing template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -99,6 +82,10 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
+
         # Create template.yml with empty include
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True, exist_ok=True)
@@ -120,6 +107,10 @@ class TestInjectCommand:
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
 
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -158,6 +149,10 @@ class TestInjectCommand:
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
 
         # Create existing file in target
         existing_file = tmp_path / "test.txt"
@@ -201,6 +196,10 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
+
         # Create existing file in target
         existing_file = tmp_path / "test.txt"
         existing_file.write_text("existing")
@@ -240,6 +239,10 @@ class TestInjectCommand:
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
 
         # Create template.yml with exclude
         rhiza_dir = tmp_path / ".rhiza"
@@ -289,6 +292,10 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
+
         # Create minimal template.yml
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True, exist_ok=True)
@@ -319,6 +326,10 @@ class TestInjectCommand:
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
 
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -353,6 +364,10 @@ class TestInjectCommand:
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
 
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -410,6 +425,10 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
+
         # Create existing file that will be skipped
         existing_file = tmp_path / "existing.txt"
         existing_file.write_text("existing content")
@@ -460,6 +479,10 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
+
         # Create template.yml with gitlab host
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True, exist_ok=True)
@@ -509,6 +532,10 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
+
         # Create template.yml with explicit github host
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True, exist_ok=True)
@@ -550,6 +577,10 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
+
         # Create template.yml with invalid host
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True, exist_ok=True)
@@ -586,6 +617,10 @@ class TestInjectCommand:
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
 
         # Create src and tests folders to avoid validation warnings
         (tmp_path / "src").mkdir()
@@ -630,12 +665,16 @@ class TestInjectCommand:
             assert "workflow" in call_args.lower()
             assert "permission" in call_args.lower()
 
-    @patch("rhiza.commands.materialize.init")
-    def test_materialize_empty_include_paths_raises_error(self, mock_init, tmp_path):
+    @patch("rhiza.commands.materialize.validate")
+    def test_materialize_empty_include_paths_raises_error(self, mock_validate, tmp_path):
         """Test that materialize raises RuntimeError when include_paths is empty after validation."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
 
         # Create template.yml with empty include (bypassing normal validation)
         rhiza_dir = tmp_path / ".rhiza"
@@ -652,8 +691,8 @@ class TestInjectCommand:
                 f,
             )
 
-        # Mock init to return True (bypass validation that would catch this)
-        mock_init.return_value = True
+        # Mock validate to return True (bypass validation that would catch this)
+        mock_validate.return_value = True
 
         # Run materialize and expect RuntimeError
         with pytest.raises(RuntimeError, match="No include paths found"):
@@ -668,6 +707,10 @@ class TestInjectCommand:
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
 
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -726,6 +769,10 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
+
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True, exist_ok=True)
@@ -780,6 +827,10 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
+
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True, exist_ok=True)
@@ -825,6 +876,10 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
+
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True, exist_ok=True)
@@ -864,6 +919,10 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
+
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True, exist_ok=True)
@@ -897,6 +956,10 @@ class TestInjectCommand:
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
 
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -950,6 +1013,10 @@ class TestInjectCommand:
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
 
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -1008,6 +1075,10 @@ class TestInjectCommand:
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
 
         # Create an old .rhiza/history file with files that will become orphaned
         rhiza_dir = tmp_path / ".rhiza"
@@ -1082,6 +1153,10 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
+
         # Create an old .rhiza/history file with a file that doesn't exist
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True, exist_ok=True)
@@ -1143,6 +1218,10 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
+
         # No old .rhiza/history file
 
         # Create template.yml
@@ -1192,6 +1271,10 @@ class TestInjectCommand:
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = \"test\"\n")
 
         # Create .rhiza/history with a file that will be orphaned
         rhiza_dir = tmp_path / ".rhiza"

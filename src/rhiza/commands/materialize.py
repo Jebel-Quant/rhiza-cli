@@ -15,7 +15,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from rhiza.commands import init
+from rhiza.commands.validate import validate
 from rhiza.models import RhizaTemplate
 
 
@@ -116,11 +116,11 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
             sys.exit(1)
 
     # -----------------------
-    # Ensure Rhiza is initialized
+    # Validate Rhiza configuration
     # -----------------------
-    # The init function creates template.yml if missing and validates it
+    # The validate function checks if template.yml exists and is valid
     # Returns True if valid, False otherwise
-    valid = init(target)
+    valid = validate(target)
 
     if not valid:
         logger.error(f"Rhiza template is invalid in: {target}")
