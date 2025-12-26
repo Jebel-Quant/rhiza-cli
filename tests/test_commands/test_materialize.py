@@ -45,7 +45,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create existing template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -84,7 +84,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create template.yml with empty include
         rhiza_dir = tmp_path / ".rhiza"
@@ -110,7 +110,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -152,7 +152,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create existing file in target
         existing_file = tmp_path / "test.txt"
@@ -198,7 +198,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create existing file in target
         existing_file = tmp_path / "test.txt"
@@ -242,7 +242,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create template.yml with exclude
         rhiza_dir = tmp_path / ".rhiza"
@@ -294,7 +294,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create minimal template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -329,7 +329,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -367,7 +367,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -427,7 +427,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create existing file that will be skipped
         existing_file = tmp_path / "existing.txt"
@@ -481,7 +481,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create template.yml with gitlab host
         rhiza_dir = tmp_path / ".rhiza"
@@ -534,7 +534,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create template.yml with explicit github host
         rhiza_dir = tmp_path / ".rhiza"
@@ -579,7 +579,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create template.yml with invalid host
         rhiza_dir = tmp_path / ".rhiza"
@@ -620,7 +620,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create src and tests folders to avoid validation warnings
         (tmp_path / "src").mkdir()
@@ -674,7 +674,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create template.yml with empty include (bypassing normal validation)
         rhiza_dir = tmp_path / ".rhiza"
@@ -711,7 +711,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -772,7 +772,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -830,7 +830,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -879,7 +879,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -922,7 +922,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -960,7 +960,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -1017,7 +1017,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -1079,7 +1079,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create an old .rhiza/history file with files that will become orphaned
         rhiza_dir = tmp_path / ".rhiza"
@@ -1156,7 +1156,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create an old .rhiza/history file with a file that doesn't exist
         rhiza_dir = tmp_path / ".rhiza"
@@ -1221,7 +1221,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # No old .rhiza/history file
 
@@ -1275,7 +1275,7 @@ class TestInjectCommand:
 
         # Create pyproject.toml for validation
         pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = \"test\"\n")
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create .rhiza/history with a file that will be orphaned
         rhiza_dir = tmp_path / ".rhiza"
