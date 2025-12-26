@@ -12,7 +12,7 @@ import subprocess
 
 def test_marimushka_script_success(git_repo):
     """Test successful execution of the marimushka script."""
-    script = git_repo / ".github" / "rhiza" / "scripts" / "marimushka.sh"
+    script = git_repo / ".rhiza" / "scripts" / "marimushka.sh"
 
     # Setup directories in the git repo
     marimo_folder = git_repo / "book" / "marimo"

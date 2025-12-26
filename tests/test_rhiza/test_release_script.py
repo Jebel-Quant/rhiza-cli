@@ -13,7 +13,7 @@ import subprocess
 
 def test_release_creates_tag(git_repo):
     """Release creates a tag."""
-    script = git_repo / ".github" / "rhiza" / "scripts" / "release.sh"
+    script = git_repo / ".rhiza" / "scripts" / "release.sh"
 
     # Run release
     # 1. Prompts to create tag -> y
