@@ -33,7 +33,7 @@ class TestMigrateCommand:
         template_content = {
             "template-repository": "test/repo",
             "template-branch": "main",
-            "include": [".github", "Makefile"],
+            "include": [".github", "Makefile", ".rhiza"],
         }
 
         with open(old_template_file, "w") as f:
@@ -52,7 +52,7 @@ class TestMigrateCommand:
 
         assert migrated_content["template-repository"] == "test/repo"
         assert migrated_content["template-branch"] == "main"
-        assert migrated_content["include"] == [".github", "Makefile"]
+        assert migrated_content["include"] == [".github", "Makefile", ".rhiza"]
 
         # Verify old file was removed
         assert not old_template_file.exists()
@@ -88,33 +88,6 @@ class TestMigrateCommand:
 
         # Verify old file was removed
         assert not old_template_file.exists()
-
-    def test_migrate_prefers_github_rhiza_over_github_root(self, tmp_path):
-        """Test that migrate prefers .github/rhiza/template.yml over .github/template.yml."""
-        # Create template.yml in both locations
-        github_dir = tmp_path / ".github"
-        github_rhiza_dir = github_dir / "rhiza"
-        github_rhiza_dir.mkdir(parents=True)
-
-        # Old location
-        old_template_file = github_dir / "template.yml"
-        with open(old_template_file, "w") as f:
-            yaml.dump({"template-repository": "wrong/repo"}, f)
-
-        # Preferred location
-        preferred_template_file = github_rhiza_dir / "template.yml"
-        with open(preferred_template_file, "w") as f:
-            yaml.dump({"template-repository": "correct/repo"}, f)
-
-        # Run migrate
-        migrate(tmp_path)
-
-        # Verify the correct one was migrated
-        new_template_file = tmp_path / ".rhiza" / "template.yml"
-        with open(new_template_file) as f:
-            migrated_content = yaml.safe_load(f)
-
-        assert migrated_content["template-repository"] == "correct/repo"
 
     def test_migrate_handles_missing_template(self, tmp_path):
         """Test that migrate handles case when no template.yml exists."""
@@ -204,7 +177,7 @@ class TestMigrateCLI:
         runner = CliRunner()
 
         # Create a template to migrate
-        github_rhiza_dir = tmp_path / ".github" / "rhiza"
+        github_rhiza_dir = tmp_path / ".rhiza"
         github_rhiza_dir.mkdir(parents=True)
         template_file = github_rhiza_dir / "template.yml"
         template_file.write_text("template-repository: test/repo\n")

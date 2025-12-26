@@ -10,6 +10,8 @@ from pathlib import Path
 
 from loguru import logger
 
+from rhiza.models import RhizaTemplate
+
 
 def migrate(target: Path) -> None:
     """Migrate project to use the new .rhiza folder structure.
@@ -104,6 +106,25 @@ def migrate(target: Path) -> None:
         else:
             logger.debug("No existing .rhiza.history file to migrate")
 
+    # Ensure the .rhiza folder is included in template.yml include list (if template exists)
+    template_file = new_template_file
+    if template_file.exists():
+        # Load existing template configuration
+        template = RhizaTemplate.from_yaml(template_file)
+        template_include = template.include or []
+        if ".rhiza" not in template_include:
+            logger.warning("The .rhiza folder is not included in your template.yml")
+            template_include.append(".rhiza")
+            logger.info(
+                "The .rhiza folder is added to your template.yml to ensure it's included in your repository"
+            )
+
+        # Save the updated template.yml
+        template.include = template_include
+        template.to_yaml(template_file)
+    else:
+        logger.debug("No template.yml present in .rhiza; skipping include update")
+
     # Summary
     logger.success("✓ Migration completed successfully")
 
@@ -114,6 +135,8 @@ def migrate(target: Path) -> None:
             logger.info(f"  - {migration}")
     else:
         logger.info("\nNo files needed migration (already using .rhiza structure)")
+
+
 
     logger.info(
         "\nNext steps:\n"

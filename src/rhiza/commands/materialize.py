@@ -130,14 +130,10 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     # Load the template configuration from the validated file
     # Check for template in new location first, then fall back to old location
     migrated_template_file = target / ".rhiza" / "template.yml"
-    standard_template_file = target / ".github" / "rhiza" / "template.yml"
 
     if migrated_template_file.exists():
         template_file = migrated_template_file
         logger.debug(f"Loading template configuration from migrated location: {template_file}")
-    elif standard_template_file.exists():
-        template_file = standard_template_file
-        logger.debug(f"Loading template configuration from standard location: {template_file}")
     else:
         logger.error("No template.yml file found")
         logger.error("Run 'rhiza init' or 'rhiza migrate' to create one")
