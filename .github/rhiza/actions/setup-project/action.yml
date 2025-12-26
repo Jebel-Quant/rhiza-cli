@@ -31,11 +31,6 @@ inputs:
     description: 'Extra index URL for uv'
     required: false
 
-outputs:
-  pyproject_exists:
-    description: 'Flag indicating whether pyproject.toml exists'
-    value: ${{ steps.check_pyproject.outputs.exists }}
-
 runs:
   using: 'composite'
   steps:
@@ -43,16 +38,6 @@ runs:
       uses: astral-sh/setup-uv@v7
       with:
         version: "0.9.18"
-
-    - name: Check for pyproject.toml
-      id: check_pyproject
-      shell: bash
-      run: |
-        if [ -f "pyproject.toml" ]; then
-          echo "exists=true" >> "$GITHUB_OUTPUT"
-        else
-          echo "exists=false" >> "$GITHUB_OUTPUT"
-        fi
 
     - name: Build the virtual environment
       shell: bash
@@ -65,8 +50,5 @@ runs:
           export UV_EXTRA_INDEX_URL="${{ inputs.uv-extra-index-url }}"
         fi
 
-        if [ -f "pyproject.toml" ]; then
-          uv sync --all-extras
-        else
-          echo "No pyproject.toml found, skipping package installation"
-        fi
+        uv sync --all-extras --frozen
+
