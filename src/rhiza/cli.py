@@ -12,6 +12,7 @@ from rhiza import __version__
 from rhiza.commands import init as init_cmd
 from rhiza.commands import materialize as materialize_cmd
 from rhiza.commands import validate as validate_cmd
+from rhiza.commands.uninstall import uninstall as uninstall_cmd
 from rhiza.commands.welcome import welcome as welcome_cmd
 
 app = typer.Typer(
@@ -197,3 +198,44 @@ def welcome():
         rhiza welcome
     """
     welcome_cmd()
+
+
+@app.command()
+def uninstall(
+    target: Path = typer.Argument(
+        default=Path("."),  # default to current directory
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        help="Target git repository (defaults to current directory)",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-y",
+        help="Skip confirmation prompt and proceed with deletion",
+    ),
+):
+    r"""Remove all Rhiza-managed files from the repository.
+
+    Reads the `.rhiza.history` file and removes all files that were
+    previously materialized by Rhiza templates. This provides a clean
+    way to uninstall all template-managed files from a project.
+
+    The command will:
+    - Read the list of files from `.rhiza.history`
+    - Prompt for confirmation (unless --force is used)
+    - Delete all listed files that exist
+    - Remove empty directories left behind
+    - Delete the `.rhiza.history` file itself
+
+    Use this command when you want to completely remove Rhiza templates
+    from your project.
+
+    Examples:
+        rhiza uninstall
+        rhiza uninstall --force
+        rhiza uninstall /path/to/project
+        rhiza uninstall /path/to/project -y
+    """
+    uninstall_cmd(target, force)
