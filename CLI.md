@@ -8,6 +8,7 @@ This document provides a quick reference for the Rhiza command-line interface.
 |---------|-------------|
 | `rhiza init` | Initialize or validate `.github/template.yml` |
 | `rhiza materialize` | Inject templates into a target repository |
+| `rhiza migrate` | Migrate to the new `.rhiza` folder structure |
 | `rhiza validate` | Validate template configuration |
 
 ## Common Usage Patterns
@@ -85,6 +86,42 @@ rhiza materialize -b main -y                # Short form
 - Skips existing files unless `--force` is used
 - Creates `.rhiza.history` file listing all files under template control
 - **Automatically removes orphaned files** - files that were previously managed by the template but are no longer in the current `include` list
+
+---
+
+### rhiza migrate
+
+**Purpose:** Migrate project to the new `.rhiza` folder structure
+
+**Syntax:**
+```bash
+rhiza migrate [OPTIONS] [TARGET]
+```
+
+**Parameters:**
+- `TARGET` - Target repository directory (default: current directory)
+
+**Options:**
+- `--force, -y` - Overwrite existing files in `.rhiza` if they exist
+
+**Examples:**
+```bash
+rhiza migrate                    # Migrate current directory
+rhiza migrate --force            # Migrate and overwrite existing
+rhiza migrate /path/to/project   # Migrate specific directory
+rhiza migrate -y                 # Short form with force
+```
+
+**What It Does:**
+- Creates the `.rhiza/` directory in the project root
+- Migrates `template.yml` from `.github/rhiza/` or `.github/` to `.rhiza/template.yml`
+- Migrates `.rhiza.history` to `.rhiza/history`
+- Provides instructions for next steps
+
+**When to Use:**
+- Transitioning to the new `.rhiza/` folder structure
+- Organizing Rhiza configuration separately from `.github/`
+- Cleaning up project structure
 
 ---
 
