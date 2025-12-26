@@ -206,6 +206,62 @@ class TestUninstallCommand:
         assert file1.exists()
         assert history_file.exists()
 
+    def test_uninstall_with_new_history_location(self, tmp_path):
+        """Test that uninstall works with the new .rhiza/history location."""
+        # Create some files
+        file1 = tmp_path / "file1.txt"
+        file2 = tmp_path / "subdir" / "file2.txt"
+
+        file1.write_text("content1")
+        file2.parent.mkdir(parents=True, exist_ok=True)
+        file2.write_text("content2")
+
+        # Create .rhiza/history in the new location
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = rhiza_dir / "history"
+        history_file.write_text(
+            "# Rhiza Template History\n"
+            "# This file lists all files managed by the Rhiza template.\n"
+            "#\n"
+            "file1.txt\n"
+            "subdir/file2.txt\n"
+        )
+
+        # Run uninstall with force=True to skip confirmation
+        uninstall(tmp_path, force=True)
+
+        # Verify files are removed
+        assert not file1.exists()
+        assert not file2.exists()
+        assert not history_file.exists()
+
+    def test_uninstall_prefers_new_location_over_old(self, tmp_path):
+        """Test that uninstall prefers .rhiza/history over .rhiza.history if both exist."""
+        # Create files
+        file1 = tmp_path / "file1.txt"
+        file2 = tmp_path / "file2.txt"
+        file1.write_text("content1")
+        file2.write_text("content2")
+
+        # Create both old and new history files with different content
+        old_history = tmp_path / ".rhiza.history"
+        old_history.write_text("# Old location\nfile2.txt\n")
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        new_history = rhiza_dir / "history"
+        new_history.write_text("# New location\nfile1.txt\n")
+
+        # Run uninstall
+        uninstall(tmp_path, force=True)
+
+        # Should have used new location (removed file1, not file2)
+        assert not file1.exists()
+        assert file2.exists()  # file2 should still exist
+        assert not new_history.exists()
+        assert old_history.exists()  # old history should still exist
+
 
 class TestUninstallCLI:
     """Tests for the uninstall CLI command."""

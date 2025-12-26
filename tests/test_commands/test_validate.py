@@ -235,6 +235,75 @@ class TestValidateCommand:
         result = validate(tmp_path)
         assert result is True
 
+    def test_validate_succeeds_with_migrated_location(self, tmp_path):
+        """Test that validate succeeds when template.yml is in migrated .rhiza location."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create valid template in migrated location (.rhiza/template.yml)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "template-branch": "main",
+                    "include": [".github", "Makefile"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_prefers_migrated_over_standard_location(self, tmp_path):
+        """Test that validate prefers .rhiza/template.yml over .github/rhiza/template.yml."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template in both locations with different content
+        # Standard location
+        github_rhiza_dir = tmp_path / ".github" / "rhiza"
+        github_rhiza_dir.mkdir(parents=True)
+        standard_template = github_rhiza_dir / "template.yml"
+        with open(standard_template, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "wrong/repo",  # This should not be used
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        # Migrated location (should be preferred)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        migrated_template = rhiza_dir / "template.yml"
+        with open(migrated_template, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "correct/repo",  # This should be used
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        # Validation should succeed and use the migrated location
+        result = validate(tmp_path)
+        assert result is True
+
     def test_cli_validate_command(self, tmp_path):
         """Test the CLI validate command via Typer runner."""
         runner = CliRunner()
