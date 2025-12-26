@@ -8,7 +8,6 @@ and what paths are governed by Rhiza.
 import importlib.resources
 import keyword
 import re
-import shutil
 from pathlib import Path
 
 from jinja2 import Template
@@ -73,17 +72,7 @@ def init(
     logger.debug(f"Ensuring directory exists: {rhiza_dir}")
     rhiza_dir.mkdir(parents=True, exist_ok=True)
 
-    # Check for old location and migrate if necessary
-    # TODO: This migration logic can be removed in a future version
-    # after users have had time to migrate
-    template_file = github_dir / "template.yml"
-    if template_file.exists():
-        logger.warning(f"Found template.yml in old location: {template_file}")
-        logger.info(f"Copying to new location: {rhiza_dir / 'template.yml'}")
-        # Copy the file to the new location (not move, to preserve old one temporarily)
-        shutil.copyfile(template_file, rhiza_dir / "template.yml")
-
-    # Define the template file path (new location)
+    # Define the template file path
     template_file = rhiza_dir / "template.yml"
 
     if not template_file.exists():
