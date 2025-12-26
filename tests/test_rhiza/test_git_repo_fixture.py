@@ -47,7 +47,7 @@ class TestGitRepoFixture:
 
     def test_git_repo_has_github_scripts_directory(self, git_repo):
         """Git repo should have .github/rhiza/scripts directory."""
-        scripts_dir = git_repo  / ".rhiza" / "scripts"
+        scripts_dir = git_repo / ".rhiza" / "scripts"
         assert scripts_dir.exists()
         assert (scripts_dir / "release.sh").exists()
         assert (scripts_dir / "bump.sh").exists()
