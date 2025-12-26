@@ -92,9 +92,7 @@ def migrate(target: Path) -> None:
         if ".rhiza" not in template_include:
             logger.warning("The .rhiza folder is not included in your template.yml")
             template_include.append(".rhiza")
-            logger.info(
-                "The .rhiza folder is added to your template.yml to ensure it's included in your repository"
-            )
+            logger.info("The .rhiza folder is added to your template.yml to ensure it's included in your repository")
 
             # Save the updated template.yml
             template.include = template_include
