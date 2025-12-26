@@ -5,6 +5,7 @@ underlying inject logic and that basic paths and options are handled.
 """
 
 import subprocess
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -1320,3 +1321,185 @@ class TestInjectCommand:
 
         # Verify the file still exists (deletion failed but was handled)
         assert old_file.exists()
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_with_legacy_history_location(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize reads history from legacy .rhiza.history location."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create old .rhiza.history file (legacy location at root)
+        old_history_file = tmp_path / ".rhiza.history"
+        old_history_file.write_text("old_file.txt\n")
+
+        # Create the file that was in history
+        old_file = tmp_path / "old_file.txt"
+        old_file.write_text("old content")
+
+        # Create template.yml
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": ["new_file.txt"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        new_file = temp_dir / "new_file.txt"
+        new_file.write_text("new content")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize - should read from legacy location and delete orphaned file
+        materialize(tmp_path, "main", None, False)
+
+        # Verify old file was deleted (it was in old history but not in new template)
+        assert not old_file.exists()
+
+        # Verify new history file was created in new location
+        new_history_file = tmp_path / ".rhiza" / "history"
+        assert new_history_file.exists()
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_cleans_up_legacy_history_file(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize removes old .rhiza.history after migration."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create both old and new history files
+        old_history_file = tmp_path / ".rhiza.history"
+        old_history_file.write_text("file1.txt\n")
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        new_history_file = rhiza_dir / "history"
+        new_history_file.write_text("file1.txt\n")
+
+        # Create template.yml
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": ["file1.txt"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        file1 = temp_dir / "file1.txt"
+        file1.write_text("content1")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize
+        materialize(tmp_path, "main", None, False)
+
+        # Verify old history file was removed
+        assert not old_history_file.exists()
+
+        # Verify new history file still exists
+        assert new_history_file.exists()
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_handles_legacy_history_cleanup_failure(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize handles failure to remove old .rhiza.history gracefully."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create both old and new history files
+        old_history_file = tmp_path / ".rhiza.history"
+        old_history_file.write_text("file1.txt\n")
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        new_history_file = rhiza_dir / "history"
+        new_history_file.write_text("file1.txt\n")
+
+        # Create template.yml
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": ["file1.txt"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        file1 = temp_dir / "file1.txt"
+        file1.write_text("content1")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Mock unlink to fail for the old history file
+        original_unlink = Path.unlink
+
+        def selective_unlink(self, *args, **kwargs):
+            if self.name == ".rhiza.history":
+                raise PermissionError("Cannot delete old history file")
+            return original_unlink(self, *args, **kwargs)
+
+        with patch.object(Path, "unlink", selective_unlink):
+            # Run materialize - should handle cleanup failure gracefully
+            materialize(tmp_path, "main", None, False)
+
+        # Verify old history file still exists (cleanup failed but was handled)
+        assert old_history_file.exists()
+
+        # Verify new history file was still created
+        assert new_history_file.exists()
