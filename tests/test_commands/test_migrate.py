@@ -4,8 +4,6 @@ This module verifies that `migrate` creates the .rhiza folder and migrates
 configuration files from .github to the new location.
 """
 
-from pathlib import Path
-
 import yaml
 from typer.testing import CliRunner
 
@@ -191,7 +189,7 @@ Makefile
             content = yaml.safe_load(f)
 
         assert content["template-repository"] == "existing/repo"
-        
+
         # Verify old file still exists (not moved since target exists)
         assert old_template.exists()
 

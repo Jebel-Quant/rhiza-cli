@@ -28,7 +28,7 @@ def uninstall(target: Path, force: bool) -> None:
 
     # Check for history file in new location only
     history_file = target / ".rhiza" / "history"
-    
+
     if not history_file.exists():
         logger.warning(f"No history file found at: {history_file.relative_to(target)}")
         logger.info("Nothing to uninstall. This repository may not have Rhiza templates materialized.")

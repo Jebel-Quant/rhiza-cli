@@ -125,7 +125,7 @@ class TestInitCommand:
             config = yaml.safe_load(f)
 
         assert config["template-repository"] == "jebel-quant/rhiza"
-        
+
         # Old file should still exist (not moved)
         assert old_template_file.exists()
 

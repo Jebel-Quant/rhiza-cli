@@ -131,7 +131,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     # Check for template in new location first, then fall back to old location
     migrated_template_file = target / ".rhiza" / "template.yml"
     standard_template_file = target / ".github" / "rhiza" / "template.yml"
-    
+
     if migrated_template_file.exists():
         template_file = migrated_template_file
         logger.debug(f"Loading template configuration from migrated location: {template_file}")
@@ -142,7 +142,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         logger.error("No template.yml file found")
         logger.error("Run 'rhiza init' or 'rhiza migrate' to create one")
         sys.exit(1)
-    
+
     template = RhizaTemplate.from_yaml(template_file)
 
     # Extract template configuration settings
@@ -341,7 +341,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     # Check both new and old locations for backward compatibility
     new_history_file = target / ".rhiza" / "history"
     old_history_file = target / ".rhiza.history"
-    
+
     # Prefer new location, but check old location for migration
     if new_history_file.exists():
         history_file = new_history_file
@@ -352,7 +352,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     else:
         history_file = new_history_file  # Default to new location for creation
         logger.debug("No existing history file found, will create new one")
-    
+
     previously_tracked_files: set[Path] = set()
 
     if history_file.exists():
@@ -393,10 +393,10 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     # Useful for understanding which files came from the template
     # Always write to new location (.rhiza/history)
     history_file = target / ".rhiza" / "history"
-    
+
     # Ensure .rhiza directory exists
     history_file.parent.mkdir(parents=True, exist_ok=True)
-    
+
     logger.debug(f"Writing history file: {history_file.relative_to(target)}")
     with history_file.open("w", encoding="utf-8") as f:
         f.write("# Rhiza Template History\n")
@@ -410,7 +410,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
             f.write(f"{file_path}\n")
 
     logger.info(f"Updated {history_file.relative_to(target)} with {len(materialized_files)} file(s)")
-    
+
     # Clean up old history file if it exists (migration)
     old_history_file = target / ".rhiza.history"
     if old_history_file.exists() and old_history_file != history_file:

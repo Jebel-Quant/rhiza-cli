@@ -255,7 +255,6 @@ class TestUninstallCommand:
         assert not history_file.exists()
 
 
-
 class TestUninstallCLI:
     """Tests for the uninstall CLI command."""
 
