@@ -1170,3 +1170,56 @@ class TestInjectCommand:
         assert history_file.exists()
         history_content = history_file.read_text()
         assert "file1.txt" in history_content
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_handles_file_deletion_failure(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize handles exceptions when deleting orphaned files."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create .rhiza.history with a file that will be orphaned
+        history_file = tmp_path / ".rhiza.history"
+        history_file.write_text("old_file.txt\n")
+
+        # Create the old file that will become orphaned
+        old_file = tmp_path / "old_file.txt"
+        old_file.write_text("old content")
+
+        # Create template.yml that doesn't include old_file
+        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": ["new_file.txt"],
+                },
+                f,
+            )
+
+        # Mock tempfile with new file
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        new_file = temp_dir / "new_file.txt"
+        new_file.write_text("new content")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Patch Path.unlink to raise an exception on the specific file
+        with patch("pathlib.Path.unlink", side_effect=PermissionError("Cannot delete file")):
+            # Run materialize - should handle deletion failure gracefully
+            materialize(tmp_path, "main", None, False)
+
+        # Verify the file still exists (deletion failed but was handled)
+        assert old_file.exists()
