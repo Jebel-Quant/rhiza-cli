@@ -52,7 +52,8 @@ class TestMigrateCommand:
 
         assert migrated_content["template-repository"] == "test/repo"
         assert migrated_content["template-branch"] == "main"
-        assert migrated_content["include"] == [".github", "Makefile"]
+        # After migration, .rhiza should be automatically added to include list
+        assert migrated_content["include"] == [".github", "Makefile", ".rhiza"]
 
         # Verify old file was removed
         assert not old_template_file.exists()
@@ -194,6 +195,92 @@ Makefile
         assert old_template.exists()
 
         assert content["template-repository"] == "existing/repo"
+
+    def test_migrate_adds_rhiza_to_include_list(self, tmp_path):
+        """Test that migrate adds .rhiza to include list if not present."""
+        # Create existing template.yml in .github/rhiza/ without .rhiza in include
+        github_rhiza_dir = tmp_path / ".github" / "rhiza"
+        github_rhiza_dir.mkdir(parents=True)
+        old_template_file = github_rhiza_dir / "template.yml"
+
+        template_content = {
+            "template-repository": "test/repo",
+            "template-branch": "main",
+            "include": [".github", "Makefile"],
+        }
+
+        with open(old_template_file, "w") as f:
+            yaml.dump(template_content, f)
+
+        # Run migrate
+        migrate(tmp_path)
+
+        # Verify new template.yml was created
+        new_template_file = tmp_path / ".rhiza" / "template.yml"
+        assert new_template_file.exists()
+
+        # Verify .rhiza was added to include list
+        with open(new_template_file) as f:
+            migrated_content = yaml.safe_load(f)
+
+        assert ".rhiza" in migrated_content["include"]
+        assert migrated_content["include"] == [".github", "Makefile", ".rhiza"]
+
+    def test_migrate_does_not_duplicate_rhiza_in_include_list(self, tmp_path):
+        """Test that migrate does not duplicate .rhiza if already in include list."""
+        # Create existing template.yml in .github/rhiza/ with .rhiza already in include
+        github_rhiza_dir = tmp_path / ".github" / "rhiza"
+        github_rhiza_dir.mkdir(parents=True)
+        old_template_file = github_rhiza_dir / "template.yml"
+
+        template_content = {
+            "template-repository": "test/repo",
+            "template-branch": "main",
+            "include": [".github", ".rhiza", "Makefile"],
+        }
+
+        with open(old_template_file, "w") as f:
+            yaml.dump(template_content, f)
+
+        # Run migrate
+        migrate(tmp_path)
+
+        # Verify new template.yml was created
+        new_template_file = tmp_path / ".rhiza" / "template.yml"
+        assert new_template_file.exists()
+
+        # Verify .rhiza appears only once in include list
+        with open(new_template_file) as f:
+            migrated_content = yaml.safe_load(f)
+
+        assert migrated_content["include"].count(".rhiza") == 1
+        assert migrated_content["include"] == [".github", ".rhiza", "Makefile"]
+
+    def test_migrate_adds_rhiza_to_existing_template(self, tmp_path):
+        """Test that migrate adds .rhiza to include list for existing .rhiza/template.yml."""
+        # Create existing template.yml directly in .rhiza/ without .rhiza in include
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        template_content = {
+            "template-repository": "test/repo",
+            "template-branch": "main",
+            "include": ["src", "tests"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(template_content, f)
+
+        # Run migrate
+        migrate(tmp_path)
+
+        # Verify .rhiza was added to include list
+        with open(template_file) as f:
+            updated_content = yaml.safe_load(f)
+
+        assert ".rhiza" in updated_content["include"]
+        assert updated_content["include"] == ["src", "tests", ".rhiza"]
 
 
 class TestMigrateCLI:
