@@ -121,6 +121,7 @@ def init(
         if git_host == "gitlab":
             include_paths = [
                 ".rhiza",  # .rhiza folder
+                ".gitlab",   # .gitlab folder
                 ".gitlab-ci.yml",  # GitLab CI configuration
                 ".editorconfig",  # Editor configuration
                 ".gitignore",  # Git ignore patterns
