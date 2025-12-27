@@ -85,7 +85,7 @@ def init(
             template_repository="jebel-quant/rhiza",
             template_branch="main",
             include=[
-                ".rhiza",  # .rhiza folder 
+                ".rhiza",  # .rhiza folder
                 ".github",  # GitHub configuration and workflows
                 ".editorconfig",  # Editor configuration
                 ".gitignore",  # Git ignore patterns
