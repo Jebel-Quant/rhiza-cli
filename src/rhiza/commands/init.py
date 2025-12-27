@@ -45,6 +45,7 @@ def init(
     project_name: str | None = None,
     package_name: str | None = None,
     with_dev_dependencies: bool = False,
+    git_host: str | None = None,
 ):
     """Initialize or validate .github/rhiza/template.yml in the target repository.
 
@@ -56,12 +57,21 @@ def init(
         project_name: Custom project name. Defaults to target directory name.
         package_name: Custom package name. Defaults to normalized project name.
         with_dev_dependencies: Include development dependencies in pyproject.toml.
+        git_host: Target Git hosting platform ("github" or "gitlab"). Determines which
+            CI/CD configuration files to include. If None, will prompt user interactively.
 
     Returns:
         bool: True if validation passes, False otherwise.
     """
     # Convert to absolute path to avoid surprises
     target = target.resolve()
+
+    # Validate git_host if provided
+    if git_host is not None:
+        git_host = git_host.lower()
+        if git_host not in ["github", "gitlab"]:
+            logger.error(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")
+            raise ValueError(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")
 
     logger.info(f"Initializing Rhiza configuration in: {target}")
 
@@ -79,12 +89,52 @@ def init(
         logger.info("Creating default .rhiza/template.yml")
         logger.debug("Using default template configuration")
 
-        # Default template points to the jebel-quant/rhiza repository
-        # and includes common Python project configuration files
-        default_template = RhizaTemplate(
-            template_repository="jebel-quant/rhiza",
-            template_branch="main",
-            include=[
+        # Prompt for target git hosting platform if not provided
+        if git_host is None:
+            import sys
+            import typer
+            
+            # Only prompt if running in an interactive terminal
+            if sys.stdin.isatty():
+                logger.info("Where will your project be hosted?")
+                git_host = typer.prompt(
+                    "Target Git hosting platform (github/gitlab)",
+                    type=str,
+                    default="github",
+                ).lower()
+                
+                # Validate the input
+                while git_host not in ["github", "gitlab"]:
+                    logger.warning(f"Invalid choice: {git_host}. Please choose 'github' or 'gitlab'")
+                    git_host = typer.prompt(
+                        "Target Git hosting platform (github/gitlab)",
+                        type=str,
+                        default="github",
+                    ).lower()
+            else:
+                # Non-interactive mode (e.g., tests), default to github
+                git_host = "github"
+                logger.debug("Non-interactive mode detected, defaulting to github")
+
+        # Adjust template based on target git hosting platform
+        # The template repository is always on GitHub (jebel-quant/rhiza)
+        # but we include different files based on where the target project will be
+        if git_host == "gitlab":
+            include_paths = [
+                ".rhiza",  # .rhiza folder
+                ".gitlab-ci.yml",  # GitLab CI configuration
+                ".editorconfig",  # Editor configuration
+                ".gitignore",  # Git ignore patterns
+                ".pre-commit-config.yaml",  # Pre-commit hooks
+                "ruff.toml",  # Ruff linter configuration
+                "Makefile",  # Build and development tasks
+                "pytest.ini",  # Pytest configuration
+                "book",  # Documentation book
+                "presentation",  # Presentation materials
+                "tests",  # Test structure
+            ]
+        else:
+            include_paths = [
                 ".rhiza",  # .rhiza folder 
                 ".github",  # GitHub configuration and workflows
                 ".editorconfig",  # Editor configuration
@@ -96,7 +146,16 @@ def init(
                 "book",  # Documentation book
                 "presentation",  # Presentation materials
                 "tests",  # Test structure
-            ],
+            ]
+
+        # Default template points to the jebel-quant/rhiza repository on GitHub
+        # and includes files appropriate for the target platform
+        default_template = RhizaTemplate(
+            template_repository="jebel-quant/rhiza",
+            template_branch="main",
+            # template_host is not set here - it defaults to "github" in the model
+            # because the template repository is on GitHub
+            include=include_paths,
         )
 
         # Write the default template to the file
