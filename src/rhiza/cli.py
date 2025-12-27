@@ -87,22 +87,27 @@ def init(
         "--with-dev-dependencies",
         help="Include development dependencies in pyproject.toml",
     ),
+    git_host: str = typer.Option(
+        None,
+        "--git-host",
+        help="Target Git hosting platform (github or gitlab). Determines which CI/CD files to include. "
+        "If not provided, will prompt interactively.",
+    ),
 ):
     r"""Initialize or validate .github/rhiza/template.yml.
 
     Creates a default `.github/rhiza/template.yml` configuration file if one
     doesn't exist, or validates the existing configuration.
 
-    The default template includes common Python project files:
-    - .github (workflows, actions, etc.)
-    - .editorconfig
-    - .gitignore
-    - .pre-commit-config.yaml
-    - Makefile
-    - pytest.ini
+    The default template includes common Python project files.
+    The --git-host option determines which CI/CD configuration to include:
+    - github: includes .github folder (GitHub Actions workflows)
+    - gitlab: includes .gitlab-ci.yml (GitLab CI configuration)
 
     Examples:
       rhiza init
+      rhiza init --git-host github
+      rhiza init --git-host gitlab
       rhiza init /path/to/project
       rhiza init ..
     """
@@ -111,6 +116,7 @@ def init(
         project_name=project_name,
         package_name=package_name,
         with_dev_dependencies=with_dev_dependencies,
+        git_host=git_host,
     )
 
 

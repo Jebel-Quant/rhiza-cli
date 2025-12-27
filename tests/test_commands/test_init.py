@@ -6,6 +6,7 @@ that the Typer CLI entry `rhiza init` works as expected.
 
 from pathlib import Path
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -232,3 +233,60 @@ class TestInitCommand:
         pyproject_file = tmp_path / "pyproject.toml"
         content = pyproject_file.read_text()
         assert 'packages = ["src/class_"]' in content
+
+    def test_init_with_github_explicit(self, tmp_path):
+        """Test init with explicitly specified GitHub target platform."""
+        init(tmp_path, git_host="github")
+
+        # Verify template.yml was created
+        template_file = tmp_path / ".rhiza" / "template.yml"
+        assert template_file.exists()
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        # template-host should not appear (defaults to github for template repo)
+        assert "template-host" not in config
+        # Should include .github for GitHub target
+        assert ".github" in config["include"]
+        assert ".gitlab-ci.yml" not in config["include"]
+
+    def test_init_with_gitlab_explicit(self, tmp_path):
+        """Test init with explicitly specified GitLab target platform."""
+        init(tmp_path, git_host="gitlab")
+
+        # Verify template.yml was created
+        template_file = tmp_path / ".rhiza" / "template.yml"
+        assert template_file.exists()
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        # template-host should not appear because template repo is still on GitHub
+        # We only change the include list based on target platform
+        assert "template-host" not in config
+        # Should include .gitlab-ci.yml for GitLab target
+        assert ".gitlab-ci.yml" in config["include"]
+        # Should NOT include .github for GitLab target
+        assert ".github" not in config["include"]
+
+    def test_init_with_invalid_git_host(self, tmp_path):
+        """Test init with invalid git-host raises error."""
+        with pytest.raises(ValueError, match="Invalid git-host"):
+            init(tmp_path, git_host="bitbucket")
+
+    def test_init_with_git_host_case_insensitive(self, tmp_path):
+        """Test init with git-host is case insensitive."""
+        init(tmp_path, git_host="GitLab")
+
+        # Verify template.yml was created
+        template_file = tmp_path / ".rhiza" / "template.yml"
+        assert template_file.exists()
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        # Should include .gitlab-ci.yml for GitLab target
+        assert ".gitlab-ci.yml" in config["include"]
+        # Should NOT include .github for GitLab target
+        assert ".github" not in config["include"]
