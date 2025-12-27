@@ -8,8 +8,10 @@ and what paths are governed by Rhiza.
 import importlib.resources
 import keyword
 import re
+import sys
 from pathlib import Path
 
+import typer
 from jinja2 import Template
 from loguru import logger
 
@@ -91,9 +93,6 @@ def init(
 
         # Prompt for target git hosting platform if not provided
         if git_host is None:
-            import sys
-            import typer
-            
             # Only prompt if running in an interactive terminal
             if sys.stdin.isatty():
                 logger.info("Where will your project be hosted?")

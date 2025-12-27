@@ -6,6 +6,7 @@ that the Typer CLI entry `rhiza init` works as expected.
 
 from pathlib import Path
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -271,8 +272,6 @@ class TestInitCommand:
 
     def test_init_with_invalid_git_host(self, tmp_path):
         """Test init with invalid git-host raises error."""
-        import pytest
-
         with pytest.raises(ValueError, match="Invalid git-host"):
             init(tmp_path, git_host="bitbucket")
 
