@@ -90,7 +90,8 @@ def init(
     git_host: str = typer.Option(
         None,
         "--git-host",
-        help="Target Git hosting platform (github or gitlab). Determines which CI/CD files to include. If not provided, will prompt interactively.",
+        help="Target Git hosting platform (github or gitlab). Determines which CI/CD files to include. "
+        "If not provided, will prompt interactively.",
     ),
 ):
     r"""Initialize or validate .github/rhiza/template.yml.

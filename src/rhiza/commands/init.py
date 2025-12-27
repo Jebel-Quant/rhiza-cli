@@ -101,7 +101,7 @@ def init(
                     type=str,
                     default="github",
                 ).lower()
-                
+
                 # Validate the input
                 while git_host not in ["github", "gitlab"]:
                     logger.warning(f"Invalid choice: {git_host}. Please choose 'github' or 'gitlab'")
@@ -121,7 +121,7 @@ def init(
         if git_host == "gitlab":
             include_paths = [
                 ".rhiza",  # .rhiza folder
-                ".gitlab",   # .gitlab folder
+                ".gitlab",  # .gitlab folder
                 ".gitlab-ci.yml",  # GitLab CI configuration
                 ".editorconfig",  # Editor configuration
                 ".gitignore",  # Git ignore patterns
@@ -135,7 +135,7 @@ def init(
             ]
         else:
             include_paths = [
-                ".rhiza",  # .rhiza folder 
+                ".rhiza",  # .rhiza folder
                 ".github",  # GitHub configuration and workflows
                 ".editorconfig",  # Editor configuration
                 ".gitignore",  # Git ignore patterns
