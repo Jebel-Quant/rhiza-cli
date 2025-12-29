@@ -789,6 +789,9 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-html" },
 ]
+tools = [
+    { name = "rhiza-tools" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -801,9 +804,22 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest-html", marker = "extra == 'dev'", specifier = ">=4.1.1" },
     { name = "pyyaml", specifier = "==6.0.3" },
+    { name = "rhiza-tools", marker = "extra == 'tools'" },
     { name = "typer", specifier = ">=0.20.0" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["dev", "tools"]
+
+[[package]]
+name = "rhiza-tools"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typer" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/13/39/a1e0eba846327a9a290ca21ba48fa8eb6b00c0932bcd2877d564d84d2ae5/rhiza_tools-0.1.0.tar.gz", hash = "sha256:166509129229309a336b8d27a3f53957762fb0046bf12d6979b69860e7c83801", size = 104528, upload-time = "2025-12-28T15:03:25.803Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a7/fd/ea7501b431d77b0da72c74b1da20eeb00ca97bfd1fe7f73dcd57e9defa41/rhiza_tools-0.1.0-py3-none-any.whl", hash = "sha256:9327c28951954e47e0d2cedc43d2e6c09851655994960117057c2ea4cc0f3695", size = 3666, upload-time = "2025-12-28T15:03:24.552Z" },
+]
 
 [[package]]
 name = "rich"
