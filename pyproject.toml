@@ -66,6 +66,5 @@ pythonpath = ["src"]
 [project.scripts]
 rhiza = "rhiza.__main__:app"
 
-[tool.deptry.ignore_unused]
-# Allow rhiza-tools as it is a plugin-based tool
-rhiza-tools = true
+[tool.deptry.per_rule_ignores]
+DEP002 = ["rhiza-tools"]
