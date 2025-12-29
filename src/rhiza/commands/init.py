@@ -8,9 +8,10 @@ and what paths are governed by Rhiza.
 import importlib.resources
 import keyword
 import re
-import shutil
+import sys
 from pathlib import Path
 
+import typer
 from jinja2 import Template
 from loguru import logger
 
@@ -46,6 +47,7 @@ def init(
     project_name: str | None = None,
     package_name: str | None = None,
     with_dev_dependencies: bool = False,
+    git_host: str | None = None,
 ):
     """Initialize or validate .github/rhiza/template.yml in the target repository.
 
@@ -57,6 +59,8 @@ def init(
         project_name: Custom project name. Defaults to target directory name.
         package_name: Custom package name. Defaults to normalized project name.
         with_dev_dependencies: Include development dependencies in pyproject.toml.
+        git_host: Target Git hosting platform ("github" or "gitlab"). Determines which
+            CI/CD configuration files to include. If None, will prompt user interactively.
 
     Returns:
         bool: True if validation passes, False otherwise.
@@ -64,39 +68,74 @@ def init(
     # Convert to absolute path to avoid surprises
     target = target.resolve()
 
+    # Validate git_host if provided
+    if git_host is not None:
+        git_host = git_host.lower()
+        if git_host not in ["github", "gitlab"]:
+            logger.error(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")
+            raise ValueError(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")
+
     logger.info(f"Initializing Rhiza configuration in: {target}")
 
-    # Create .github/rhiza directory structure if it doesn't exist
+    # Create .rhiza directory structure if it doesn't exist
     # This is where Rhiza stores its configuration
-    github_dir = target / ".github"
-    rhiza_dir = github_dir / "rhiza"
+    rhiza_dir = target / ".rhiza"
     logger.debug(f"Ensuring directory exists: {rhiza_dir}")
     rhiza_dir.mkdir(parents=True, exist_ok=True)
 
-    # Check for old location and migrate if necessary
-    # TODO: This migration logic can be removed in a future version
-    # after users have had time to migrate
-    template_file = github_dir / "template.yml"
-    if template_file.exists():
-        logger.warning(f"Found template.yml in old location: {template_file}")
-        logger.info(f"Copying to new location: {rhiza_dir / 'template.yml'}")
-        # Copy the file to the new location (not move, to preserve old one temporarily)
-        shutil.copyfile(template_file, rhiza_dir / "template.yml")
-
-    # Define the template file path (new location)
+    # Define the template file path
     template_file = rhiza_dir / "template.yml"
 
     if not template_file.exists():
         # Create default template.yml with sensible defaults
-        logger.info("Creating default .github/rhiza/template.yml")
+        logger.info("Creating default .rhiza/template.yml")
         logger.debug("Using default template configuration")
 
-        # Default template points to the jebel-quant/rhiza repository
-        # and includes common Python project configuration files
-        default_template = RhizaTemplate(
-            template_repository="jebel-quant/rhiza",
-            template_branch="main",
-            include=[
+        # Prompt for target git hosting platform if not provided
+        if git_host is None:
+            # Only prompt if running in an interactive terminal
+            if sys.stdin.isatty():
+                logger.info("Where will your project be hosted?")
+                git_host = typer.prompt(
+                    "Target Git hosting platform (github/gitlab)",
+                    type=str,
+                    default="github",
+                ).lower()
+
+                # Validate the input
+                while git_host not in ["github", "gitlab"]:
+                    logger.warning(f"Invalid choice: {git_host}. Please choose 'github' or 'gitlab'")
+                    git_host = typer.prompt(
+                        "Target Git hosting platform (github/gitlab)",
+                        type=str,
+                        default="github",
+                    ).lower()
+            else:
+                # Non-interactive mode (e.g., tests), default to github
+                git_host = "github"
+                logger.debug("Non-interactive mode detected, defaulting to github")
+
+        # Adjust template based on target git hosting platform
+        # The template repository is always on GitHub (jebel-quant/rhiza)
+        # but we include different files based on where the target project will be
+        if git_host == "gitlab":
+            include_paths = [
+                ".rhiza",  # .rhiza folder
+                ".gitlab",  # .gitlab folder
+                ".gitlab-ci.yml",  # GitLab CI configuration
+                ".editorconfig",  # Editor configuration
+                ".gitignore",  # Git ignore patterns
+                ".pre-commit-config.yaml",  # Pre-commit hooks
+                "ruff.toml",  # Ruff linter configuration
+                "Makefile",  # Build and development tasks
+                "pytest.ini",  # Pytest configuration
+                "book",  # Documentation book
+                "presentation",  # Presentation materials
+                "tests",  # Test structure
+            ]
+        else:
+            include_paths = [
+                ".rhiza",  # .rhiza folder
                 ".github",  # GitHub configuration and workflows
                 ".editorconfig",  # Editor configuration
                 ".gitignore",  # Git ignore patterns
@@ -107,17 +146,26 @@ def init(
                 "book",  # Documentation book
                 "presentation",  # Presentation materials
                 "tests",  # Test structure
-            ],
+            ]
+
+        # Default template points to the jebel-quant/rhiza repository on GitHub
+        # and includes files appropriate for the target platform
+        default_template = RhizaTemplate(
+            template_repository="jebel-quant/rhiza",
+            template_branch="main",
+            # template_host is not set here - it defaults to "github" in the model
+            # because the template repository is on GitHub
+            include=include_paths,
         )
 
         # Write the default template to the file
         logger.debug(f"Writing default template to: {template_file}")
         default_template.to_yaml(template_file)
 
-        logger.success("✓ Created .github/rhiza/template.yml")
+        logger.success("✓ Created .rhiza/template.yml")
         logger.info("""
 Next steps:
-  1. Review and customize .github/rhiza/template.yml to match your project needs
+  1. Review and customize .rhiza/template.yml to match your project needs
   2. Run 'rhiza materialize' to inject templates into your repository
 """)
 

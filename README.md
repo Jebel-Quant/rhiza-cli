@@ -27,6 +27,7 @@ Rhiza is a CLI tool that helps you maintain consistent configuration across mult
 - [Commands](#commands)
   - [init](#rhiza-init)
   - [materialize](#rhiza-materialize)
+  - [migrate](#rhiza-migrate)
   - [validate](#rhiza-validate)
 - [Configuration](#configuration)
 - [Examples](#examples)
@@ -280,6 +281,86 @@ Re-run this script to update templates explicitly.
 - The command performs a sparse clone for efficiency
 - Template files are copied with their original permissions
 - Excluded paths (if defined) are filtered out
+
+---
+
+### `rhiza migrate`
+
+Migrate project to the new `.rhiza` folder structure.
+
+**Usage:**
+
+```bash
+rhiza migrate [OPTIONS] [TARGET]
+```
+
+**Arguments:**
+
+- `TARGET` - Target git repository directory (defaults to current directory)
+
+**Arguments:**
+
+- `TARGET` - Target git repository directory (defaults to current directory)
+
+**Description:**
+
+Migrates your project to use the new `.rhiza/` folder structure for storing Rhiza state and configuration files. This command helps transition from the old structure where configuration was stored in `.github/rhiza/` and `.rhiza.history` in the project root.
+
+The migration performs the following actions:
+
+1. Creates the `.rhiza/` directory in the project root
+2. Moves `template.yml` from `.github/rhiza/` or `.github/` to `.rhiza/template.yml`
+3. Moves `.rhiza.history` to `.rhiza/history`
+4. Provides instructions for next steps
+
+The new `.rhiza/` folder structure provides better organization by separating Rhiza's state and configuration from the `.github/` directory.
+
+**Examples:**
+
+```bash
+# Migrate current directory
+rhiza migrate
+
+# Migrate a specific directory
+rhiza migrate /path/to/project
+```
+
+**Output:**
+
+```
+[INFO] Migrating Rhiza structure in: /path/to/project
+[INFO] This will create the .rhiza folder and migrate configuration files
+[INFO] Creating .rhiza directory at: .rhiza
+✓ Created .rhiza
+[INFO] Found template.yml at: .github/rhiza/template.yml
+[INFO] Moving to new location: .rhiza/template.yml
+✓ Moved template.yml to .rhiza/template.yml
+✓ Migration completed successfully
+
+Migration Summary:
+  - Created .rhiza/ folder
+  - Moved template.yml to .rhiza/template.yml
+  - Moved history tracking to .rhiza/history
+
+Next steps:
+  1. Review changes:
+       git status
+       git diff
+
+  2. Update other commands to use new .rhiza/ location
+     (Future rhiza versions will automatically use .rhiza/)
+
+  3. Commit the migration:
+       git add .
+       git commit -m "chore: migrate to .rhiza folder structure"
+```
+
+**Notes:**
+
+- If files already exist in `.rhiza/`, the migration will skip them and leave the old files in place
+- You can manually remove old files after verifying the migration was successful
+- The old `.rhiza.history` file is removed after successful migration to `.rhiza/history`
+- The original template file in `.github/` is moved (removed from old location)
 
 ---
 

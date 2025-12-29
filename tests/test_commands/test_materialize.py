@@ -5,6 +5,7 @@ underlying inject logic and that basic paths and options are handled.
 """
 
 import subprocess
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -18,41 +19,20 @@ from rhiza.commands.materialize import materialize
 class TestInjectCommand:
     """Tests for the inject/materialize command."""
 
-    @patch("rhiza.commands.materialize.subprocess.run")
-    @patch("rhiza.commands.materialize.shutil.rmtree")
-    @patch("rhiza.commands.materialize.shutil.copy2")
-    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_inject_creates_default_template_yml(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
-    ):
-        """Test that inject creates a default template.yml when it doesn't exist."""
+    def test_inject_fails_without_template_yml(self, tmp_path):
+        """Test that materialize fails when template.yml doesn't exist."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
-        # Mock tempfile to return a controlled temp directory
-        temp_dir = tmp_path / "temp"
-        temp_dir.mkdir()
-        mock_mkdtemp.return_value = str(temp_dir)
+        # Create required pyproject.toml (needed for validation to not fail earlier)
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
 
-        # Mock subprocess to succeed
-        mock_subprocess.return_value = Mock(returncode=0)
-
-        # Run inject
-        materialize(tmp_path, "main", None, False)
-
-        # Verify template.yml was created
-        template_file = tmp_path / ".github" / "rhiza" / "template.yml"
-        assert template_file.exists()
-
-        # Verify it contains expected content
-
-        with open(template_file) as f:
-            config = yaml.safe_load(f)
-
-        assert config["template-repository"] == "jebel-quant/rhiza"
-        assert config["template-branch"] == "main"
-        assert ".github" in config["include"]
+        # Run materialize without creating template.yml first
+        # It should fail because template.yml doesn't exist
+        with pytest.raises(SystemExit):
+            materialize(tmp_path, "main", None, False)
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -64,9 +44,13 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create existing template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -99,9 +83,13 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create template.yml with empty include
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -121,9 +109,13 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -159,13 +151,17 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create existing file in target
         existing_file = tmp_path / "test.txt"
         existing_file.write_text("existing")
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -201,13 +197,17 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create existing file in target
         existing_file = tmp_path / "test.txt"
         existing_file.write_text("existing")
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -241,9 +241,13 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create template.yml with exclude
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -289,9 +293,13 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create minimal template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -320,9 +328,13 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -349,14 +361,18 @@ class TestInjectCommand:
     def test_materialize_creates_rhiza_history_file(
         self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
-        """Test that materialize creates a .rhiza.history file listing all template files."""
+        """Test that materialize creates a .rhiza/history file listing all template files."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -384,8 +400,10 @@ class TestInjectCommand:
         # Run materialize
         materialize(tmp_path, "main", None, False)
 
-        # Verify .rhiza.history was created
-        history_file = tmp_path / ".rhiza.history"
+        # Verify .rhiza/history was created
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = rhiza_dir / "history"
         assert history_file.exists()
 
         # Verify content
@@ -403,18 +421,22 @@ class TestInjectCommand:
     def test_materialize_history_includes_skipped_files(
         self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
-        """Test that .rhiza.history includes files that already exist (were skipped)."""
+        """Test that .rhiza/history includes files that already exist (were skipped)."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
 
         # Create existing file that will be skipped
         existing_file = tmp_path / "existing.txt"
         existing_file.write_text("existing content")
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -440,8 +462,10 @@ class TestInjectCommand:
         # Run materialize without force (should skip existing file)
         materialize(tmp_path, "main", None, False)
 
-        # Verify .rhiza.history includes the skipped file
-        history_file = tmp_path / ".rhiza.history"
+        # Verify .rhiza/history includes the skipped file
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = rhiza_dir / "history"
         assert history_file.exists()
         history_content = history_file.read_text()
         assert "existing.txt" in history_content
@@ -456,9 +480,13 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create template.yml with gitlab host
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -505,9 +533,13 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create template.yml with explicit github host
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -546,9 +578,13 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create template.yml with invalid host
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -583,9 +619,17 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create src and tests folders to avoid validation warnings
+        (tmp_path / "src").mkdir()
+        (tmp_path / "tests").mkdir()
+
         # Create template.yml including workflow files
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -622,16 +666,20 @@ class TestInjectCommand:
             assert "workflow" in call_args.lower()
             assert "permission" in call_args.lower()
 
-    @patch("rhiza.commands.materialize.init")
-    def test_materialize_empty_include_paths_raises_error(self, mock_init, tmp_path):
+    @patch("rhiza.commands.materialize.validate")
+    def test_materialize_raises_error_when_validate_bypassed_with_empty_include(self, mock_validate, tmp_path):
         """Test that materialize raises RuntimeError when include_paths is empty after validation."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create template.yml with empty include (bypassing normal validation)
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -644,8 +692,10 @@ class TestInjectCommand:
                 f,
             )
 
-        # Mock init to return True (bypass validation that would catch this)
-        mock_init.return_value = True
+        # Mock validate to return True to bypass normal validation that would catch empty include lists.
+        # This test validates materialize's runtime error handling for the theoretical edge case
+        # where validation passes but include_paths is still empty (e.g., validation logic gaps).
+        mock_validate.return_value = True
 
         # Run materialize and expect RuntimeError
         with pytest.raises(RuntimeError, match="No include paths found"):
@@ -661,9 +711,13 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -718,9 +772,13 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -772,9 +830,13 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -817,9 +879,13 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -856,9 +922,13 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -890,9 +960,13 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -943,9 +1017,13 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -996,13 +1074,19 @@ class TestInjectCommand:
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_deletes_orphaned_files(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
-        """Test that materialize deletes files in old .rhiza.history but not in new materialization."""
+        """Test that materialize deletes files in old .rhiza/history but not in new materialization."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
-        # Create an old .rhiza.history file with files that will become orphaned
-        old_history = tmp_path / ".rhiza.history"
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create an old .rhiza/history file with files that will become orphaned
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        old_history = rhiza_dir / "history"
         old_history.write_text(
             "# Rhiza Template History\n"
             "# Template repository: jebel-quant/rhiza\n"
@@ -1023,8 +1107,8 @@ class TestInjectCommand:
         nested_orphaned.write_text("nested orphaned content")
 
         # Create template.yml that only includes file1.txt (not orphaned.txt)
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -1054,7 +1138,7 @@ class TestInjectCommand:
         assert not orphaned_file.exists(), "orphaned.txt should have been deleted"
         assert not nested_orphaned.exists(), "dir/nested_orphaned.txt should have been deleted"
 
-        # Verify .rhiza.history was updated and only contains file1.txt
+        # Verify .rhiza/history was updated and only contains file1.txt
         history_content = old_history.read_text()
         assert "file1.txt" in history_content
         assert "orphaned.txt" not in history_content
@@ -1072,8 +1156,14 @@ class TestInjectCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
-        # Create an old .rhiza.history file with a file that doesn't exist
-        old_history = tmp_path / ".rhiza.history"
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create an old .rhiza/history file with a file that doesn't exist
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        old_history = rhiza_dir / "history"
         old_history.write_text(
             "# Rhiza Template History\n"
             "# Template repository: jebel-quant/rhiza\n"
@@ -1087,8 +1177,8 @@ class TestInjectCommand:
         # Don't create nonexistent.txt
 
         # Create template.yml that only includes file1.txt
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -1114,7 +1204,7 @@ class TestInjectCommand:
         # Run materialize - should not fail even though nonexistent.txt doesn't exist
         materialize(tmp_path, "main", None, False)
 
-        # Verify .rhiza.history was updated
+        # Verify .rhiza/history was updated
         history_content = old_history.read_text()
         assert "file1.txt" in history_content
         assert "nonexistent.txt" not in history_content
@@ -1126,16 +1216,20 @@ class TestInjectCommand:
     def test_materialize_no_cleanup_when_no_history(
         self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
-        """Test that materialize works correctly when no .rhiza.history exists yet."""
+        """Test that materialize works correctly when no .rhiza/history exists yet."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
-        # No old .rhiza.history file
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # No old .rhiza/history file
 
         # Create template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
-        rhiza_dir.mkdir(parents=True)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
@@ -1161,8 +1255,251 @@ class TestInjectCommand:
         # Run materialize - should work fine without old history
         materialize(tmp_path, "main", None, False)
 
-        # Verify .rhiza.history was created
-        history_file = tmp_path / ".rhiza.history"
+        # Verify .rhiza/history was created
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = rhiza_dir / "history"
         assert history_file.exists()
         history_content = history_file.read_text()
         assert "file1.txt" in history_content
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_handles_file_deletion_failure(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize handles exceptions when deleting orphaned files."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create .rhiza/history with a file that will be orphaned
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        history_file = rhiza_dir / "history"
+        history_file.write_text("old_file.txt\n")
+
+        # Create the old file that will become orphaned
+        old_file = tmp_path / "old_file.txt"
+        old_file.write_text("old content")
+
+        # Create template.yml that doesn't include old_file
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": ["new_file.txt"],
+                },
+                f,
+            )
+
+        # Mock tempfile with new file
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        new_file = temp_dir / "new_file.txt"
+        new_file.write_text("new content")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Patch Path.unlink to raise an exception on the specific file
+        with patch("pathlib.Path.unlink", side_effect=PermissionError("Cannot delete file")):
+            # Run materialize - should handle deletion failure gracefully
+            materialize(tmp_path, "main", None, False)
+
+        # Verify the file still exists (deletion failed but was handled)
+        assert old_file.exists()
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_with_legacy_history_location(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize reads history from legacy .rhiza.history location."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create old .rhiza.history file (legacy location at root)
+        old_history_file = tmp_path / ".rhiza.history"
+        old_history_file.write_text("old_file.txt\n")
+
+        # Create the file that was in history
+        old_file = tmp_path / "old_file.txt"
+        old_file.write_text("old content")
+
+        # Create template.yml
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": ["new_file.txt"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        new_file = temp_dir / "new_file.txt"
+        new_file.write_text("new content")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize - should read from legacy location and delete orphaned file
+        materialize(tmp_path, "main", None, False)
+
+        # Verify old file was deleted (it was in old history but not in new template)
+        assert not old_file.exists()
+
+        # Verify new history file was created in new location
+        new_history_file = tmp_path / ".rhiza" / "history"
+        assert new_history_file.exists()
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_cleans_up_legacy_history_file(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize removes old .rhiza.history after migration."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create both old and new history files
+        old_history_file = tmp_path / ".rhiza.history"
+        old_history_file.write_text("file1.txt\n")
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        new_history_file = rhiza_dir / "history"
+        new_history_file.write_text("file1.txt\n")
+
+        # Create template.yml
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": ["file1.txt"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        file1 = temp_dir / "file1.txt"
+        file1.write_text("content1")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize
+        materialize(tmp_path, "main", None, False)
+
+        # Verify old history file was removed
+        assert not old_history_file.exists()
+
+        # Verify new history file still exists
+        assert new_history_file.exists()
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_handles_legacy_history_cleanup_failure(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize handles failure to remove old .rhiza.history gracefully."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create both old and new history files
+        old_history_file = tmp_path / ".rhiza.history"
+        old_history_file.write_text("file1.txt\n")
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        new_history_file = rhiza_dir / "history"
+        new_history_file.write_text("file1.txt\n")
+
+        # Create template.yml
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": ["file1.txt"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        file1 = temp_dir / "file1.txt"
+        file1.write_text("content1")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Mock unlink to fail for the old history file
+        original_unlink = Path.unlink
+
+        def selective_unlink(self, *args, **kwargs):
+            if self.name == ".rhiza.history":
+                raise PermissionError("Cannot delete old history file")
+            return original_unlink(self, *args, **kwargs)
+
+        with patch.object(Path, "unlink", selective_unlink):
+            # Run materialize - should handle cleanup failure gracefully
+            materialize(tmp_path, "main", None, False)
+
+        # Verify old history file still exists (cleanup failed but was handled)
+        assert old_history_file.exists()
+
+        # Verify new history file was still created
+        assert new_history_file.exists()

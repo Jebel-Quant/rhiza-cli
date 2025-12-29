@@ -1,6 +1,6 @@
 """Tests for the validate command and CLI wiring.
 
-This module verifies that `validate` checks `.github/rhiza/template.yml` and that
+This module verifies that `validate` checks `.rhiza/template.yml` and that
 the Typer CLI entry `rhiza validate` behaves as expected across scenarios.
 """
 
@@ -19,6 +19,15 @@ class TestValidateCommand:
         result = validate(tmp_path)
         assert result is False
 
+    def test_validate_fails_on_missing_pyproject_toml(self, tmp_path):
+        """Test that validate fails when pyproject.toml doesn't exist."""
+        # Create git directory
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        result = validate(tmp_path)
+        assert result is False
+
     def test_validate_fails_on_missing_template_yml(self, tmp_path):
         """Test that validate fails when template.yml doesn't exist."""
         # Create git directory
@@ -34,8 +43,12 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
         # Create invalid YAML
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
         template_file.write_text("invalid: yaml: syntax: :")
@@ -49,8 +62,12 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
         # Create empty template
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
         template_file.write_text("")
@@ -64,8 +81,12 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
         # Create template without required fields
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -81,8 +102,12 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
         # Create template with invalid repository format
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -104,8 +129,12 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
         # Create template with empty include
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -127,8 +156,12 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
         # Create valid template
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -151,8 +184,12 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
         # Create valid template with exclude
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -170,16 +207,20 @@ class TestValidateCommand:
         result = validate(tmp_path)
         assert result is True
 
-    def test_validate_succeeds_with_old_template_location(self, tmp_path):
-        """Test that validate succeeds and warns when template.yml is in old location."""
+    def test_validate_succeeds_with_migrated_location(self, tmp_path):
+        """Test that validate succeeds when template.yml is in migrated .rhiza location."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
-        # Create valid template in old location (.github/template.yml)
-        github_dir = tmp_path / ".github"
-        github_dir.mkdir(parents=True)
-        template_file = github_dir / "template.yml"
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create valid template in migrated location (.rhiza/template.yml)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump(
@@ -202,7 +243,11 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -218,6 +263,96 @@ class TestValidateCommand:
         result = runner.invoke(cli.app, ["validate", str(tmp_path)])
         assert result.exit_code == 0
 
+    def test_validate_warns_on_missing_src_folder(self, tmp_path):
+        """Test that validate warns when src folder doesn't exist."""
+        # Setup git repo with valid template but no src folder
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        # Should still pass with warning (warnings don't fail validation)
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_warns_on_missing_tests_folder(self, tmp_path):
+        """Test that validate warns when tests folder doesn't exist."""
+        # Setup git repo with valid template but no tests folder
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create src folder but not tests folder
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        # Should still pass with warning (warnings don't fail validation)
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_succeeds_with_src_and_tests_folders(self, tmp_path):
+        """Test that validate succeeds when both src and tests folders exist."""
+        # Setup git repo with valid template and proper structure
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create src and tests folders
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is True
+
     def test_cli_validate_command_fails(self, tmp_path):
         """Test the CLI validate command fails on invalid template."""
         runner = CliRunner()
@@ -226,7 +361,7 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
         template_file.write_text("{}")
@@ -240,8 +375,12 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
         # Create template with wrong type for template-repository
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -263,8 +402,12 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
         # Create template with wrong type for include
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -286,8 +429,12 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
         # Create template with non-string items in include
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -310,8 +457,12 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
         # Create template with wrong type for template-branch
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -335,8 +486,12 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
         # Create template with wrong type for exclude
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -360,8 +515,12 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
         # Create template with non-string items in exclude
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -385,8 +544,12 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
         # Create template with gitlab host
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -409,8 +572,12 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
         # Create template with invalid host
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -434,8 +601,12 @@ class TestValidateCommand:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
         # Create template with wrong type for template-host
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -452,3 +623,18 @@ class TestValidateCommand:
         result = validate(tmp_path)
         # Should still pass with warning since template-host is optional
         assert result is True
+
+    def test_validate_fails_when_template_missing(self, tmp_path):
+        """Test that validate fails when template.yml is missing."""
+        # Setup git repo with pyproject.toml but no template.yml
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Don't create template.yml
+
+        result = validate(tmp_path)
+        assert result is False

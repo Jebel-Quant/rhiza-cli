@@ -1,11 +1,12 @@
 """Tests for the init command and CLI wiring.
 
-This module verifies that `init` creates/validates `.github/rhiza/template.yml` and
+This module verifies that `init` creates/validates `.rhiza/template.yml` and
 that the Typer CLI entry `rhiza init` works as expected.
 """
 
 from pathlib import Path
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -21,7 +22,7 @@ class TestInitCommand:
         init(tmp_path)
 
         # Verify template.yml was created
-        template_file = tmp_path / ".github" / "rhiza" / "template.yml"
+        template_file = tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
 
         # Verify it contains expected content
@@ -37,7 +38,7 @@ class TestInitCommand:
     def test_init_validates_existing_template_yml(self, tmp_path):
         """Test that init validates an existing template.yml."""
         # Create existing template.yml
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -64,7 +65,7 @@ class TestInitCommand:
     def test_init_warns_on_missing_template_repository(self, tmp_path):
         """Test that init warns when template-repository is missing."""
         # Create template.yml without template-repository
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -78,7 +79,7 @@ class TestInitCommand:
     def test_init_warns_on_missing_include(self, tmp_path):
         """Test that init warns when include field is missing or empty."""
         # Create template.yml without include
-        rhiza_dir = tmp_path / ".github" / "rhiza"
+        rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -88,16 +89,16 @@ class TestInitCommand:
         # Run init - should validate but warn
         init(tmp_path)
 
-    def test_init_creates_github_directory(self, tmp_path):
-        """Test that init creates .github directory if it doesn't exist."""
+    def test_init_creates_rhiza_directory(self, tmp_path):
+        """Test that init creates .rhiza directory if it doesn't exist."""
         init(tmp_path)
 
-        github_dir = tmp_path / ".github"
-        assert github_dir.exists()
-        assert github_dir.is_dir()
+        rhiza_dir = tmp_path / ".rhiza"
+        assert rhiza_dir.exists()
+        assert rhiza_dir.is_dir()
 
-    def test_init_migrates_old_template_location(self, tmp_path):
-        """Test that init migrates template.yml from old location to new location."""
+    def test_init_with_old_template_location(self, tmp_path):
+        """Test that init works when template.yml exists in old location."""
         # Create old location template.yml
         github_dir = tmp_path / ".github"
         github_dir.mkdir(parents=True)
@@ -113,20 +114,21 @@ class TestInitCommand:
                 f,
             )
 
-        # Run init - should migrate to new location
+        # Run init - should create new template in new location
         init(tmp_path)
 
-        # Verify template was copied to new location
-        new_template_file = tmp_path / ".github" / "rhiza" / "template.yml"
+        # Verify new template was created in new location
+        new_template_file = tmp_path / ".rhiza" / "template.yml"
         assert new_template_file.exists()
 
-        # Verify content was preserved
+        # Verify it has default content (not copied from old location)
         with open(new_template_file) as f:
             config = yaml.safe_load(f)
 
-        assert config["template-repository"] == "old/repo"
-        assert config["template-branch"] == "legacy"
-        assert "old-file" in config["include"]
+        assert config["template-repository"] == "jebel-quant/rhiza"
+
+        # Old file should still exist (not moved)
+        assert old_template_file.exists()
 
     def test_init_cli_command(self):
         """Test the CLI init command via Typer runner."""
@@ -134,7 +136,7 @@ class TestInitCommand:
         with runner.isolated_filesystem():
             result = runner.invoke(cli.app, ["init"])
             assert result.exit_code == 0
-            assert Path(".github/rhiza/template.yml").exists()
+            assert Path(".rhiza/template.yml").exists()
 
     def test_init_creates_correctly_formatted_files(self, tmp_path):
         """Test that init creates files with correct formatting (no indentation)."""
@@ -203,3 +205,88 @@ class TestInitCommand:
         assert "project" in data
         assert "name" in data["project"]
         assert data["project"]["name"] == tmp_path.name
+
+    def test_init_with_project_name_starting_with_digit(self, tmp_path):
+        """Test init with project name starting with a digit (auto-normalized package name)."""
+        # Don't pass package_name, so it will be auto-normalized from project_name
+        init(tmp_path, project_name="123project")
+
+        # Check that package name was normalized to _123project
+        assert (tmp_path / "src" / "_123project").exists()
+        assert (tmp_path / "src" / "_123project" / "__init__.py").exists()
+
+        # Check pyproject.toml references the normalized package
+        pyproject_file = tmp_path / "pyproject.toml"
+        content = pyproject_file.read_text()
+        assert 'packages = ["src/_123project"]' in content
+
+    def test_init_with_project_name_as_keyword(self, tmp_path):
+        """Test init with project name that is a Python keyword (auto-normalized package name)."""
+        # Don't pass package_name, so it will be auto-normalized from project_name
+        init(tmp_path, project_name="class")
+
+        # Check that package name was normalized to class_
+        assert (tmp_path / "src" / "class_").exists()
+        assert (tmp_path / "src" / "class_" / "__init__.py").exists()
+
+        # Check pyproject.toml references the normalized package
+        pyproject_file = tmp_path / "pyproject.toml"
+        content = pyproject_file.read_text()
+        assert 'packages = ["src/class_"]' in content
+
+    def test_init_with_github_explicit(self, tmp_path):
+        """Test init with explicitly specified GitHub target platform."""
+        init(tmp_path, git_host="github")
+
+        # Verify template.yml was created
+        template_file = tmp_path / ".rhiza" / "template.yml"
+        assert template_file.exists()
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        # template-host should not appear (defaults to github for template repo)
+        assert "template-host" not in config
+        # Should include .github for GitHub target
+        assert ".github" in config["include"]
+        assert ".gitlab-ci.yml" not in config["include"]
+
+    def test_init_with_gitlab_explicit(self, tmp_path):
+        """Test init with explicitly specified GitLab target platform."""
+        init(tmp_path, git_host="gitlab")
+
+        # Verify template.yml was created
+        template_file = tmp_path / ".rhiza" / "template.yml"
+        assert template_file.exists()
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        # template-host should not appear because template repo is still on GitHub
+        # We only change the include list based on target platform
+        assert "template-host" not in config
+        # Should include .gitlab-ci.yml for GitLab target
+        assert ".gitlab-ci.yml" in config["include"]
+        # Should NOT include .github for GitLab target
+        assert ".github" not in config["include"]
+
+    def test_init_with_invalid_git_host(self, tmp_path):
+        """Test init with invalid git-host raises error."""
+        with pytest.raises(ValueError, match="Invalid git-host"):
+            init(tmp_path, git_host="bitbucket")
+
+    def test_init_with_git_host_case_insensitive(self, tmp_path):
+        """Test init with git-host is case insensitive."""
+        init(tmp_path, git_host="GitLab")
+
+        # Verify template.yml was created
+        template_file = tmp_path / ".rhiza" / "template.yml"
+        assert template_file.exists()
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        # Should include .gitlab-ci.yml for GitLab target
+        assert ".gitlab-ci.yml" in config["include"]
+        # Should NOT include .github for GitLab target
+        assert ".github" not in config["include"]

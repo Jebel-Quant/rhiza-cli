@@ -3,7 +3,7 @@
 This module implements the `materialize` command. It performs a sparse
 checkout of the configured template repository, copies the selected files
 into the target Git repository, and records managed files in
-`.rhiza.history`. Use this to take a one-shot snapshot of template files.
+`.rhiza/history`. Use this to take a one-shot snapshot of template files.
 """
 
 import os
@@ -15,7 +15,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from rhiza.commands import init
+from rhiza.commands.validate import validate
 from rhiza.models import RhizaTemplate
 
 
@@ -54,7 +54,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
 
     This performs a sparse checkout of the template repository and copies the
     selected files into the target repository, recording all files under
-    template control in `.rhiza.history`.
+    template control in `.rhiza/history`.
 
     Args:
         target (Path): Path to the target repository.
@@ -116,11 +116,11 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
             sys.exit(1)
 
     # -----------------------
-    # Ensure Rhiza is initialized
+    # Validate Rhiza configuration
     # -----------------------
-    # The init function creates template.yml if missing and validates it
+    # The validate function checks if template.yml exists and is valid
     # Returns True if valid, False otherwise
-    valid = init(target)
+    valid = validate(target)
 
     if not valid:
         logger.error(f"Rhiza template is invalid in: {target}")
@@ -128,8 +128,8 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         sys.exit(1)
 
     # Load the template configuration from the validated file
-    template_file = target / ".github" / "rhiza" / "template.yml"
-    logger.debug(f"Loading template configuration from: {template_file}")
+    # Validation ensures the file exists at .rhiza/template.yml
+    template_file = target / ".rhiza" / "template.yml"
     template = RhizaTemplate.from_yaml(template_file)
 
     # Extract template configuration settings
@@ -323,13 +323,26 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     # -----------------------
     # Clean up orphaned files
     # -----------------------
-    # Read the old .rhiza.history file to find files that are no longer
+    # Read the old history file to find files that are no longer
     # part of the current materialization and should be deleted
-    history_file = target / ".rhiza.history"
+    # Check both new and old locations for backward compatibility
+    new_history_file = target / ".rhiza" / "history"
+    old_history_file = target / ".rhiza.history"
+
+    # Prefer new location, but check old location for migration
+    if new_history_file.exists():
+        history_file = new_history_file
+        logger.debug(f"Reading existing history file from new location: {history_file.relative_to(target)}")
+    elif old_history_file.exists():
+        history_file = old_history_file
+        logger.debug(f"Reading existing history file from old location: {history_file.relative_to(target)}")
+    else:
+        history_file = new_history_file  # Default to new location for creation
+        logger.debug("No existing history file found, will create new one")
+
     previously_tracked_files: set[Path] = set()
 
     if history_file.exists():
-        logger.debug("Reading existing .rhiza.history file")
         with history_file.open("r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
@@ -337,7 +350,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                 if line and not line.startswith("#"):
                     previously_tracked_files.add(Path(line))
 
-        logger.debug(f"Found {len(previously_tracked_files)} file(s) in previous .rhiza.history")
+        logger.debug(f"Found {len(previously_tracked_files)} file(s) in previous history")
 
     # Convert materialized_files list to a set for comparison
     currently_materialized_files = set(materialized_files)
@@ -361,11 +374,17 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         logger.debug("No orphaned files to clean up")
 
     # -----------------------
-    # Write .rhiza.history
+    # Write history file
     # -----------------------
     # This file tracks which files were materialized by Rhiza
     # Useful for understanding which files came from the template
-    logger.debug("Writing .rhiza.history file")
+    # Always write to new location (.rhiza/history)
+    history_file = target / ".rhiza" / "history"
+
+    # Ensure .rhiza directory exists
+    history_file.parent.mkdir(parents=True, exist_ok=True)
+
+    logger.debug(f"Writing history file: {history_file.relative_to(target)}")
     with history_file.open("w", encoding="utf-8") as f:
         f.write("# Rhiza Template History\n")
         f.write("# This file lists all files managed by the Rhiza template.\n")
@@ -378,6 +397,15 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
             f.write(f"{file_path}\n")
 
     logger.info(f"Updated {history_file.relative_to(target)} with {len(materialized_files)} file(s)")
+
+    # Clean up old history file if it exists (migration)
+    old_history_file = target / ".rhiza.history"
+    if old_history_file.exists() and old_history_file != history_file:
+        try:
+            old_history_file.unlink()
+            logger.debug(f"Removed old history file: {old_history_file.relative_to(target)}")
+        except Exception as e:
+            logger.warning(f"Could not remove old history file: {e}")
 
     logger.success("Rhiza templates materialized successfully")
 
