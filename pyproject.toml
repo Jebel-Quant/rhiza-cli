@@ -47,6 +47,7 @@ dev = [
     "marimo==0.18.4",
     "pdoc>=16.0.0",
 ]
+tools = ["rhiza-tools"]
 
 [tool.hatch.build.targets.wheel]
 # Use src-layout: package code is under src/config
@@ -64,3 +65,6 @@ pythonpath = ["src"]
 
 [project.scripts]
 rhiza = "rhiza.__main__:app"
+
+[tool.deptry.per_rule_ignores]
+DEP002 = ["rhiza-tools"]
