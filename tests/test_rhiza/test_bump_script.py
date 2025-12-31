@@ -55,7 +55,9 @@ def test_bump_commit_push(git_repo, git_executable):
     assert "Pushed to origin/master" in result.stdout
 
     # Verify commit on remote
-    remote_log = subprocess.check_output([git_executable, "log", "origin/master", "-1", "--pretty=%B"], cwd=git_repo, text=True)
+    remote_log = subprocess.check_output(
+        [git_executable, "log", "origin/master", "-1", "--pretty=%B"], cwd=git_repo, text=True
+    )
     assert "chore: bump version to 0.1.1" in remote_log
 
 

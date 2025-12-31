@@ -22,6 +22,7 @@ def git_executable():
     """Provide the absolute path to git executable for all tests."""
     return get_git_executable()
 
+
 MOCK_MAKE_SCRIPT = """#!/usr/bin/env python3
 import sys
 
