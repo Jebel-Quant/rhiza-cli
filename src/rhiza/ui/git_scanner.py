@@ -237,17 +237,33 @@ class GitRepositoryScanner:
             }
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr if e.stderr else str(e)
+            logger.error(
+                "Git operation '{operation}' failed for repository '{repo_name}': {error}",
+                operation=operation,
+                repo_name=repo_name,
+                error=error_msg,
+            )
             return {
                 "success": False,
-                "message": f"{operation} failed: {error_msg}",
+                "message": f"{operation} failed due to an internal error",
             }
         except subprocess.TimeoutExpired:
+            logger.error(
+                "Git operation '{operation}' timed out for repository '{repo_name}'",
+                operation=operation,
+                repo_name=repo_name,
+            )
             return {
                 "success": False,
                 "message": f"{operation} timed out",
             }
         except Exception as e:
+            logger.exception(
+                "Unexpected error during git operation '{operation}' for repository '{repo_name}'",
+                operation=operation,
+                repo_name=repo_name,
+            )
             return {
                 "success": False,
-                "message": f"{operation} error: {e!s}",
+                "message": f"{operation} encountered an internal error",
             }
