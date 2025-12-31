@@ -17,6 +17,7 @@ from loguru import logger
 
 from rhiza.commands.validate import validate
 from rhiza.models import RhizaTemplate
+from rhiza.subprocess_utils import get_git_executable
 
 
 def __expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
@@ -69,6 +70,11 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     logger.info(f"Target repository: {target}")
     logger.info(f"Rhiza branch: {branch}")
 
+    # Get absolute path to git executable for security
+    # Using absolute paths prevents PATH manipulation attacks
+    git_executable = get_git_executable()
+    logger.debug(f"Using git executable: {git_executable}")
+
     # Set environment to prevent git from prompting for credentials
     # This ensures non-interactive behavior during git operations
     git_env = os.environ.copy()
@@ -86,7 +92,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
             # Check if branch already exists using git rev-parse
             # Returns 0 if the branch exists, non-zero otherwise
             result = subprocess.run(
-                ["git", "rev-parse", "--verify", target_branch],
+                [git_executable, "rev-parse", "--verify", target_branch],
                 cwd=target,
                 capture_output=True,
                 text=True,
@@ -97,7 +103,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                 # Branch exists, switch to it
                 logger.info(f"Branch '{target_branch}' exists, checking out...")
                 subprocess.run(
-                    ["git", "checkout", target_branch],
+                    [git_executable, "checkout", target_branch],
                     cwd=target,
                     check=True,
                     env=git_env,
@@ -106,7 +112,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                 # Branch doesn't exist, create it from current HEAD
                 logger.info(f"Creating new branch '{target_branch}'...")
                 subprocess.run(
-                    ["git", "checkout", "-b", target_branch],
+                    [git_executable, "checkout", "-b", target_branch],
                     cwd=target,
                     check=True,
                     env=git_env,
@@ -195,7 +201,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
             logger.debug("Executing git clone with sparse checkout")
             subprocess.run(
                 [
-                    "git",
+                    git_executable,
                     "clone",
                     "--depth",
                     "1",
@@ -224,7 +230,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         try:
             logger.debug("Initializing sparse checkout")
             subprocess.run(
-                ["git", "sparse-checkout", "init", "--cone"],
+                [git_executable, "sparse-checkout", "init", "--cone"],
                 cwd=tmp_dir,
                 check=True,
                 capture_output=True,
@@ -243,7 +249,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         try:
             logger.debug(f"Setting sparse checkout paths: {include_paths}")
             subprocess.run(
-                ["git", "sparse-checkout", "set", "--skip-checks", *include_paths],
+                [git_executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
                 cwd=tmp_dir,
                 check=True,
                 capture_output=True,

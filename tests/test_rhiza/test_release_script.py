@@ -11,7 +11,7 @@ to avoid external dependencies.
 import subprocess
 
 
-def test_release_creates_tag(git_repo):
+def test_release_creates_tag(git_repo, git_executable):
     """Release creates a tag."""
     script = git_repo / ".rhiza" / "scripts" / "release.sh"
 
@@ -24,7 +24,7 @@ def test_release_creates_tag(git_repo):
 
     # Verify the tag exists
     verify_result = subprocess.run(
-        ["git", "tag", "-l", "v0.1.0"],
+        [git_executable, "tag", "-l", "v0.1.0"],
         cwd=git_repo,
         capture_output=True,
         text=True,
@@ -32,12 +32,12 @@ def test_release_creates_tag(git_repo):
     assert "v0.1.0" in verify_result.stdout
 
 
-def test_release_fails_if_local_tag_exists(git_repo):
+def test_release_fails_if_local_tag_exists(git_repo, git_executable):
     """If the target tag already exists locally, release should warn and abort if user says no."""
     script = git_repo / ".rhiza" / "scripts" / "release.sh"
 
     # Create a local tag that matches current version
-    subprocess.run(["git", "tag", "v0.1.0"], cwd=git_repo, check=True)
+    subprocess.run([git_executable, "tag", "v0.1.0"], cwd=git_repo, check=True)
 
     # Input 'n' to abort
     result = subprocess.run([str(script)], cwd=git_repo, input="n\n", capture_output=True, text=True)
@@ -47,13 +47,13 @@ def test_release_fails_if_local_tag_exists(git_repo):
     assert "Aborted by user" in result.stdout
 
 
-def test_release_fails_if_remote_tag_exists(git_repo):
+def test_release_fails_if_remote_tag_exists(git_repo, git_executable):
     """Release fails if tag exists on remote."""
     script = git_repo / ".rhiza" / "scripts" / "release.sh"
 
     # Create tag locally and push to remote
-    subprocess.run(["git", "tag", "v0.1.0"], cwd=git_repo, check=True)
-    subprocess.run(["git", "push", "origin", "v0.1.0"], cwd=git_repo, check=True)
+    subprocess.run([git_executable, "tag", "v0.1.0"], cwd=git_repo, check=True)
+    subprocess.run([git_executable, "push", "origin", "v0.1.0"], cwd=git_repo, check=True)
 
     result = subprocess.run([str(script)], cwd=git_repo, input="y\n", capture_output=True, text=True)
 
@@ -75,15 +75,15 @@ def test_release_uncommitted_changes_failure(git_repo):
     assert "You have uncommitted changes" in result.stdout
 
 
-def test_release_pushes_if_ahead_of_remote(git_repo):
+def test_release_pushes_if_ahead_of_remote(git_repo, git_executable):
     """Release prompts to push if local branch is ahead of remote."""
     script = git_repo / ".rhiza" / "scripts" / "release.sh"
 
     # Create a commit locally that isn't on remote
     tracked_file = git_repo / "file.txt"
     tracked_file.touch()
-    subprocess.run(["git", "add", "file.txt"], cwd=git_repo, check=True)
-    subprocess.run(["git", "commit", "-m", "Local commit"], cwd=git_repo, check=True)
+    subprocess.run([git_executable, "add", "file.txt"], cwd=git_repo, check=True)
+    subprocess.run([git_executable, "commit", "-m", "Local commit"], cwd=git_repo, check=True)
 
     # Run release
     # 1. Prompts to push -> y
@@ -98,25 +98,25 @@ def test_release_pushes_if_ahead_of_remote(git_repo):
     assert "Push changes to remote before releasing?" in result.stdout
 
 
-def test_release_fails_if_behind_remote(git_repo):
+def test_release_fails_if_behind_remote(git_repo, git_executable):
     """Release fails if local branch is behind remote."""
     script = git_repo / ".rhiza" / "scripts" / "release.sh"
 
     # Create a commit on remote that isn't local
     # We need to clone another repo to push to remote
     other_clone = git_repo.parent / "other_clone"
-    subprocess.run(["git", "clone", str(git_repo.parent / "remote.git"), str(other_clone)], check=True)
+    subprocess.run([git_executable, "clone", str(git_repo.parent / "remote.git"), str(other_clone)], check=True)
 
     # Configure git user for other_clone (needed in CI)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=other_clone, check=True)
-    subprocess.run(["git", "config", "user.name", "Test User"], cwd=other_clone, check=True)
+    subprocess.run([git_executable, "config", "user.email", "test@example.com"], cwd=other_clone, check=True)
+    subprocess.run([git_executable, "config", "user.name", "Test User"], cwd=other_clone, check=True)
 
     # Commit and push from other clone
     with open(other_clone / "other.txt", "w") as f:
         f.write("content")
-    subprocess.run(["git", "add", "other.txt"], cwd=other_clone, check=True)
-    subprocess.run(["git", "commit", "-m", "Remote commit"], cwd=other_clone, check=True)
-    subprocess.run(["git", "push"], cwd=other_clone, check=True)
+    subprocess.run([git_executable, "add", "other.txt"], cwd=other_clone, check=True)
+    subprocess.run([git_executable, "commit", "-m", "Remote commit"], cwd=other_clone, check=True)
+    subprocess.run([git_executable, "push"], cwd=other_clone, check=True)
 
     # Run release (it will fetch and see it's behind)
     result = subprocess.run([str(script)], cwd=git_repo, capture_output=True, text=True)

@@ -753,10 +753,15 @@ class TestInjectCommand:
         materialize(tmp_path, "main", "feature/test-branch", False)
 
         # Verify git checkout -b was called to create the branch
+        # Check that checkout -b command was called with the branch name
         checkout_calls = [
             call
             for call in mock_subprocess.call_args_list
-            if len(call[0]) > 0 and call[0][0] == ["git", "checkout", "-b", "feature/test-branch"]
+            if len(call[0]) > 0
+            and len(call[0][0]) > 3
+            and "checkout" in call[0][0]
+            and "-b" in call[0][0]
+            and "feature/test-branch" in call[0][0]
         ]
         assert len(checkout_calls) > 0, "Expected git checkout -b feature/test-branch to be called"
 
@@ -811,10 +816,15 @@ class TestInjectCommand:
         materialize(tmp_path, "main", "existing-branch", False)
 
         # Verify git checkout (without -b) was called to checkout existing branch
+        # Check that checkout command (without -b) was called with the branch name
         checkout_calls = [
             call
             for call in mock_subprocess.call_args_list
-            if len(call[0]) > 0 and call[0][0] == ["git", "checkout", "existing-branch"]
+            if len(call[0]) > 0
+            and len(call[0][0]) > 2
+            and "checkout" in call[0][0]
+            and "existing-branch" in call[0][0]
+            and "-b" not in call[0][0]
         ]
         assert len(checkout_calls) > 0, "Expected git checkout existing-branch to be called"
 
@@ -1503,3 +1513,95 @@ class TestInjectCommand:
 
         # Verify new history file was still created
         assert new_history_file.exists()
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    @patch("rhiza.subprocess_utils.shutil.which")
+    def test_materialize_uses_absolute_git_path(
+        self, mock_which, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize uses absolute path for git executable (security fix)."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create template.yml with valid configuration
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": ["test.txt"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        test_file = temp_dir / "test.txt"
+        test_file.write_text("content")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock shutil.which to return an absolute path
+        mock_which.return_value = "/usr/bin/git"
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize
+        materialize(tmp_path, "main", None, False)
+
+        # Verify shutil.which was called to resolve git path
+        mock_which.assert_called_once_with("git")
+
+        # Verify all subprocess calls use the absolute git path, not "git"
+        for call in mock_subprocess.call_args_list:
+            args = call[0][0]  # Get the command list
+            if args:  # If there are arguments
+                # First argument should be the absolute path, not "git"
+                assert args[0] == "/usr/bin/git", f"Expected absolute path '/usr/bin/git', got '{args[0]}'"
+                assert args[0] != "git", "Should not use relative 'git' command"
+
+    @patch("rhiza.subprocess_utils.shutil.which")
+    def test_materialize_fails_when_git_not_found(self, mock_which, tmp_path):
+        """Test that materialize fails gracefully when git executable is not found."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create template.yml with valid configuration
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": ["test.txt"],
+                },
+                f,
+            )
+
+        # Mock shutil.which to return None (git not found)
+        mock_which.return_value = None
+
+        # Run materialize and expect it to fail with RuntimeError
+        with pytest.raises(RuntimeError, match="git executable not found in PATH"):
+            materialize(tmp_path, "main", None, False)
