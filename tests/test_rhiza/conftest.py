@@ -16,6 +16,12 @@ import pytest
 
 from rhiza.subprocess_utils import get_git_executable
 
+
+@pytest.fixture(scope="session")
+def git_executable():
+    """Provide the absolute path to git executable for all tests."""
+    return get_git_executable()
+
 MOCK_MAKE_SCRIPT = """#!/usr/bin/env python3
 import sys
 
@@ -153,13 +159,10 @@ def logger():
 
 
 @pytest.fixture
-def git_repo(root, tmp_path, monkeypatch):
+def git_repo(root, tmp_path, monkeypatch, git_executable):
     """Sets up a remote bare repo and a local clone with necessary files."""
     remote_dir = tmp_path / "remote.git"
     local_dir = tmp_path / "local"
-
-    # Get absolute path to git executable for security
-    git_executable = get_git_executable()
 
     # 1. Create bare remote
     remote_dir.mkdir()

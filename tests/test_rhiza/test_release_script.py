@@ -10,13 +10,10 @@ to avoid external dependencies.
 
 import subprocess
 
-from rhiza.subprocess_utils import get_git_executable
 
-
-def test_release_creates_tag(git_repo):
+def test_release_creates_tag(git_repo, git_executable):
     """Release creates a tag."""
     script = git_repo / ".rhiza" / "scripts" / "release.sh"
-    git_executable = get_git_executable()
 
     # Run release
     # 1. Prompts to create tag -> y
@@ -35,10 +32,9 @@ def test_release_creates_tag(git_repo):
     assert "v0.1.0" in verify_result.stdout
 
 
-def test_release_fails_if_local_tag_exists(git_repo):
+def test_release_fails_if_local_tag_exists(git_repo, git_executable):
     """If the target tag already exists locally, release should warn and abort if user says no."""
     script = git_repo / ".rhiza" / "scripts" / "release.sh"
-    git_executable = get_git_executable()
 
     # Create a local tag that matches current version
     subprocess.run([git_executable, "tag", "v0.1.0"], cwd=git_repo, check=True)
@@ -51,10 +47,9 @@ def test_release_fails_if_local_tag_exists(git_repo):
     assert "Aborted by user" in result.stdout
 
 
-def test_release_fails_if_remote_tag_exists(git_repo):
+def test_release_fails_if_remote_tag_exists(git_repo, git_executable):
     """Release fails if tag exists on remote."""
     script = git_repo / ".rhiza" / "scripts" / "release.sh"
-    git_executable = get_git_executable()
 
     # Create tag locally and push to remote
     subprocess.run([git_executable, "tag", "v0.1.0"], cwd=git_repo, check=True)
@@ -80,10 +75,9 @@ def test_release_uncommitted_changes_failure(git_repo):
     assert "You have uncommitted changes" in result.stdout
 
 
-def test_release_pushes_if_ahead_of_remote(git_repo):
+def test_release_pushes_if_ahead_of_remote(git_repo, git_executable):
     """Release prompts to push if local branch is ahead of remote."""
     script = git_repo / ".rhiza" / "scripts" / "release.sh"
-    git_executable = get_git_executable()
 
     # Create a commit locally that isn't on remote
     tracked_file = git_repo / "file.txt"
@@ -104,10 +98,9 @@ def test_release_pushes_if_ahead_of_remote(git_repo):
     assert "Push changes to remote before releasing?" in result.stdout
 
 
-def test_release_fails_if_behind_remote(git_repo):
+def test_release_fails_if_behind_remote(git_repo, git_executable):
     """Release fails if local branch is behind remote."""
     script = git_repo / ".rhiza" / "scripts" / "release.sh"
-    git_executable = get_git_executable()
 
     # Create a commit on remote that isn't local
     # We need to clone another repo to push to remote

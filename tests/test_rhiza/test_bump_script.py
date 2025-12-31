@@ -10,8 +10,6 @@ import subprocess
 
 import pytest
 
-from rhiza.subprocess_utils import get_git_executable
-
 
 @pytest.mark.parametrize(
     "choice, expected_version",
@@ -21,10 +19,9 @@ from rhiza.subprocess_utils import get_git_executable
         ("3", "1.0.0"),  # major
     ],
 )
-def test_bump_updates_version_no_commit(git_repo, choice, expected_version):
+def test_bump_updates_version_no_commit(git_repo, git_executable, choice, expected_version):
     """Running `bump` interactively updates pyproject.toml correctly."""
     script = git_repo / ".rhiza" / "scripts" / "bump.sh"
-    git_executable = get_git_executable()
 
     # Input: choice -> n (no commit)
     input_str = f"{choice}\nn\n"
@@ -44,10 +41,9 @@ def test_bump_updates_version_no_commit(git_repo, choice, expected_version):
     assert f"v{expected_version}" not in tags
 
 
-def test_bump_commit_push(git_repo):
+def test_bump_commit_push(git_repo, git_executable):
     """Bump with commit and push."""
     script = git_repo / ".rhiza" / "scripts" / "bump.sh"
-    git_executable = get_git_executable()
 
     # Input: 1 (patch) -> y (commit) -> y (push)
     input_str = "1\ny\ny\n"
@@ -63,10 +59,9 @@ def test_bump_commit_push(git_repo):
     assert "chore: bump version to 0.1.1" in remote_log
 
 
-def test_uncommitted_changes_failure(git_repo):
+def test_uncommitted_changes_failure(git_repo, git_executable):
     """Script fails if there are uncommitted changes."""
     script = git_repo / ".rhiza" / "scripts" / "bump.sh"
-    git_executable = get_git_executable()
 
     # Create a tracked file and commit it
     tracked_file = git_repo / "tracked_file.txt"
@@ -125,10 +120,9 @@ def test_bump_explicit_version_invalid(git_repo):
     assert f"Invalid version format: {version}" in result.stdout
 
 
-def test_bump_fails_existing_tag(git_repo):
+def test_bump_fails_existing_tag(git_repo, git_executable):
     """Bump fails if tag already exists."""
     script = git_repo / ".rhiza" / "scripts" / "bump.sh"
-    git_executable = get_git_executable()
 
     # Create tag v0.1.1
     subprocess.run([git_executable, "tag", "v0.1.1"], cwd=git_repo, check=True)
@@ -141,10 +135,9 @@ def test_bump_fails_existing_tag(git_repo):
     assert "Tag 'v0.1.1' already exists locally" in result.stdout
 
 
-def test_warn_on_non_default_branch(git_repo):
+def test_warn_on_non_default_branch(git_repo, git_executable):
     """Script warns if not on default branch."""
     script = git_repo / ".rhiza" / "scripts" / "bump.sh"
-    git_executable = get_git_executable()
 
     # Create and switch to new branch
     subprocess.run([git_executable, "checkout", "-b", "feature"], cwd=git_repo, check=True)
