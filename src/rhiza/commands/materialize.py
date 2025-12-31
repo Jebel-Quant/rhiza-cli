@@ -19,6 +19,25 @@ from rhiza.commands.validate import validate
 from rhiza.models import RhizaTemplate
 
 
+def __get_git_executable() -> str:
+    """Get the absolute path to the git executable.
+
+    This function ensures we use the full path to git to prevent
+    security issues related to PATH manipulation.
+
+    Returns:
+        str: Absolute path to the git executable.
+
+    Raises:
+        RuntimeError: If git executable is not found in PATH.
+    """
+    git_path = shutil.which("git")
+    if git_path is None:
+        msg = "git executable not found in PATH. Please ensure git is installed and available."
+        raise RuntimeError(msg)
+    return git_path
+
+
 def __expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
     """Expand files/directories relative to base_dir into a flat list of files.
 
@@ -69,6 +88,11 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     logger.info(f"Target repository: {target}")
     logger.info(f"Rhiza branch: {branch}")
 
+    # Get absolute path to git executable for security
+    # Using absolute paths prevents PATH manipulation attacks
+    git_executable = __get_git_executable()
+    logger.debug(f"Using git executable: {git_executable}")
+
     # Set environment to prevent git from prompting for credentials
     # This ensures non-interactive behavior during git operations
     git_env = os.environ.copy()
@@ -86,7 +110,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
             # Check if branch already exists using git rev-parse
             # Returns 0 if the branch exists, non-zero otherwise
             result = subprocess.run(
-                ["git", "rev-parse", "--verify", target_branch],
+                [git_executable, "rev-parse", "--verify", target_branch],
                 cwd=target,
                 capture_output=True,
                 text=True,
@@ -97,7 +121,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                 # Branch exists, switch to it
                 logger.info(f"Branch '{target_branch}' exists, checking out...")
                 subprocess.run(
-                    ["git", "checkout", target_branch],
+                    [git_executable, "checkout", target_branch],
                     cwd=target,
                     check=True,
                     env=git_env,
@@ -106,7 +130,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                 # Branch doesn't exist, create it from current HEAD
                 logger.info(f"Creating new branch '{target_branch}'...")
                 subprocess.run(
-                    ["git", "checkout", "-b", target_branch],
+                    [git_executable, "checkout", "-b", target_branch],
                     cwd=target,
                     check=True,
                     env=git_env,
@@ -195,7 +219,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
             logger.debug("Executing git clone with sparse checkout")
             subprocess.run(
                 [
-                    "git",
+                    git_executable,
                     "clone",
                     "--depth",
                     "1",
@@ -224,7 +248,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         try:
             logger.debug("Initializing sparse checkout")
             subprocess.run(
-                ["git", "sparse-checkout", "init", "--cone"],
+                [git_executable, "sparse-checkout", "init", "--cone"],
                 cwd=tmp_dir,
                 check=True,
                 capture_output=True,
@@ -243,7 +267,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         try:
             logger.debug(f"Setting sparse checkout paths: {include_paths}")
             subprocess.run(
-                ["git", "sparse-checkout", "set", "--skip-checks", *include_paths],
+                [git_executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
                 cwd=tmp_dir,
                 check=True,
                 capture_output=True,
