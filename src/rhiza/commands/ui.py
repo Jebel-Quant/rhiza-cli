@@ -111,7 +111,7 @@ def _launch_web_ui(folder: Path, port: int, no_browser: bool) -> None:
     # Start server
     logger.info("Rhiza Web UI is running. Press Ctrl+C to stop.")
     try:
-        app.run(host="0.0.0.0", port=port, debug=False)
+        app.run(host="127.0.0.1", port=port, debug=False)
     except KeyboardInterrupt:
         logger.info("Shutting down Rhiza Web UI...")
     except Exception as e:
