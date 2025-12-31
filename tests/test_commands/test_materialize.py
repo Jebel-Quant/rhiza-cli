@@ -757,7 +757,11 @@ class TestInjectCommand:
         checkout_calls = [
             call
             for call in mock_subprocess.call_args_list
-            if len(call[0]) > 0 and len(call[0][0]) > 3 and "checkout" in call[0][0] and "-b" in call[0][0] and "feature/test-branch" in call[0][0]
+            if len(call[0]) > 0
+            and len(call[0][0]) > 3
+            and "checkout" in call[0][0]
+            and "-b" in call[0][0]
+            and "feature/test-branch" in call[0][0]
         ]
         assert len(checkout_calls) > 0, "Expected git checkout -b feature/test-branch to be called"
 
@@ -816,7 +820,11 @@ class TestInjectCommand:
         checkout_calls = [
             call
             for call in mock_subprocess.call_args_list
-            if len(call[0]) > 0 and len(call[0][0]) > 2 and "checkout" in call[0][0] and "existing-branch" in call[0][0] and "-b" not in call[0][0]
+            if len(call[0]) > 0
+            and len(call[0][0]) > 2
+            and "checkout" in call[0][0]
+            and "existing-branch" in call[0][0]
+            and "-b" not in call[0][0]
         ]
         assert len(checkout_calls) > 0, "Expected git checkout existing-branch to be called"
 
