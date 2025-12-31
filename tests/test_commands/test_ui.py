@@ -227,10 +227,14 @@ class TestGitRepositoryScanner:
             assert "timed out" in result["message"].lower()
 
 
-@pytest.mark.skipif(
-    not pytest.importorskip("textual", reason="Textual not installed"),
-    reason="Textual not installed",
-)
+try:
+    import textual
+    TEXTUAL_AVAILABLE = True
+except ImportError:
+    TEXTUAL_AVAILABLE = False
+
+
+@pytest.mark.skipif(not TEXTUAL_AVAILABLE, reason="Textual not installed")
 class TestTextualUI:
     """Tests for Textual TUI functionality."""
 
@@ -244,10 +248,14 @@ class TestTextualUI:
         assert len(app.BINDINGS) == 5
 
 
-@pytest.mark.skipif(
-    not pytest.importorskip("flask", reason="Flask not installed"),
-    reason="Flask not installed",
-)
+try:
+    import flask
+    FLASK_AVAILABLE = True
+except ImportError:
+    FLASK_AVAILABLE = False
+
+
+@pytest.mark.skipif(not FLASK_AVAILABLE, reason="Flask not installed")
 class TestUIServer:
     """Tests for UI server functionality."""
 
