@@ -37,23 +37,23 @@ class RepoCard(Static):
         }
         status = self.repo_info["status"]
         status_color = status_colors.get(status, "white")
+        
+        # Create compact single-line info strings
+        changes_icon = "⚠️" if self.repo_info['has_changes'] else "✅"
+        ahead_behind = f"↑{self.repo_info['ahead']} ↓{self.repo_info['behind']}" if self.repo_info['has_remote'] else "no remote"
 
         yield Container(
-            Label(f"📁 {self.repo_info['name']}", classes="repo-name"),
-            Label(f"[{status_color}]{status.upper()}[/]", classes="repo-status"),
-            Container(
-                Label(f"Branch: [cyan]{self.repo_info['branch']}[/]"),
-                Label(f"Ahead/Behind: ↑{self.repo_info['ahead']} / ↓{self.repo_info['behind']}"),
-                Label(f"Last commit: {self.repo_info['last_commit_date']}"),
-                Label(f"Changes: {'⚠️ Yes' if self.repo_info['has_changes'] else '✅ No'}"),
-                classes="repo-info",
-            ),
-            Label(f"💬 {self.repo_info['last_commit_msg']}", classes="commit-msg"),
             Horizontal(
-                Button("Fetch", variant="primary", id=f"fetch-{self.repo_info['name']}"),
-                Button("Pull", variant="success", id=f"pull-{self.repo_info['name']}"),
-                Button("Push", variant="warning", id=f"push-{self.repo_info['name']}"),
-                Button("Status", variant="default", id=f"status-{self.repo_info['name']}"),
+                Label(f"📁 {self.repo_info['name']}", classes="repo-name"),
+                Label(f"[{status_color}]●[/] {status.upper()}", classes="repo-status"),
+            ),
+            Label(f"🌿 [cyan]{self.repo_info['branch']}[/] │ {changes_icon} │ {ahead_behind} │ 🕐 {self.repo_info['last_commit_date']}"),
+            Label(f"💬 {self.repo_info['last_commit_msg'][:80]}...", classes="commit-msg") if len(self.repo_info['last_commit_msg']) > 80 else Label(f"💬 {self.repo_info['last_commit_msg']}", classes="commit-msg"),
+            Horizontal(
+                Button("📥 Fetch", variant="primary", id=f"fetch-{self.repo_info['name']}"),
+                Button("⬇️ Pull", variant="success", id=f"pull-{self.repo_info['name']}"),
+                Button("⬆️ Push", variant="warning", id=f"push-{self.repo_info['name']}"),
+                Button("📊 Status", variant="default", id=f"status-{self.repo_info['name']}"),
                 classes="repo-actions",
             ),
             classes="repo-card",
@@ -72,11 +72,11 @@ class StatsBar(Static):
     def compose(self) -> ComposeResult:
         """Compose the stats bar UI."""
         yield Horizontal(
-            Static(f"Total: [bold cyan]{self.total_repos}[/]", classes="stat"),
-            Static(f"Clean: [bold green]{self.clean_repos}[/]", classes="stat"),
-            Static(f"Changes: [bold yellow]{self.changed_repos}[/]", classes="stat"),
-            Static(f"Ahead: [bold blue]{self.ahead_repos}[/]", classes="stat"),
-            Static(f"Behind: [bold red]{self.behind_repos}[/]", classes="stat"),
+            Static(f"📊 Total: [bold cyan]{self.total_repos}[/]", classes="stat"),
+            Static(f"✅ Clean: [bold green]{self.clean_repos}[/]", classes="stat"),
+            Static(f"⚠️ Changes: [bold yellow]{self.changed_repos}[/]", classes="stat"),
+            Static(f"⬆️ Ahead: [bold blue]{self.ahead_repos}[/]", classes="stat"),
+            Static(f"⬇️ Behind: [bold red]{self.behind_repos}[/]", classes="stat"),
             classes="stats-bar",
         )
 
@@ -103,9 +103,11 @@ class RhizaApp(App):
 
     .repo-card {
         border: solid $primary;
-        padding: 1;
-        margin: 1;
+        padding: 0 1;
+        margin: 0 1 1 1;
         background: $panel;
+        width: 100%;
+        height: auto;
     }
 
     .repo-name {
@@ -118,19 +120,21 @@ class RhizaApp(App):
     }
 
     .repo-info {
-        padding: 1 0;
+        padding: 0;
         color: $text-muted;
     }
 
     .commit-msg {
-        padding: 1 0;
+        padding: 0;
         color: $text-muted;
         text-style: italic;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .repo-actions {
         height: auto;
-        padding: 1 0;
+        padding: 0;
     }
 
     .stats-bar {
