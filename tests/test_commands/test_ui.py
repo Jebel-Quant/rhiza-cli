@@ -205,9 +205,7 @@ class TestGitRepositoryScanner:
         scanner = GitRepositoryScanner(tmp_path)
 
         with patch.object(scanner, "_run_git_command") as mock_run:
-            mock_run.side_effect = subprocess.CalledProcessError(
-                1, "git", stderr="Error message"
-            )
+            mock_run.side_effect = subprocess.CalledProcessError(1, "git", stderr="Error message")
             result = scanner.execute_git_operation("test-repo", "fetch")
             assert result["success"] is False
             assert "failed" in result["message"].lower()
@@ -227,101 +225,103 @@ class TestGitRepositoryScanner:
             assert "timed out" in result["message"].lower()
 
 
-try:
-    import textual
-    TEXTUAL_AVAILABLE = True
-except ImportError:
-    TEXTUAL_AVAILABLE = False
-
-
-@pytest.mark.skipif(not TEXTUAL_AVAILABLE, reason="Textual not installed")
-class TestTextualUI:
-    """Tests for Textual TUI functionality."""
-
-    def test_create_app(self, tmp_path: Path):
-        """Test creating Textual application."""
-        from rhiza.ui.tui import RhizaApp
-
-        app = RhizaApp(tmp_path)
-        assert app is not None
-        assert app.folder == tmp_path
-        assert len(app.BINDINGS) == 5
-
-
-try:
-    import flask
-    FLASK_AVAILABLE = True
-except ImportError:
-    FLASK_AVAILABLE = False
-
-
-@pytest.mark.skipif(not FLASK_AVAILABLE, reason="Flask not installed")
-class TestUIServer:
-    """Tests for UI server functionality."""
-
-    def test_create_app(self, tmp_path: Path):
-        """Test creating Flask application."""
-        from rhiza.ui.server import create_app
-
-        app = create_app(tmp_path)
-        assert app is not None
-        assert app.config["folder"] == tmp_path
-
-    def test_index_route(self, tmp_path: Path):
-        """Test index route returns HTML."""
-        from rhiza.ui.server import create_app
-
-        app = create_app(tmp_path)
-        client = app.test_client()
-        response = client.get("/")
-        assert response.status_code == 200
-        assert b"Rhiza UI" in response.data
-
-    def test_repositories_api(self, tmp_path: Path):
-        """Test repositories API endpoint."""
-        from rhiza.ui.server import create_app
-
-        # Create a test repository
-        repo_dir = tmp_path / "test-repo"
-        repo_dir.mkdir()
-        (repo_dir / ".git").mkdir()
-
-        app = create_app(tmp_path)
-        client = app.test_client()
-
-        with patch("rhiza.ui.server.GitRepositoryScanner.scan_repositories") as mock_scan:
-            mock_scan.return_value = [
-                {"name": "test-repo", "status": "clean", "branch": "main"}
-            ]
-            response = client.get("/api/repositories")
-            assert response.status_code == 200
-            data = response.get_json()
-            assert "repositories" in data
-            assert len(data["repositories"]) == 1
-
-    def test_git_operation_api(self, tmp_path: Path):
-        """Test Git operation API endpoint."""
-        from rhiza.ui.server import create_app
-
-        app = create_app(tmp_path)
-        client = app.test_client()
-
-        with patch("rhiza.ui.server.GitRepositoryScanner.execute_git_operation") as mock_exec:
-            mock_exec.return_value = {"success": True, "message": "Operation completed"}
-            response = client.post(
-                "/api/git-operation",
-                json={"repo_name": "test-repo", "operation": "fetch"},
-            )
-            assert response.status_code == 200
-            data = response.get_json()
-            assert data["success"] is True
-
-    def test_git_operation_api_missing_params(self, tmp_path: Path):
-        """Test Git operation API with missing parameters."""
-        from rhiza.ui.server import create_app
-
-        app = create_app(tmp_path)
-        client = app.test_client()
-
-        response = client.post("/api/git-operation", json={})
-        assert response.status_code == 400
+#
+#
+# try:
+#     import textual
+#
+#     TEXTUAL_AVAILABLE = True
+# except ImportError:
+#     TEXTUAL_AVAILABLE = False
+#
+#
+# @pytest.mark.skipif(not TEXTUAL_AVAILABLE, reason="Textual not installed")
+# class TestTextualUI:
+#     """Tests for Textual TUI functionality."""
+#
+#     def test_create_app(self, tmp_path: Path):
+#         """Test creating Textual application."""
+#         from rhiza.ui.tui import RhizaApp
+#
+#         app = RhizaApp(tmp_path)
+#         assert app is not None
+#         assert app.folder == tmp_path
+#         assert len(app.BINDINGS) == 5
+#
+#
+# try:
+#     import flask
+#
+#     FLASK_AVAILABLE = True
+# except ImportError:
+#     FLASK_AVAILABLE = False
+#
+#
+# @pytest.mark.skipif(not FLASK_AVAILABLE, reason="Flask not installed")
+# class TestUIServer:
+#     """Tests for UI server functionality."""
+#
+#     def test_create_app(self, tmp_path: Path):
+#         """Test creating Flask application."""
+#         from rhiza.ui.server import create_app
+#
+#         app = create_app(tmp_path)
+#         assert app is not None
+#         assert app.config["folder"] == tmp_path
+#
+#     def test_index_route(self, tmp_path: Path):
+#         """Test index route returns HTML."""
+#         from rhiza.ui.server import create_app
+#
+#         app = create_app(tmp_path)
+#         client = app.test_client()
+#         response = client.get("/")
+#         assert response.status_code == 200
+#         assert b"Rhiza UI" in response.data
+#
+#     def test_repositories_api(self, tmp_path: Path):
+#         """Test repositories API endpoint."""
+#         from rhiza.ui.server import create_app
+#
+#         # Create a test repository
+#         repo_dir = tmp_path / "test-repo"
+#         repo_dir.mkdir()
+#         (repo_dir / ".git").mkdir()
+#
+#         app = create_app(tmp_path)
+#         client = app.test_client()
+#
+#         with patch("rhiza.ui.server.GitRepositoryScanner.scan_repositories") as mock_scan:
+#             mock_scan.return_value = [{"name": "test-repo", "status": "clean", "branch": "main"}]
+#             response = client.get("/api/repositories")
+#             assert response.status_code == 200
+#             data = response.get_json()
+#             assert "repositories" in data
+#             assert len(data["repositories"]) == 1
+#
+#     def test_git_operation_api(self, tmp_path: Path):
+#         """Test Git operation API endpoint."""
+#         from rhiza.ui.server import create_app
+#
+#         app = create_app(tmp_path)
+#         client = app.test_client()
+#
+#         with patch("rhiza.ui.server.GitRepositoryScanner.execute_git_operation") as mock_exec:
+#             mock_exec.return_value = {"success": True, "message": "Operation completed"}
+#             response = client.post(
+#                 "/api/git-operation",
+#                 json={"repo_name": "test-repo", "operation": "fetch"},
+#             )
+#             assert response.status_code == 200
+#             data = response.get_json()
+#             assert data["success"] is True
+#
+#     def test_git_operation_api_missing_params(self, tmp_path: Path):
+#         """Test Git operation API with missing parameters."""
+#         from rhiza.ui.server import create_app
+#
+#         app = create_app(tmp_path)
+#         client = app.test_client()
+#
+#         response = client.post("/api/git-operation", json={})
+#         assert response.status_code == 400

@@ -65,7 +65,7 @@ class GitRepositoryScanner:
             try:
                 ahead_behind = self._run_git_command(
                     repo_path,
-                    ["rev-list", "--left-right", "--count", f"HEAD...@{{u}}"],
+                    ["rev-list", "--left-right", "--count", "HEAD...@{u}"],
                 )
                 parts = ahead_behind.split()
                 ahead = int(parts[0]) if len(parts) > 0 else 0
@@ -257,7 +257,7 @@ class GitRepositoryScanner:
                 "success": False,
                 "message": f"{operation} timed out",
             }
-        except Exception as e:
+        except Exception:
             logger.exception(
                 "Unexpected error during git operation '{operation}' for repository '{repo_name}'",
                 operation=operation,

@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 
 from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, ScrollableContainer, Vertical
+from textual.containers import Container, Horizontal, ScrollableContainer
 from textual.reactive import reactive
 from textual.widgets import Button, Footer, Header, Label, Static
 
@@ -43,13 +43,9 @@ class RepoCard(Static):
             Label(f"[{status_color}]{status.upper()}[/]", classes="repo-status"),
             Container(
                 Label(f"Branch: [cyan]{self.repo_info['branch']}[/]"),
-                Label(
-                    f"Ahead/Behind: ↑{self.repo_info['ahead']} / ↓{self.repo_info['behind']}"
-                ),
+                Label(f"Ahead/Behind: ↑{self.repo_info['ahead']} / ↓{self.repo_info['behind']}"),
                 Label(f"Last commit: {self.repo_info['last_commit_date']}"),
-                Label(
-                    f"Changes: {'⚠️ Yes' if self.repo_info['has_changes'] else '✅ No'}"
-                ),
+                Label(f"Changes: {'⚠️ Yes' if self.repo_info['has_changes'] else '✅ No'}"),
                 classes="repo-info",
             ),
             Label(f"💬 {self.repo_info['last_commit_msg']}", classes="commit-msg"),
@@ -93,12 +89,8 @@ class StatsBar(Static):
         self.total_repos = len(repos)
         self.clean_repos = len([r for r in repos if r["status"] == "clean"])
         self.changed_repos = len([r for r in repos if r["status"] == "changes"])
-        self.ahead_repos = len(
-            [r for r in repos if r["status"] in ("ahead", "diverged")]
-        )
-        self.behind_repos = len(
-            [r for r in repos if r["status"] in ("behind", "diverged")]
-        )
+        self.ahead_repos = len([r for r in repos if r["status"] in ("ahead", "diverged")])
+        self.behind_repos = len([r for r in repos if r["status"] in ("behind", "diverged")])
 
 
 class RhizaApp(App):
@@ -208,22 +200,22 @@ class RhizaApp(App):
     async def action_refresh(self) -> None:
         """Refresh repository list."""
         self.notify("Refreshing repositories...")
-        
+
         # Run scanner in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
         self.repos = await loop.run_in_executor(None, self.scanner.scan_repositories)
-        
+
         # Update stats
         stats = self.query_one("#stats", StatsBar)
         stats.update_stats(self.repos)
-        
+
         # Update repo list
         repo_list = self.query_one("#repo-list", ScrollableContainer)
         await repo_list.remove_children()
-        
+
         for repo in self.repos:
             await repo_list.mount(RepoCard(repo, self.scanner))
-        
+
         self.notify(f"Found {len(self.repos)} repositories", severity="information")
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -233,7 +225,7 @@ class RhizaApp(App):
             event: Button press event.
         """
         button_id = event.button.id
-        
+
         if button_id == "refresh":
             await self.action_refresh()
         elif button_id == "fetch-all":
@@ -255,17 +247,15 @@ class RhizaApp(App):
             operation: Operation to execute (fetch, pull, push, status).
         """
         self.notify(f"Running {operation} on {repo_name}...")
-        
+
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None, self.scanner.execute_git_operation, repo_name, operation
-        )
-        
+        result = await loop.run_in_executor(None, self.scanner.execute_git_operation, repo_name, operation)
+
         if result["success"]:
             self.notify(f"✅ {operation} completed: {result['message']}", severity="information")
         else:
             self.notify(f"❌ {operation} failed: {result['message']}", severity="error")
-        
+
         # Refresh after operation
         await self.action_refresh()
 
@@ -274,17 +264,15 @@ class RhizaApp(App):
         self.notify("Fetching all repositories...")
         success_count = 0
         fail_count = 0
-        
+
         loop = asyncio.get_event_loop()
         for repo in self.repos:
-            result = await loop.run_in_executor(
-                None, self.scanner.execute_git_operation, repo["name"], "fetch"
-            )
+            result = await loop.run_in_executor(None, self.scanner.execute_git_operation, repo["name"], "fetch")
             if result["success"]:
                 success_count += 1
             else:
                 fail_count += 1
-        
+
         self.notify(
             f"Fetch completed: {success_count} succeeded, {fail_count} failed",
             severity="information" if fail_count == 0 else "warning",
@@ -296,17 +284,15 @@ class RhizaApp(App):
         self.notify("Pulling all repositories...")
         success_count = 0
         fail_count = 0
-        
+
         loop = asyncio.get_event_loop()
         for repo in self.repos:
-            result = await loop.run_in_executor(
-                None, self.scanner.execute_git_operation, repo["name"], "pull"
-            )
+            result = await loop.run_in_executor(None, self.scanner.execute_git_operation, repo["name"], "pull")
             if result["success"]:
                 success_count += 1
             else:
                 fail_count += 1
-        
+
         self.notify(
             f"Pull completed: {success_count} succeeded, {fail_count} failed",
             severity="information" if fail_count == 0 else "warning",
@@ -318,17 +304,15 @@ class RhizaApp(App):
         self.notify("Pushing all repositories...")
         success_count = 0
         fail_count = 0
-        
+
         loop = asyncio.get_event_loop()
         for repo in self.repos:
-            result = await loop.run_in_executor(
-                None, self.scanner.execute_git_operation, repo["name"], "push"
-            )
+            result = await loop.run_in_executor(None, self.scanner.execute_git_operation, repo["name"], "push")
             if result["success"]:
                 success_count += 1
             else:
                 fail_count += 1
-        
+
         self.notify(
             f"Push completed: {success_count} succeeded, {fail_count} failed",
             severity="information" if fail_count == 0 else "warning",
