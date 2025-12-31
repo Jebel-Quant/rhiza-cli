@@ -46,7 +46,8 @@ dev = [
     "pytest==9.0.2",
     "pre-commit==4.5.1",
     "marimo==0.18.4",
-    "pdoc>=16.0.0"
+    "pdoc>=16.0.0",
+    "python-dotenv==1.2.1"
 ]
 tools = ["rhiza-tools"]
 
