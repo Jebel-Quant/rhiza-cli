@@ -8,6 +8,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/rhiza.svg)](https://pypi.org/project/rhiza/)
 [![Coverage](https://img.shields.io/badge/coverage-report-brightgreen.svg)](https://jebel-quant.github.io/rhiza-cli/tests/html-coverage/index.html)
 [![Downloads](https://static.pepy.tech/personalized-badge/rhiza?period=month&units=international_system&left_color=black&right_color=orange&left_text=PyPI%20downloads%20per%20month)](https://pepy.tech/project/rhiza)
+[![CodeFactor](https://www.codefactor.io/repository/github/jebel-quant/rhiza-cli/badge)](https://www.codefactor.io/repository/github/jebel-quant/rhiza-cli)
 
 Command-line interface for managing reusable configuration templates for modern Python projects.
 
