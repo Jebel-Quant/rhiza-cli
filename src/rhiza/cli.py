@@ -292,36 +292,48 @@ def ui(
         dir_okay=True,
         help="Folder containing Git repositories to monitor (defaults to current directory)",
     ),
+    web: bool = typer.Option(
+        False,
+        "--web",
+        "-w",
+        help="Use web-based UI instead of modern terminal UI",
+    ),
     port: int = typer.Option(
         8080,
         "--port",
         "-p",
-        help="Port number for the web server",
+        help="Port number for the web server (only used with --web)",
     ),
     no_browser: bool = typer.Option(
         False,
         "--no-browser",
-        help="Don't automatically open browser",
+        help="Don't automatically open browser (only used with --web)",
     ),
 ):
     r"""Launch Rhiza UI for monitoring and managing multiple Git repositories.
 
-    Opens a web-based dashboard for monitoring and managing multiple Git
-    repositories in a specified folder. The UI provides:
+    By default, opens a modern terminal-based dashboard using Textual.
+    Use --web flag for a browser-based interface.
 
+    The UI provides:
     - Repository scanning and overview with status indicators
     - Live monitoring of repository changes
     - Batch Git operations (fetch, pull, push) across repositories
     - Individual repository management and details
     - Quick access to repository information and operations
 
-    The UI runs a local web server accessible at http://localhost:PORT
+    Keyboard shortcuts (terminal UI):
+    - r: Refresh repositories
+    - f: Fetch all
+    - p: Pull all
+    - u: Push all
+    - q: Quit
 
     Examples:
-        rhiza ui
-        rhiza ui /path/to/repos
-        rhiza ui --port 9000
-        rhiza ui /path/to/repos --no-browser
-        rhiza ui -p 9000
+        rhiza ui                                    # Terminal UI
+        rhiza ui /path/to/repos                     # Terminal UI with custom path
+        rhiza ui --web                              # Web-based UI
+        rhiza ui --web --port 9000                  # Web UI on port 9000
+        rhiza ui /path/to/repos --web --no-browser  # Web UI without auto-opening browser
     """
-    ui_cmd(folder, port, no_browser)
+    ui_cmd(folder, web, port, no_browser)

@@ -49,7 +49,8 @@ dev = [
 ]
 tools = ["rhiza-tools"]
 ui = [
-    "flask>=3.0.0",
+    "textual>=0.47.0",
+    "flask>=3.0.0",  # Optional for web mode
 ]
 
 [tool.hatch.build.targets.wheel]

@@ -224,7 +224,24 @@ class TestGitRepositoryScanner:
             mock_run.side_effect = subprocess.TimeoutExpired("git", 30)
             result = scanner.execute_git_operation("test-repo", "fetch")
             assert result["success"] is False
-            assert "timeout" in result["message"].lower()
+            assert "timed out" in result["message"].lower()
+
+
+@pytest.mark.skipif(
+    not pytest.importorskip("textual", reason="Textual not installed"),
+    reason="Textual not installed",
+)
+class TestTextualUI:
+    """Tests for Textual TUI functionality."""
+
+    def test_create_app(self, tmp_path: Path):
+        """Test creating Textual application."""
+        from rhiza.ui.tui import RhizaApp
+
+        app = RhizaApp(tmp_path)
+        assert app is not None
+        assert app.folder == tmp_path
+        assert len(app.BINDINGS) == 5
 
 
 @pytest.mark.skipif(
