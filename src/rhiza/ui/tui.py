@@ -119,7 +119,8 @@ class RhizaApp(App):
         padding: 0 1;
         margin: 0 1 1 1;
         background: $panel;
-        width: 100%;
+        width: auto;
+        max-width: 80;
         height: auto;
     }
 
