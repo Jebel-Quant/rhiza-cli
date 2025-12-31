@@ -28,18 +28,217 @@ def _normalize_package_name(name: str) -> str:
     Returns:
         A valid Python identifier safe for use as a package name.
     """
-    # Replace any character that is not a letter, number, or underscore with an underscore
     name = re.sub(r"[^a-zA-Z0-9_]", "_", name)
-
-    # Ensure it doesn't start with a number
     if name[0].isdigit():
         name = f"_{name}"
-
-    # Ensure it's not a Python keyword
     if keyword.iskeyword(name):
         name = f"{name}_"
-
     return name
+
+
+def _validate_git_host(git_host: str | None) -> str | None:
+    """Validate git_host parameter.
+
+    Args:
+        git_host: Git hosting platform.
+
+    Returns:
+        Validated git_host or None.
+
+    Raises:
+        ValueError: If git_host is invalid.
+    """
+    if git_host is not None:
+        git_host = git_host.lower()
+        if git_host not in ["github", "gitlab"]:
+            logger.error(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")
+            raise ValueError(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")
+    return git_host
+
+
+def _prompt_git_host() -> str:
+    """Prompt user for git hosting platform.
+
+    Returns:
+        Git hosting platform choice.
+    """
+    if sys.stdin.isatty():
+        logger.info("Where will your project be hosted?")
+        git_host = typer.prompt(
+            "Target Git hosting platform (github/gitlab)",
+            type=str,
+            default="github",
+        ).lower()
+
+        while git_host not in ["github", "gitlab"]:
+            logger.warning(f"Invalid choice: {git_host}. Please choose 'github' or 'gitlab'")
+            git_host = typer.prompt(
+                "Target Git hosting platform (github/gitlab)",
+                type=str,
+                default="github",
+            ).lower()
+    else:
+        git_host = "github"
+        logger.debug("Non-interactive mode detected, defaulting to github")
+
+    return git_host
+
+
+def _get_include_paths_for_host(git_host: str) -> list[str]:
+    """Get include paths based on git hosting platform.
+
+    Args:
+        git_host: Git hosting platform.
+
+    Returns:
+        List of include paths.
+    """
+    if git_host == "gitlab":
+        return [
+            ".rhiza",
+            ".gitlab",
+            ".gitlab-ci.yml",
+            ".editorconfig",
+            ".gitignore",
+            ".pre-commit-config.yaml",
+            "ruff.toml",
+            "Makefile",
+            "pytest.ini",
+            "book",
+            "presentation",
+            "tests",
+        ]
+    else:
+        return [
+            ".rhiza",
+            ".github",
+            ".editorconfig",
+            ".gitignore",
+            ".pre-commit-config.yaml",
+            "ruff.toml",
+            "Makefile",
+            "pytest.ini",
+            "book",
+            "presentation",
+            "tests",
+        ]
+
+
+def _create_template_file(target: Path, git_host: str) -> None:
+    """Create default template.yml file.
+
+    Args:
+        target: Target repository path.
+        git_host: Git hosting platform.
+    """
+    rhiza_dir = target / ".rhiza"
+    template_file = rhiza_dir / "template.yml"
+
+    if template_file.exists():
+        return
+
+    logger.info("Creating default .rhiza/template.yml")
+    logger.debug("Using default template configuration")
+
+    include_paths = _get_include_paths_for_host(git_host)
+    default_template = RhizaTemplate(
+        template_repository="jebel-quant/rhiza",
+        template_branch="main",
+        include=include_paths,
+    )
+
+    logger.debug(f"Writing default template to: {template_file}")
+    default_template.to_yaml(template_file)
+
+    logger.success("✓ Created .rhiza/template.yml")
+    logger.info("""
+Next steps:
+  1. Review and customize .rhiza/template.yml to match your project needs
+  2. Run 'rhiza materialize' to inject templates into your repository
+""")
+
+
+def _create_python_package(target: Path, project_name: str, package_name: str) -> None:
+    """Create basic Python package structure.
+
+    Args:
+        target: Target repository path.
+        project_name: Project name.
+        package_name: Package name.
+    """
+    src_folder = target / "src" / package_name
+    if (target / "src").exists():
+        return
+
+    logger.info(f"Creating Python package structure: {src_folder}")
+    src_folder.mkdir(parents=True)
+
+    # Create __init__.py
+    init_file = src_folder / "__init__.py"
+    logger.debug(f"Creating {init_file}")
+    init_file.touch()
+
+    template_content = (
+        importlib.resources.files("rhiza").joinpath("_templates/basic/__init__.py.jinja2").read_text()
+    )
+    template = Template(template_content)
+    code = template.render(project_name=project_name)
+    init_file.write_text(code)
+
+    # Create main.py
+    main_file = src_folder / "main.py"
+    logger.debug(f"Creating {main_file} with example code")
+    main_file.touch()
+
+    template_content = importlib.resources.files("rhiza").joinpath("_templates/basic/main.py.jinja2").read_text()
+    template = Template(template_content)
+    code = template.render(project_name=project_name)
+    main_file.write_text(code)
+    logger.success(f"Created Python package structure in {src_folder}")
+
+
+def _create_pyproject_toml(target: Path, project_name: str, package_name: str, with_dev_dependencies: bool) -> None:
+    """Create pyproject.toml file.
+
+    Args:
+        target: Target repository path.
+        project_name: Project name.
+        package_name: Package name.
+        with_dev_dependencies: Whether to include dev dependencies.
+    """
+    pyproject_file = target / "pyproject.toml"
+    if pyproject_file.exists():
+        return
+
+    logger.info("Creating pyproject.toml with basic project metadata")
+    pyproject_file.touch()
+
+    template_content = (
+        importlib.resources.files("rhiza").joinpath("_templates/basic/pyproject.toml.jinja2").read_text()
+    )
+    template = Template(template_content)
+    code = template.render(
+        project_name=project_name,
+        package_name=package_name,
+        with_dev_dependencies=with_dev_dependencies,
+    )
+    pyproject_file.write_text(code)
+    logger.success("Created pyproject.toml")
+
+
+def _create_readme(target: Path) -> None:
+    """Create README.md file.
+
+    Args:
+        target: Target repository path.
+    """
+    readme_file = target / "README.md"
+    if readme_file.exists():
+        return
+
+    logger.info("Creating README.md")
+    readme_file.touch()
+    logger.success("Created README.md")
 
 
 def init(
@@ -65,180 +264,36 @@ def init(
     Returns:
         bool: True if validation passes, False otherwise.
     """
-    # Convert to absolute path to avoid surprises
     target = target.resolve()
-
-    # Validate git_host if provided
-    if git_host is not None:
-        git_host = git_host.lower()
-        if git_host not in ["github", "gitlab"]:
-            logger.error(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")
-            raise ValueError(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")
+    git_host = _validate_git_host(git_host)
 
     logger.info(f"Initializing Rhiza configuration in: {target}")
 
-    # Create .rhiza directory structure if it doesn't exist
-    # This is where Rhiza stores its configuration
+    # Create .rhiza directory
     rhiza_dir = target / ".rhiza"
     logger.debug(f"Ensuring directory exists: {rhiza_dir}")
     rhiza_dir.mkdir(parents=True, exist_ok=True)
 
-    # Define the template file path
-    template_file = rhiza_dir / "template.yml"
+    # Determine git host
+    if git_host is None:
+        git_host = _prompt_git_host()
 
-    if not template_file.exists():
-        # Create default template.yml with sensible defaults
-        logger.info("Creating default .rhiza/template.yml")
-        logger.debug("Using default template configuration")
+    # Create template file
+    _create_template_file(target, git_host)
 
-        # Prompt for target git hosting platform if not provided
-        if git_host is None:
-            # Only prompt if running in an interactive terminal
-            if sys.stdin.isatty():
-                logger.info("Where will your project be hosted?")
-                git_host = typer.prompt(
-                    "Target Git hosting platform (github/gitlab)",
-                    type=str,
-                    default="github",
-                ).lower()
-
-                # Validate the input
-                while git_host not in ["github", "gitlab"]:
-                    logger.warning(f"Invalid choice: {git_host}. Please choose 'github' or 'gitlab'")
-                    git_host = typer.prompt(
-                        "Target Git hosting platform (github/gitlab)",
-                        type=str,
-                        default="github",
-                    ).lower()
-            else:
-                # Non-interactive mode (e.g., tests), default to github
-                git_host = "github"
-                logger.debug("Non-interactive mode detected, defaulting to github")
-
-        # Adjust template based on target git hosting platform
-        # The template repository is always on GitHub (jebel-quant/rhiza)
-        # but we include different files based on where the target project will be
-        if git_host == "gitlab":
-            include_paths = [
-                ".rhiza",  # .rhiza folder
-                ".gitlab",  # .gitlab folder
-                ".gitlab-ci.yml",  # GitLab CI configuration
-                ".editorconfig",  # Editor configuration
-                ".gitignore",  # Git ignore patterns
-                ".pre-commit-config.yaml",  # Pre-commit hooks
-                "ruff.toml",  # Ruff linter configuration
-                "Makefile",  # Build and development tasks
-                "pytest.ini",  # Pytest configuration
-                "book",  # Documentation book
-                "presentation",  # Presentation materials
-                "tests",  # Test structure
-            ]
-        else:
-            include_paths = [
-                ".rhiza",  # .rhiza folder
-                ".github",  # GitHub configuration and workflows
-                ".editorconfig",  # Editor configuration
-                ".gitignore",  # Git ignore patterns
-                ".pre-commit-config.yaml",  # Pre-commit hooks
-                "ruff.toml",  # Ruff linter configuration
-                "Makefile",  # Build and development tasks
-                "pytest.ini",  # Pytest configuration
-                "book",  # Documentation book
-                "presentation",  # Presentation materials
-                "tests",  # Test structure
-            ]
-
-        # Default template points to the jebel-quant/rhiza repository on GitHub
-        # and includes files appropriate for the target platform
-        default_template = RhizaTemplate(
-            template_repository="jebel-quant/rhiza",
-            template_branch="main",
-            # template_host is not set here - it defaults to "github" in the model
-            # because the template repository is on GitHub
-            include=include_paths,
-        )
-
-        # Write the default template to the file
-        logger.debug(f"Writing default template to: {template_file}")
-        default_template.to_yaml(template_file)
-
-        logger.success("✓ Created .rhiza/template.yml")
-        logger.info("""
-Next steps:
-  1. Review and customize .rhiza/template.yml to match your project needs
-  2. Run 'rhiza materialize' to inject templates into your repository
-""")
-
-    # Bootstrap basic Python project structure if it doesn't exist
-    # Get the name of the parent directory to use as package name
+    # Bootstrap Python project structure
     if project_name is None:
         project_name = target.name
-
     if package_name is None:
         package_name = _normalize_package_name(project_name)
 
     logger.debug(f"Project name: {project_name}")
     logger.debug(f"Package name: {package_name}")
 
-    # Create src/{package_name} directory structure following src-layout
-    src_folder = target / "src" / package_name
-    if not (target / "src").exists():
-        logger.info(f"Creating Python package structure: {src_folder}")
-        src_folder.mkdir(parents=True)
+    _create_python_package(target, project_name, package_name)
+    _create_pyproject_toml(target, project_name, package_name, with_dev_dependencies)
+    _create_readme(target)
 
-        # Create __init__.py to make it a proper Python package
-        init_file = src_folder / "__init__.py"
-        logger.debug(f"Creating {init_file}")
-        init_file.touch()
-
-        template_content = (
-            importlib.resources.files("rhiza").joinpath("_templates/basic/__init__.py.jinja2").read_text()
-        )
-        template = Template(template_content)
-        code = template.render(project_name=project_name)
-        init_file.write_text(code)
-
-        # Create main.py with a simple "Hello World" example
-        main_file = src_folder / "main.py"
-        logger.debug(f"Creating {main_file} with example code")
-        main_file.touch()
-
-        # Write example code to main.py
-        template_content = importlib.resources.files("rhiza").joinpath("_templates/basic/main.py.jinja2").read_text()
-        template = Template(template_content)
-        code = template.render(project_name=project_name)
-        main_file.write_text(code)
-        logger.success(f"Created Python package structure in {src_folder}")
-
-    # Create pyproject.toml if it doesn't exist
-    # This is the standard Python package metadata file (PEP 621)
-    pyproject_file = target / "pyproject.toml"
-    if not pyproject_file.exists():
-        logger.info("Creating pyproject.toml with basic project metadata")
-        pyproject_file.touch()
-
-        # Write minimal pyproject.toml content
-        template_content = (
-            importlib.resources.files("rhiza").joinpath("_templates/basic/pyproject.toml.jinja2").read_text()
-        )
-        template = Template(template_content)
-        code = template.render(
-            project_name=project_name,
-            package_name=package_name,
-            with_dev_dependencies=with_dev_dependencies,
-        )
-        pyproject_file.write_text(code)
-        logger.success("Created pyproject.toml")
-
-    # Create README.md if it doesn't exist
-    # Every project should have a README
-    readme_file = target / "README.md"
-    if not readme_file.exists():
-        logger.info("Creating README.md")
-        readme_file.touch()
-        logger.success("Created README.md")
-
-    # Validate the template file to ensure it's correct
-    # This will catch any issues early
+    # Validate the template file
     logger.debug("Validating template configuration")
     return validate(target)
