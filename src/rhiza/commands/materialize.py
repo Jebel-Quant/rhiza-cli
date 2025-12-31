@@ -352,9 +352,7 @@ def _clean_orphaned_files(target: Path, materialized_files: list[Path]) -> None:
         logger.debug("No orphaned files to clean up")
 
 
-def _write_history_file(
-    target: Path, materialized_files: list[Path], rhiza_repo: str, rhiza_branch: str
-) -> None:
+def _write_history_file(target: Path, materialized_files: list[Path], rhiza_repo: str, rhiza_branch: str) -> None:
     """Write history file tracking materialized files.
 
     Args:

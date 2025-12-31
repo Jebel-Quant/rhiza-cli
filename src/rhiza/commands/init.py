@@ -178,9 +178,7 @@ def _create_python_package(target: Path, project_name: str, package_name: str) -
     logger.debug(f"Creating {init_file}")
     init_file.touch()
 
-    template_content = (
-        importlib.resources.files("rhiza").joinpath("_templates/basic/__init__.py.jinja2").read_text()
-    )
+    template_content = importlib.resources.files("rhiza").joinpath("_templates/basic/__init__.py.jinja2").read_text()
     template = Template(template_content)
     code = template.render(project_name=project_name)
     init_file.write_text(code)
@@ -213,9 +211,7 @@ def _create_pyproject_toml(target: Path, project_name: str, package_name: str, w
     logger.info("Creating pyproject.toml with basic project metadata")
     pyproject_file.touch()
 
-    template_content = (
-        importlib.resources.files("rhiza").joinpath("_templates/basic/pyproject.toml.jinja2").read_text()
-    )
+    template_content = importlib.resources.files("rhiza").joinpath("_templates/basic/pyproject.toml.jinja2").read_text()
     template = Template(template_content)
     code = template.render(
         project_name=project_name,
