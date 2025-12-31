@@ -42,7 +42,7 @@ def _launch_terminal_ui(folder: Path) -> None:
         folder: Path to folder containing Git repositories to monitor.
 
     Raises:
-        ImportError: If Textual is not installed.
+        RuntimeError: If the UI fails to start.
     """
     logger.info(f"Starting Rhiza UI for folder: {folder}")
 
@@ -71,6 +71,7 @@ def _launch_web_ui(folder: Path, port: int, no_browser: bool) -> None:
         ImportError: If Flask is not installed.
         RuntimeError: If the server fails to start.
     """
+    # Check if Flask is available (optional dependency for web mode)
     try:
         import flask  # noqa: F401
     except ImportError:
