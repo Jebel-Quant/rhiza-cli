@@ -34,6 +34,7 @@ Rhiza is a CLI tool that helps you maintain consistent configuration across mult
   - [materialize](#rhiza-materialize)
   - [migrate](#rhiza-migrate)
   - [validate](#rhiza-validate)
+  - [ui](#rhiza-ui)
 - [Configuration](#configuration)
 - [Examples](#examples)
 - [Development](#development)
@@ -46,6 +47,7 @@ For more detailed information, see:
 - **[Getting Started Guide](GETTING_STARTED.md)** - Beginner-friendly introduction and walkthrough
 - **[CLI Quick Reference](CLI.md)** - Command syntax and quick examples
 - **[Usage Guide](USAGE.md)** - Practical tutorials and workflows
+- **[Rhiza UI Guide](RHIZA_UI.md)** - Multi-repository management dashboard documentation
 - **[Contributing Guidelines](CONTRIBUTING.md)** - How to contribute to the project
 - **[Code of Conduct](CODE_OF_CONDUCT.md)** - Community guidelines
 

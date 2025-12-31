@@ -29,7 +29,8 @@ dependencies = [
     "loguru>=0.7.3",
     "typer>=0.20.0",
     "PyYAML==6.0.3",
-    "jinja2>=3.1.0"
+    "jinja2>=3.1.0",
+    "textual>=6.11.0"
 ]
 
 [project.urls]
@@ -45,9 +46,10 @@ dev = [
     "pytest==9.0.2",
     "pre-commit==4.5.1",
     "marimo==0.18.4",
-    "pdoc>=16.0.0",
+    "pdoc>=16.0.0"
 ]
 tools = ["rhiza-tools"]
+
 
 [tool.hatch.build.targets.wheel]
 # Use src-layout: package code is under src/config
@@ -67,4 +69,4 @@ pythonpath = ["src"]
 rhiza = "rhiza.__main__:app"
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["rhiza-tools"]
+DEP002 = ["rhiza-tools", "flask"]
