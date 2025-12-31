@@ -56,16 +56,10 @@ Repositories are marked with color-coded status badges:
 
 ## Installation
 
-Install Rhiza with UI support:
+Install Rhiza (includes Textual for the terminal UI):
 
 ```bash
-pip install 'rhiza[ui]'
-```
-
-Or if you already have Rhiza installed:
-
-```bash
-pip install textual
+pip install rhiza
 ```
 
 For web UI mode (optional):

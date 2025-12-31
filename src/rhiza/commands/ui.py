@@ -4,6 +4,8 @@ This module provides a modern terminal-based UI application for monitoring
 and managing multiple Git repositories in a specified folder.
 """
 
+import threading
+import webbrowser
 from pathlib import Path
 
 from loguru import logger
@@ -42,14 +44,6 @@ def _launch_terminal_ui(folder: Path) -> None:
     Raises:
         ImportError: If Textual is not installed.
     """
-    try:
-        from textual.app import App
-    except ImportError:
-        logger.error(
-            "Textual is required for Rhiza UI. Install with: pip install 'rhiza[ui]'"
-        )
-        raise
-
     logger.info(f"Starting Rhiza UI for folder: {folder}")
 
     # Import and run Textual app
@@ -77,11 +71,8 @@ def _launch_web_ui(folder: Path, port: int, no_browser: bool) -> None:
         ImportError: If Flask is not installed.
         RuntimeError: If the server fails to start.
     """
-    import threading
-    import webbrowser
-
     try:
-        from flask import Flask
+        import flask  # noqa: F401
     except ImportError:
         logger.error(
             "Flask is required for web UI. Install with: pip install flask"
@@ -99,10 +90,9 @@ def _launch_web_ui(folder: Path, port: int, no_browser: bool) -> None:
 
     # Open browser after short delay if not disabled
     if not no_browser:
+        import time
 
         def open_browser():
-            import time
-
             time.sleep(1.5)  # Wait for server to start
             webbrowser.open(f"http://localhost:{port}")
 
