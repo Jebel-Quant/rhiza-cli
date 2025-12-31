@@ -13,6 +13,7 @@ from rhiza.commands import init as init_cmd
 from rhiza.commands import materialize as materialize_cmd
 from rhiza.commands import validate as validate_cmd
 from rhiza.commands.migrate import migrate as migrate_cmd
+from rhiza.commands.ui import ui as ui_cmd
 from rhiza.commands.uninstall import uninstall as uninstall_cmd
 from rhiza.commands.welcome import welcome as welcome_cmd
 
@@ -280,3 +281,47 @@ def uninstall(
         rhiza uninstall /path/to/project -y
     """
     uninstall_cmd(target, force)
+
+
+@app.command()
+def ui(
+    folder: Path = typer.Argument(
+        default=Path("."),
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        help="Folder containing Git repositories to monitor (defaults to current directory)",
+    ),
+    port: int = typer.Option(
+        8080,
+        "--port",
+        "-p",
+        help="Port number for the web server",
+    ),
+    no_browser: bool = typer.Option(
+        False,
+        "--no-browser",
+        help="Don't automatically open browser",
+    ),
+):
+    r"""Launch Rhiza UI for monitoring and managing multiple Git repositories.
+
+    Opens a web-based dashboard for monitoring and managing multiple Git
+    repositories in a specified folder. The UI provides:
+
+    - Repository scanning and overview with status indicators
+    - Live monitoring of repository changes
+    - Batch Git operations (fetch, pull, push) across repositories
+    - Individual repository management and details
+    - Quick access to repository information and operations
+
+    The UI runs a local web server accessible at http://localhost:PORT
+
+    Examples:
+        rhiza ui
+        rhiza ui /path/to/repos
+        rhiza ui --port 9000
+        rhiza ui /path/to/repos --no-browser
+        rhiza ui -p 9000
+    """
+    ui_cmd(folder, port, no_browser)
