@@ -14,6 +14,8 @@ import subprocess
 
 import pytest
 
+from rhiza.subprocess_utils import get_git_executable
+
 MOCK_MAKE_SCRIPT = """#!/usr/bin/env python3
 import sys
 
@@ -156,20 +158,23 @@ def git_repo(root, tmp_path, monkeypatch):
     remote_dir = tmp_path / "remote.git"
     local_dir = tmp_path / "local"
 
+    # Get absolute path to git executable for security
+    git_executable = get_git_executable()
+
     # 1. Create bare remote
     remote_dir.mkdir()
-    subprocess.run(["git", "init", "--bare", str(remote_dir)], check=True)
+    subprocess.run([git_executable, "init", "--bare", str(remote_dir)], check=True)
     # Ensure the remote's default HEAD points to master for predictable behavior
-    subprocess.run(["git", "symbolic-ref", "HEAD", "refs/heads/master"], cwd=remote_dir, check=True)
+    subprocess.run([git_executable, "symbolic-ref", "HEAD", "refs/heads/master"], cwd=remote_dir, check=True)
 
     # 2. Clone to local
-    subprocess.run(["git", "clone", str(remote_dir), str(local_dir)], check=True)
+    subprocess.run([git_executable, "clone", str(remote_dir), str(local_dir)], check=True)
 
     # Use monkeypatch to safely change cwd for the duration of the test
     monkeypatch.chdir(local_dir)
 
     # Ensure local default branch is 'master' to match test expectations
-    subprocess.run(["git", "checkout", "-b", "master"], check=True)
+    subprocess.run([git_executable, "checkout", "-b", "master"], check=True)
 
     # Create pyproject.toml
     with open("pyproject.toml", "w") as f:
@@ -216,10 +221,10 @@ def git_repo(root, tmp_path, monkeypatch):
     (script_dir / "update-readme-help.sh").chmod(0o755)
 
     # Commit and push initial state
-    subprocess.run(["git", "config", "user.email", "test@example.com"], check=True)
-    subprocess.run(["git", "config", "user.name", "Test User"], check=True)
-    subprocess.run(["git", "add", "."], check=True)
-    subprocess.run(["git", "commit", "-m", "Initial commit"], check=True)
-    subprocess.run(["git", "push", "origin", "master"], check=True)
+    subprocess.run([git_executable, "config", "user.email", "test@example.com"], check=True)
+    subprocess.run([git_executable, "config", "user.name", "Test User"], check=True)
+    subprocess.run([git_executable, "add", "."], check=True)
+    subprocess.run([git_executable, "commit", "-m", "Initial commit"], check=True)
+    subprocess.run([git_executable, "push", "origin", "master"], check=True)
 
     yield local_dir

@@ -1518,7 +1518,7 @@ class TestInjectCommand:
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    @patch("rhiza.commands.materialize.shutil.which")
+    @patch("rhiza.subprocess_utils.shutil.which")
     def test_materialize_uses_absolute_git_path(
         self, mock_which, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
@@ -1573,7 +1573,7 @@ class TestInjectCommand:
                 assert args[0] == "/usr/bin/git", f"Expected absolute path '/usr/bin/git', got '{args[0]}'"
                 assert args[0] != "git", "Should not use relative 'git' command"
 
-    @patch("rhiza.commands.materialize.shutil.which")
+    @patch("rhiza.subprocess_utils.shutil.which")
     def test_materialize_fails_when_git_not_found(self, mock_which, tmp_path):
         """Test that materialize fails gracefully when git executable is not found."""
         # Setup git repo

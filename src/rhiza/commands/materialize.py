@@ -17,25 +17,7 @@ from loguru import logger
 
 from rhiza.commands.validate import validate
 from rhiza.models import RhizaTemplate
-
-
-def __get_git_executable() -> str:
-    """Get the absolute path to the git executable.
-
-    This function ensures we use the full path to git to prevent
-    security issues related to PATH manipulation.
-
-    Returns:
-        str: Absolute path to the git executable.
-
-    Raises:
-        RuntimeError: If git executable is not found in PATH.
-    """
-    git_path = shutil.which("git")
-    if git_path is None:
-        msg = "git executable not found in PATH. Please ensure git is installed and available."
-        raise RuntimeError(msg)
-    return git_path
+from rhiza.subprocess_utils import get_git_executable
 
 
 def __expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
@@ -90,7 +72,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
 
     # Get absolute path to git executable for security
     # Using absolute paths prevents PATH manipulation attacks
-    git_executable = __get_git_executable()
+    git_executable = get_git_executable()
     logger.debug(f"Using git executable: {git_executable}")
 
     # Set environment to prevent git from prompting for credentials
