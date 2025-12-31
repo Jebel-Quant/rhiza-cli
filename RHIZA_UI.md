@@ -4,8 +4,6 @@
 
 Rhiza UI is a modern terminal-based dashboard for monitoring and managing multiple Git repositories in a specified folder. Built with [Textual](https://textual.textualize.io/), it provides a rich, interactive terminal interface without requiring a web browser.
 
-The UI also supports a legacy web-based mode using Flask for those who prefer browser-based interfaces.
-
 ![Rhiza UI Screenshot](https://github.com/user-attachments/assets/b51362c5-a49c-43e8-b6fe-742b2ca0b257)
 *Web UI mode screenshot*
 
@@ -62,12 +60,6 @@ Install Rhiza (includes Textual for the terminal UI):
 pip install rhiza
 ```
 
-For web UI mode (optional):
-
-```bash
-pip install flask
-```
-
 ## Usage
 
 ### Terminal UI (Default - Recommended)
@@ -89,22 +81,8 @@ rhiza ui /path/to/repositories
 - `r` - Refresh repository list
 - `f` - Fetch all repositories
 - `p` - Pull all repositories
-- `u` - Push all repositories  
+- `u` - Push all repositories
 - `q` - Quit application
-
-### Web UI Mode (Legacy)
-
-For those who prefer a browser-based interface:
-
-```bash
-rhiza ui --web
-```
-
-Custom port:
-
-```bash
-rhiza ui --web --port 9000
-```
 
 ### Command Options
 
@@ -115,22 +93,12 @@ rhiza ui [OPTIONS] [FOLDER]
 **Arguments:**
 - `FOLDER`: Folder containing Git repositories (default: current directory)
 
-**Options:**
-- `--web, -w`: Use web-based UI instead of terminal UI
-- `--port, -p`: Port number for web server (default: 8080, only with --web)
-- `--no-browser`: Don't auto-open browser (only with --web)
-
 ### Examples
 
 ```bash
 # Terminal UI (default)
 rhiza ui
 rhiza ui ~/projects
-
-# Web UI mode
-rhiza ui --web
-rhiza ui --web --port 9000
-rhiza ui ~/projects --web --no-browser
 ```
 
 ## Architecture
@@ -148,11 +116,6 @@ The Rhiza UI consists of several components:
 - Async operation handling
 - Keyboard-driven interaction
 
-### 3. Web Server (`rhiza.ui.server`) - Legacy Mode
-- Flask-based REST API
-- HTML/CSS/JavaScript frontend
-- Browser-based interface
-
 ## Why Textual?
 
 We chose [Textual](https://textual.textualize.io/) as the default UI framework because:
@@ -164,60 +127,6 @@ We chose [Textual](https://textual.textualize.io/) as the default UI framework b
 5. **Lightweight**: No heavyweight dependencies or web server needed
 6. **Fast**: Instant startup, no network latency
 7. **Developer-Friendly**: Clean API, excellent documentation
-
-## Web UI API Endpoints (Legacy Mode)
-
-### GET `/api/repositories`
-Returns list of all repositories with their status.
-
-**Response:**
-```json
-{
-  "repositories": [
-    {
-      "name": "repo-name",
-      "path": "/full/path/to/repo",
-      "branch": "main",
-      "status": "clean",
-      "has_changes": false,
-      "ahead": 0,
-      "behind": 0,
-      "has_remote": true,
-      "last_commit_msg": "Latest commit message",
-      "last_commit_date": "2 hours ago",
-      "remote_url": "https://github.com/user/repo.git"
-    }
-  ]
-}
-```
-
-### GET `/api/repositories/<repo_name>`
-Returns detailed information for a specific repository.
-
-### POST `/api/git-operation`
-Executes a Git operation on a repository.
-
-**Request Body:**
-```json
-{
-  "repo_name": "repo-name",
-  "operation": "fetch"
-}
-```
-
-**Supported Operations:**
-- `fetch`: Fetch from remote
-- `pull`: Pull from remote
-- `push`: Push to remote
-- `status`: Get Git status
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Operation completed successfully"
-}
-```
 
 ## Use Cases
 
@@ -253,23 +162,14 @@ For repository maintainers to:
 
 3. **Batch Operations with Caution**: Always review the confirmation dialog before batch operations
 
-4. **Custom Port**: If port 8080 is busy, use `--port` to specify an alternative
-
-5. **Background Running**: Use `--no-browser` when running on a server, then access via network
-
 ## Limitations
 
 - Only monitors repositories in the immediate child directories (not recursive)
 - Requires Git to be installed and accessible in PATH
 - Operations timeout after 30 seconds
 - No authentication (designed for local use)
-- Web server is for development use (not production-ready)
 
 ## Troubleshooting
-
-### UI doesn't load
-- Check if port is available: `lsof -i :8080`
-- Try a different port: `rhiza ui --port 9000`
 
 ### Repositories not detected
 - Ensure folders contain `.git` directory
@@ -280,11 +180,6 @@ For repository maintainers to:
 - Verify Git credentials are configured
 - Check network connectivity for remote operations
 - Ensure repositories have remotes configured for fetch/pull/push
-
-### Browser doesn't open
-- Manually navigate to `http://localhost:8080`
-- Use `--no-browser` and open manually
-- Check firewall settings
 
 ## Future Enhancements
 
