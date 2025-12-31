@@ -37,18 +37,31 @@ class RepoCard(Static):
         }
         status = self.repo_info["status"]
         status_color = status_colors.get(status, "white")
-        
+
         # Create compact single-line info strings
         changes_icon = "⚠️" if self.repo_info['has_changes'] else "✅"
-        ahead_behind = f"↑{self.repo_info['ahead']} ↓{self.repo_info['behind']}" if self.repo_info['has_remote'] else "no remote"
+        if self.repo_info['has_remote']:
+            ahead_behind = f"↑{self.repo_info['ahead']} ↓{self.repo_info['behind']}"
+        else:
+            ahead_behind = "no remote"
+
+        # Format commit message
+        commit_msg = self.repo_info['last_commit_msg']
+        if len(commit_msg) > 80:
+            commit_label = Label(f"💬 {commit_msg[:80]}...", classes="commit-msg")
+        else:
+            commit_label = Label(f"💬 {commit_msg}", classes="commit-msg")
 
         yield Container(
             Horizontal(
                 Label(f"📁 {self.repo_info['name']}", classes="repo-name"),
                 Label(f"[{status_color}]●[/] {status.upper()}", classes="repo-status"),
             ),
-            Label(f"🌿 [cyan]{self.repo_info['branch']}[/] │ {changes_icon} │ {ahead_behind} │ 🕐 {self.repo_info['last_commit_date']}"),
-            Label(f"💬 {self.repo_info['last_commit_msg'][:80]}...", classes="commit-msg") if len(self.repo_info['last_commit_msg']) > 80 else Label(f"💬 {self.repo_info['last_commit_msg']}", classes="commit-msg"),
+            Label(
+                f"🌿 [cyan]{self.repo_info['branch']}[/] │ {changes_icon} │ "
+                f"{ahead_behind} │ 🕐 {self.repo_info['last_commit_date']}"
+            ),
+            commit_label,
             Horizontal(
                 Button("📥 Fetch", variant="primary", id=f"fetch-{self.repo_info['name']}"),
                 Button("⬇️ Pull", variant="success", id=f"pull-{self.repo_info['name']}"),
