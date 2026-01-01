@@ -348,8 +348,9 @@ class TestInitCommand:
 
     def test_prompt_git_host_validation_loop(self, monkeypatch):
         """Test that _prompt_git_host validates input in a loop."""
-        from rhiza.commands.init import _prompt_git_host
         from unittest.mock import MagicMock
+
+        from rhiza.commands.init import _prompt_git_host
 
         # Mock sys.stdin.isatty to return True (interactive mode)
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)

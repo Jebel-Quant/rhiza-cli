@@ -326,7 +326,6 @@ Makefile
         assert ".rhiza" in updated_content["include"]
         assert updated_content["include"] == ["src", "tests", ".rhiza"]
 
-
     def test_migrate_skips_rhiza_include_when_no_template(self, tmp_path):
         """Test that migrate skips adding .rhiza to include when template.yml doesn't exist."""
         # Create .rhiza directory but no template.yml

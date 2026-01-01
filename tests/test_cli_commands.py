@@ -95,6 +95,7 @@ class TestMainEntry:
     def test_load_plugins_with_error(self, capsys, monkeypatch):
         """Test plugin loading handles exceptions gracefully."""
         from unittest.mock import MagicMock
+
         import typer
 
         # Create a mock entry point that raises an exception
@@ -126,6 +127,7 @@ class TestMainEntry:
     def test_load_plugins_successfully(self, monkeypatch):
         """Test plugin loading works with a valid plugin."""
         from unittest.mock import MagicMock
+
         import typer
 
         # Create a mock plugin app
