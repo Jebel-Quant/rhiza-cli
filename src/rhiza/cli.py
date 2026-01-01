@@ -280,4 +280,3 @@ def uninstall(
         rhiza uninstall /path/to/project -y
     """
     uninstall_cmd(target, force)
-
