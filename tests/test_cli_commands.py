@@ -92,6 +92,74 @@ class TestMainEntry:
         finally:
             sys.argv = original_argv
 
+    def test_load_plugins_with_error(self, capsys, monkeypatch):
+        """Test plugin loading handles exceptions gracefully."""
+        from unittest.mock import MagicMock
+
+        import typer
+
+        # Create a mock entry point that raises an exception
+        mock_entry = MagicMock()
+        mock_entry.name = "bad_plugin"
+        mock_entry.load.side_effect = RuntimeError("Plugin load failed")
+
+        # Create a mock entry_points function that returns our failing entry
+        def mock_entry_points(group):
+            if group == "rhiza.plugins":
+                return [mock_entry]
+            return []
+
+        # Patch the entry_points function in the __main__ module
+        monkeypatch.setattr("rhiza.__main__.entry_points", mock_entry_points)
+
+        # Create a test app
+        test_app = typer.Typer()
+
+        # Import and call load_plugins directly
+        from rhiza.__main__ import load_plugins
+
+        load_plugins(test_app)
+
+        # Verify the error message was printed
+        captured = capsys.readouterr()
+        assert "Failed to load plugin bad_plugin" in captured.out
+
+    def test_load_plugins_successfully(self, monkeypatch):
+        """Test plugin loading works with a valid plugin."""
+        from unittest.mock import MagicMock
+
+        import typer
+
+        # Create a mock plugin app
+        mock_plugin_app = typer.Typer()
+
+        # Create a mock entry point that loads successfully
+        mock_entry = MagicMock()
+        mock_entry.name = "good_plugin"
+        mock_entry.load.return_value = mock_plugin_app
+
+        # Create a mock entry_points function that returns our successful entry
+        def mock_entry_points(group):
+            if group == "rhiza.plugins":
+                return [mock_entry]
+            return []
+
+        # Patch the entry_points function in the __main__ module
+        monkeypatch.setattr("rhiza.__main__.entry_points", mock_entry_points)
+
+        # Create a test app with a mock add_typer method
+        test_app = typer.Typer()
+        add_typer_mock = MagicMock()
+        test_app.add_typer = add_typer_mock
+
+        # Import and call load_plugins directly
+        from rhiza.__main__ import load_plugins
+
+        load_plugins(test_app)
+
+        # Verify add_typer was called with the plugin app
+        add_typer_mock.assert_called_once_with(mock_plugin_app, name="good_plugin")
+
 
 class TestWelcomeCommand:
     """Tests for the welcome command."""
