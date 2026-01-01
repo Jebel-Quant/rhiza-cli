@@ -136,3 +136,78 @@ class TestWelcomeCommand:
         assert result.exit_code == 0
         assert "Welcome to Rhiza" in result.stdout
         assert __version__ in result.stdout
+
+
+class TestPluginLoading:
+    """Tests for plugin loading in __main__.py."""
+
+    def test_load_plugins_with_no_plugins(self):
+        """Test loading plugins when no plugins are installed."""
+        from unittest.mock import MagicMock, patch
+
+        from rhiza.__main__ import load_plugins
+
+        mock_app = MagicMock()
+
+        with patch("rhiza.__main__.entry_points") as mock_entry_points:
+            mock_entry_points.return_value = []
+            load_plugins(mock_app)
+            # Should complete without errors
+            mock_app.add_typer.assert_not_called()
+
+    def test_load_plugins_with_successful_plugin(self):
+        """Test loading a plugin that loads successfully."""
+        from unittest.mock import MagicMock, patch
+
+        from rhiza.__main__ import load_plugins
+
+        mock_app = MagicMock()
+        mock_plugin_app = MagicMock()
+
+        mock_entry = MagicMock()
+        mock_entry.name = "test-plugin"
+        mock_entry.load.return_value = mock_plugin_app
+
+        with patch("rhiza.__main__.entry_points") as mock_entry_points:
+            mock_entry_points.return_value = [mock_entry]
+            load_plugins(mock_app)
+            mock_app.add_typer.assert_called_once_with(mock_plugin_app, name="test-plugin")
+
+    def test_load_plugins_with_failing_plugin(self, capsys):
+        """Test loading a plugin that fails to load."""
+        from unittest.mock import MagicMock, patch
+
+        from rhiza.__main__ import load_plugins
+
+        mock_app = MagicMock()
+
+        mock_entry = MagicMock()
+        mock_entry.name = "bad-plugin"
+        mock_entry.load.side_effect = Exception("Plugin load error")
+
+        with patch("rhiza.__main__.entry_points") as mock_entry_points:
+            mock_entry_points.return_value = [mock_entry]
+            load_plugins(mock_app)
+            # Should handle the exception gracefully
+            captured = capsys.readouterr()
+            assert "Failed to load plugin bad-plugin" in captured.out
+            mock_app.add_typer.assert_not_called()
+
+
+class TestUiCommand:
+    """Tests for the UI command wrapper in cli.py."""
+
+    def test_ui_command_wrapper(self):
+        """Test the UI command CLI wrapper."""
+        from unittest.mock import patch
+
+        from typer.testing import CliRunner
+
+        from rhiza.cli import app
+
+        runner = CliRunner()
+
+        with patch("rhiza.cli.ui_cmd") as mock_ui:
+            result = runner.invoke(app, ["ui", "."])
+            # The command should execute without errors
+            assert mock_ui.called

@@ -290,3 +290,70 @@ class TestInitCommand:
         assert ".gitlab-ci.yml" in config["include"]
         # Should NOT include .github for GitLab target
         assert ".github" not in config["include"]
+
+    def test_prompt_git_host_non_interactive(self):
+        """Test _prompt_git_host when stdin is not a tty (non-interactive)."""
+        from unittest.mock import patch
+
+        from rhiza.commands.init import _prompt_git_host
+
+        # Mock sys.stdin.isatty() to return False
+        with patch("sys.stdin.isatty", return_value=False):
+            result = _prompt_git_host()
+            assert result == "github"  # Should return default
+
+    def test_create_python_package_when_exists(self, tmp_path):
+        """Test _create_python_package when src folder already exists."""
+        from rhiza.commands.init import _create_python_package
+
+        # Create src folder first
+        (tmp_path / "src").mkdir()
+
+        # Should return early without creating anything
+        _create_python_package(tmp_path, "test-project", "test_package")
+
+        # Should still exist but nothing else should be created
+        assert (tmp_path / "src").exists()
+        assert not (tmp_path / "src" / "test_package").exists()
+
+    def test_create_pyproject_toml_when_exists(self, tmp_path):
+        """Test _create_pyproject_toml when pyproject.toml already exists."""
+        from rhiza.commands.init import _create_pyproject_toml
+
+        # Create pyproject.toml first
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("existing content")
+
+        # Should return early without modifying
+        _create_pyproject_toml(tmp_path, "test-project", "test_package", with_dev_dependencies=True)
+
+        # File should still have original content
+        assert pyproject_file.read_text() == "existing content"
+
+    def test_create_readme_when_exists(self, tmp_path):
+        """Test _create_readme when README.md already exists."""
+        from rhiza.commands.init import _create_readme
+
+        # Create README.md first
+        readme_file = tmp_path / "README.md"
+        readme_file.write_text("existing readme")
+
+        # Should return early without modifying
+        _create_readme(tmp_path)
+
+        # File should still have original content
+        assert readme_file.read_text() == "existing readme"
+
+    def test_prompt_git_host_interactive_invalid_then_valid(self):
+        """Test _prompt_git_host with invalid input followed by valid input."""
+        from unittest.mock import patch
+
+        from rhiza.commands.init import _prompt_git_host
+
+        # Mock sys.stdin.isatty() to return True (interactive)
+        # Mock typer.prompt to return invalid input first, then valid
+        with patch("sys.stdin.isatty", return_value=True), patch(
+            "typer.prompt", side_effect=["invalid", "gitlab"]
+        ):
+            result = _prompt_git_host()
+            assert result == "gitlab"

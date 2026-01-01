@@ -349,3 +349,18 @@ class TestMigrateCLI:
         # Verify .rhiza folder was created
         assert (tmp_path / ".rhiza").exists()
         assert (tmp_path / ".rhiza" / "template.yml").exists()
+
+    def test_ensure_rhiza_in_include_no_template_file(self, tmp_path):
+        """Test _ensure_rhiza_in_include when template.yml doesn't exist."""
+        from rhiza.commands.migrate import _ensure_rhiza_in_include
+
+        # Call the function without creating template.yml first
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        # Should return early without error
+        _ensure_rhiza_in_include(template_file)
+
+        # Template file should not be created
+        assert not template_file.exists()
