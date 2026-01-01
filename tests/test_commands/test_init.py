@@ -290,3 +290,80 @@ class TestInitCommand:
         assert ".gitlab-ci.yml" in config["include"]
         # Should NOT include .github for GitLab target
         assert ".github" not in config["include"]
+
+    def test_init_skips_src_folder_creation_when_exists(self, tmp_path):
+        """Test that init skips creating src folder when it already exists."""
+        # Create existing src folder structure
+        src_folder = tmp_path / "src" / "mypackage"
+        src_folder.mkdir(parents=True)
+        init_file = src_folder / "__init__.py"
+        init_file.write_text("# Existing package")
+
+        # Run init with explicit git_host to avoid prompting
+        init(tmp_path, git_host="github")
+
+        # Verify existing src structure is preserved
+        assert init_file.exists()
+        assert init_file.read_text() == "# Existing package"
+
+        # Verify template.yml was still created
+        template_file = tmp_path / ".rhiza" / "template.yml"
+        assert template_file.exists()
+
+    def test_init_skips_pyproject_creation_when_exists(self, tmp_path):
+        """Test that init skips creating pyproject.toml when it already exists."""
+        # Create existing pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        existing_content = "[project]\nname = 'existing-project'\n"
+        pyproject_file.write_text(existing_content)
+
+        # Run init with explicit git_host to avoid prompting
+        init(tmp_path, git_host="github")
+
+        # Verify existing pyproject.toml is preserved
+        assert pyproject_file.exists()
+        assert pyproject_file.read_text() == existing_content
+
+        # Verify template.yml was still created
+        template_file = tmp_path / ".rhiza" / "template.yml"
+        assert template_file.exists()
+
+    def test_init_skips_readme_creation_when_exists(self, tmp_path):
+        """Test that init skips creating README.md when it already exists."""
+        # Create existing README.md
+        readme_file = tmp_path / "README.md"
+        existing_content = "# My Existing Project\n\nExisting content.\n"
+        readme_file.write_text(existing_content)
+
+        # Run init with explicit git_host to avoid prompting
+        init(tmp_path, git_host="github")
+
+        # Verify existing README.md is preserved
+        assert readme_file.exists()
+        assert readme_file.read_text() == existing_content
+
+        # Verify template.yml was still created
+        template_file = tmp_path / ".rhiza" / "template.yml"
+        assert template_file.exists()
+
+    def test_prompt_git_host_validation_loop(self, tmp_path, monkeypatch):
+        """Test that _prompt_git_host validates input in a loop."""
+        from rhiza.commands.init import _prompt_git_host
+        from unittest.mock import MagicMock
+
+        # Mock sys.stdin.isatty to return True (interactive mode)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+
+        # Mock typer.prompt to return invalid input first, then valid input
+        prompt_responses = ["bitbucket", "gitlab"]
+        prompt_mock = MagicMock(side_effect=prompt_responses)
+        monkeypatch.setattr("typer.prompt", prompt_mock)
+
+        # Call the function
+        result = _prompt_git_host()
+
+        # Verify it returned the valid input
+        assert result == "gitlab"
+
+        # Verify prompt was called twice (once for invalid, once for valid)
+        assert prompt_mock.call_count == 2
