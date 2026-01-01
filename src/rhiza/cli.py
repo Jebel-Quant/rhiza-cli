@@ -13,7 +13,6 @@ from rhiza.commands import init as init_cmd
 from rhiza.commands import materialize as materialize_cmd
 from rhiza.commands import validate as validate_cmd
 from rhiza.commands.migrate import migrate as migrate_cmd
-from rhiza.commands.ui import ui as ui_cmd
 from rhiza.commands.uninstall import uninstall as uninstall_cmd
 from rhiza.commands.welcome import welcome as welcome_cmd
 
@@ -281,59 +280,3 @@ def uninstall(
         rhiza uninstall /path/to/project -y
     """
     uninstall_cmd(target, force)
-
-
-@app.command()
-def ui(
-    folder: Path = typer.Argument(
-        default=Path("."),
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        help="Folder containing Git repositories to monitor (defaults to current directory)",
-    ),
-    web: bool = typer.Option(
-        False,
-        "--web",
-        "-w",
-        help="Use web-based UI instead of modern terminal UI",
-    ),
-    port: int = typer.Option(
-        8080,
-        "--port",
-        "-p",
-        help="Port number for the web server (only used with --web)",
-    ),
-    no_browser: bool = typer.Option(
-        False,
-        "--no-browser",
-        help="Don't automatically open browser (only used with --web)",
-    ),
-):
-    r"""Launch Rhiza UI for monitoring and managing multiple Git repositories.
-
-    By default, opens a modern terminal-based dashboard using Textual.
-    Use --web flag for a browser-based interface.
-
-    The UI provides:
-    - Repository scanning and overview with status indicators
-    - Live monitoring of repository changes
-    - Batch Git operations (fetch, pull, push) across repositories
-    - Individual repository management and details
-    - Quick access to repository information and operations
-
-    Keyboard shortcuts (terminal UI):
-    - r: Refresh repositories
-    - f: Fetch all
-    - p: Pull all
-    - u: Push all
-    - q: Quit
-
-    Examples:
-        rhiza ui                                    # Terminal UI
-        rhiza ui /path/to/repos                     # Terminal UI with custom path
-        rhiza ui --web                              # Web-based UI
-        rhiza ui --web --port 9000                  # Web UI on port 9000
-        rhiza ui /path/to/repos --web --no-browser  # Web UI without auto-opening browser
-    """
-    ui_cmd(folder, web, port, no_browser)
