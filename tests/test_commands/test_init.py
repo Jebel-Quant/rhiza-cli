@@ -346,7 +346,7 @@ class TestInitCommand:
         template_file = tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
 
-    def test_prompt_git_host_validation_loop(self, tmp_path, monkeypatch):
+    def test_prompt_git_host_validation_loop(self, monkeypatch):
         """Test that _prompt_git_host validates input in a loop."""
         from rhiza.commands.init import _prompt_git_host
         from unittest.mock import MagicMock
