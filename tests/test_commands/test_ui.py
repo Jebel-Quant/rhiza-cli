@@ -325,8 +325,6 @@ class TestUiCommand:
         """Test terminal UI with runtime error."""
         from unittest.mock import MagicMock, patch
 
-        import pytest
-
         from rhiza.commands.ui import _launch_terminal_ui
 
         with patch("rhiza.ui.tui.RhizaApp") as mock_app_class:
