@@ -41,6 +41,12 @@ Issues = "https://github.com/jebel-quant/rhiza/issues-cli"
 [dependency-groups]
 tools = ["rhiza-tools"]
 
+dev = [
+    "numpy>=2.4",
+    "marimo>=0.18.0",
+    "pandas>=2.3",
+    "plotly>=6.5",
+]
 
 [tool.hatch.build.targets.wheel]
 # Use src-layout: package code is under src/config
