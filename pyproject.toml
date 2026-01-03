@@ -62,4 +62,4 @@ pythonpath = ["src"]
 rhiza = "rhiza.__main__:app"
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["rhiza-tools"]
+DEP002 = ["rhiza-tools>=0.1.2"]
