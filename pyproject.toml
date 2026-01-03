@@ -37,10 +37,10 @@ Homepage = "https://github.com/jebel-quant/rhiza-cli"
 Repository = "https://github.com/jebel-quant/rhiza-cli"
 Issues = "https://github.com/jebel-quant/rhiza/issues-cli"
 
-
-[dependency-groups]
+[project.optional-dependencies]
 tools = ["rhiza-tools>=0.1.2"]
 
+[dependency-groups]
 dev = [
     "numpy>=2.4",
     "marimo>=0.18.0",
