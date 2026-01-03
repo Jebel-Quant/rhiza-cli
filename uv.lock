@@ -918,13 +918,18 @@ wheels = [
 
 [[package]]
 name = "rhiza"
-version = "0.8.5"
+version = "0.8.6"
 source = { editable = "." }
 dependencies = [
     { name = "jinja2" },
     { name = "loguru" },
     { name = "pyyaml" },
     { name = "typer" },
+]
+
+[package.optional-dependencies]
+tools = [
+    { name = "rhiza-tools" },
 ]
 
 [package.dev-dependencies]
@@ -934,17 +939,16 @@ dev = [
     { name = "pandas" },
     { name = "plotly" },
 ]
-tools = [
-    { name = "rhiza-tools" },
-]
 
 [package.metadata]
 requires-dist = [
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "pyyaml", specifier = "==6.0.3" },
+    { name = "rhiza-tools", marker = "extra == 'tools'", specifier = ">=0.1.2" },
     { name = "typer", specifier = ">=0.20.0" },
 ]
+provides-extras = ["tools"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -953,7 +957,6 @@ dev = [
     { name = "pandas", specifier = ">=2.3" },
     { name = "plotly", specifier = ">=6.5" },
 ]
-tools = [{ name = "rhiza-tools", specifier = ">=0.1.2" }]
 
 [[package]]
 name = "rhiza-tools"
