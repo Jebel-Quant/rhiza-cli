@@ -39,7 +39,7 @@ Issues = "https://github.com/jebel-quant/rhiza/issues-cli"
 
 
 [dependency-groups]
-tools = ["rhiza-tools"]
+tools = ["rhiza-tools>=0.1.2"]
 
 dev = [
     "numpy>=2.4",
