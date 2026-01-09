@@ -377,3 +377,48 @@ class TestMigrateCLI:
         # Verify .rhiza folder was created
         assert (tmp_path / ".rhiza").exists()
         assert (tmp_path / ".rhiza" / "template.yml").exists()
+
+    def test_migrate_handles_multiline_exclude_field(self, tmp_path):
+        """Test that migrate correctly handles template.yml with multi-line exclude field.
+
+        This tests the bug where exclude: | multi-line YAML format was being
+        corrupted during migration, resulting in malformed YAML output.
+        """
+        # Create existing template.yml in .github/ with multi-line exclude
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir(parents=True)
+        old_template_file = github_dir / "template.yml"
+
+        # Write template with multi-line string format (using |)
+        old_template_file.write_text("""template-repository: ".tschm/.config-templates"
+template-branch: "main"
+exclude: |
+  LICENSE
+  README.md
+  .github/CODEOWNERS
+""")
+
+        # Run migrate
+        runner = CliRunner()
+        result = runner.invoke(cli.app, ["migrate", str(tmp_path)])
+
+        # Verify it succeeded
+        assert result.exit_code == 0
+
+        # Verify new template.yml was created
+        new_template_file = tmp_path / ".rhiza" / "template.yml"
+        assert new_template_file.exists()
+
+        # Verify content was properly converted to YAML lists
+        with open(new_template_file) as f:
+            migrated_content = yaml.safe_load(f)
+
+        # Exclude should be a proper list, not a malformed string
+        assert isinstance(migrated_content["exclude"], list)
+        assert migrated_content["exclude"] == ["LICENSE", "README.md", ".github/CODEOWNERS"]
+
+        # Include should have .rhiza added
+        assert ".rhiza" in migrated_content["include"]
+
+        # Verify old file was removed
+        assert not old_template_file.exists()

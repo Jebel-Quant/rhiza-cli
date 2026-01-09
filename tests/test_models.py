@@ -275,3 +275,64 @@ class TestRhizaTemplate:
         assert loaded.template_branch == original.template_branch
         assert loaded.template_host == original.template_host
         assert loaded.include == original.include
+
+    def test_rhiza_template_from_yaml_with_multiline_exclude(self, tmp_path):
+        """Test loading a template.yml with multi-line string exclude field (using |)."""
+        template_file = tmp_path / "template.yml"
+        # This is the format users might write in YAML with the literal block scalar (|)
+        template_file.write_text("""template-repository: ".tschm/.config-templates"
+template-branch: "main"
+exclude: |
+  LICENSE
+  README.md
+  .github/CODEOWNERS
+""")
+
+        template = RhizaTemplate.from_yaml(template_file)
+
+        assert template.template_repository == ".tschm/.config-templates"
+        assert template.template_branch == "main"
+        assert template.exclude == ["LICENSE", "README.md", ".github/CODEOWNERS"]
+
+    def test_rhiza_template_from_yaml_with_multiline_include(self, tmp_path):
+        """Test loading a template.yml with multi-line string include field (using |)."""
+        template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-repository: "test/repo"
+template-branch: "main"
+include: |
+  .github
+  Makefile
+  src
+""")
+
+        template = RhizaTemplate.from_yaml(template_file)
+
+        assert template.template_repository == "test/repo"
+        assert template.include == [".github", "Makefile", "src"]
+
+    def test_rhiza_template_round_trip_multiline_exclude(self, tmp_path):
+        """Test that multi-line exclude is properly saved as a YAML list."""
+        template_file = tmp_path / "template.yml"
+        # Write with multi-line string format
+        template_file.write_text("""template-repository: ".tschm/.config-templates"
+template-branch: "main"
+exclude: |
+  LICENSE
+  README.md
+  .github/CODEOWNERS
+""")
+
+        # Load and save
+        template = RhizaTemplate.from_yaml(template_file)
+        output_file = tmp_path / "output.yml"
+        template.to_yaml(output_file)
+
+        # Reload and verify
+        reloaded = RhizaTemplate.from_yaml(output_file)
+        assert reloaded.exclude == ["LICENSE", "README.md", ".github/CODEOWNERS"]
+
+        # Verify the saved file uses proper YAML list format
+        with open(output_file) as f:
+            config = yaml.safe_load(f)
+        assert config["exclude"] == ["LICENSE", "README.md", ".github/CODEOWNERS"]
+        assert isinstance(config["exclude"], list)
