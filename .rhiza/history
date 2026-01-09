@@ -17,6 +17,8 @@
 .gitignore
 .pre-commit-config.yaml
 .rhiza/.cfg.toml
+.rhiza/.env
+.rhiza/agentic/Makefile.agentic
 .rhiza/customisations/Makefile.customisations
 .rhiza/customisations/scripts/build-extras.sh
 .rhiza/customisations/scripts/post-release.sh
@@ -58,6 +60,7 @@ tests/test_rhiza/test_coverage_badge.py
 tests/test_rhiza/test_docstrings.py
 tests/test_rhiza/test_git_repo_fixture.py
 tests/test_rhiza/test_makefile.py
+tests/test_rhiza/test_makefile_gh.py
 tests/test_rhiza/test_marimushka_script.py
 tests/test_rhiza/test_notebooks.py
 tests/test_rhiza/test_readme.py
