@@ -11,6 +11,29 @@ from pathlib import Path
 import yaml
 
 
+def _normalize_to_list(value: str | list[str] | None) -> list[str]:
+    """Convert a value to a list of strings.
+
+    Handles the case where YAML multi-line strings (using |) are parsed as
+    a single string instead of a list. Splits the string by newlines and
+    strips whitespace from each item.
+
+    Args:
+        value: A string, list of strings, or None.
+
+    Returns:
+        A list of strings. Empty list if value is None or empty.
+    """
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        # Split by newlines and filter out empty strings
+        return [item.strip() for item in value.strip().split("\n") if item.strip()]
+    return []
+
+
 @dataclass
 class RhizaTemplate:
     """Represents the structure of .github/rhiza/template.yml.
@@ -57,8 +80,8 @@ class RhizaTemplate:
             template_repository=config.get("template-repository"),
             template_branch=config.get("template-branch"),
             template_host=config.get("template-host", "github"),
-            include=config.get("include", []),
-            exclude=config.get("exclude", []),
+            include=_normalize_to_list(config.get("include")),
+            exclude=_normalize_to_list(config.get("exclude")),
         )
 
     def to_yaml(self, file_path: Path) -> None:
