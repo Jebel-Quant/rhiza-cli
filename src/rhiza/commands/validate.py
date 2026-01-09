@@ -128,6 +128,9 @@ def _parse_yaml_file(template_file: Path) -> tuple[bool, dict | None]:
 def _validate_required_fields(config: dict) -> bool:
     """Validate required fields exist and have correct types.
 
+    The 'include' field is optional - if omitted or empty, all files from
+    the template repository will be included (subject to exclude filters).
+
     Args:
         config: Configuration dictionary.
 
@@ -135,9 +138,10 @@ def _validate_required_fields(config: dict) -> bool:
         True if all validations pass, False otherwise.
     """
     logger.debug("Validating required fields")
+    # Only template-repository is truly required
+    # include is optional (empty means include all)
     required_fields = {
         "template-repository": str,
-        "include": list,
     }
 
     validation_passed = True
@@ -189,6 +193,9 @@ def _validate_repository_format(config: dict) -> bool:
 def _validate_include_paths(config: dict) -> bool:
     """Validate include paths.
 
+    An empty or missing include list is valid and means "include all files"
+    from the template repository (subject to exclude filters).
+
     Args:
         config: Configuration dictionary.
 
@@ -197,6 +204,7 @@ def _validate_include_paths(config: dict) -> bool:
     """
     logger.debug("Validating include paths")
     if "include" not in config:
+        logger.success("include not specified - will include all files from template repository")
         return True
 
     include = config["include"]
@@ -205,9 +213,8 @@ def _validate_include_paths(config: dict) -> bool:
         logger.error("Example: include: ['.github', '.gitignore']")
         return False
     elif len(include) == 0:
-        logger.error("include list cannot be empty")
-        logger.error("Add at least one path to materialize")
-        return False
+        logger.success("include list is empty - will include all files from template repository")
+        return True
     else:
         logger.success(f"include list has {len(include)} path(s)")
         for path in include:

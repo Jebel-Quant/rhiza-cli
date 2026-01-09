@@ -123,8 +123,8 @@ class TestValidateCommand:
         result = validate(tmp_path)
         assert result is False
 
-    def test_validate_fails_on_empty_include_list(self, tmp_path):
-        """Test that validate fails when include list is empty."""
+    def test_validate_succeeds_on_empty_include_list(self, tmp_path):
+        """Test that validate succeeds when include list is empty (include-all mode)."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
@@ -133,7 +133,7 @@ class TestValidateCommand:
         pyproject_file = tmp_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
-        # Create template with empty include
+        # Create template with empty include (include-all mode)
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
@@ -148,7 +148,60 @@ class TestValidateCommand:
             )
 
         result = validate(tmp_path)
-        assert result is False
+        assert result is True
+
+    def test_validate_succeeds_on_missing_include_list(self, tmp_path):
+        """Test that validate succeeds when include is not specified (include-all mode)."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template without include field
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_succeeds_with_only_exclude(self, tmp_path):
+        """Test that validate succeeds with only exclude list (include-all mode)."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template with only exclude (no include = include all)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "exclude": [".github/CODEOWNERS", ".github/workflows/deploy.yml"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is True
 
     def test_validate_succeeds_on_valid_template(self, tmp_path):
         """Test that validate succeeds on a valid template.yml."""

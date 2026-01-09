@@ -275,3 +275,125 @@ class TestRhizaTemplate:
         assert loaded.template_branch == original.template_branch
         assert loaded.template_host == original.template_host
         assert loaded.include == original.include
+
+
+class TestRhizaTemplateIncludeAll:
+    """Tests for the include-all feature (empty include list)."""
+
+    def test_include_all_property_true_when_include_empty(self):
+        """Test that include_all is True when include list is empty."""
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            template_branch="main",
+            include=[],
+            exclude=[".github/CODEOWNERS"],
+        )
+        assert template.include_all is True
+
+    def test_include_all_property_false_when_include_has_paths(self):
+        """Test that include_all is False when include list has paths."""
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            template_branch="main",
+            include=[".github", "Makefile"],
+        )
+        assert template.include_all is False
+
+    def test_include_all_property_true_by_default(self):
+        """Test that include_all is True when using default (empty) include."""
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+        )
+        assert template.include_all is True
+        assert template.include == []
+
+    def test_include_all_with_exclude_from_yaml(self, tmp_path):
+        """Test loading a template with empty include and exclude paths."""
+        template_file = tmp_path / "template.yml"
+        config = {
+            "template-repository": "owner/repo",
+            "template-branch": "main",
+            "exclude": [".github/CODEOWNERS", ".github/workflows/deploy.yml"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(config, f)
+
+        template = RhizaTemplate.from_yaml(template_file)
+
+        assert template.template_repository == "owner/repo"
+        assert template.include == []
+        assert template.include_all is True
+        assert template.exclude == [".github/CODEOWNERS", ".github/workflows/deploy.yml"]
+
+    def test_include_all_with_explicit_empty_include_from_yaml(self, tmp_path):
+        """Test loading a template with explicit empty include list."""
+        template_file = tmp_path / "template.yml"
+        config = {
+            "template-repository": "owner/repo",
+            "include": [],
+            "exclude": [".github/CODEOWNERS"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(config, f)
+
+        template = RhizaTemplate.from_yaml(template_file)
+
+        assert template.include == []
+        assert template.include_all is True
+        assert template.exclude == [".github/CODEOWNERS"]
+
+    def test_to_yaml_omits_empty_include(self, tmp_path):
+        """Test that to_yaml does not include 'include' key when list is empty."""
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            template_branch="main",
+            include=[],
+            exclude=[".github/CODEOWNERS"],
+        )
+
+        template_file = tmp_path / "template.yml"
+        template.to_yaml(template_file)
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        assert "include" not in config
+        assert config["exclude"] == [".github/CODEOWNERS"]
+
+    def test_to_yaml_includes_non_empty_include(self, tmp_path):
+        """Test that to_yaml includes 'include' key when list has paths."""
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            template_branch="main",
+            include=[".github", "Makefile"],
+        )
+
+        template_file = tmp_path / "template.yml"
+        template.to_yaml(template_file)
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        assert config["include"] == [".github", "Makefile"]
+
+    def test_round_trip_include_all_mode(self, tmp_path):
+        """Test round-trip for include-all mode (no include, only exclude)."""
+        original = RhizaTemplate(
+            template_repository="owner/repo",
+            template_branch="main",
+            include=[],
+            exclude=[".github/CODEOWNERS", "docs/internal"],
+        )
+
+        template_file = tmp_path / "template.yml"
+        original.to_yaml(template_file)
+
+        loaded = RhizaTemplate.from_yaml(template_file)
+
+        assert loaded.template_repository == original.template_repository
+        assert loaded.template_branch == original.template_branch
+        assert loaded.include == original.include
+        assert loaded.include_all is True
+        assert loaded.exclude == original.exclude

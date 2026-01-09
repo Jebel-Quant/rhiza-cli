@@ -23,6 +23,7 @@ class RhizaTemplate:
         template_host: The git hosting platform ("github" or "gitlab").
             Defaults to "github" if not specified in the template file.
         include: List of paths to include from the template repository.
+            If empty and exclude is provided, all files will be included except those in exclude.
         exclude: List of paths to exclude from the template repository (default: empty list).
     """
 
@@ -31,6 +32,18 @@ class RhizaTemplate:
     template_host: str = "github"
     include: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
+
+    @property
+    def include_all(self) -> bool:
+        """Check if this template should include all files from the repository.
+
+        Returns True when include list is empty, meaning all files should be
+        included (subject to exclude filters).
+
+        Returns:
+            True if all files should be included, False if specific paths are listed.
+        """
+        return len(self.include) == 0
 
     @classmethod
     def from_yaml(cls, file_path: Path) -> "RhizaTemplate":
@@ -85,8 +98,9 @@ class RhizaTemplate:
         if self.template_host and self.template_host != "github":
             config["template-host"] = self.template_host
 
-        # Include is always present as it's a required field for the config to be useful
-        config["include"] = self.include
+        # Only include 'include' if it's not empty (empty means include-all mode)
+        if self.include:
+            config["include"] = self.include
 
         # Only include exclude if it's not empty
         if self.exclude:

@@ -77,8 +77,10 @@ class TestInjectCommand:
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_inject_fails_with_no_include_paths(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
-        """Test that inject fails when template.yml has no include paths."""
+    def test_inject_succeeds_with_empty_include_paths(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that inject succeeds when template.yml has empty include (include-all mode)."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
@@ -87,7 +89,7 @@ class TestInjectCommand:
         pyproject_file = tmp_path / "pyproject.toml"
         pyproject_file.write_text('[project]\nname = "test"\n')
 
-        # Create template.yml with empty include
+        # Create template.yml with empty include (include-all mode)
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
@@ -95,9 +97,24 @@ class TestInjectCommand:
         with open(template_file, "w") as f:
             yaml.dump({"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": []}, f)
 
-        # Run inject and expect it to fail
-        with pytest.raises(SystemExit):
-            materialize(tmp_path, "main", None, False)
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Create a fake .git directory in temp (to be excluded)
+        (temp_dir / ".git").mkdir()
+        (temp_dir / ".git" / "config").write_text("fake git config")
+
+        # Create some test files in the temp directory
+        (temp_dir / "README.md").write_text("# Test")
+        (temp_dir / "Makefile").write_text("test:")
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run inject - should succeed with include-all mode
+        materialize(tmp_path, "main", None, False)
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -667,8 +684,8 @@ class TestInjectCommand:
             assert "permission" in call_args.lower()
 
     @patch("rhiza.commands.materialize.validate")
-    def test_materialize_raises_error_when_validate_bypassed_with_empty_include(self, mock_validate, tmp_path):
-        """Test that materialize raises RuntimeError when include_paths is empty after validation."""
+    def test_materialize_succeeds_with_empty_include_include_all_mode(self, mock_validate, tmp_path):
+        """Test that materialize succeeds with empty include (include-all mode)."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
@@ -677,7 +694,7 @@ class TestInjectCommand:
         pyproject_file = tmp_path / "pyproject.toml"
         pyproject_file.write_text('[project]\nname = "test"\n')
 
-        # Create template.yml with empty include (bypassing normal validation)
+        # Create template.yml with empty include (include-all mode)
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
@@ -692,14 +709,17 @@ class TestInjectCommand:
                 f,
             )
 
-        # Mock validate to return True to bypass normal validation that would catch empty include lists.
-        # This test validates materialize's runtime error handling for the theoretical edge case
-        # where validation passes but include_paths is still empty (e.g., validation logic gaps).
+        # Mock validate to return True
         mock_validate.return_value = True
 
-        # Run materialize and expect RuntimeError
-        with pytest.raises(RuntimeError, match="No include paths found"):
+        # Run materialize - should succeed (include-all mode) and not raise RuntimeError
+        # This will clone the actual repository, so we don't check result, just that it doesn't raise
+        try:
             materialize(tmp_path, "main", None, False)
+        except RuntimeError as e:
+            # Should NOT raise "No include paths found" anymore
+            if "No include paths found" in str(e):
+                pytest.fail("Should not raise 'No include paths found' - empty include is valid for include-all mode")
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -1605,3 +1625,253 @@ class TestInjectCommand:
         # Run materialize and expect it to fail with RuntimeError
         with pytest.raises(RuntimeError, match="git executable not found in PATH"):
             materialize(tmp_path, "main", None, False)
+
+
+class TestMaterializeIncludeAll:
+    """Tests for the include-all mode (empty include list)."""
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_include_all_mode_does_not_use_sparse_checkout(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that include-all mode uses full clone instead of sparse checkout."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create template.yml with empty include (include-all mode)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": [],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+
+        # Create .git directory (should be excluded)
+        (temp_dir / ".git").mkdir()
+        (temp_dir / ".git" / "config").write_text("fake git config")
+
+        # Create test files
+        (temp_dir / "README.md").write_text("# Test")
+        (temp_dir / "Makefile").write_text("test:")
+
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize
+        materialize(tmp_path, "main", None, False)
+
+        # Verify that the clone command did NOT include --sparse
+        clone_calls = [call for call in mock_subprocess.call_args_list if "clone" in str(call)]
+        assert len(clone_calls) >= 1
+        clone_args = clone_calls[0][0][0]  # Get the command list
+        assert "--sparse" not in clone_args, "Include-all mode should not use --sparse"
+
+        # Verify that sparse-checkout commands were NOT called
+        sparse_checkout_calls = [call for call in mock_subprocess.call_args_list if "sparse-checkout" in str(call)]
+        assert len(sparse_checkout_calls) == 0, "Include-all mode should not use sparse-checkout"
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_include_all_mode_excludes_git_directory(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that include-all mode excludes the .git directory."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create template.yml with empty include (include-all mode)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": [],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+
+        # Create .git directory (should be excluded)
+        git_internal_dir = temp_dir / ".git"
+        git_internal_dir.mkdir()
+        (git_internal_dir / "config").write_text("fake git config")
+        (git_internal_dir / "HEAD").write_text("ref: refs/heads/main")
+
+        # Create test files
+        (temp_dir / "README.md").write_text("# Test")
+        (temp_dir / "Makefile").write_text("test:")
+
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize
+        materialize(tmp_path, "main", None, False)
+
+        # Verify that shutil.copy2 was NOT called for .git files
+        for call in mock_copy2.call_args_list:
+            src_path = str(call[0][0])
+            assert ".git" not in src_path, f".git files should be excluded: {src_path}"
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_include_all_with_exclude_filters_correctly(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that include-all mode with exclude list filters correctly."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create template.yml with empty include and exclude list
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": [],
+                    "exclude": ["CODEOWNERS", "internal/secret.txt"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+
+        # Create .git directory (always excluded)
+        (temp_dir / ".git").mkdir()
+        (temp_dir / ".git" / "config").write_text("fake git config")
+
+        # Create test files - some to be included, some excluded
+        (temp_dir / "README.md").write_text("# Test")
+        (temp_dir / "Makefile").write_text("test:")
+        (temp_dir / "CODEOWNERS").write_text("* @owner")  # Should be excluded
+        (temp_dir / "internal").mkdir()
+        (temp_dir / "internal" / "secret.txt").write_text("secret")  # Should be excluded
+        (temp_dir / "internal" / "public.txt").write_text("public")  # Should be included
+
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize
+        materialize(tmp_path, "main", None, False)
+
+        # Collect all copied file paths
+        copied_files = [str(call[0][0]) for call in mock_copy2.call_args_list]
+
+        # Verify excluded files were not copied
+        for copied_file in copied_files:
+            assert "CODEOWNERS" not in copied_file, "CODEOWNERS should be excluded"
+            assert "secret.txt" not in copied_file, "secret.txt should be excluded"
+
+        # Verify included files were copied (check that at least README.md and Makefile were copied)
+        copied_basenames = [Path(f).name for f in copied_files]
+        assert "README.md" in copied_basenames, "README.md should be included"
+        assert "Makefile" in copied_basenames, "Makefile should be included"
+        assert "public.txt" in copied_basenames, "public.txt should be included"
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_include_all_without_include_field_in_yaml(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that omitting include field entirely enables include-all mode."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create template.yml WITHOUT include field (only exclude)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "exclude": ["CODEOWNERS"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+
+        # Create .git directory
+        (temp_dir / ".git").mkdir()
+        (temp_dir / ".git" / "config").write_text("fake git config")
+
+        # Create test files
+        (temp_dir / "README.md").write_text("# Test")
+        (temp_dir / "CODEOWNERS").write_text("* @owner")  # Should be excluded
+
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize - should work without include field
+        materialize(tmp_path, "main", None, False)
+
+        # Verify that the clone command did NOT include --sparse
+        clone_calls = [call for call in mock_subprocess.call_args_list if "clone" in str(call)]
+        assert len(clone_calls) >= 1
+        clone_args = clone_calls[0][0][0]
+        assert "--sparse" not in clone_args, "Include-all mode should not use --sparse"

@@ -95,16 +95,13 @@ def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplat
     include_paths = template.include
     excluded_paths = template.exclude
 
-    # Validate that we have paths to include
-    if not include_paths:
-        logger.error("No include paths found in template.yml")
-        logger.error("Add at least one path to the 'include' list in template.yml")
-        raise RuntimeError("No include paths found in template.yml")
-
     # Log the paths we'll be including
-    logger.info("Include paths:")
-    for p in include_paths:
-        logger.info(f"  - {p}")
+    if template.include_all:
+        logger.info("Include mode: all files from template repository")
+    else:
+        logger.info("Include paths:")
+        for p in include_paths:
+            logger.info(f"  - {p}")
 
     if excluded_paths:
         logger.info("Exclude paths:")
@@ -148,80 +145,114 @@ def _clone_template_repository(
     git_executable: str,
     git_env: dict[str, str],
 ) -> None:
-    """Clone template repository with sparse checkout.
+    """Clone template repository with sparse checkout or full clone.
+
+    When include_paths is empty (include-all mode), performs a shallow clone
+    of the entire repository. Otherwise, uses sparse checkout to only fetch
+    the specified paths.
 
     Args:
         tmp_dir: Temporary directory for cloning.
         git_url: Git repository URL.
         rhiza_branch: Branch to clone.
-        include_paths: Paths to include in sparse checkout.
+        include_paths: Paths to include in sparse checkout. Empty list means include all.
         git_executable: Path to git executable.
         git_env: Environment variables for git commands.
     """
-    # Clone the repository using sparse checkout
-    try:
-        logger.debug("Executing git clone with sparse checkout")
-        subprocess.run(
-            [
-                git_executable,
-                "clone",
-                "--depth",
-                "1",
-                "--filter=blob:none",
-                "--sparse",
-                "--branch",
-                rhiza_branch,
-                git_url,
-                str(tmp_dir),
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-            env=git_env,
-        )
-        logger.debug("Git clone completed successfully")
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to clone repository: {e}")
-        if e.stderr:
-            logger.error(f"Git error: {e.stderr.strip()}")
-        logger.error(f"Check that the repository exists and branch '{rhiza_branch}' is valid")
-        raise
+    include_all = len(include_paths) == 0
 
-    # Initialize sparse checkout in cone mode
-    try:
-        logger.debug("Initializing sparse checkout")
-        subprocess.run(
-            [git_executable, "sparse-checkout", "init", "--cone"],
-            cwd=tmp_dir,
-            check=True,
-            capture_output=True,
-            text=True,
-            env=git_env,
-        )
-        logger.debug("Sparse checkout initialized")
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to initialize sparse checkout: {e}")
-        if e.stderr:
-            logger.error(f"Git error: {e.stderr.strip()}")
-        raise
+    if include_all:
+        # Full shallow clone when including all files
+        try:
+            logger.debug("Executing git clone (include-all mode)")
+            subprocess.run(
+                [
+                    git_executable,
+                    "clone",
+                    "--depth",
+                    "1",
+                    "--branch",
+                    rhiza_branch,
+                    git_url,
+                    str(tmp_dir),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=git_env,
+            )
+            logger.debug("Git clone completed successfully")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to clone repository: {e}")
+            if e.stderr:
+                logger.error(f"Git error: {e.stderr.strip()}")
+            logger.error(f"Check that the repository exists and branch '{rhiza_branch}' is valid")
+            raise
+    else:
+        # Sparse checkout when specific paths are requested
+        try:
+            logger.debug("Executing git clone with sparse checkout")
+            subprocess.run(
+                [
+                    git_executable,
+                    "clone",
+                    "--depth",
+                    "1",
+                    "--filter=blob:none",
+                    "--sparse",
+                    "--branch",
+                    rhiza_branch,
+                    git_url,
+                    str(tmp_dir),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=git_env,
+            )
+            logger.debug("Git clone completed successfully")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to clone repository: {e}")
+            if e.stderr:
+                logger.error(f"Git error: {e.stderr.strip()}")
+            logger.error(f"Check that the repository exists and branch '{rhiza_branch}' is valid")
+            raise
 
-    # Set sparse checkout paths
-    try:
-        logger.debug(f"Setting sparse checkout paths: {include_paths}")
-        subprocess.run(
-            [git_executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
-            cwd=tmp_dir,
-            check=True,
-            capture_output=True,
-            text=True,
-            env=git_env,
-        )
-        logger.debug("Sparse checkout paths configured")
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to set sparse checkout paths: {e}")
-        if e.stderr:
-            logger.error(f"Git error: {e.stderr.strip()}")
-        raise
+        # Initialize sparse checkout in cone mode
+        try:
+            logger.debug("Initializing sparse checkout")
+            subprocess.run(
+                [git_executable, "sparse-checkout", "init", "--cone"],
+                cwd=tmp_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=git_env,
+            )
+            logger.debug("Sparse checkout initialized")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to initialize sparse checkout: {e}")
+            if e.stderr:
+                logger.error(f"Git error: {e.stderr.strip()}")
+            raise
+
+        # Set sparse checkout paths
+        try:
+            logger.debug(f"Setting sparse checkout paths: {include_paths}")
+            subprocess.run(
+                [git_executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
+                cwd=tmp_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=git_env,
+            )
+            logger.debug("Sparse checkout paths configured")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to set sparse checkout paths: {e}")
+            if e.stderr:
+                logger.error(f"Git error: {e.stderr.strip()}")
+            raise
 
 
 def _copy_files_to_target(
@@ -233,19 +264,29 @@ def _copy_files_to_target(
 ) -> list[Path]:
     """Copy files from temporary clone to target repository.
 
+    When include_paths is empty (include-all mode), all files from the
+    cloned repository will be included (except .git directory and excluded paths).
+
     Args:
         tmp_dir: Temporary directory with cloned files.
         target: Target repository path.
-        include_paths: Paths to include.
+        include_paths: Paths to include. Empty list means include all.
         excluded_paths: Paths to exclude.
         force: Whether to overwrite existing files.
 
     Returns:
         List of materialized file paths (relative to target).
     """
+    include_all = len(include_paths) == 0
+
     # Expand paths to individual files
-    logger.debug("Expanding included paths to individual files")
-    all_files = __expand_paths(tmp_dir, include_paths)
+    if include_all:
+        logger.debug("Include-all mode: gathering all files from repository")
+        # Get all files except .git directory
+        all_files = [f for f in tmp_dir.rglob("*") if f.is_file() and ".git" not in f.relative_to(tmp_dir).parts]
+    else:
+        logger.debug("Expanding included paths to individual files")
+        all_files = __expand_paths(tmp_dir, include_paths)
     logger.info(f"Found {len(all_files)} file(s) in included paths")
 
     # Create set of excluded files
