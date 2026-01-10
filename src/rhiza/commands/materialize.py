@@ -80,15 +80,33 @@ def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplat
     """
     from rhiza.models import DEPRECATED_REPOSITORY, NEW_REPOSITORY
 
-    # Validate Rhiza configuration
-    valid = validate(target)
+    # First, try to load the template to check if we're in exclude-only mode
+    # This determines if validation should be lenient about missing files
+    template_file = target / ".rhiza" / "template.yml"
+    lenient = False
+
+    if template_file.exists():
+        try:
+            template = RhizaTemplate.from_yaml(template_file)
+            # In exclude-only mode, if pyproject.toml is not excluded,
+            # the template will provide it, so validation can be lenient
+            if template.is_exclude_only_mode():
+                pyproject_excluded = "pyproject.toml" in template.exclude
+                if not pyproject_excluded:
+                    lenient = True
+                    logger.debug("Using lenient validation: pyproject.toml will be provided by template")
+        except Exception:
+            # If we can't load the template, proceed with strict validation
+            pass
+
+    # Validate Rhiza configuration (lenient mode for exclude-only)
+    valid = validate(target, lenient=lenient)
     if not valid:
         logger.error(f"Rhiza template is invalid in: {target}")
         logger.error("Please fix validation errors and try again")
         sys.exit(1)
 
-    # Load the template configuration
-    template_file = target / ".rhiza" / "template.yml"
+    # Load the template configuration (may already be loaded, but ensures we have it)
     template = RhizaTemplate.from_yaml(template_file)
 
     # Check for deprecated repository and warn

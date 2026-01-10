@@ -49,23 +49,30 @@ def _check_project_structure(target: Path) -> None:
         logger.success(f"'tests' folder exists: {tests_dir}")
 
 
-def _check_pyproject_toml(target: Path) -> bool:
+def _check_pyproject_toml(target: Path, lenient: bool = False) -> bool:
     """Check for pyproject.toml file.
 
     Args:
         target: Path to project.
+        lenient: If True, missing pyproject.toml is a warning, not an error.
+            Used during materialize when template will provide the file.
 
     Returns:
-        True if pyproject.toml exists, False otherwise.
+        True if pyproject.toml exists or lenient mode is enabled, False otherwise.
     """
     logger.debug("Validating pyproject.toml")
     pyproject_file = target / "pyproject.toml"
 
     if not pyproject_file.exists():
-        logger.error(f"pyproject.toml not found: {pyproject_file}")
-        logger.error("pyproject.toml is required for Python projects")
-        logger.info("Run 'rhiza init' to create a default pyproject.toml")
-        return False
+        if lenient:
+            logger.warning(f"pyproject.toml not found: {pyproject_file}")
+            logger.warning("pyproject.toml will be provided by the template")
+            return True
+        else:
+            logger.error(f"pyproject.toml not found: {pyproject_file}")
+            logger.error("pyproject.toml is required for Python projects")
+            logger.info("Run 'rhiza init' to create a default pyproject.toml")
+            return False
     else:
         logger.success(f"pyproject.toml exists: {pyproject_file}")
         return True
@@ -295,13 +302,13 @@ def _validate_optional_fields(config: dict) -> None:
                     logger.info(f"  - {path}")
 
 
-def validate(target: Path) -> bool:
+def validate(target: Path, lenient: bool = False) -> bool:
     """Validate template.yml configuration in the target repository.
 
     Performs authoritative validation of the template configuration:
     - Checks if target is a git repository
     - Checks for standard project structure (src and tests folders)
-    - Checks for pyproject.toml (required)
+    - Checks for pyproject.toml (required, unless lenient mode)
     - Checks if template.yml exists
     - Validates YAML syntax
     - Validates required fields
@@ -309,6 +316,8 @@ def validate(target: Path) -> bool:
 
     Args:
         target: Path to the target Git repository directory.
+        lenient: If True, missing project files (pyproject.toml) are warnings,
+            not errors. Used during materialize when template will provide files.
 
     Returns:
         True if validation passes, False otherwise.
@@ -323,8 +332,8 @@ def validate(target: Path) -> bool:
     # Check for standard project structure
     _check_project_structure(target)
 
-    # Check for pyproject.toml
-    if not _check_pyproject_toml(target):
+    # Check for pyproject.toml (lenient mode makes this a warning)
+    if not _check_pyproject_toml(target, lenient=lenient):
         return False
 
     # Check for template file

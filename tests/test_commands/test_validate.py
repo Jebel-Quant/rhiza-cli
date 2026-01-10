@@ -783,3 +783,57 @@ class TestValidateExcludeOnlyMode:
 
         result = validate(tmp_path)
         assert result is True
+
+    def test_validate_lenient_mode_passes_without_pyproject_toml(self, tmp_path):
+        """Test that lenient validation passes without pyproject.toml."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Note: No pyproject.toml created
+
+        # Create template with exclude-only mode
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "exclude": ["LICENSE"],
+                },
+                f,
+            )
+
+        # With lenient=True, missing pyproject.toml is a warning, not an error
+        result = validate(tmp_path, lenient=True)
+        assert result is True
+
+    def test_validate_strict_mode_fails_without_pyproject_toml(self, tmp_path):
+        """Test that strict validation fails without pyproject.toml."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Note: No pyproject.toml created
+
+        # Create template with exclude-only mode
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "exclude": ["LICENSE"],
+                },
+                f,
+            )
+
+        # With lenient=False (default), missing pyproject.toml is an error
+        result = validate(tmp_path, lenient=False)
+        assert result is False
