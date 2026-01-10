@@ -1792,9 +1792,11 @@ class TestMaterializeDeprecationWarning:
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_warns_about_deprecated_repository(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path, caplog
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
         """Test that materialize warns about deprecated repository."""
+        import warnings
+
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
@@ -1827,12 +1829,15 @@ class TestMaterializeDeprecationWarning:
         # Mock subprocess to succeed
         mock_subprocess.return_value = Mock(returncode=0)
 
-        # Run materialize - it should still work but with a warning
-        materialize(tmp_path, "main", None, False)
+        # Run materialize - it should emit a DeprecationWarning
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            materialize(tmp_path, "main", None, False)
 
-        # The deprecation warning should have been logged (loguru doesn't use standard logging)
-        # We can verify the command completed successfully
-        assert mock_copy2.called or mock_rmtree.called
+            # Verify DeprecationWarning was emitted
+            deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
+            assert len(deprecation_warnings) >= 1
+            assert "deprecated" in str(deprecation_warnings[0].message).lower()
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")

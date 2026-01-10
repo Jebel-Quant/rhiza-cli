@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import warnings
 from pathlib import Path
 
 from loguru import logger
@@ -113,24 +114,20 @@ def _validate_and_load_template(
 
     # Check for deprecated repository and warn
     if template.is_deprecated_repository():
-        logger.warning("=" * 60)
-        logger.warning("DEPRECATION WARNING")
-        logger.warning("=" * 60)
-        logger.warning(f"The repository '{DEPRECATED_REPOSITORY}' is deprecated.")
-        logger.warning(f"Please migrate to '{NEW_REPOSITORY}' instead.")
-        logger.warning("Support for the deprecated repository will be removed in v1.0.0.")
-        logger.warning("")
-        logger.warning("To migrate, run: rhiza migrate")
-        logger.warning("=" * 60)
+        warnings.warn(
+            f"The repository '{DEPRECATED_REPOSITORY}' is deprecated. "
+            f"Please migrate to '{NEW_REPOSITORY}' by running: rhiza migrate",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     # Check for .rhiza folder exclusion warning
     if template.has_rhiza_folder_in_exclude():
-        logger.warning("=" * 60)
-        logger.warning("WARNING: .rhiza folder is in the exclude list")
-        logger.warning("=" * 60)
-        logger.warning("Excluding .rhiza may cause issues with Rhiza functionality.")
-        logger.warning("The .rhiza folder contains essential configuration files.")
-        logger.warning("=" * 60)
+        warnings.warn(
+            "The .rhiza folder is in the exclude list. Excluding .rhiza may cause issues with Rhiza functionality.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     # Extract template configuration settings
     rhiza_repo = template.template_repository

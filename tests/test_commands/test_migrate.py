@@ -360,6 +360,8 @@ class TestMigrateDeprecatedRepository:
 
     def test_migrate_deprecated_repository_with_prompt(self, tmp_path, monkeypatch):
         """Test that migrate prompts to change deprecated repository."""
+        import warnings
+
         from rhiza.commands.migrate import _migrate_deprecated_repository
 
         # Create template with deprecated repository
@@ -388,8 +390,15 @@ class TestMigrateDeprecatedRepository:
 
         monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
 
-        # Run migration
-        migrations = _migrate_deprecated_repository(template_file)
+        # Run migration and catch DeprecationWarning
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            migrations = _migrate_deprecated_repository(template_file)
+
+            # Verify DeprecationWarning was emitted
+            deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
+            assert len(deprecation_warnings) >= 1
+            assert "deprecated" in str(deprecation_warnings[0].message).lower()
 
         # Verify the repository was updated
         with open(template_file) as f:
@@ -401,6 +410,8 @@ class TestMigrateDeprecatedRepository:
 
     def test_migrate_deprecated_repository_decline(self, tmp_path, monkeypatch):
         """Test that migrate respects user declining to update deprecated repository."""
+        import warnings
+
         from rhiza.commands.migrate import _migrate_deprecated_repository
 
         # Create template with deprecated repository
@@ -429,8 +440,14 @@ class TestMigrateDeprecatedRepository:
 
         monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
 
-        # Run migration
-        migrations = _migrate_deprecated_repository(template_file)
+        # Run migration and catch DeprecationWarning
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            migrations = _migrate_deprecated_repository(template_file)
+
+            # Verify DeprecationWarning was emitted
+            deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
+            assert len(deprecation_warnings) >= 1
 
         # Verify the repository was NOT updated
         with open(template_file) as f:
@@ -473,8 +490,10 @@ class TestMigrateDeprecatedRepository:
 class TestMigrateRhizaFolderInclude:
     """Tests for the .rhiza folder include handling."""
 
-    def test_ensure_rhiza_in_include_with_rhiza_in_exclude_shows_warning(self, tmp_path, caplog):
+    def test_ensure_rhiza_in_include_with_rhiza_in_exclude_shows_warning(self, tmp_path):
         """Test that warning is shown when .rhiza is in exclude list."""
+        import warnings
+
         from rhiza.commands.migrate import _ensure_rhiza_in_include
 
         # Create template with .rhiza in exclude
@@ -492,11 +511,15 @@ class TestMigrateRhizaFolderInclude:
         with open(template_file, "w") as f:
             yaml.dump(template_content, f)
 
-        # Call the function
-        _ensure_rhiza_in_include(template_file)
+        # Call the function and check for UserWarning
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            _ensure_rhiza_in_include(template_file)
 
-        # The function should have logged a warning (we can't easily check loguru output)
-        # but we can verify the template was still processed
+            # Verify UserWarning was emitted about .rhiza exclusion
+            user_warnings = [x for x in w if issubclass(x.category, UserWarning)]
+            assert len(user_warnings) >= 1
+            assert ".rhiza" in str(user_warnings[0].message)
 
     def test_ensure_rhiza_in_include_prompts_when_not_in_include(self, tmp_path, monkeypatch):
         """Test that user is prompted to add .rhiza when not in include list."""

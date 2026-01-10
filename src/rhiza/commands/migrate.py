@@ -7,6 +7,7 @@ separate from `.github/rhiza/` which contains template configuration.
 
 import shutil
 import sys
+import warnings
 from pathlib import Path
 
 import questionary
@@ -116,13 +117,13 @@ def _ensure_rhiza_in_include(template_file: Path) -> None:
 
     # Check if .rhiza is in exclude list
     if template.has_rhiza_folder_in_exclude():
-        logger.warning("=" * 60)
-        logger.warning("WARNING: .rhiza folder is in the exclude list")
-        logger.warning("=" * 60)
-        logger.warning("Excluding .rhiza may cause issues with Rhiza functionality.")
-        logger.warning("The .rhiza folder contains essential configuration files.")
-        logger.warning("Consider removing .rhiza from your exclude list.")
-        logger.warning("=" * 60)
+        warnings.warn(
+            "The .rhiza folder is in the exclude list. "
+            "Excluding .rhiza may cause issues with Rhiza functionality. "
+            "Consider removing .rhiza from your exclude list.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     # Check if user has an include list (not exclude-only mode)
     if template.include:
@@ -167,13 +168,12 @@ def _migrate_deprecated_repository(template_file: Path) -> list[str]:
     template = RhizaTemplate.from_yaml(template_file)
 
     if template.is_deprecated_repository():
-        logger.warning("=" * 60)
-        logger.warning("DEPRECATED REPOSITORY DETECTED")
-        logger.warning("=" * 60)
-        logger.warning(f"Your template uses '{DEPRECATED_REPOSITORY}' which is deprecated.")
-        logger.warning(f"The new official repository is '{NEW_REPOSITORY}'.")
-        logger.warning("Support for the deprecated repository will be removed in v1.0.0.")
-        logger.warning("=" * 60)
+        warnings.warn(
+            f"The repository '{DEPRECATED_REPOSITORY}' is deprecated. "
+            f"The new official repository is '{NEW_REPOSITORY}'.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
         # Prompt user to migrate
         if sys.stdin.isatty():
