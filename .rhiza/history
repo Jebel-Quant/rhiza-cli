@@ -18,6 +18,7 @@
 .pre-commit-config.yaml
 .rhiza/.cfg.toml
 .rhiza/.env
+.rhiza/Makefile.rhiza
 .rhiza/agentic/Makefile.agentic
 .rhiza/customisations/Makefile.customisations
 .rhiza/customisations/scripts/build-extras.sh
