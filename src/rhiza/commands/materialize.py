@@ -50,9 +50,7 @@ class PathConfig:
     is_exclude_only: bool
 
 
-def _handle_target_branch(
-    target: Path, target_branch: str | None, git_ctx: GitContext
-) -> None:
+def _handle_target_branch(target: Path, target_branch: str | None, git_ctx: GitContext) -> None:
     """Handle target branch creation or checkout if specified.
 
     Args:
@@ -710,15 +708,11 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     try:
         if is_exclude_only:
             # Sparse checkout with negation patterns for exclude-only mode
-            _clone_template_repository_exclude_only(
-                tmp_dir, git_url, rhiza_branch, excluded_paths, git_ctx
-            )
+            _clone_template_repository_exclude_only(tmp_dir, git_url, rhiza_branch, excluded_paths, git_ctx)
         else:
             # Sparse checkout for include mode
             _clone_template_repository(tmp_dir, git_url, rhiza_branch, include_paths, git_ctx)
-        materialized_files = _copy_files_to_target(
-            tmp_dir, target, path_config, force
-        )
+        materialized_files = _copy_files_to_target(tmp_dir, target, path_config, force)
     finally:
         logger.debug(f"Cleaning up temporary directory: {tmp_dir}")
         shutil.rmtree(tmp_dir)
