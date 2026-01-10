@@ -638,3 +638,148 @@ class TestValidateCommand:
 
         result = validate(tmp_path)
         assert result is False
+
+
+class TestValidateExcludeOnlyMode:
+    """Tests for exclude-only mode validation."""
+
+    def test_validate_passes_with_exclude_only_mode(self, tmp_path):
+        """Test that validate passes with exclude-only mode (no include, only exclude)."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template with exclude-only mode
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "exclude": ["LICENSE", "README.md"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_passes_with_both_include_and_exclude(self, tmp_path):
+        """Test that validate passes with both include and exclude."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template with both include and exclude
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": [".github"],
+                    "exclude": [".github/workflows/docker.yml"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_fails_with_neither_include_nor_exclude(self, tmp_path):
+        """Test that validate fails when neither include nor exclude is present."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template without include or exclude
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is False
+
+    def test_validate_fails_with_empty_include_and_no_exclude(self, tmp_path):
+        """Test that validate fails with empty include and no exclude."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template with empty include
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": [],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is False
+
+    def test_validate_passes_with_empty_include_but_has_exclude(self, tmp_path):
+        """Test that validate passes with empty include but has exclude."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template with empty include but has exclude
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": [],
+                    "exclude": ["LICENSE"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is True

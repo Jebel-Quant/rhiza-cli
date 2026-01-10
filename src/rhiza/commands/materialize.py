@@ -68,7 +68,7 @@ def _handle_target_branch(
         sys.exit(1)
 
 
-def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplate, str, str, list[str], list[str]]:
+def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplate, str, str, list[str], list[str], bool]:
     """Validate configuration and load template settings.
 
     Args:
@@ -76,8 +76,10 @@ def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplat
         branch: The Rhiza template branch to use (CLI argument).
 
     Returns:
-        Tuple of (template, rhiza_repo, rhiza_branch, include_paths, excluded_paths).
+        Tuple of (template, rhiza_repo, rhiza_branch, include_paths, excluded_paths, is_exclude_only_mode).
     """
+    from rhiza.models import DEPRECATED_REPOSITORY, NEW_REPOSITORY
+
     # Validate Rhiza configuration
     valid = validate(target)
     if not valid:
@@ -89,29 +91,57 @@ def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplat
     template_file = target / ".rhiza" / "template.yml"
     template = RhizaTemplate.from_yaml(template_file)
 
+    # Check for deprecated repository and warn
+    if template.is_deprecated_repository():
+        logger.warning("=" * 60)
+        logger.warning("DEPRECATION WARNING")
+        logger.warning("=" * 60)
+        logger.warning(f"The repository '{DEPRECATED_REPOSITORY}' is deprecated.")
+        logger.warning(f"Please migrate to '{NEW_REPOSITORY}' instead.")
+        logger.warning("Support for the deprecated repository will be removed in v1.0.0.")
+        logger.warning("")
+        logger.warning("To migrate, run: rhiza migrate")
+        logger.warning("=" * 60)
+
+    # Check for .rhiza folder exclusion warning
+    if template.has_rhiza_folder_in_exclude():
+        logger.warning("=" * 60)
+        logger.warning("WARNING: .rhiza folder is in the exclude list")
+        logger.warning("=" * 60)
+        logger.warning("Excluding .rhiza may cause issues with Rhiza functionality.")
+        logger.warning("The .rhiza folder contains essential configuration files.")
+        logger.warning("=" * 60)
+
     # Extract template configuration settings
     rhiza_repo = template.template_repository
     rhiza_branch = template.template_branch or branch
     include_paths = template.include
     excluded_paths = template.exclude
 
-    # Validate that we have paths to include
-    if not include_paths:
+    # Determine if we're in exclude-only mode
+    is_exclude_only = template.is_exclude_only_mode()
+
+    # Validate that we have paths to include OR we're in exclude-only mode
+    if not include_paths and not is_exclude_only:
         logger.error("No include paths found in template.yml")
         logger.error("Add at least one path to the 'include' list in template.yml")
-        raise RuntimeError("No include paths found in template.yml")
+        logger.error("Or specify 'exclude' paths to include all files except those excluded")
+        raise RuntimeError("No include or exclude paths found in template.yml")
 
-    # Log the paths we'll be including
-    logger.info("Include paths:")
-    for p in include_paths:
-        logger.info(f"  - {p}")
+    # Log the mode and paths
+    if is_exclude_only:
+        logger.info("Mode: Exclude-only (including all files except excluded)")
+    else:
+        logger.info("Include paths:")
+        for p in include_paths:
+            logger.info(f"  - {p}")
 
     if excluded_paths:
         logger.info("Exclude paths:")
         for p in excluded_paths:
             logger.info(f"  - {p}")
 
-    return template, rhiza_repo, rhiza_branch, include_paths, excluded_paths
+    return template, rhiza_repo, rhiza_branch, include_paths, excluded_paths, is_exclude_only
 
 
 def _construct_git_url(rhiza_repo: str, rhiza_host: str) -> str:
@@ -224,12 +254,138 @@ def _clone_template_repository(
         raise
 
 
+def _clone_template_repository_exclude_only(
+    tmp_dir: Path,
+    git_url: str,
+    rhiza_branch: str,
+    excluded_paths: list[str],
+    git_executable: str,
+    git_env: dict[str, str],
+) -> None:
+    """Clone template repository with sparse checkout excluding specified paths.
+
+    Uses sparse checkout in non-cone mode with negation patterns to include
+    all files except the excluded ones. This is more efficient than a full
+    clone as it only fetches the needed files.
+
+    Args:
+        tmp_dir: Temporary directory for cloning.
+        git_url: Git repository URL.
+        rhiza_branch: Branch to clone.
+        excluded_paths: Paths to exclude from checkout.
+        git_executable: Path to git executable.
+        git_env: Environment variables for git commands.
+    """
+    try:
+        logger.debug("Executing git clone with sparse checkout (exclude-only mode)")
+        subprocess.run(
+            [
+                git_executable,
+                "clone",
+                "--depth",
+                "1",
+                "--filter=blob:none",
+                "--sparse",
+                "--branch",
+                rhiza_branch,
+                git_url,
+                str(tmp_dir),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=git_env,
+        )
+        logger.debug("Git clone completed successfully")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to clone repository: {e}")
+        if e.stderr:
+            logger.error(f"Git error: {e.stderr.strip()}")
+        logger.error(f"Check that the repository exists and branch '{rhiza_branch}' is valid")
+        raise
+
+    # Initialize sparse checkout in non-cone mode (required for negation patterns)
+    try:
+        logger.debug("Initializing sparse checkout in non-cone mode")
+        subprocess.run(
+            [git_executable, "sparse-checkout", "init", "--no-cone"],
+            cwd=tmp_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=git_env,
+        )
+        logger.debug("Sparse checkout initialized")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to initialize sparse checkout: {e}")
+        if e.stderr:
+            logger.error(f"Git error: {e.stderr.strip()}")
+        raise
+
+    # Build sparse-checkout patterns: include all, then negate excluded paths
+    # Format: "/*" includes everything, "!path/" excludes path
+    sparse_patterns = ["/*"]
+    for path in excluded_paths:
+        # Ensure path ends with / for directories or use exact match for files
+        if not path.endswith("/"):
+            # Add both file and directory patterns
+            sparse_patterns.append(f"!{path}")
+            sparse_patterns.append(f"!{path}/")
+        else:
+            sparse_patterns.append(f"!{path}")
+
+    # Write patterns to sparse-checkout file
+    try:
+        sparse_checkout_file = tmp_dir / ".git" / "info" / "sparse-checkout"
+        sparse_checkout_file.parent.mkdir(parents=True, exist_ok=True)
+        sparse_checkout_file.write_text("\n".join(sparse_patterns) + "\n")
+        logger.debug(f"Sparse checkout patterns: {sparse_patterns}")
+    except Exception as e:
+        logger.error(f"Failed to write sparse-checkout patterns: {e}")
+        raise
+
+    # Re-checkout to apply the sparse patterns
+    try:
+        logger.debug("Applying sparse checkout patterns")
+        subprocess.run(
+            [git_executable, "checkout"],
+            cwd=tmp_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=git_env,
+        )
+        logger.debug("Sparse checkout patterns applied")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to apply sparse checkout patterns: {e}")
+        if e.stderr:
+            logger.error(f"Git error: {e.stderr.strip()}")
+        raise
+
+
+def _get_all_files_from_clone(tmp_dir: Path) -> list[Path]:
+    """Get all files from a cloned repository, excluding .git directory.
+
+    Args:
+        tmp_dir: Path to cloned repository.
+
+    Returns:
+        List of all file paths in the repository.
+    """
+    all_files = []
+    for f in tmp_dir.rglob("*"):
+        if f.is_file() and ".git" not in f.parts:
+            all_files.append(f)
+    return all_files
+
+
 def _copy_files_to_target(
     tmp_dir: Path,
     target: Path,
     include_paths: list[str],
     excluded_paths: list[str],
     force: bool,
+    is_exclude_only: bool = False,
 ) -> list[Path]:
     """Copy files from temporary clone to target repository.
 
@@ -239,23 +395,36 @@ def _copy_files_to_target(
         include_paths: Paths to include.
         excluded_paths: Paths to exclude.
         force: Whether to overwrite existing files.
+        is_exclude_only: If True, all files from the sparse checkout are included
+            (exclusions were already applied by git sparse-checkout).
 
     Returns:
         List of materialized file paths (relative to target).
     """
-    # Expand paths to individual files
-    logger.debug("Expanding included paths to individual files")
-    all_files = __expand_paths(tmp_dir, include_paths)
-    logger.info(f"Found {len(all_files)} file(s) in included paths")
+    # Get files to include based on mode
+    if is_exclude_only:
+        # In exclude-only mode, sparse checkout already applied exclusions
+        # Just get all files from the cloned repo
+        logger.debug("Getting all files from sparse checkout (exclude-only mode)")
+        all_files = _get_all_files_from_clone(tmp_dir)
+        logger.info(f"Found {len(all_files)} file(s) after exclusions")
+        # No additional exclusion filtering needed - sparse checkout handled it
+        files_to_copy = all_files
+    else:
+        # Expand paths to individual files
+        logger.debug("Expanding included paths to individual files")
+        all_files = __expand_paths(tmp_dir, include_paths)
+        logger.info(f"Found {len(all_files)} file(s) in included paths")
 
-    # Create set of excluded files
-    logger.debug("Expanding excluded paths to individual files")
-    excluded_files = {f.resolve() for f in __expand_paths(tmp_dir, excluded_paths)}
-    if excluded_files:
-        logger.info(f"Excluding {len(excluded_files)} file(s) based on exclude patterns")
+        # Create set of excluded files and filter
+        logger.debug("Expanding excluded paths to individual files")
+        excluded_files = {f.resolve() for f in __expand_paths(tmp_dir, excluded_paths)}
+        if excluded_files:
+            logger.info(f"Excluding {len(excluded_files)} file(s) based on exclude patterns")
 
-    # Filter out excluded files
-    files_to_copy = [f for f in all_files if f.resolve() not in excluded_files]
+        # Filter out excluded files
+        files_to_copy = [f for f in all_files if f.resolve() not in excluded_files]
+
     logger.info(f"Will materialize {len(files_to_copy)} file(s) to target repository")
 
     # Copy files to target repository
@@ -425,6 +594,10 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     selected files into the target repository, recording all files under
     template control in `.rhiza/history`.
 
+    In exclude-only mode (no include paths, only exclude paths), sparse checkout
+    with negation patterns is used to efficiently include all files except
+    the excluded ones.
+
     Args:
         target (Path): Path to the target repository.
         branch (str): The Rhiza template branch to use.
@@ -446,7 +619,9 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     _handle_target_branch(target, target_branch, git_executable, git_env)
 
     # Validate and load template configuration
-    template, rhiza_repo, rhiza_branch, include_paths, excluded_paths = _validate_and_load_template(target, branch)
+    template, rhiza_repo, rhiza_branch, include_paths, excluded_paths, is_exclude_only = _validate_and_load_template(
+        target, branch
+    )
     rhiza_host = template.template_host or "github"
 
     # Construct git URL
@@ -458,8 +633,17 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     logger.debug(f"Temporary directory: {tmp_dir}")
 
     try:
-        _clone_template_repository(tmp_dir, git_url, rhiza_branch, include_paths, git_executable, git_env)
-        materialized_files = _copy_files_to_target(tmp_dir, target, include_paths, excluded_paths, force)
+        if is_exclude_only:
+            # Sparse checkout with negation patterns for exclude-only mode
+            _clone_template_repository_exclude_only(
+                tmp_dir, git_url, rhiza_branch, excluded_paths, git_executable, git_env
+            )
+        else:
+            # Sparse checkout for include mode
+            _clone_template_repository(tmp_dir, git_url, rhiza_branch, include_paths, git_executable, git_env)
+        materialized_files = _copy_files_to_target(
+            tmp_dir, target, include_paths, excluded_paths, force, is_exclude_only
+        )
     finally:
         logger.debug(f"Cleaning up temporary directory: {tmp_dir}")
         shutil.rmtree(tmp_dir)

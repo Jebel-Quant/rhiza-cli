@@ -6,11 +6,13 @@ separate from `.github/rhiza/` which contains template configuration.
 """
 
 import shutil
+import sys
 from pathlib import Path
 
+import questionary
 from loguru import logger
 
-from rhiza.models import RhizaTemplate
+from rhiza.models import DEPRECATED_REPOSITORY, NEW_REPOSITORY, RhizaTemplate
 
 
 def _create_rhiza_directory(target: Path) -> Path:
@@ -63,6 +65,8 @@ def _migrate_template_file(target: Path, rhiza_dir: Path) -> tuple[bool, list[st
                 logger.info(f"Found template.yml at: {old_template_file.relative_to(target)}")
                 logger.info(f"Moving to new location: {new_template_file.relative_to(target)}")
                 shutil.move(str(old_template_file), str(new_template_file))
+                # Normalize the template file (convert multiline strings to lists, etc.)
+                _normalize_template_file(new_template_file)
                 logger.success("✓ Moved template.yml to .rhiza/template.yml")
                 migrations_performed.append("Moved template.yml to .rhiza/template.yml")
                 template_migrated = True
@@ -78,8 +82,28 @@ def _migrate_template_file(target: Path, rhiza_dir: Path) -> tuple[bool, list[st
     return template_migrated or new_template_file.exists(), migrations_performed
 
 
+def _normalize_template_file(template_file: Path) -> None:
+    """Normalize template file by re-parsing and re-saving it.
+
+    This ensures that multiline YAML strings are converted to proper lists
+    and the file format is consistent.
+
+    Args:
+        template_file: Path to template.yml file.
+    """
+    try:
+        template = RhizaTemplate.from_yaml(template_file)
+        template.to_yaml(template_file)
+        logger.debug("Template file normalized")
+    except Exception as e:
+        logger.warning(f"Could not normalize template file: {e}")
+
+
 def _ensure_rhiza_in_include(template_file: Path) -> None:
     """Ensure .rhiza folder is in template.yml include list.
+
+    If user has an include list and .rhiza is not in there, prompt the user to add it.
+    If .rhiza is in the exclude list, show a warning.
 
     Args:
         template_file: Path to template.yml file.
@@ -89,13 +113,88 @@ def _ensure_rhiza_in_include(template_file: Path) -> None:
         return
 
     template = RhizaTemplate.from_yaml(template_file)
-    template_include = template.include or []
-    if ".rhiza" not in template_include:
-        logger.warning("The .rhiza folder is not included in your template.yml")
-        template_include.append(".rhiza")
-        logger.info("The .rhiza folder is added to your template.yml to ensure it's included in your repository")
-        template.include = template_include
-        template.to_yaml(template_file)
+
+    # Check if .rhiza is in exclude list
+    if template.has_rhiza_folder_in_exclude():
+        logger.warning("=" * 60)
+        logger.warning("WARNING: .rhiza folder is in the exclude list")
+        logger.warning("=" * 60)
+        logger.warning("Excluding .rhiza may cause issues with Rhiza functionality.")
+        logger.warning("The .rhiza folder contains essential configuration files.")
+        logger.warning("Consider removing .rhiza from your exclude list.")
+        logger.warning("=" * 60)
+
+    # Check if user has an include list (not exclude-only mode)
+    if template.include:
+        # Check if .rhiza is already in include
+        if not template.has_rhiza_folder_in_include():
+            logger.warning("The .rhiza folder is not included in your template.yml")
+            logger.info("Rhiza needs the .rhiza folder to store configuration and history.")
+            logger.info("Without it, some Rhiza functionality may be restricted.")
+
+            # Prompt user to add .rhiza to include if interactive
+            if sys.stdin.isatty():
+                add_rhiza = questionary.confirm(
+                    "Would you like to add .rhiza to your include list?", default=True
+                ).ask()
+            else:
+                # Non-interactive mode, add it automatically
+                add_rhiza = True
+                logger.info("Non-interactive mode: automatically adding .rhiza to include list")
+
+            if add_rhiza:
+                template.include.append(".rhiza")
+                template.to_yaml(template_file)
+                logger.success("✓ Added .rhiza to include list in template.yml")
+            else:
+                logger.warning("Skipping .rhiza addition. Some Rhiza features may not work correctly.")
+
+
+def _migrate_deprecated_repository(template_file: Path) -> list[str]:
+    """Check for deprecated repository and offer to migrate.
+
+    Args:
+        template_file: Path to template.yml file.
+
+    Returns:
+        List of migrations performed.
+    """
+    migrations_performed = []
+
+    if not template_file.exists():
+        return migrations_performed
+
+    template = RhizaTemplate.from_yaml(template_file)
+
+    if template.is_deprecated_repository():
+        logger.warning("=" * 60)
+        logger.warning("DEPRECATED REPOSITORY DETECTED")
+        logger.warning("=" * 60)
+        logger.warning(f"Your template uses '{DEPRECATED_REPOSITORY}' which is deprecated.")
+        logger.warning(f"The new official repository is '{NEW_REPOSITORY}'.")
+        logger.warning("Support for the deprecated repository will be removed in v1.0.0.")
+        logger.warning("=" * 60)
+
+        # Prompt user to migrate
+        if sys.stdin.isatty():
+            migrate_repo = questionary.confirm(
+                f"Would you like to switch to '{NEW_REPOSITORY}'?", default=True
+            ).ask()
+        else:
+            # Non-interactive mode, don't change automatically but warn
+            migrate_repo = False
+            logger.warning("Non-interactive mode: cannot migrate repository automatically")
+            logger.warning(f"Please manually update template-repository to '{NEW_REPOSITORY}'")
+
+        if migrate_repo:
+            template.template_repository = NEW_REPOSITORY
+            template.to_yaml(template_file)
+            logger.success(f"✓ Updated template-repository to '{NEW_REPOSITORY}'")
+            migrations_performed.append(f"Updated template-repository from '{DEPRECATED_REPOSITORY}' to '{NEW_REPOSITORY}'")
+        else:
+            logger.warning(f"Keeping deprecated repository. Please migrate to '{NEW_REPOSITORY}' soon.")
+
+    return migrations_performed
 
 
 def _migrate_history_file(target: Path, rhiza_dir: Path) -> list[str]:
@@ -168,7 +267,9 @@ def migrate(target: Path) -> None:
     1. Creates the `.rhiza/` directory in the project root
     2. Moves template.yml from `.github/rhiza/` or `.github/` to `.rhiza/template.yml`
     3. Moves `.rhiza.history` to `.rhiza/history` if it exists
-    4. Provides instructions for next steps
+    4. Checks for deprecated repository and offers to migrate
+    5. Ensures .rhiza folder is included in the template
+    6. Provides instructions for next steps
 
     The `.rhiza/` folder will contain:
     - `template.yml` - Template configuration (replaces `.github/rhiza/template.yml`)
@@ -188,7 +289,12 @@ def migrate(target: Path) -> None:
     # Migrate template file
     template_exists, template_migrations = _migrate_template_file(target, rhiza_dir)
 
-    # Ensure .rhiza is in include list
+    # Check for deprecated repository and offer to migrate
+    deprecated_migrations = []
+    if template_exists:
+        deprecated_migrations = _migrate_deprecated_repository(rhiza_dir / "template.yml")
+
+    # Ensure .rhiza is in include list (with proper handling)
     if template_exists:
         _ensure_rhiza_in_include(rhiza_dir / "template.yml")
 
@@ -196,5 +302,5 @@ def migrate(target: Path) -> None:
     history_migrations = _migrate_history_file(target, rhiza_dir)
 
     # Print summary
-    all_migrations = template_migrations + history_migrations
+    all_migrations = template_migrations + deprecated_migrations + history_migrations
     _print_migration_summary(all_migrations)

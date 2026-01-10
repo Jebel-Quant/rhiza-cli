@@ -10,6 +10,10 @@ from pathlib import Path
 
 import yaml
 
+# Deprecated repository that should be migrated to the new one
+DEPRECATED_REPOSITORY = ".tschm/.config-templates"
+NEW_REPOSITORY = "Jebel-Quant/rhiza"
+
 
 def _normalize_to_list(value: str | list[str] | None) -> list[str]:
     """Convert a value to a list of strings.
@@ -117,3 +121,43 @@ class RhizaTemplate:
 
         with open(file_path, "w") as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+    def is_exclude_only_mode(self) -> bool:
+        """Check if template is in exclude-only mode (no include paths specified).
+
+        In exclude-only mode, all files from the template repository are included
+        except those in the exclude list.
+
+        Returns:
+            True if no include paths specified but exclude paths exist, False otherwise.
+        """
+        return len(self.include) == 0 and len(self.exclude) > 0
+
+    def is_deprecated_repository(self) -> bool:
+        """Check if the template repository is the deprecated one.
+
+        Returns:
+            True if using the deprecated .tschm/.config-templates repository.
+        """
+        if self.template_repository is None:
+            return False
+        return self.template_repository.lower() == DEPRECATED_REPOSITORY.lower()
+
+    def has_rhiza_folder_in_include(self) -> bool:
+        """Check if .rhiza folder is included in the include list.
+
+        Returns:
+            True if .rhiza is in include list or include list is empty (exclude-only mode).
+        """
+        if not self.include:
+            # Exclude-only mode includes everything by default
+            return True
+        return ".rhiza" in self.include or any(p.startswith(".rhiza/") for p in self.include)
+
+    def has_rhiza_folder_in_exclude(self) -> bool:
+        """Check if .rhiza folder is excluded.
+
+        Returns:
+            True if .rhiza is in exclude list.
+        """
+        return ".rhiza" in self.exclude or any(p.startswith(".rhiza/") for p in self.exclude)

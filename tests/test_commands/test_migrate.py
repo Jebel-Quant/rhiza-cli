@@ -355,6 +355,214 @@ Makefile
         assert not template_file.exists()
 
 
+class TestMigrateDeprecatedRepository:
+    """Tests for the deprecated repository migration functionality."""
+
+    def test_migrate_deprecated_repository_with_prompt(self, tmp_path, monkeypatch):
+        """Test that migrate prompts to change deprecated repository."""
+        from rhiza.commands.migrate import _migrate_deprecated_repository
+
+        # Create template with deprecated repository
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        template_content = {
+            "template-repository": ".tschm/.config-templates",
+            "template-branch": "main",
+            "include": [".github"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(template_content, f)
+
+        # Mock questionary to return True (yes, migrate)
+        from unittest.mock import MagicMock
+
+        mock_confirm = MagicMock()
+        mock_confirm.return_value.ask.return_value = True
+        monkeypatch.setattr("rhiza.commands.migrate.questionary.confirm", mock_confirm)
+
+        # Mock sys.stdin.isatty to return True
+        import sys
+        monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+
+        # Run migration
+        migrations = _migrate_deprecated_repository(template_file)
+
+        # Verify the repository was updated
+        with open(template_file) as f:
+            content = yaml.safe_load(f)
+
+        assert content["template-repository"] == "Jebel-Quant/rhiza"
+        assert len(migrations) == 1
+        assert "Updated template-repository" in migrations[0]
+
+    def test_migrate_deprecated_repository_decline(self, tmp_path, monkeypatch):
+        """Test that migrate respects user declining to update deprecated repository."""
+        from rhiza.commands.migrate import _migrate_deprecated_repository
+
+        # Create template with deprecated repository
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        template_content = {
+            "template-repository": ".tschm/.config-templates",
+            "template-branch": "main",
+            "include": [".github"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(template_content, f)
+
+        # Mock questionary to return False (no, don't migrate)
+        from unittest.mock import MagicMock
+
+        mock_confirm = MagicMock()
+        mock_confirm.return_value.ask.return_value = False
+        monkeypatch.setattr("rhiza.commands.migrate.questionary.confirm", mock_confirm)
+
+        # Mock sys.stdin.isatty to return True
+        import sys
+        monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+
+        # Run migration
+        migrations = _migrate_deprecated_repository(template_file)
+
+        # Verify the repository was NOT updated
+        with open(template_file) as f:
+            content = yaml.safe_load(f)
+
+        assert content["template-repository"] == ".tschm/.config-templates"
+        assert len(migrations) == 0
+
+    def test_migrate_non_deprecated_repository(self, tmp_path):
+        """Test that migrate doesn't prompt for non-deprecated repository."""
+        from rhiza.commands.migrate import _migrate_deprecated_repository
+
+        # Create template with new repository
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        template_content = {
+            "template-repository": "Jebel-Quant/rhiza",
+            "template-branch": "main",
+            "include": [".github"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(template_content, f)
+
+        # Run migration
+        migrations = _migrate_deprecated_repository(template_file)
+
+        # Verify no migrations were performed
+        assert len(migrations) == 0
+
+        # Verify repository is unchanged
+        with open(template_file) as f:
+            content = yaml.safe_load(f)
+
+        assert content["template-repository"] == "Jebel-Quant/rhiza"
+
+
+class TestMigrateRhizaFolderInclude:
+    """Tests for the .rhiza folder include handling."""
+
+    def test_ensure_rhiza_in_include_with_rhiza_in_exclude_shows_warning(self, tmp_path, caplog):
+        """Test that warning is shown when .rhiza is in exclude list."""
+        from rhiza.commands.migrate import _ensure_rhiza_in_include
+
+        # Create template with .rhiza in exclude
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        template_content = {
+            "template-repository": "jebel-quant/rhiza",
+            "template-branch": "main",
+            "include": [".github"],
+            "exclude": [".rhiza"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(template_content, f)
+
+        # Call the function
+        _ensure_rhiza_in_include(template_file)
+
+        # The function should have logged a warning (we can't easily check loguru output)
+        # but we can verify the template was still processed
+
+    def test_ensure_rhiza_in_include_prompts_when_not_in_include(self, tmp_path, monkeypatch):
+        """Test that user is prompted to add .rhiza when not in include list."""
+        from rhiza.commands.migrate import _ensure_rhiza_in_include
+
+        # Create template without .rhiza in include
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        template_content = {
+            "template-repository": "jebel-quant/rhiza",
+            "template-branch": "main",
+            "include": [".github", "Makefile"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(template_content, f)
+
+        # Mock questionary to return True (yes, add .rhiza)
+        from unittest.mock import MagicMock
+
+        mock_confirm = MagicMock()
+        mock_confirm.return_value.ask.return_value = True
+        monkeypatch.setattr("rhiza.commands.migrate.questionary.confirm", mock_confirm)
+
+        # Mock sys.stdin.isatty to return True
+        import sys
+
+        monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+
+        # Call the function
+        _ensure_rhiza_in_include(template_file)
+
+        # Verify .rhiza was added to include
+        with open(template_file) as f:
+            content = yaml.safe_load(f)
+
+        assert ".rhiza" in content["include"]
+
+    def test_ensure_rhiza_in_include_exclude_only_mode_skips(self, tmp_path):
+        """Test that exclude-only mode templates don't get .rhiza added to include."""
+        from rhiza.commands.migrate import _ensure_rhiza_in_include
+
+        # Create template in exclude-only mode
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        template_content = {
+            "template-repository": "jebel-quant/rhiza",
+            "template-branch": "main",
+            "exclude": ["LICENSE", "README.md"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(template_content, f)
+
+        # Call the function
+        _ensure_rhiza_in_include(template_file)
+
+        # Verify no include list was added
+        with open(template_file) as f:
+            content = yaml.safe_load(f)
+
+        assert "include" not in content or content.get("include") == []
+
+
 class TestMigrateCLI:
     """Tests for the migrate CLI command."""
 
@@ -390,6 +598,8 @@ class TestMigrateCLI:
         old_template_file = github_dir / "template.yml"
 
         # Write template with multi-line string format (using |)
+        # Note: This is exclude-only mode (no include list), so all files are
+        # included by default except those in exclude
         old_template_file.write_text("""template-repository: ".tschm/.config-templates"
 template-branch: "main"
 exclude: |
@@ -417,8 +627,9 @@ exclude: |
         assert isinstance(migrated_content["exclude"], list)
         assert migrated_content["exclude"] == ["LICENSE", "README.md", ".github/CODEOWNERS"]
 
-        # Include should have .rhiza added
-        assert ".rhiza" in migrated_content["include"]
+        # In exclude-only mode, include should be empty (all files included by default)
+        # .rhiza is not added because it's already included implicitly
+        assert migrated_content.get("include", []) == []
 
         # Verify old file was removed
         assert not old_template_file.exists()
