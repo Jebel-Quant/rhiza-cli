@@ -23,7 +23,7 @@ class TestMigrateCommand:
         assert rhiza_dir.exists()
         assert rhiza_dir.is_dir()
 
-    def test_migrate_copies_template_from_github_rhiza(self, tmp_path):
+    def test_migrate_moves_template_from_github_rhiza(self, tmp_path):
         """Test that migrate moves template.yml from .github/rhiza/ to .rhiza/."""
         # Create existing template.yml in .github/rhiza/
         github_rhiza_dir = tmp_path / ".github" / "rhiza"
@@ -58,7 +58,7 @@ class TestMigrateCommand:
         # Verify old file was removed
         assert not old_template_file.exists()
 
-    def test_migrate_copies_template_from_github_root(self, tmp_path):
+    def test_migrate_moves_template_from_github_root(self, tmp_path):
         """Test that migrate moves template.yml from .github/ to .rhiza/."""
         # Create existing template.yml in .github/ (old location)
         github_dir = tmp_path / ".github"
@@ -130,8 +130,8 @@ class TestMigrateCommand:
         new_template_file = rhiza_dir / "template.yml"
         assert not new_template_file.exists()
 
-    def test_migrate_copies_history_file(self, tmp_path):
-        """Test that migrate copies .rhiza.history to .rhiza/history."""
+    def test_migrate_moves_history_file(self, tmp_path):
+        """Test that migrate moves .rhiza.history to .rhiza/history."""
         # Create existing .rhiza.history
         old_history_file = tmp_path / ".rhiza.history"
         history_content = """# Rhiza Template History

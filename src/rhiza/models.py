@@ -141,7 +141,7 @@ class RhizaTemplate:
         """
         if self.template_repository is None:
             return False
-        return self.template_repository.lower() == DEPRECATED_REPOSITORY.lower()
+        return DEPRECATED_REPOSITORY.lower() in self.template_repository.lower()
 
     def has_rhiza_folder_in_include(self) -> bool:
         """Check if .rhiza folder is included in the include list.

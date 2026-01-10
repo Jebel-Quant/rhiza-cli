@@ -399,6 +399,17 @@ include:
         template = RhizaTemplate.from_yaml(template_file)
         assert template.is_deprecated_repository() is True
 
+    def test_is_deprecated_repository_true_with_url(self, tmp_path):
+        """Test is_deprecated_repository returns True when deprecated repo is in a URL."""
+        template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-repository: "https://github.com/tschm/.config-templates"
+template-branch: "main"
+include:
+  - .github
+""")
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.is_deprecated_repository() is True
+
     def test_is_deprecated_repository_false(self, tmp_path):
         """Test is_deprecated_repository returns False for non-deprecated repo."""
         template_file = tmp_path / "template.yml"
