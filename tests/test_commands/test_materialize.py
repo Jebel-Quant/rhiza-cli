@@ -2024,3 +2024,263 @@ class TestMaterializeLenientValidation:
         import pytest
         with pytest.raises(SystemExit):
             materialize(tmp_path, "main", None, False)
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_exclude_only_with_pyproject_in_repo(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize works when pyproject.toml exists in repo.
+        
+        Even with exclude-only mode, if pyproject.toml exists locally,
+        validation should pass (strict mode is fine when file exists).
+        """
+        # Setup git repo WITH pyproject.toml
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create template.yml with exclude-only mode
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "exclude": ["LICENSE", "README.md"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        git_info_dir = temp_dir / ".git" / "info"
+        git_info_dir.mkdir(parents=True)
+        (temp_dir / "Makefile").write_text("all: build")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize - should succeed
+        materialize(tmp_path, "main", None, False)
+
+        # Verify command completed successfully
+        assert mock_copy2.called or mock_rmtree.called
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_exclude_only_with_pyproject_excluded_but_exists_in_repo(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that materialize works when pyproject.toml is excluded but exists locally.
+        
+        If pyproject.toml is in the exclude list BUT exists in the repo,
+        validation should pass because the file is present.
+        """
+        # Setup git repo WITH pyproject.toml
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create template.yml with pyproject.toml excluded
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "exclude": ["LICENSE", "pyproject.toml"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        git_info_dir = temp_dir / ".git" / "info"
+        git_info_dir.mkdir(parents=True)
+        (temp_dir / "Makefile").write_text("all: build")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize - should succeed because pyproject.toml exists locally
+        materialize(tmp_path, "main", None, False)
+
+        # Verify command completed successfully
+        assert mock_copy2.called or mock_rmtree.called
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_empty_include_with_exclude_without_pyproject(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that include: [] with exclude works without pyproject.toml.
+        
+        Empty include list with exclude should be treated as exclude-only mode,
+        enabling lenient validation.
+        """
+        # Setup git repo (but NO pyproject.toml)
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml with empty include and exclude
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": [],
+                    "exclude": ["LICENSE", "README.md"],
+                },
+                f,
+            )
+
+        # Mock tempfile with files
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        git_info_dir = temp_dir / ".git" / "info"
+        git_info_dir.mkdir(parents=True)
+        (temp_dir / "Makefile").write_text("all: build")
+        (temp_dir / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize - should succeed with lenient validation
+        materialize(tmp_path, "main", None, False)
+
+        # Verify command completed successfully
+        assert mock_copy2.called or mock_rmtree.called
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_empty_include_with_pyproject_excluded_fails(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that include: [] with pyproject.toml excluded fails without pyproject.toml.
+        
+        Empty include list is exclude-only mode, but if pyproject.toml is excluded
+        and doesn't exist locally, validation should fail.
+        """
+        # Setup git repo (but NO pyproject.toml)
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml with empty include and pyproject excluded
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": [],
+                    "exclude": ["LICENSE", "pyproject.toml"],
+                },
+                f,
+            )
+
+        # Run materialize - should fail because pyproject.toml is excluded and doesn't exist
+        import pytest
+        with pytest.raises(SystemExit):
+            materialize(tmp_path, "main", None, False)
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_include_mode_without_pyproject_fails(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that include mode without pyproject.toml in repo fails.
+        
+        When using include mode (not exclude-only), validation is strict
+        and requires pyproject.toml to exist.
+        """
+        # Setup git repo (but NO pyproject.toml)
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml with include mode
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": [".github", "Makefile"],
+                },
+                f,
+            )
+
+        # Run materialize - should fail because not in exclude-only mode
+        import pytest
+        with pytest.raises(SystemExit):
+            materialize(tmp_path, "main", None, False)
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_include_with_exclude_without_pyproject_fails(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that combined include/exclude mode without pyproject.toml fails.
+        
+        When using include mode with exclude, it's NOT exclude-only mode,
+        so validation is strict and requires pyproject.toml.
+        """
+        # Setup git repo (but NO pyproject.toml)
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml with include and exclude
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": [".github"],
+                    "exclude": [".github/workflows/docker.yml"],
+                },
+                f,
+            )
+
+        # Run materialize - should fail because not in exclude-only mode
+        import pytest
+        with pytest.raises(SystemExit):
+            materialize(tmp_path, "main", None, False)
