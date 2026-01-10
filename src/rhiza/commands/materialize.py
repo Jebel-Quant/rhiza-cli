@@ -388,17 +388,22 @@ def _clone_template_repository_exclude_only(
             logger.error(f"Git error: {e.stderr.strip()}")
         raise
 
-    # Build sparse-checkout patterns: include all, then negate excluded paths
-    # Format: "/*" includes everything, "!path/" excludes path
+    # Build sparse-checkout patterns: include all, then negate excluded paths.
+    # Anchor exclude patterns at repository root so entries like
+    # "README.md" refer to the repo root README only. Users who want to
+    # exclude nested files should provide a path like
+    # ".rhiza/requirements/README.md".
     sparse_patterns = ["/*"]
     for path in excluded_paths:
-        # Ensure path ends with / for directories or use exact match for files
-        if not path.endswith("/"):
-            # Add both file and directory patterns
-            sparse_patterns.append(f"!{path}")
-            sparse_patterns.append(f"!{path}/")
+        # Normalize and anchor exclude patterns to repository root only
+        norm = path.lstrip("/")
+        if norm.endswith("/"):
+            norm = norm.rstrip("/")
+            sparse_patterns.append(f"!/{norm}/")
         else:
-            sparse_patterns.append(f"!{path}")
+            # Add both file and directory anchored forms to cover both cases
+            sparse_patterns.append(f"!/{norm}")
+            sparse_patterns.append(f"!/{norm}/")
 
     # Write patterns to sparse-checkout file
     try:

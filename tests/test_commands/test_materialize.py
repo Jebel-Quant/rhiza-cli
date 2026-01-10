@@ -1674,8 +1674,8 @@ class TestMaterializeExcludeOnlyMode:
         assert sparse_checkout_file.exists()
         patterns = sparse_checkout_file.read_text()
         assert "/*" in patterns  # Include all
-        assert "!LICENSE" in patterns  # Negate LICENSE
-        assert "!README.md" in patterns  # Negate README.md
+        assert "!/LICENSE" in patterns  # Negate LICENSE (root-anchored)
+        assert "!/README.md" in patterns  # Negate README.md (root-anchored)
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
