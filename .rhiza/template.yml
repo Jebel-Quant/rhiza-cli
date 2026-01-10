@@ -1,7 +1,7 @@
 template-repository: "jebel-quant/rhiza"
 template-branch: "main"
 include:
-    - .github/workflows
+    - .github  
     - .rhiza
     - tests
     - .editorconfig
@@ -15,6 +15,9 @@ include:
     - presentation
     - book
     - renovate.json
+    - .python-version
 exclude:
     - .github/workflows/rhiza_docker.yml
     - .github/workflows/rhiza_devcontainer.yml
+    - .github/ISSUE_TEMPLATE
+    - .github/dependabot.yml
