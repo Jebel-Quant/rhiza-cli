@@ -32,7 +32,6 @@
 .rhiza/requirements/tools.txt
 .rhiza/scripts/book.sh
 .rhiza/scripts/generate-coverage-badge.sh
-.rhiza/scripts/install-dev-deps.sh
 .rhiza/scripts/marimushka.sh
 .rhiza/scripts/release.sh
 .rhiza/scripts/update-readme-help.sh
