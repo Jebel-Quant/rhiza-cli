@@ -92,12 +92,9 @@ def _normalize_template_file(template_file: Path) -> None:
     Args:
         template_file: Path to template.yml file.
     """
-    try:
-        template = RhizaTemplate.from_yaml(template_file)
-        template.to_yaml(template_file)
-        logger.debug("Template file normalized")
-    except Exception as e:
-        logger.warning(f"Could not normalize template file: {e}")
+    template = RhizaTemplate.from_yaml(template_file)
+    template.to_yaml(template_file)
+    logger.debug("Template file normalized")
 
 
 def _ensure_rhiza_in_include(template_file: Path) -> None:

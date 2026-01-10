@@ -107,18 +107,14 @@ def _determine_lenient_validation(template_file: Path) -> bool:
     if not template_file.exists():
         return False
 
-    try:
-        template = RhizaTemplate.from_yaml(template_file)
-        # In exclude-only mode, if pyproject.toml is not excluded,
-        # the template will provide it, so validation can be lenient
-        if template.is_exclude_only_mode():
-            pyproject_excluded = "pyproject.toml" in template.exclude
-            if not pyproject_excluded:
-                logger.debug("Using lenient validation: pyproject.toml will be provided by template")
-                return True
-    except Exception:
-        # If we can't load the template, proceed with strict validation
-        pass
+    template = RhizaTemplate.from_yaml(template_file)
+    # In exclude-only mode, if pyproject.toml is not excluded,
+    # the template will provide it, so validation can be lenient
+    if template.is_exclude_only_mode():
+        pyproject_excluded = "pyproject.toml" in template.exclude
+        if not pyproject_excluded:
+            logger.debug("Using lenient validation: pyproject.toml will be provided by template")
+            return True
 
     return False
 
