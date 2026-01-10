@@ -68,7 +68,9 @@ def _handle_target_branch(
         sys.exit(1)
 
 
-def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplate, str, str, list[str], list[str], bool]:
+def _validate_and_load_template(
+    target: Path, branch: str
+) -> tuple[RhizaTemplate, str, str, list[str], list[str], bool]:
     """Validate configuration and load template settings.
 
     Args:

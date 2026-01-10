@@ -1658,16 +1658,13 @@ class TestMaterializeExcludeOnlyMode:
         materialize(tmp_path, "main", None, False)
 
         # Verify git clone was called with --sparse flag
-        clone_calls = [
-            call for call in mock_subprocess.call_args_list if "clone" in str(call)
-        ]
+        clone_calls = [call for call in mock_subprocess.call_args_list if "clone" in str(call)]
         assert len(clone_calls) > 0
         assert "--sparse" in str(clone_calls[0])
 
         # Check that sparse-checkout init was called with --no-cone
         sparse_init_calls = [
-            call for call in mock_subprocess.call_args_list
-            if "sparse-checkout" in str(call) and "init" in str(call)
+            call for call in mock_subprocess.call_args_list if "sparse-checkout" in str(call) and "init" in str(call)
         ]
         assert len(sparse_init_calls) > 0
         assert "--no-cone" in str(sparse_init_calls[0])
@@ -1739,9 +1736,7 @@ class TestMaterializeExcludeOnlyMode:
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_materialize_include_with_exclude(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
-    ):
+    def test_materialize_include_with_exclude(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
         """Test that include with exclude works correctly - includes paths then filters excludes."""
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -1948,7 +1943,7 @@ class TestMaterializeLenientValidation:
         self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
         """Test that materialize works in exclude-only mode without pyproject.toml.
-        
+
         When in exclude-only mode and pyproject.toml is not in the exclude list,
         validation should be lenient because the template will provide pyproject.toml.
         """
@@ -1997,7 +1992,7 @@ class TestMaterializeLenientValidation:
         self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
         """Test that materialize fails when pyproject.toml is excluded and not present.
-        
+
         When pyproject.toml is in the exclude list, it won't be provided by the template,
         so validation should NOT be lenient.
         """
@@ -2022,6 +2017,7 @@ class TestMaterializeLenientValidation:
 
         # Run materialize - should fail because pyproject.toml is excluded
         import pytest
+
         with pytest.raises(SystemExit):
             materialize(tmp_path, "main", None, False)
 
@@ -2033,7 +2029,7 @@ class TestMaterializeLenientValidation:
         self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
         """Test that materialize works when pyproject.toml exists in repo.
-        
+
         Even with exclude-only mode, if pyproject.toml exists locally,
         validation should pass (strict mode is fine when file exists).
         """
@@ -2083,7 +2079,7 @@ class TestMaterializeLenientValidation:
         self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
         """Test that materialize works when pyproject.toml is excluded but exists locally.
-        
+
         If pyproject.toml is in the exclude list BUT exists in the repo,
         validation should pass because the file is present.
         """
@@ -2133,7 +2129,7 @@ class TestMaterializeLenientValidation:
         self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
         """Test that include: [] with exclude works without pyproject.toml.
-        
+
         Empty include list with exclude should be treated as exclude-only mode,
         enabling lenient validation.
         """
@@ -2183,7 +2179,7 @@ class TestMaterializeLenientValidation:
         self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
         """Test that include: [] with pyproject.toml excluded fails without pyproject.toml.
-        
+
         Empty include list is exclude-only mode, but if pyproject.toml is excluded
         and doesn't exist locally, validation should fail.
         """
@@ -2209,6 +2205,7 @@ class TestMaterializeLenientValidation:
 
         # Run materialize - should fail because pyproject.toml is excluded and doesn't exist
         import pytest
+
         with pytest.raises(SystemExit):
             materialize(tmp_path, "main", None, False)
 
@@ -2220,7 +2217,7 @@ class TestMaterializeLenientValidation:
         self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
         """Test that include mode without pyproject.toml in repo fails.
-        
+
         When using include mode (not exclude-only), validation is strict
         and requires pyproject.toml to exist.
         """
@@ -2245,6 +2242,7 @@ class TestMaterializeLenientValidation:
 
         # Run materialize - should fail because not in exclude-only mode
         import pytest
+
         with pytest.raises(SystemExit):
             materialize(tmp_path, "main", None, False)
 
@@ -2256,7 +2254,7 @@ class TestMaterializeLenientValidation:
         self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
         """Test that combined include/exclude mode without pyproject.toml fails.
-        
+
         When using include mode with exclude, it's NOT exclude-only mode,
         so validation is strict and requires pyproject.toml.
         """
@@ -2282,5 +2280,6 @@ class TestMaterializeLenientValidation:
 
         # Run materialize - should fail because not in exclude-only mode
         import pytest
+
         with pytest.raises(SystemExit):
             materialize(tmp_path, "main", None, False)

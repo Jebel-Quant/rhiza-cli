@@ -385,6 +385,7 @@ class TestMigrateDeprecatedRepository:
 
         # Mock sys.stdin.isatty to return True
         import sys
+
         monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
 
         # Run migration
@@ -425,6 +426,7 @@ class TestMigrateDeprecatedRepository:
 
         # Mock sys.stdin.isatty to return True
         import sys
+
         monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
 
         # Run migration

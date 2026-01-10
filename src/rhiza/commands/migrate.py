@@ -177,9 +177,7 @@ def _migrate_deprecated_repository(template_file: Path) -> list[str]:
 
         # Prompt user to migrate
         if sys.stdin.isatty():
-            migrate_repo = questionary.confirm(
-                f"Would you like to switch to '{NEW_REPOSITORY}'?", default=True
-            ).ask()
+            migrate_repo = questionary.confirm(f"Would you like to switch to '{NEW_REPOSITORY}'?", default=True).ask()
         else:
             # Non-interactive mode, don't change automatically but warn
             migrate_repo = False
@@ -190,7 +188,9 @@ def _migrate_deprecated_repository(template_file: Path) -> list[str]:
             template.template_repository = NEW_REPOSITORY
             template.to_yaml(template_file)
             logger.success(f"✓ Updated template-repository to '{NEW_REPOSITORY}'")
-            migrations_performed.append(f"Updated template-repository from '{DEPRECATED_REPOSITORY}' to '{NEW_REPOSITORY}'")
+            migrations_performed.append(
+                f"Updated template-repository from '{DEPRECATED_REPOSITORY}' to '{NEW_REPOSITORY}'"
+            )
         else:
             logger.warning(f"Keeping deprecated repository. Please migrate to '{NEW_REPOSITORY}' soon.")
 
