@@ -1813,7 +1813,7 @@ class TestMaterializeDeprecationWarning:
         with open(template_file, "w") as f:
             yaml.dump(
                 {
-                    "template-repository": ".tschm/.config-templates",
+                    "template-repository": "tschm/.config-templates",
                     "template-branch": "main",
                     "include": ["Makefile"],
                 },

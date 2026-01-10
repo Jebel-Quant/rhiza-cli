@@ -280,7 +280,7 @@ class TestRhizaTemplate:
         """Test loading a template.yml with multi-line string exclude field (using |)."""
         template_file = tmp_path / "template.yml"
         # This is the format users might write in YAML with the literal block scalar (|)
-        template_file.write_text("""template-repository: ".tschm/.config-templates"
+        template_file.write_text("""template-repository: "tschm/.config-templates"
 template-branch: "main"
 exclude: |
   LICENSE
@@ -290,7 +290,7 @@ exclude: |
 
         template = RhizaTemplate.from_yaml(template_file)
 
-        assert template.template_repository == ".tschm/.config-templates"
+        assert template.template_repository == "tschm/.config-templates"
         assert template.template_branch == "main"
         assert template.exclude == ["LICENSE", "README.md", ".github/CODEOWNERS"]
 
@@ -314,7 +314,7 @@ include: |
         """Test that multi-line exclude is properly saved as a YAML list."""
         template_file = tmp_path / "template.yml"
         # Write with multi-line string format
-        template_file.write_text("""template-repository: ".tschm/.config-templates"
+        template_file.write_text("""template-repository: "tschm/.config-templates"
 template-branch: "main"
 exclude: |
   LICENSE
@@ -380,7 +380,7 @@ include:
     def test_is_deprecated_repository_true(self, tmp_path):
         """Test is_deprecated_repository returns True for deprecated repo."""
         template_file = tmp_path / "template.yml"
-        template_file.write_text("""template-repository: ".tschm/.config-templates"
+        template_file.write_text("""template-repository: "tschm/.config-templates"
 template-branch: "main"
 include:
   - .github
@@ -391,7 +391,7 @@ include:
     def test_is_deprecated_repository_true_case_insensitive(self, tmp_path):
         """Test is_deprecated_repository is case-insensitive."""
         template_file = tmp_path / "template.yml"
-        template_file.write_text("""template-repository: ".Tschm/.Config-Templates"
+        template_file.write_text("""template-repository: "tschm/.Config-Templates"
 template-branch: "main"
 include:
   - .github

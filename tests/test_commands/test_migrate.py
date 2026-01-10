@@ -370,7 +370,7 @@ class TestMigrateDeprecatedRepository:
         template_file = rhiza_dir / "template.yml"
 
         template_content = {
-            "template-repository": ".tschm/.config-templates",
+            "template-repository": "tschm/.config-templates",
             "template-branch": "main",
             "include": [".github"],
         }
@@ -420,7 +420,7 @@ class TestMigrateDeprecatedRepository:
         template_file = rhiza_dir / "template.yml"
 
         template_content = {
-            "template-repository": ".tschm/.config-templates",
+            "template-repository": "tschm/.config-templates",
             "template-branch": "main",
             "include": [".github"],
         }
@@ -453,7 +453,7 @@ class TestMigrateDeprecatedRepository:
         with open(template_file) as f:
             content = yaml.safe_load(f)
 
-        assert content["template-repository"] == ".tschm/.config-templates"
+        assert content["template-repository"] == "tschm/.config-templates"
         assert len(migrations) == 0
 
     def test_migrate_non_deprecated_repository(self, tmp_path):
@@ -625,7 +625,7 @@ class TestMigrateCLI:
         # Write template with multi-line string format (using |)
         # Note: This is exclude-only mode (no include list), so all files are
         # included by default except those in exclude
-        old_template_file.write_text("""template-repository: ".tschm/.config-templates"
+        old_template_file.write_text("""template-repository: "tschm/.config-templates"
 template-branch: "main"
 exclude: |
   LICENSE

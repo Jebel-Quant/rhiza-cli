@@ -11,7 +11,7 @@ from pathlib import Path
 import yaml
 
 # Deprecated repository that should be migrated to the new one
-DEPRECATED_REPOSITORY = ".tschm/.config-templates"
+DEPRECATED_REPOSITORY = "tschm/.config-templates"
 NEW_REPOSITORY = "Jebel-Quant/rhiza"
 
 
@@ -137,7 +137,7 @@ class RhizaTemplate:
         """Check if the template repository is the deprecated one.
 
         Returns:
-            True if using the deprecated .tschm/.config-templates repository.
+            True if using the deprecated tschm/.config-templates repository.
         """
         if self.template_repository is None:
             return False
