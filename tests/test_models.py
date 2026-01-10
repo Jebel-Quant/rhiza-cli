@@ -280,7 +280,7 @@ class TestRhizaTemplate:
         """Test loading a template.yml with multi-line string exclude field (using |)."""
         template_file = tmp_path / "template.yml"
         # This is the format users might write in YAML with the literal block scalar (|)
-        template_file.write_text("""template-repository: ".tschm/.config-templates"
+        template_file.write_text("""template-repository: "tschm/.config-templates"
 template-branch: "main"
 exclude: |
   LICENSE
@@ -290,7 +290,7 @@ exclude: |
 
         template = RhizaTemplate.from_yaml(template_file)
 
-        assert template.template_repository == ".tschm/.config-templates"
+        assert template.template_repository == "tschm/.config-templates"
         assert template.template_branch == "main"
         assert template.exclude == ["LICENSE", "README.md", ".github/CODEOWNERS"]
 
@@ -314,7 +314,7 @@ include: |
         """Test that multi-line exclude is properly saved as a YAML list."""
         template_file = tmp_path / "template.yml"
         # Write with multi-line string format
-        template_file.write_text("""template-repository: ".tschm/.config-templates"
+        template_file.write_text("""template-repository: "tschm/.config-templates"
 template-branch: "main"
 exclude: |
   LICENSE
@@ -336,3 +336,176 @@ exclude: |
             config = yaml.safe_load(f)
         assert config["exclude"] == ["LICENSE", "README.md", ".github/CODEOWNERS"]
         assert isinstance(config["exclude"], list)
+
+
+class TestRhizaTemplateHelperMethods:
+    """Tests for the RhizaTemplate helper methods."""
+
+    def test_is_exclude_only_mode_true(self, tmp_path):
+        """Test is_exclude_only_mode returns True when no include but has exclude."""
+        template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-repository: "jebel-quant/rhiza"
+template-branch: "main"
+exclude:
+  - LICENSE
+  - README.md
+""")
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.is_exclude_only_mode() is True
+
+    def test_is_exclude_only_mode_false_with_include(self, tmp_path):
+        """Test is_exclude_only_mode returns False when include is present."""
+        template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-repository: "jebel-quant/rhiza"
+template-branch: "main"
+include:
+  - .github
+exclude:
+  - .github/workflows/docker.yml
+""")
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.is_exclude_only_mode() is False
+
+    def test_is_exclude_only_mode_false_no_exclude(self, tmp_path):
+        """Test is_exclude_only_mode returns False when no exclude."""
+        template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-repository: "jebel-quant/rhiza"
+template-branch: "main"
+include:
+  - .github
+""")
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.is_exclude_only_mode() is False
+
+    def test_is_deprecated_repository_true(self, tmp_path):
+        """Test is_deprecated_repository returns True for deprecated repo."""
+        template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-repository: "tschm/.config-templates"
+template-branch: "main"
+include:
+  - .github
+""")
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.is_deprecated_repository() is True
+
+    def test_is_deprecated_repository_true_case_insensitive(self, tmp_path):
+        """Test is_deprecated_repository is case-insensitive."""
+        template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-repository: "tschm/.Config-Templates"
+template-branch: "main"
+include:
+  - .github
+""")
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.is_deprecated_repository() is True
+
+    def test_is_deprecated_repository_true_with_url(self, tmp_path):
+        """Test is_deprecated_repository returns True when deprecated repo is in a URL."""
+        template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-repository: "https://github.com/tschm/.config-templates"
+template-branch: "main"
+include:
+  - .github
+""")
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.is_deprecated_repository() is True
+
+    def test_is_deprecated_repository_false(self, tmp_path):
+        """Test is_deprecated_repository returns False for non-deprecated repo."""
+        template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-repository: "Jebel-Quant/rhiza"
+template-branch: "main"
+include:
+  - .github
+""")
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.is_deprecated_repository() is False
+
+    def test_is_deprecated_repository_none(self, tmp_path):
+        """Test is_deprecated_repository returns False when repo is None."""
+        template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-branch: "main"
+include:
+  - .github
+""")
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.is_deprecated_repository() is False
+
+    def test_has_rhiza_folder_in_include_direct(self, tmp_path):
+        """Test has_rhiza_folder_in_include returns True when .rhiza is in include."""
+        template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-repository: "jebel-quant/rhiza"
+include:
+  - .github
+  - .rhiza
+""")
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.has_rhiza_folder_in_include() is True
+
+    def test_has_rhiza_folder_in_include_subpath(self, tmp_path):
+        """Test has_rhiza_folder_in_include returns True for .rhiza/ subpath."""
+        template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-repository: "jebel-quant/rhiza"
+include:
+  - .github
+  - .rhiza/template.yml
+""")
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.has_rhiza_folder_in_include() is True
+
+    def test_has_rhiza_folder_in_include_not_present(self, tmp_path):
+        """Test has_rhiza_folder_in_include returns False when .rhiza not in include."""
+        template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-repository: "jebel-quant/rhiza"
+include:
+  - .github
+  - Makefile
+""")
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.has_rhiza_folder_in_include() is False
+
+    def test_has_rhiza_folder_in_include_exclude_only_mode(self, tmp_path):
+        """Test has_rhiza_folder_in_include returns True in exclude-only mode."""
+        template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-repository: "jebel-quant/rhiza"
+exclude:
+  - LICENSE
+""")
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.has_rhiza_folder_in_include() is True
+
+    def test_has_rhiza_folder_in_exclude_true(self, tmp_path):
+        """Test has_rhiza_folder_in_exclude returns True when .rhiza is excluded."""
+        template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-repository: "jebel-quant/rhiza"
+include:
+  - .github
+exclude:
+  - .rhiza
+""")
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.has_rhiza_folder_in_exclude() is True
+
+    def test_has_rhiza_folder_in_exclude_subpath(self, tmp_path):
+        """Test has_rhiza_folder_in_exclude returns True for .rhiza/ subpath."""
+        template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-repository: "jebel-quant/rhiza"
+include:
+  - .github
+exclude:
+  - .rhiza/history
+""")
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.has_rhiza_folder_in_exclude() is True
+
+    def test_has_rhiza_folder_in_exclude_false(self, tmp_path):
+        """Test has_rhiza_folder_in_exclude returns False when .rhiza not excluded."""
+        template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-repository: "jebel-quant/rhiza"
+include:
+  - .github
+exclude:
+  - LICENSE
+""")
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.has_rhiza_folder_in_exclude() is False

@@ -287,6 +287,20 @@ Re-run this script to update templates explicitly.
 - Template files are copied with their original permissions
 - Excluded paths (if defined) are filtered out
 
+**Exclude semantics:**
+
+- Exclude paths in your `template.yml` are interpreted as repository-root relative. For example:
+
+  ```yaml
+  exclude:
+    - LICENSE
+    - README.md
+    - .github/CODEOWNERS
+  ```
+
+  - `LICENSE` and `README.md` refer to files at the repository root only (`/LICENSE`, `/README.md`).
+  - To exclude a nested file, provide its full path relative to the repository root: `.rhiza/requirements/README.md`.
+
 ---
 
 ### `rhiza migrate`

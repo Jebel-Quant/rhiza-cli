@@ -49,23 +49,30 @@ def _check_project_structure(target: Path) -> None:
         logger.success(f"'tests' folder exists: {tests_dir}")
 
 
-def _check_pyproject_toml(target: Path) -> bool:
+def _check_pyproject_toml(target: Path, lenient: bool = False) -> bool:
     """Check for pyproject.toml file.
 
     Args:
         target: Path to project.
+        lenient: If True, missing pyproject.toml is a warning, not an error.
+            Used during materialize when template will provide the file.
 
     Returns:
-        True if pyproject.toml exists, False otherwise.
+        True if pyproject.toml exists or lenient mode is enabled, False otherwise.
     """
     logger.debug("Validating pyproject.toml")
     pyproject_file = target / "pyproject.toml"
 
     if not pyproject_file.exists():
-        logger.error(f"pyproject.toml not found: {pyproject_file}")
-        logger.error("pyproject.toml is required for Python projects")
-        logger.info("Run 'rhiza init' to create a default pyproject.toml")
-        return False
+        if lenient:
+            logger.warning(f"pyproject.toml not found: {pyproject_file}")
+            logger.warning("pyproject.toml will be provided by the template")
+            return True
+        else:
+            logger.error(f"pyproject.toml not found: {pyproject_file}")
+            logger.error("pyproject.toml is required for Python projects")
+            logger.info("Run 'rhiza init' to create a default pyproject.toml")
+            return False
     else:
         logger.success(f"pyproject.toml exists: {pyproject_file}")
         return True
@@ -128,6 +135,8 @@ def _parse_yaml_file(template_file: Path) -> tuple[bool, dict | None]:
 def _validate_required_fields(config: dict) -> bool:
     """Validate required fields exist and have correct types.
 
+    In exclude-only mode (exclude present but no include), the include field is not required.
+
     Args:
         config: Configuration dictionary.
 
@@ -135,26 +144,41 @@ def _validate_required_fields(config: dict) -> bool:
         True if all validations pass, False otherwise.
     """
     logger.debug("Validating required fields")
-    required_fields = {
-        "template-repository": str,
-        "include": list,
-    }
+
+    # Check if we're in exclude-only mode
+    has_exclude = "exclude" in config and config["exclude"]
+    is_exclude_only = has_exclude and ("include" not in config or not config.get("include"))
 
     validation_passed = True
 
-    for field, expected_type in required_fields.items():
-        if field not in config:
-            logger.error(f"Missing required field: {field}")
-            logger.error(f"Add '{field}' to your template.yml")
+    # template-repository is always required
+    if "template-repository" not in config:
+        logger.error("Missing required field: template-repository")
+        logger.error("Add 'template-repository' to your template.yml")
+        validation_passed = False
+    elif not isinstance(config["template-repository"], str):
+        logger.error(
+            f"Field 'template-repository' must be of type str, got {type(config['template-repository']).__name__}"
+        )
+        logger.error("Fix the type of 'template-repository' in template.yml")
+        validation_passed = False
+    else:
+        logger.success("Field 'template-repository' is present and valid")
+
+    # include is required unless we're in exclude-only mode
+    if not is_exclude_only:
+        if "include" not in config:
+            logger.error("Missing required field: include")
+            logger.error("Add 'include' to your template.yml or use 'exclude' for exclude-only mode")
             validation_passed = False
-        elif not isinstance(config[field], expected_type):
-            logger.error(
-                f"Field '{field}' must be of type {expected_type.__name__}, got {type(config[field]).__name__}"
-            )
-            logger.error(f"Fix the type of '{field}' in template.yml")
+        elif not isinstance(config["include"], list):
+            logger.error(f"Field 'include' must be of type list, got {type(config['include']).__name__}")
+            logger.error("Fix the type of 'include' in template.yml")
             validation_passed = False
         else:
-            logger.success(f"Field '{field}' is present and valid")
+            logger.success("Field 'include' is present and valid")
+    else:
+        logger.info("Using exclude-only mode (include field not required)")
 
     return validation_passed
 
@@ -196,6 +220,22 @@ def _validate_include_paths(config: dict) -> bool:
         True if valid, False otherwise.
     """
     logger.debug("Validating include paths")
+
+    # Check if we have either include or exclude (at least one required)
+    has_include = "include" in config and config["include"]
+    has_exclude = "exclude" in config and config["exclude"]
+
+    if not has_include and not has_exclude:
+        logger.error("Must have either 'include' or 'exclude' paths in template.yml")
+        logger.error("Add 'include' to specify which paths to materialize")
+        logger.error("Or add 'exclude' to include all files except specified ones")
+        return False
+
+    if not has_include and has_exclude:
+        # Exclude-only mode - valid
+        logger.success("Using exclude-only mode (all files except excluded will be materialized)")
+        return True
+
     if "include" not in config:
         return True
 
@@ -204,9 +244,9 @@ def _validate_include_paths(config: dict) -> bool:
         logger.error(f"include must be a list, got {type(include).__name__}")
         logger.error("Example: include: ['.github', '.gitignore']")
         return False
-    elif len(include) == 0:
-        logger.error("include list cannot be empty")
-        logger.error("Add at least one path to materialize")
+    elif len(include) == 0 and not has_exclude:
+        logger.error("include list cannot be empty (unless using exclude-only mode)")
+        logger.error("Add at least one path to materialize or use exclude-only mode")
         return False
     else:
         logger.success(f"include list has {len(include)} path(s)")
@@ -262,13 +302,13 @@ def _validate_optional_fields(config: dict) -> None:
                     logger.info(f"  - {path}")
 
 
-def validate(target: Path) -> bool:
+def validate(target: Path, lenient: bool = False) -> bool:
     """Validate template.yml configuration in the target repository.
 
     Performs authoritative validation of the template configuration:
     - Checks if target is a git repository
     - Checks for standard project structure (src and tests folders)
-    - Checks for pyproject.toml (required)
+    - Checks for pyproject.toml (required, unless lenient mode)
     - Checks if template.yml exists
     - Validates YAML syntax
     - Validates required fields
@@ -276,6 +316,8 @@ def validate(target: Path) -> bool:
 
     Args:
         target: Path to the target Git repository directory.
+        lenient: If True, missing project files (pyproject.toml) are warnings,
+            not errors. Used during materialize when template will provide files.
 
     Returns:
         True if validation passes, False otherwise.
@@ -290,8 +332,8 @@ def validate(target: Path) -> bool:
     # Check for standard project structure
     _check_project_structure(target)
 
-    # Check for pyproject.toml
-    if not _check_pyproject_toml(target):
+    # Check for pyproject.toml (lenient mode makes this a warning)
+    if not _check_pyproject_toml(target, lenient=lenient):
         return False
 
     # Check for template file
