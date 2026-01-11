@@ -1605,3 +1605,242 @@ class TestInjectCommand:
         # Run materialize and expect it to fail with RuntimeError
         with pytest.raises(RuntimeError, match="git executable not found in PATH"):
             materialize(tmp_path, "main", None, False)
+
+    def test_materialize_with_custom_template_branch_with_force(self, tmp_path):
+        """Test that materialize works with a custom template branch."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create template.yml with custom template branch
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "dummy/repo",
+                    "template-branch": "custom-branch",
+                    "include": ["test.txt"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        test_file = temp_dir / "test.txt"
+        test_file.write_text("content")
+
+        with patch("rhiza.commands.materialize.tempfile.mkdtemp", return_value=str(temp_dir)):
+            with patch("rhiza.commands.materialize.subprocess.run") as mock_subprocess:
+                mock_subprocess.return_value = Mock(returncode=0)
+
+                # Run materialize with custom template branch
+                materialize(tmp_path, "custom-branch", None, True)
+
+                # Verify git clone was called with the custom branch
+                clone_calls = [
+                    call
+                    for call in mock_subprocess.call_args_list
+                    if len(call[0]) > 0
+                    and len(call[0][0]) > 2
+                    and "clone" in call[0][0]
+                    and "--branch" in call[0][0]
+                    and "custom-branch" in call[0][0]
+                ]
+                assert len(clone_calls) > 0, "Expected git clone with custom branch to be called"
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_preserves_template_yml_with_force(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that force=True does NOT overwrite local template.yml with the version from the template repo."""
+        # Setup target repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create local template.yml with CUSTOM configuration
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        # Configuration pointing to a custom repo/branch
+        custom_content = """
+template-repository: custom/repo
+template-branch: custom-branch
+include:
+  - "."
+"""
+        template_file.write_text(custom_content)
+
+        # Mock tempfile (simulating the cloned template repo)
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        temp_rhiza_dir = temp_dir / ".rhiza"
+        temp_rhiza_dir.mkdir(parents=True, exist_ok=True)
+
+        # The template repo contains a template.yml with DIFFERENT configuration (e.g. default)
+        repo_template_file = temp_rhiza_dir / "template.yml"
+        default_content = """
+template-repository: Jebel-Quant/rhiza
+template-branch: main
+include:
+  - "."
+"""
+        repo_template_file.write_text(default_content)
+
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Use side_effect to actually copy files so we can verify file contents
+        def copy2_side_effect(src, dst):
+            # Create parent just in case
+            Path(dst).parent.mkdir(parents=True, exist_ok=True)
+            Path(dst).write_text(Path(src).read_text())
+
+        mock_copy2.side_effect = copy2_side_effect
+
+        # Run materialize with force=True
+        # This typically overwrites files, but we expect template.yml to be protected
+        materialize(tmp_path, "custom-branch", None, True)
+
+        # Check local template.yml content
+        current_content = template_file.read_text()
+
+        # Assert that the file STILL contains the local configuration
+        assert "template-repository: custom/repo" in current_content
+        assert "template-branch: custom-branch" in current_content
+        # Ensure it was NOT overwritten by the repo's content
+        assert "template-repository: Jebel-Quant/rhiza" not in current_content
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_ignores_upstream_history(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that .rhiza/history from template is ignored during copy."""
+        # Setup target repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml (existing user file)
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create template.yml
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        # Template config
+        template_file.write_text("""
+template-repository: test/repo
+template-branch: main
+include:
+  - "other.txt"
+""")
+
+        # Mock tempfile (simulating the cloned template repo)
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+
+        # Template has .rhiza/history
+        template_rhiza = temp_dir / ".rhiza"
+        template_rhiza.mkdir()
+        (template_rhiza / "history").write_text("# Upstream History")
+
+        # Template has other.txt
+        (temp_dir / "other.txt").write_text("other")
+
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Mock subprocess to succeed
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize
+        materialize(tmp_path, "main", None, False)
+
+        # Verify that copy2 was NOT called for .rhiza/history
+        for call in mock_copy2.call_args_list:
+            src = Path(call.args[0])
+            if src.name == "history":
+                stripped_parents = str(src).replace(str(temp_dir), "")
+                if ".rhiza" in stripped_parents:
+                    assert False, f"Should not copy upstream history file: {src}"
+
+        # Verify pyproject.toml still exists (it wasn't orphaned because history wasn't polluted)
+        assert pyproject_file.exists()
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_does_not_delete_orphaned_template_yml(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
+        """Test that .rhiza/template.yml is not deleted even if it becomes orphaned."""
+        # Setup target repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create local template.yml
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+        template_file.write_text("""
+template-repository: test/repo
+template-branch: main
+include: ["other.txt"]
+""")
+
+        # Mock history says template.yml was tracked
+        history_file = rhiza_dir / "history"
+        history_file.write_text("""# History
+.rhiza/template.yml
+""")
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        # Mock template repo has other.txt but NOT template.yml (or we exclude it by logic)
+        (temp_dir / "other.txt").write_text("other")
+
+        # Even if template repo HAS template.yml, our logic excludes it from copy.
+        # So it won't be in materialized_files.
+        # So it WILL be orphaned.
+        (temp_dir / ".rhiza").mkdir()
+        (temp_dir / ".rhiza" / "template.yml").write_text("repo content")
+
+        mock_mkdtemp.return_value = str(temp_dir)
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize
+        materialize(tmp_path, "main", None, False)
+
+        # Verify template.yml exists
+        assert template_file.exists()
+        # And has original content
+        content = template_file.read_text()
+        assert "template-repository: test/repo" in content
+        assert 'include: ["other.txt"]' in content

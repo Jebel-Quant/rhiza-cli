@@ -251,6 +251,19 @@ def _copy_files_to_target(
     # Create set of excluded files
     logger.debug("Expanding excluded paths to individual files")
     excluded_files = {f.resolve() for f in __expand_paths(tmp_dir, excluded_paths)}
+
+    # Always exclude .rhiza/template.yml to prevent overwriting local configuration
+    # Also exclude .rhiza/history to prevent overwriting local history with template history
+    rhiza_dir = tmp_dir / ".rhiza"
+    template_config = (rhiza_dir / "template.yml").resolve()
+    upstream_history = (rhiza_dir / "history").resolve()
+
+    if template_config.is_file():
+        excluded_files.add(template_config)
+
+    if upstream_history.is_file():
+        excluded_files.add(upstream_history)
+
     if excluded_files:
         logger.info(f"Excluding {len(excluded_files)} file(s) based on exclude patterns")
 
@@ -336,9 +349,17 @@ def _clean_orphaned_files(target: Path, materialized_files: list[Path]) -> None:
     currently_materialized_files = set(materialized_files)
     orphaned_files = previously_tracked_files - currently_materialized_files
 
+    # Protected files that should never be deleted automatically
+    # even if they are orphaned (e.g. user chose to stop tracking them)
+    protected_files = {Path(".rhiza/template.yml")}
+
     if orphaned_files:
         logger.info(f"Found {len(orphaned_files)} orphaned file(s) no longer maintained by template")
         for file_path in sorted(orphaned_files):
+            if file_path in protected_files:
+                logger.info(f"Skipping protected file: {file_path}")
+                continue
+
             full_path = target / file_path
             if full_path.exists():
                 try:
