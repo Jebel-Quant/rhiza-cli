@@ -251,6 +251,12 @@ def _copy_files_to_target(
     # Create set of excluded files
     logger.debug("Expanding excluded paths to individual files")
     excluded_files = {f.resolve() for f in __expand_paths(tmp_dir, excluded_paths)}
+
+    # Always exclude .rhiza/template.yml to prevent overwriting local configuration
+    template_config = (tmp_dir / ".rhiza" / "template.yml").resolve()
+    if template_config.is_file():
+        excluded_files.add(template_config)
+
     if excluded_files:
         logger.info(f"Excluding {len(excluded_files)} file(s) based on exclude patterns")
 
