@@ -325,9 +325,9 @@ While Rhiza doesn't directly support multiple repositories, you can manage them:
 **Create multiple configuration files:**
 
 ```bash
-# .github/template-base.yml
-# .github/template-testing.yml
-# .github/template-docs.yml
+# .rhiza/template-base.yml
+# .rhiza/template-testing.yml
+# .rhiza/template-docs.yml
 ```
 
 **Use a script to apply them:**
@@ -336,8 +336,8 @@ While Rhiza doesn't directly support multiple repositories, you can manage them:
 #!/bin/bash
 # apply-all-templates.sh
 
-for template in .github/template-*.yml; do
-  cp "$template" .github/rhiza/template.yml
+for template in .rhiza/template-*.yml; do
+  cp "$template" .rhiza/template.yml
   rhiza materialize --force
 done
 ```
@@ -477,7 +477,7 @@ repos:
         entry: rhiza validate
         language: system
         pass_filenames: false
-        files: ^\.github/template\.yml$
+        files: ^\.rhiza/template\.yml$
 ```
 
 Install and run:

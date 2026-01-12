@@ -1,7 +1,7 @@
-"""Command to initialize or validate .github/rhiza/template.yml.
+"""Command to initialize or validate .rhiza/template.yml.
 
 This module provides the init command that creates or validates the
-.github/rhiza/template.yml file, which defines where templates come from
+.rhiza/template.yml file, which defines where templates come from
 and what paths are governed by Rhiza.
 """
 
@@ -244,9 +244,9 @@ def init(
     with_dev_dependencies: bool = False,
     git_host: str | None = None,
 ):
-    """Initialize or validate .github/rhiza/template.yml in the target repository.
+    """Initialize or validate .rhiza/template.yml in the target repository.
 
-    Creates a default .github/rhiza/template.yml file if it doesn't exist,
+    Creates a default .rhiza/template.yml file if it doesn't exist,
     or validates an existing one.
 
     Args:

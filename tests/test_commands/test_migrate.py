@@ -91,7 +91,7 @@ class TestMigrateCommand:
         assert not old_template_file.exists()
 
     def test_migrate_prefers_github_rhiza_over_github_root(self, tmp_path):
-        """Test that migrate prefers .github/rhiza/template.yml over .github/template.yml."""
+        """Test that migrate prefers old .github/rhiza/template.yml over .github/template.yml."""
         # Create template.yml in both locations
         github_dir = tmp_path / ".github"
         github_rhiza_dir = github_dir / "rhiza"
