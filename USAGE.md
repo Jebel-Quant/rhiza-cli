@@ -53,8 +53,8 @@ rhiza init
 You should see output like:
 ```
 [INFO] Initializing Rhiza configuration in: /path/to/my-awesome-project
-[INFO] Creating default .github/rhiza/template.yml
-✓ Created .github/rhiza/template.yml
+[INFO] Creating default .rhiza/template.yml
+✓ Created .rhiza/template.yml
 ```
 
 ### Understanding the Configuration
@@ -62,7 +62,7 @@ You should see output like:
 View the created configuration:
 
 ```bash
-cat .github/rhiza/template.yml
+cat .rhiza/template.yml
 ```
 
 You'll see:
@@ -179,7 +179,7 @@ git checkout -b add-rhiza-templates
 rhiza init
 
 # 5. Review generated template.yml and customize if needed
-vim .github/rhiza/template.yml
+vim .rhiza/template.yml
 
 # 6. Materialize templates (use --force carefully!)
 rhiza materialize
@@ -226,7 +226,7 @@ git checkout .
 
 Use your organization's template repository:
 
-**Edit `.github/rhiza/template.yml`:**
+**Edit `.rhiza/template.yml`:**
 
 ```yaml
 template-repository: myorg/python-templates
@@ -257,7 +257,7 @@ Test templates from a development branch:
 rhiza materialize --branch develop
 
 # Or update template.yml
-vim .github/rhiza/template.yml  # Change template-branch to 'develop'
+vim .rhiza/template.yml  # Change template-branch to 'develop'
 rhiza materialize
 ```
 
@@ -265,7 +265,7 @@ rhiza materialize
 
 Configure Rhiza to use a GitLab template repository:
 
-**Edit `.github/rhiza/template.yml`:**
+**Edit `.rhiza/template.yml`:**
 
 ```yaml
 template-repository: mygroup/python-templates
@@ -325,9 +325,9 @@ While Rhiza doesn't directly support multiple repositories, you can manage them:
 **Create multiple configuration files:**
 
 ```bash
-# .github/template-base.yml
-# .github/template-testing.yml
-# .github/template-docs.yml
+# .rhiza/template-base.yml
+# .rhiza/template-testing.yml
+# .rhiza/template-docs.yml
 ```
 
 **Use a script to apply them:**
@@ -336,8 +336,8 @@ While Rhiza doesn't directly support multiple repositories, you can manage them:
 #!/bin/bash
 # apply-all-templates.sh
 
-for template in .github/template-*.yml; do
-  cp "$template" .github/rhiza/template.yml
+for template in .rhiza/template-*.yml; do
+  cp "$template" .rhiza/template.yml
   rhiza materialize --force
 done
 ```
@@ -356,10 +356,10 @@ name: Validate Rhiza Configuration
 on:
   push:
     paths:
-      - '.github/rhiza/template.yml'
+      - '.rhiza/template.yml'
   pull_request:
     paths:
-      - '.github/rhiza/template.yml'
+      - '.rhiza/template.yml'
 
 jobs:
   validate:
@@ -392,7 +392,7 @@ Validate before every commit:
 #!/bin/sh
 # Validate Rhiza configuration before commit
 
-if [ -f .github/rhiza/template.yml ]; then
+if [ -f .rhiza/template.yml ]; then
     echo "Validating Rhiza configuration..."
     rhiza validate || {
         echo "ERROR: Rhiza validation failed"
@@ -454,7 +454,7 @@ RUN pip install rhiza
 COPY . .
 
 # Initialize templates if needed
-RUN if [ ! -f .github/rhiza/template.yml ]; then rhiza init; fi
+RUN if [ ! -f .rhiza/template.yml ]; then rhiza init; fi
 
 # Validate configuration
 RUN rhiza validate
@@ -477,7 +477,7 @@ repos:
         entry: rhiza validate
         language: system
         pass_filenames: false
-        files: ^\.github/template\.yml$
+        files: ^\.rhiza/template\.yml$
 ```
 
 Install and run:
@@ -492,10 +492,10 @@ pre-commit run --all-files
 
 ### 1. Version Control Template Configuration
 
-Always commit `.github/rhiza/template.yml`:
+Always commit `.rhiza/template.yml`:
 
 ```bash
-git add .github/rhiza/template.yml
+git add .rhiza/template.yml
 git commit -m "feat: add rhiza template configuration"
 ```
 
@@ -676,7 +676,7 @@ cd /tmp/template-test
 git init
 
 # Copy your template.yml
-cp /path/to/project/.github/rhiza/template.yml .github/
+cp /path/to/project/.rhiza/template.yml .rhiza/
 
 # Test materialize
 rhiza materialize

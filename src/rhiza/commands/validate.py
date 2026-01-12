@@ -91,7 +91,7 @@ def _check_template_file_exists(target: Path) -> tuple[bool, Path]:
         logger.info("  • If you have an existing configuration, run: rhiza migrate")
         logger.info("")
         logger.info("The 'rhiza migrate' command will move your configuration from")
-        logger.info("  .github/rhiza/template.yml → .rhiza/template.yml")
+        logger.info("  the old location → .rhiza/template.yml")
         return False, template_file
 
     logger.success(f"Template file exists: {template_file.relative_to(target)}")

@@ -6,7 +6,7 @@ This document provides a quick reference for the Rhiza command-line interface.
 
 | Command | Description |
 |---------|-------------|
-| `rhiza init` | Initialize or validate `.github/template.yml` |
+| `rhiza init` | Initialize or validate `.rhiza/template.yml` |
 | `rhiza materialize` | Inject templates into a target repository |
 | `rhiza migrate` | Migrate to the new `.rhiza` folder structure |
 | `rhiza validate` | Validate template configuration |
@@ -34,7 +34,7 @@ rhiza validate && git add . && git commit
 
 ### rhiza init
 
-**Purpose:** Create or validate `.github/template.yml`
+**Purpose:** Create or validate `.rhiza/template.yml`
 
 **Syntax:**
 ```bash
@@ -79,7 +79,7 @@ rhiza materialize -b main -y                # Short form
 ```
 
 **Behavior:**
-- Creates `.github/template.yml` if it doesn't exist
+- Creates `.rhiza/template.yml` if it doesn't exist
 - Performs sparse clone of template repository
 - Copies only specified files/directories
 - Respects exclude patterns
@@ -123,7 +123,7 @@ rhiza migrate /path/to/project   # Migrate specific directory
 
 ### rhiza validate
 
-**Purpose:** Validate `.github/template.yml` configuration
+**Purpose:** Validate `.rhiza/template.yml` configuration
 
 **Syntax:**
 ```bash
@@ -193,7 +193,7 @@ grep "myfile.txt" .rhiza.history
 ## Configuration File Reference
 
 ### Location
-`.github/template.yml`
+`.rhiza/template.yml`
 
 ### Format
 ```yaml
@@ -280,10 +280,10 @@ While Rhiza doesn't directly support multiple template repositories, you can:
 
 ```bash
 # Use different templates
-cp .github/template-base.yml .github/template.yml
+cp .rhiza/template-base.yml .rhiza/template.yml
 rhiza materialize --force
 
-cp .github/template-testing.yml .github/template.yml  
+cp .rhiza/template-testing.yml .rhiza/template.yml  
 rhiza materialize --force
 ```
 

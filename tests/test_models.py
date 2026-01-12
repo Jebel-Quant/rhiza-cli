@@ -1,7 +1,7 @@
 """Tests for the RhizaTemplate dataclass and related models.
 
 This module verifies that the RhizaTemplate dataclass correctly represents
-and handles .github/rhiza/template.yml configuration.
+and handles .rhiza/template.yml configuration.
 """
 
 import pytest

@@ -44,7 +44,7 @@ Python projects using reusable templates stored in a central repository.
   1. Initialize a project:
      $ rhiza init
 
-  2. Customize .github/rhiza/template.yml to match your needs
+  2. Customize .rhiza/template.yml to match your needs
 
   3. Materialize templates into your project:
      $ rhiza materialize

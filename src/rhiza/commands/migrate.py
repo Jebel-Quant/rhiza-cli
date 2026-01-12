@@ -2,7 +2,7 @@
 
 This module implements the `migrate` command. It helps transition projects to use
 the new `.rhiza/` folder structure for storing Rhiza state and configuration files,
-separate from `.github/rhiza/` which contains template configuration.
+separate from `.github/` which contains GitHub-specific configurations.
 """
 
 import shutil

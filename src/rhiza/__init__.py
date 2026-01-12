@@ -29,7 +29,7 @@ Validate your configuration:
 rhiza validate
 ```
 
-Customize `.github/rhiza/template.yml`, then materialize templates into your project:
+Customize `.rhiza/template.yml`, then materialize templates into your project:
 
 ```bash
 rhiza materialize
