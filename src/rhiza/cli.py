@@ -94,9 +94,9 @@ def init(
         "If not provided, will prompt interactively.",
     ),
 ):
-    r"""Initialize or validate .github/rhiza/template.yml.
+    r"""Initialize or validate .rhiza/template.yml.
 
-    Creates a default `.github/rhiza/template.yml` configuration file if one
+    Creates a default `.rhiza/template.yml` configuration file if one
     doesn't exist, or validates the existing configuration.
 
     The default template includes common Python project files.
@@ -141,9 +141,9 @@ def materialize(
     r"""Inject Rhiza configuration templates into a target repository.
 
     Materializes configuration files from the template repository specified
-    in .github/rhiza/template.yml into your project. This command:
+    in .rhiza/template.yml into your project. This command:
 
-    - Reads .github/rhiza/template.yml configuration
+    - Reads .rhiza/template.yml configuration
     - Performs a sparse clone of the template repository
     - Copies specified files/directories to your project
     - Respects exclusion patterns defined in the configuration
@@ -171,7 +171,7 @@ def validate(
 ):
     r"""Validate Rhiza template configuration.
 
-    Validates the .github/rhiza/template.yml file to ensure it is syntactically
+    Validates the .rhiza/template.yml file to ensure it is syntactically
     correct and semantically valid.
 
     Performs comprehensive validation:
