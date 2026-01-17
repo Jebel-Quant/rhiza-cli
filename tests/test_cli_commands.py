@@ -205,6 +205,10 @@ class TestWelcomeCommand:
         assert "Welcome to Rhiza" in result.stdout
         assert __version__ in result.stdout
 
+
+class TestSummariseCommand:
+    """Tests for the summarise command."""
+
     def test_summarise_help(self):
         """Test that summarise command help is available."""
         result = subprocess.run(
@@ -218,13 +222,11 @@ class TestWelcomeCommand:
 
     def test_summarise_cli_wrapper_coverage(self, tmp_path):
         """Test the CLI summarise command wrapper directly for coverage."""
-        # Create a temporary git repo
-        import subprocess
-
         from typer.testing import CliRunner
 
         from rhiza.cli import app
 
+        # Create a temporary git repo
         repo = tmp_path / "test_repo"
         repo.mkdir()
         subprocess.run(["git", "init"], cwd=repo, check=True)
