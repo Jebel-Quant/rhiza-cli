@@ -145,9 +145,10 @@ def _create_template_file(target: Path, git_host: str, template_repository: str 
     include_paths = _get_include_paths_for_host(git_host)
     
     # Use custom template repository/branch if provided, otherwise use defaults
-    repo = template_repository if template_repository else "jebel-quant/rhiza"
-    branch = template_branch if template_branch else "main"
+    repo = template_repository or "jebel-quant/rhiza"
+    branch = template_branch or "main"
     
+    # Log when custom values are used
     if template_repository:
         logger.info(f"Using custom template repository: {repo}")
     if template_branch:
