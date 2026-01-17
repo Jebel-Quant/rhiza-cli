@@ -28,11 +28,11 @@ def _log_git_stderr_errors(stderr: str | None) -> None:
     """
     if stderr:
         # Extract relevant error message from git stderr
-        stderr_lines = stderr.strip().split('\n')
+        stderr_lines = stderr.strip().split("\n")
         # Show only the most relevant error lines, skip verbose git output
         for line in stderr_lines:
             line = line.strip()
-            if line and (line.startswith('fatal:') or line.startswith('error:')):
+            if line and (line.startswith("fatal:") or line.startswith("error:")):
                 logger.error(line)
 
 
@@ -206,9 +206,9 @@ def _clone_template_repository(
         logger.error(f"Failed to clone repository from {git_url}")
         _log_git_stderr_errors(e.stderr)
         logger.error("Please check that:")
-        logger.error(f"  - The repository exists and is accessible")
+        logger.error("  - The repository exists and is accessible")
         logger.error(f"  - Branch '{rhiza_branch}' exists in the repository")
-        logger.error(f"  - You have network access to the git hosting service")
+        logger.error("  - You have network access to the git hosting service")
         sys.exit(1)
 
     # Initialize sparse checkout in cone mode
