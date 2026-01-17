@@ -222,6 +222,36 @@ git checkout .
 
 ## Advanced Usage
 
+### Specifying Template Repository at Init
+
+By default, `rhiza init` creates a configuration that uses the `jebel-quant/rhiza` repository. You can specify your own template repository during initialization using the `--template-repository` option:
+
+```bash
+# Initialize with a custom template repository
+rhiza init --template-repository myorg/python-standards
+
+# Use a custom repository and branch
+rhiza init --template-repository myorg/python-standards --template-branch v2.0
+
+# Combine with other options
+rhiza init --git-host gitlab --template-repository myorg/gitlab-templates --template-branch production
+```
+
+This automatically creates a `.rhiza/template.yml` file configured to use your custom template, eliminating the need to manually edit the file afterwards.
+
+**Example workflow:**
+```bash
+mkdir my-project
+cd my-project
+git init
+
+# Initialize with your organization's template
+rhiza init --template-repository mycompany/python-templates --template-branch stable
+
+# Materialize templates
+rhiza materialize
+```
+
 ### Custom Template Repository
 
 Use your organization's template repository:

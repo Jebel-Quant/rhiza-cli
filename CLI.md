@@ -38,17 +38,28 @@ rhiza validate && git add . && git commit
 
 **Syntax:**
 ```bash
-rhiza init [TARGET]
+rhiza init [OPTIONS] [TARGET]
 ```
 
 **Parameters:**
 - `TARGET` - Directory to initialize (default: current directory)
 
+**Options:**
+- `--project-name <name>` - Custom project name (default: directory name)
+- `--package-name <name>` - Custom package name (default: normalized project name)
+- `--with-dev-dependencies` - Include development dependencies in pyproject.toml
+- `--git-host <host>` - Target Git hosting platform (github or gitlab)
+- `--template-repository <owner/repo>` - Custom template repository (default: jebel-quant/rhiza)
+- `--template-branch <branch>` - Custom template branch (default: main)
+
 **Examples:**
 ```bash
-rhiza init                    # Initialize current directory
-rhiza init /path/to/project   # Initialize specific directory
-rhiza init ..                 # Initialize parent directory
+rhiza init                                          # Initialize current directory
+rhiza init /path/to/project                         # Initialize specific directory
+rhiza init --git-host gitlab                        # Use GitLab CI configuration
+rhiza init --template-repository myorg/my-templates # Use custom template repository
+rhiza init --template-repository myorg/my-templates --template-branch develop  # Custom repo and branch
+rhiza init ..                                       # Initialize parent directory
 ```
 
 ---

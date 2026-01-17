@@ -148,16 +148,27 @@ Initialize or validate `.rhiza/template.yml` in a target directory.
 **Usage:**
 
 ```bash
-rhiza init [TARGET]
+rhiza init [OPTIONS] [TARGET]
 ```
 
 **Arguments:**
 
 - `TARGET` - Target directory (defaults to current directory)
 
+**Options:**
+
+- `--project-name <name>` - Custom project name (defaults to directory name)
+- `--package-name <name>` - Custom package name (defaults to normalized project name)
+- `--with-dev-dependencies` - Include development dependencies in pyproject.toml
+- `--git-host <host>` - Target Git hosting platform (github or gitlab). Determines which CI/CD files to include. If not provided, will prompt interactively.
+- `--template-repository <owner/repo>` - Custom template repository (format: owner/repo). Defaults to 'jebel-quant/rhiza'.
+- `--template-branch <branch>` - Custom template branch. Defaults to 'main'.
+
 **Description:**
 
 Creates a default `.rhiza/template.yml` file if it doesn't exist, or validates an existing one. The default configuration includes common Python project files like `.github`, `.editorconfig`, `.gitignore`, `.pre-commit-config.yaml`, `Makefile`, and `pytest.ini`.
+
+You can customize the template source by specifying your own template repository and branch using the `--template-repository` and `--template-branch` options.
 
 **Examples:**
 
@@ -167,6 +178,15 @@ rhiza init
 
 # Initialize in a specific directory
 rhiza init /path/to/project
+
+# Initialize with GitLab CI configuration
+rhiza init --git-host gitlab
+
+# Use a custom template repository
+rhiza init --template-repository myorg/my-templates
+
+# Use a custom template repository and branch
+rhiza init --template-repository myorg/my-templates --template-branch develop
 
 # Initialize in parent directory
 rhiza init ..

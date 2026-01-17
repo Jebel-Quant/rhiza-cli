@@ -368,3 +368,54 @@ class TestInitCommand:
 
         # Verify prompt was called twice (once for invalid, once for valid)
         assert prompt_mock.call_count == 2
+
+    def test_init_with_custom_template_repository(self, tmp_path):
+        """Test init with custom template repository."""
+        init(tmp_path, git_host="github", template_repository="myorg/my-templates")
+
+        # Verify template.yml was created
+        template_file = tmp_path / ".rhiza" / "template.yml"
+        assert template_file.exists()
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        # Should use the custom repository
+        assert config["template-repository"] == "myorg/my-templates"
+        # Branch should default to main
+        assert config["template-branch"] == "main"
+
+    def test_init_with_custom_template_repository_and_branch(self, tmp_path):
+        """Test init with custom template repository and branch."""
+        init(
+            tmp_path,
+            git_host="github",
+            template_repository="myorg/my-templates",
+            template_branch="develop",
+        )
+
+        # Verify template.yml was created
+        template_file = tmp_path / ".rhiza" / "template.yml"
+        assert template_file.exists()
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        # Should use the custom repository and branch
+        assert config["template-repository"] == "myorg/my-templates"
+        assert config["template-branch"] == "develop"
+
+    def test_init_with_custom_template_branch_only(self, tmp_path):
+        """Test init with custom template branch but default repository."""
+        init(tmp_path, git_host="github", template_branch="v2.0")
+
+        # Verify template.yml was created
+        template_file = tmp_path / ".rhiza" / "template.yml"
+        assert template_file.exists()
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        # Should use default repository but custom branch
+        assert config["template-repository"] == "jebel-quant/rhiza"
+        assert config["template-branch"] == "v2.0"
