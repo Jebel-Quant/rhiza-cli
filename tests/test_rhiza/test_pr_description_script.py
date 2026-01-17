@@ -19,10 +19,7 @@ def test_pr_description_no_changes(git_repo, root):
     script = git_repo / ".rhiza" / "scripts" / "generate-pr-description.py"
 
     # Copy the script to the test repo
-    shutil.copy(
-        root / ".rhiza" / "scripts" / "generate-pr-description.py",
-        script
-    )
+    shutil.copy(root / ".rhiza" / "scripts" / "generate-pr-description.py", script)
     script.chmod(0o755)
 
     # Create .rhiza/template.yml
@@ -37,12 +34,7 @@ def test_pr_description_no_changes(git_repo, root):
     subprocess.run([GIT, "commit", "-m", "Add PR description script"], cwd=git_repo, check=True)
 
     # Run the script with no staged changes
-    result = subprocess.run(
-        [PYTHON, str(script)],
-        cwd=git_repo,
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run([PYTHON, str(script)], cwd=git_repo, capture_output=True, text=True)
 
     assert result.returncode == 0
     assert "Template Synchronization" in result.stdout
@@ -54,10 +46,7 @@ def test_pr_description_with_changes(git_repo, root):
     script = git_repo / ".rhiza" / "scripts" / "generate-pr-description.py"
 
     # Copy the script to the test repo
-    shutil.copy(
-        root / ".rhiza" / "scripts" / "generate-pr-description.py",
-        script
-    )
+    shutil.copy(root / ".rhiza" / "scripts" / "generate-pr-description.py", script)
     script.chmod(0o755)
 
     # Create .rhiza/template.yml
@@ -92,12 +81,7 @@ def test_pr_description_with_changes(git_repo, root):
     subprocess.run([GIT, "add", "."], cwd=git_repo, check=True)
 
     # Run the script
-    result = subprocess.run(
-        [PYTHON, str(script)],
-        cwd=git_repo,
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run([PYTHON, str(script)], cwd=git_repo, capture_output=True, text=True)
 
     assert result.returncode == 0
     assert "Template Synchronization" in result.stdout
@@ -113,10 +97,7 @@ def test_pr_description_output_file(git_repo, root):
     script = git_repo / ".rhiza" / "scripts" / "generate-pr-description.py"
 
     # Copy the script to the test repo
-    shutil.copy(
-        root / ".rhiza" / "scripts" / "generate-pr-description.py",
-        script
-    )
+    shutil.copy(root / ".rhiza" / "scripts" / "generate-pr-description.py", script)
     script.chmod(0o755)
 
     # Create .rhiza/template.yml
@@ -140,10 +121,7 @@ def test_pr_description_output_file(git_repo, root):
     # Run the script with output file
     output_file = git_repo / "pr-description.md"
     result = subprocess.run(
-        [PYTHON, str(script), "--output", str(output_file)],
-        cwd=git_repo,
-        capture_output=True,
-        text=True
+        [PYTHON, str(script), "--output", str(output_file)], cwd=git_repo, capture_output=True, text=True
     )
 
     assert result.returncode == 0
@@ -158,10 +136,7 @@ def test_pr_description_categorizes_files(git_repo, root):
     script = git_repo / ".rhiza" / "scripts" / "generate-pr-description.py"
 
     # Copy the script to the test repo
-    shutil.copy(
-        root / ".rhiza" / "scripts" / "generate-pr-description.py",
-        script
-    )
+    shutil.copy(root / ".rhiza" / "scripts" / "generate-pr-description.py", script)
     script.chmod(0o755)
 
     # Create .rhiza/template.yml
@@ -198,12 +173,7 @@ def test_pr_description_categorizes_files(git_repo, root):
     subprocess.run([GIT, "add", "."], cwd=git_repo, check=True)
 
     # Run the script
-    result = subprocess.run(
-        [PYTHON, str(script)],
-        cwd=git_repo,
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run([PYTHON, str(script)], cwd=git_repo, capture_output=True, text=True)
 
     assert result.returncode == 0
     assert "GitHub Actions Workflows" in result.stdout
