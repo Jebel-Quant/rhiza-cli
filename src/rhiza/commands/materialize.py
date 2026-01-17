@@ -202,10 +202,10 @@ def _clone_template_repository(
                 line = line.strip()
                 if line and (line.startswith('fatal:') or line.startswith('error:')):
                     logger.error(line)
-        logger.error(f"Please check that:")
-        logger.error(f"  - Repository '{rhiza_repo}' exists and is accessible")
+        logger.error("Please check that:")
+        logger.error(f"  - The repository exists and is accessible")
         logger.error(f"  - Branch '{rhiza_branch}' exists in the repository")
-        logger.error(f"  - You have network access to {rhiza_host}")
+        logger.error(f"  - You have network access to the git hosting service")
         sys.exit(1)
 
     # Initialize sparse checkout in cone mode
