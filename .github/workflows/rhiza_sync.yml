@@ -70,7 +70,7 @@ jobs:
           echo "changes_detected=true" >> "$GITHUB_OUTPUT"
 
           # Generate PR description based on staged changes
-          python3 .rhiza/scripts/generate-pr-description.py --output pr-description.md
+          uvx rhiza summarise --output pr-description.md
 
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
