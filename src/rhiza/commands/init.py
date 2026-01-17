@@ -124,7 +124,12 @@ def _get_include_paths_for_host(git_host: str) -> list[str]:
         ]
 
 
-def _create_template_file(target: Path, git_host: str, template_repository: str | None = None, template_branch: str | None = None) -> None:
+def _create_template_file(
+    target: Path,
+    git_host: str,
+    template_repository: str | None = None,
+    template_branch: str | None = None,
+) -> None:
     """Create default template.yml file.
 
     Args:
@@ -143,17 +148,17 @@ def _create_template_file(target: Path, git_host: str, template_repository: str 
     logger.debug("Using default template configuration")
 
     include_paths = _get_include_paths_for_host(git_host)
-    
+
     # Use custom template repository/branch if provided, otherwise use defaults
     repo = template_repository or "jebel-quant/rhiza"
     branch = template_branch or "main"
-    
+
     # Log when custom values are used
     if template_repository:
         logger.info(f"Using custom template repository: {repo}")
     if template_branch:
         logger.info(f"Using custom template branch: {branch}")
-    
+
     default_template = RhizaTemplate(
         template_repository=repo,
         template_branch=branch,
@@ -271,7 +276,7 @@ def init(
         with_dev_dependencies: Include development dependencies in pyproject.toml.
         git_host: Target Git hosting platform ("github" or "gitlab"). Determines which
             CI/CD configuration files to include. If None, will prompt user interactively.
-        template_repository: Custom template repository (format: owner/repo). 
+        template_repository: Custom template repository (format: owner/repo).
             Defaults to 'jebel-quant/rhiza'.
         template_branch: Custom template branch. Defaults to 'main'.
 
