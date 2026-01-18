@@ -52,7 +52,7 @@ def _validate_git_host(git_host: str | None) -> str | None:
         git_host = git_host.lower()
         if git_host not in ["github", "gitlab"]:
             logger.error(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")
-            raise ValueError(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")
+            raise ValueError(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")  # noqa: TRY003
     return git_host
 
 

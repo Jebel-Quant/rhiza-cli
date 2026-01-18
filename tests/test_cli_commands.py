@@ -85,7 +85,7 @@ class TestMainEntry:
                 runpy.run_module("rhiza.__main__", run_name="__main__")
             except SystemExit as e:
                 # Typer may call sys.exit(0) on success
-                assert e.code == 0 or e.code is None
+                assert e.code == 0 or e.code is None  # noqa: PT017
 
             # Verify we get help output
             captured = capsys.readouterr()
