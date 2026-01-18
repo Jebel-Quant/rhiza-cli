@@ -14,6 +14,7 @@ from rhiza.commands import init as init_cmd
 from rhiza.commands import materialize as materialize_cmd
 from rhiza.commands import validate as validate_cmd
 from rhiza.commands.migrate import migrate as migrate_cmd
+from rhiza.commands.summarise import summarise as summarise_cmd
 from rhiza.commands.uninstall import uninstall as uninstall_cmd
 from rhiza.commands.welcome import welcome as welcome_cmd
 
@@ -305,3 +306,50 @@ def uninstall(
         rhiza uninstall /path/to/project -y
     """
     uninstall_cmd(target, force)
+
+
+@app.command()
+def summarise(
+    target: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            help="Target git repository (defaults to current directory)",
+        ),
+    ] = Path("."),
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output file path (defaults to stdout)",
+        ),
+    ] = None,
+):
+    r"""Generate a summary of staged changes for PR descriptions.
+
+    Analyzes staged git changes and generates a structured PR description
+    that includes:
+
+    - Summary statistics (files added/modified/deleted)
+    - Changes categorized by type (workflows, configs, docs, tests, etc.)
+    - Template repository information
+    - Last sync date
+
+    This is useful when creating pull requests after running `rhiza materialize`
+    to provide reviewers with a clear overview of what changed.
+
+    Examples:
+        rhiza summarise
+        rhiza summarise --output pr-description.md
+        rhiza summarise /path/to/project -o description.md
+
+    Typical workflow:
+        rhiza materialize
+        git add .
+        rhiza summarise --output pr-body.md
+        gh pr create --title "chore: Sync with rhiza" --body-file pr-body.md
+    """
+    summarise_cmd(target, output)
