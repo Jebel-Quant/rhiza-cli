@@ -76,6 +76,85 @@ def get_staged_changes(repo_path: Path) -> dict[str, list[str]]:
     return changes
 
 
+def _get_config_files() -> set[str]:
+    """Get set of known configuration files.
+
+    Returns:
+        Set of configuration file names
+    """
+    return {
+        "Makefile",
+        "ruff.toml",
+        "pytest.ini",
+        ".editorconfig",
+        ".gitignore",
+        ".pre-commit-config.yaml",
+        "renovate.json",
+        ".python-version",
+    }
+
+
+def _categorize_by_directory(first_dir: str, filepath: str) -> str | None:
+    """Categorize file based on its first directory.
+
+    Args:
+        first_dir: First directory in the path
+        filepath: Full file path
+
+    Returns:
+        Category name or None if no match
+    """
+    if first_dir == ".github":
+        path_parts = Path(filepath).parts
+        if len(path_parts) > 1 and path_parts[1] == "workflows":
+            return "GitHub Actions Workflows"
+        return "GitHub Configuration"
+
+    if first_dir == ".rhiza":
+        if "script" in filepath.lower():
+            return "Rhiza Scripts"
+        if "Makefile" in filepath:
+            return "Makefiles"
+        return "Rhiza Configuration"
+
+    if first_dir == "tests":
+        return "Tests"
+
+    if first_dir == "book":
+        return "Documentation"
+
+    return None
+
+
+def _categorize_single_file(filepath: str) -> str:
+    """Categorize a single file path.
+
+    Args:
+        filepath: File path to categorize
+
+    Returns:
+        Category name
+    """
+    path_parts = Path(filepath).parts
+
+    if not path_parts:
+        return "Other"
+
+    # Try directory-based categorization first
+    category = _categorize_by_directory(path_parts[0], filepath)
+    if category:
+        return category
+
+    # Check file-based categories
+    if filepath.endswith(".md"):
+        return "Documentation"
+
+    if filepath in _get_config_files():
+        return "Configuration Files"
+
+    return "Other"
+
+
 def categorize_files(files: list[str]) -> dict[str, list[str]]:
     """Categorize files by type.
 
@@ -88,43 +167,8 @@ def categorize_files(files: list[str]) -> dict[str, list[str]]:
     categories = defaultdict(list)
 
     for filepath in files:
-        path_parts = Path(filepath).parts
-
-        if not path_parts:
-            continue
-
-        # Categorize based on path
-        if path_parts[0] == ".github":
-            if len(path_parts) > 1 and path_parts[1] == "workflows":
-                categories["GitHub Actions Workflows"].append(filepath)
-            else:
-                categories["GitHub Configuration"].append(filepath)
-        elif path_parts[0] == ".rhiza":
-            if "script" in filepath.lower():
-                categories["Rhiza Scripts"].append(filepath)
-            elif "Makefile" in filepath:
-                categories["Makefiles"].append(filepath)
-            else:
-                categories["Rhiza Configuration"].append(filepath)
-        elif path_parts[0] == "tests":
-            categories["Tests"].append(filepath)
-        elif path_parts[0] == "book":
-            categories["Documentation"].append(filepath)
-        elif filepath.endswith(".md"):
-            categories["Documentation"].append(filepath)
-        elif filepath in [
-            "Makefile",
-            "ruff.toml",
-            "pytest.ini",
-            ".editorconfig",
-            ".gitignore",
-            ".pre-commit-config.yaml",
-            "renovate.json",
-            ".python-version",
-        ]:
-            categories["Configuration Files"].append(filepath)
-        else:
-            categories["Other"].append(filepath)
+        category = _categorize_single_file(filepath)
+        categories[category].append(filepath)
 
     return dict(categories)
 
@@ -184,6 +228,104 @@ def get_last_sync_date(repo_path: Path) -> str | None:
     return None
 
 
+def _format_file_list(files: list[str], status_emoji: str) -> list[str]:
+    """Format a list of files with the given status emoji.
+
+    Args:
+        files: List of file paths
+        status_emoji: Emoji to use (✅ for added, 📝 for modified, ❌ for deleted)
+
+    Returns:
+        List of formatted lines
+    """
+    lines = []
+    for f in sorted(files):
+        lines.append(f"- {status_emoji} `{f}`")
+    return lines
+
+
+def _add_category_section(lines: list[str], title: str, count: int, files: list[str], emoji: str) -> None:
+    """Add a collapsible section for a category and change type.
+
+    Args:
+        lines: List to append lines to
+        title: Section title (e.g., "Added", "Modified")
+        count: Number of files
+        files: List of file paths
+        emoji: Status emoji
+    """
+    if not files:
+        return
+
+    lines.append("<details>")
+    lines.append(f"<summary>{title} ({count})</summary>")
+    lines.append("")
+    lines.extend(_format_file_list(files, emoji))
+    lines.append("")
+    lines.append("</details>")
+    lines.append("")
+
+
+def _build_header(template_repo: str) -> list[str]:
+    """Build the PR description header.
+
+    Args:
+        template_repo: Template repository name
+
+    Returns:
+        List of header lines
+    """
+    return [
+        "## 🔄 Template Synchronization",
+        "",
+        f"This PR synchronizes the repository with the [{template_repo}](https://github.com/{template_repo}) template.",
+        "",
+    ]
+
+
+def _build_summary(changes: dict[str, list[str]]) -> list[str]:
+    """Build the change summary section.
+
+    Args:
+        changes: Dictionary of changes by type
+
+    Returns:
+        List of summary lines
+    """
+    return [
+        "### 📊 Change Summary",
+        "",
+        f"- **{len(changes['added'])}** files added",
+        f"- **{len(changes['modified'])}** files modified",
+        f"- **{len(changes['deleted'])}** files deleted",
+        "",
+    ]
+
+
+def _build_footer(template_repo: str, template_branch: str, last_sync: str | None) -> list[str]:
+    """Build the PR description footer with metadata.
+
+    Args:
+        template_repo: Template repository name
+        template_branch: Template branch name
+        last_sync: Last sync date string or None
+
+    Returns:
+        List of footer lines
+    """
+    lines = [
+        "---",
+        "",
+        "**🤖 Generated by [rhiza](https://github.com/jebel-quant/rhiza-cli)**",
+        "",
+        f"- Template: `{template_repo}@{template_branch}`",
+    ]
+    if last_sync:
+        lines.append(f"- Last sync: {last_sync}")
+    lines.append(f"- Sync date: {datetime.now().astimezone().isoformat()}")
+    return lines
+
+
 def generate_pr_description(repo_path: Path) -> str:
     """Generate PR description based on staged changes.
 
@@ -197,27 +339,17 @@ def generate_pr_description(repo_path: Path) -> str:
     template_repo, template_branch = get_template_info(repo_path)
     last_sync = get_last_sync_date(repo_path)
 
-    # Start building the description
-    lines = []
-    lines.append("## 🔄 Template Synchronization")
-    lines.append("")
-    lines.append(
-        f"This PR synchronizes the repository with the [{template_repo}](https://github.com/{template_repo}) template."
-    )
-    lines.append("")
+    # Build header
+    lines = _build_header(template_repo)
 
-    # Add summary statistics
+    # Check if there are any changes
     total_changes = sum(len(files) for files in changes.values())
     if total_changes == 0:
         lines.append("No changes detected.")
         return "\n".join(lines)
 
-    lines.append("### 📊 Change Summary")
-    lines.append("")
-    lines.append(f"- **{len(changes['added'])}** files added")
-    lines.append(f"- **{len(changes['modified'])}** files modified")
-    lines.append(f"- **{len(changes['deleted'])}** files deleted")
-    lines.append("")
+    # Add summary
+    lines.extend(_build_summary(changes))
 
     # Add detailed changes by category
     all_changed_files = changes["added"] + changes["modified"] + changes["deleted"]
@@ -236,45 +368,12 @@ def generate_pr_description(repo_path: Path) -> str:
             category_modified = [f for f in files if f in changes["modified"]]
             category_deleted = [f for f in files if f in changes["deleted"]]
 
-            if category_added:
-                lines.append("<details>")
-                lines.append(f"<summary>Added ({len(category_added)})</summary>")
-                lines.append("")
-                for f in sorted(category_added):
-                    lines.append(f"- ✅ `{f}`")
-                lines.append("")
-                lines.append("</details>")
-                lines.append("")
+            _add_category_section(lines, "Added", len(category_added), category_added, "✅")
+            _add_category_section(lines, "Modified", len(category_modified), category_modified, "📝")
+            _add_category_section(lines, "Deleted", len(category_deleted), category_deleted, "❌")
 
-            if category_modified:
-                lines.append("<details>")
-                lines.append(f"<summary>Modified ({len(category_modified)})</summary>")
-                lines.append("")
-                for f in sorted(category_modified):
-                    lines.append(f"- 📝 `{f}`")
-                lines.append("")
-                lines.append("</details>")
-                lines.append("")
-
-            if category_deleted:
-                lines.append("<details>")
-                lines.append(f"<summary>Deleted ({len(category_deleted)})</summary>")
-                lines.append("")
-                for f in sorted(category_deleted):
-                    lines.append(f"- ❌ `{f}`")
-                lines.append("")
-                lines.append("</details>")
-                lines.append("")
-
-    # Add metadata footer
-    lines.append("---")
-    lines.append("")
-    lines.append("**🤖 Generated by [rhiza](https://github.com/jebel-quant/rhiza-cli)**")
-    lines.append("")
-    lines.append(f"- Template: `{template_repo}@{template_branch}`")
-    if last_sync:
-        lines.append(f"- Last sync: {last_sync}")
-    lines.append(f"- Sync date: {datetime.now().astimezone().isoformat()}")
+    # Add footer
+    lines.extend(_build_footer(template_repo, template_branch, last_sync))
 
     return "\n".join(lines)
 
