@@ -74,7 +74,7 @@ class RhizaTemplate:
             config = yaml.safe_load(f)
 
         if not config:
-            raise ValueError("Template file is empty")
+            raise ValueError("Template file is empty")  # noqa: TRY003
 
         return cls(
             template_repository=config.get("template-repository"),
