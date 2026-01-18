@@ -94,6 +94,16 @@ def init(
         help="Target Git hosting platform (github or gitlab). Determines which CI/CD files to include. "
         "If not provided, will prompt interactively.",
     ),
+    template_repository: str = typer.Option(
+        None,
+        "--template-repository",
+        help="Custom template repository (format: owner/repo). Defaults to 'jebel-quant/rhiza'.",
+    ),
+    template_branch: str = typer.Option(
+        None,
+        "--template-branch",
+        help="Custom template branch. Defaults to 'main'.",
+    ),
 ):
     r"""Initialize or validate .rhiza/template.yml.
 
@@ -109,6 +119,8 @@ def init(
       rhiza init
       rhiza init --git-host github
       rhiza init --git-host gitlab
+      rhiza init --template-repository myorg/my-templates
+      rhiza init --template-repository myorg/my-templates --template-branch develop
       rhiza init /path/to/project
       rhiza init ..
     """
@@ -118,6 +130,8 @@ def init(
         package_name=package_name,
         with_dev_dependencies=with_dev_dependencies,
         git_host=git_host,
+        template_repository=template_repository,
+        template_branch=template_branch,
     )
 
 
