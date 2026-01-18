@@ -4,7 +4,7 @@ This module provides functionality to analyze staged git changes and generate
 structured PR descriptions for rhiza sync operations.
 """
 
-import subprocess
+import subprocess  # nosec B404
 import sys
 from collections import defaultdict
 from datetime import datetime
@@ -24,8 +24,8 @@ def run_git_command(args: list[str], cwd: Path | None = None) -> str:
         Command output as string
     """
     try:
-        result = subprocess.run(
-            ["git"] + args,
+        result = subprocess.run(  # nosec B603 B607
+            ["git", *args],
             cwd=cwd,
             capture_output=True,
             text=True,

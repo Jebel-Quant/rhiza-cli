@@ -310,19 +310,23 @@ def uninstall(
 
 @app.command()
 def summarise(
-    target: Path = typer.Argument(
-        default=Path("."),  # default to current directory
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        help="Target git repository (defaults to current directory)",
-    ),
-    output: Path = typer.Option(
-        None,
-        "--output",
-        "-o",
-        help="Output file path (defaults to stdout)",
-    ),
+    target: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            help="Target git repository (defaults to current directory)",
+        ),
+    ] = Path("."),
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output file path (defaults to stdout)",
+        ),
+    ] = None,
 ):
     r"""Generate a summary of staged changes for PR descriptions.
 
