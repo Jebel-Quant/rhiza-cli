@@ -6,7 +6,6 @@ staged changes and `.rhiza/template.yml` configuration.
 
 import shutil
 import subprocess
-from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
@@ -23,18 +22,18 @@ class TestSummariseCommand:
         """Create a temporary git repository."""
         repo = tmp_path / "test_repo"
         repo.mkdir()
-        
+
         git_cmd = shutil.which("git") or "git"
         subprocess.run([git_cmd, "init"], cwd=repo, check=True)
         subprocess.run([git_cmd, "config", "user.email", "test@test.com"], cwd=repo, check=True)
         subprocess.run([git_cmd, "config", "user.name", "Test"], cwd=repo, check=True)
-        
+
         return repo
 
     def test_summarise_default_config(self, git_repo, capsys):
         """Test summarise with default configuration (missing template.yml)."""
         git_cmd = shutil.which("git") or "git"
-        
+
         # Create and stage a file
         test_file = git_repo / "test.txt"
         test_file.write_text("test content")
@@ -55,7 +54,7 @@ class TestSummariseCommand:
     def test_summarise_custom_config(self, git_repo, capsys):
         """Test summarise with custom template.yml configuration."""
         git_cmd = shutil.which("git") or "git"
-        
+
         # Create custom template.yml
         rhiza_dir = git_repo / ".rhiza"
         rhiza_dir.mkdir()
@@ -81,7 +80,7 @@ class TestSummariseCommand:
     def test_summarise_cli_integration(self, git_repo):
         """Test summarise command via CLI invoke."""
         git_cmd = shutil.which("git") or "git"
-        
+
         # Create custom template.yml
         rhiza_dir = git_repo / ".rhiza"
         rhiza_dir.mkdir()
