@@ -123,11 +123,10 @@ def _migrate_history_file(target: Path, rhiza_dir: Path) -> list[str]:
             shutil.move(str(old_history_file), str(new_history_file))
             logger.success("✓ Moved history file to .rhiza/history")
             migrations_performed.append("Moved history tracking to .rhiza/history")
+    elif new_history_file.exists():
+        logger.debug(".rhiza/history already exists (no migration needed)")
     else:
-        if new_history_file.exists():
-            logger.debug(".rhiza/history already exists (no migration needed)")
-        else:
-            logger.debug("No existing .rhiza.history file to migrate")
+        logger.debug("No existing .rhiza.history file to migrate")
 
     return migrations_performed
 

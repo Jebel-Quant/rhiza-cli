@@ -1783,7 +1783,7 @@ include:
             if src.name == "history":
                 stripped_parents = str(src).replace(str(temp_dir), "")
                 if ".rhiza" in stripped_parents:
-                    assert False, f"Should not copy upstream history file: {src}"
+                    raise AssertionError(f"Should not copy upstream history file: {src}")
 
         # Verify pyproject.toml still exists (it wasn't orphaned because history wasn't polluted)
         assert pyproject_file.exists()
