@@ -5,6 +5,7 @@ Commands are thin wrappers around implementations in `rhiza.commands.*`.
 """
 
 from pathlib import Path
+from typing import Annotated
 
 import typer
 
@@ -65,13 +66,15 @@ def main(
 
 @app.command()
 def init(
-    target: Path = typer.Argument(
-        default=Path("."),  # default to current directory
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        help="Target directory (defaults to current directory)",
-    ),
+    target: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            help="Target directory (defaults to current directory)",
+        ),
+    ] = Path("."),
     project_name: str = typer.Option(
         None,
         "--project-name",
@@ -93,6 +96,16 @@ def init(
         help="Target Git hosting platform (github or gitlab). Determines which CI/CD files to include. "
         "If not provided, will prompt interactively.",
     ),
+    template_repository: str = typer.Option(
+        None,
+        "--template-repository",
+        help="Custom template repository (format: owner/repo). Defaults to 'jebel-quant/rhiza'.",
+    ),
+    template_branch: str = typer.Option(
+        None,
+        "--template-branch",
+        help="Custom template branch. Defaults to 'main'.",
+    ),
 ):
     r"""Initialize or validate .rhiza/template.yml.
 
@@ -108,6 +121,8 @@ def init(
       rhiza init
       rhiza init --git-host github
       rhiza init --git-host gitlab
+      rhiza init --template-repository myorg/my-templates
+      rhiza init --template-repository myorg/my-templates --template-branch develop
       rhiza init /path/to/project
       rhiza init ..
     """
@@ -117,18 +132,22 @@ def init(
         package_name=package_name,
         with_dev_dependencies=with_dev_dependencies,
         git_host=git_host,
+        template_repository=template_repository,
+        template_branch=template_branch,
     )
 
 
 @app.command()
 def materialize(
-    target: Path = typer.Argument(
-        default=Path("."),  # default to current directory
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        help="Target git repository (defaults to current directory)",
-    ),
+    target: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            help="Target git repository (defaults to current directory)",
+        ),
+    ] = Path("."),
     branch: str = typer.Option("main", "--branch", "-b", help="Rhiza branch to use"),
     target_branch: str = typer.Option(
         None,
@@ -161,13 +180,15 @@ def materialize(
 
 @app.command()
 def validate(
-    target: Path = typer.Argument(
-        default=Path("."),  # default to current directory
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        help="Target git repository (defaults to current directory)",
-    ),
+    target: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            help="Target git repository (defaults to current directory)",
+        ),
+    ] = Path("."),
 ):
     r"""Validate Rhiza template configuration.
 
@@ -196,13 +217,15 @@ def validate(
 
 @app.command()
 def migrate(
-    target: Path = typer.Argument(
-        default=Path("."),  # default to current directory
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        help="Target git repository (defaults to current directory)",
-    ),
+    target: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            help="Target git repository (defaults to current directory)",
+        ),
+    ] = Path("."),
 ):
     r"""Migrate project to the new .rhiza folder structure.
 
@@ -243,13 +266,15 @@ def welcome():
 
 @app.command()
 def uninstall(
-    target: Path = typer.Argument(
-        default=Path("."),  # default to current directory
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        help="Target git repository (defaults to current directory)",
-    ),
+    target: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            help="Target git repository (defaults to current directory)",
+        ),
+    ] = Path("."),
     force: bool = typer.Option(
         False,
         "--force",

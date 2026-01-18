@@ -1504,7 +1504,7 @@ class TestInjectCommand:
 
         def selective_unlink(self, *args, **kwargs):
             if self.name == ".rhiza.history":
-                raise PermissionError("Cannot delete old history file")
+                raise PermissionError("Cannot delete old history file")  # noqa: TRY003
             return original_unlink(self, *args, **kwargs)
 
         with patch.object(Path, "unlink", selective_unlink):
@@ -1786,7 +1786,7 @@ include:
             if src.name == "history":
                 stripped_parents = str(src).replace(str(temp_dir), "")
                 if ".rhiza" in stripped_parents:
-                    assert False, f"Should not copy upstream history file: {src}"
+                    raise AssertionError(f"Should not copy upstream history file: {src}")  # noqa: TRY003
 
         # Verify pyproject.toml still exists (it wasn't orphaned because history wasn't polluted)
         assert pyproject_file.exists()

@@ -8,7 +8,7 @@ into the target Git repository, and records managed files in
 
 import os
 import shutil
-import subprocess
+import subprocess  # nosec B404
 import sys
 import tempfile
 from pathlib import Path
@@ -53,7 +53,7 @@ def _handle_target_branch(
     logger.info(f"Creating/checking out target branch: {target_branch}")
     try:
         # Check if branch already exists using git rev-parse
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603
             [git_executable, "rev-parse", "--verify", target_branch],
             cwd=target,
             capture_output=True,
@@ -64,7 +64,7 @@ def _handle_target_branch(
         if result.returncode == 0:
             # Branch exists, switch to it
             logger.info(f"Branch '{target_branch}' exists, checking out...")
-            subprocess.run(
+            subprocess.run(  # nosec B603
                 [git_executable, "checkout", target_branch],
                 cwd=target,
                 check=True,
@@ -75,7 +75,7 @@ def _handle_target_branch(
         else:
             # Branch doesn't exist, create it from current HEAD
             logger.info(f"Creating new branch '{target_branch}'...")
-            subprocess.run(
+            subprocess.run(  # nosec B603
                 [git_executable, "checkout", "-b", target_branch],
                 cwd=target,
                 check=True,
@@ -121,7 +121,7 @@ def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplat
     if not include_paths:
         logger.error("No include paths found in template.yml")
         logger.error("Add at least one path to the 'include' list in template.yml")
-        raise RuntimeError("No include paths found in template.yml")
+        raise RuntimeError("No include paths found in template.yml")  # noqa: TRY003
 
     # Log the paths we'll be including
     logger.info("Include paths:")
@@ -158,7 +158,7 @@ def _construct_git_url(rhiza_repo: str, rhiza_host: str) -> str:
     else:
         logger.error(f"Unsupported template-host: {rhiza_host}")
         logger.error("template-host must be 'github' or 'gitlab'")
-        raise ValueError(f"Unsupported template-host: {rhiza_host}. Must be 'github' or 'gitlab'.")
+        raise ValueError(f"Unsupported template-host: {rhiza_host}. Must be 'github' or 'gitlab'.")  # noqa: TRY003
     return git_url
 
 
@@ -183,7 +183,7 @@ def _clone_template_repository(
     # Clone the repository using sparse checkout
     try:
         logger.debug("Executing git clone with sparse checkout")
-        subprocess.run(
+        subprocess.run(  # nosec B603
             [
                 git_executable,
                 "clone",
@@ -214,7 +214,7 @@ def _clone_template_repository(
     # Initialize sparse checkout in cone mode
     try:
         logger.debug("Initializing sparse checkout")
-        subprocess.run(
+        subprocess.run(  # nosec B603
             [git_executable, "sparse-checkout", "init", "--cone"],
             cwd=tmp_dir,
             check=True,
@@ -231,7 +231,7 @@ def _clone_template_repository(
     # Set sparse checkout paths
     try:
         logger.debug(f"Setting sparse checkout paths: {include_paths}")
-        subprocess.run(
+        subprocess.run(  # nosec B603
             [git_executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
             cwd=tmp_dir,
             check=True,

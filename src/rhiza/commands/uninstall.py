@@ -143,10 +143,11 @@ def _remove_history_file(history_file: Path, target: Path) -> tuple[int, int]:
     try:
         history_file.unlink()
         logger.success(f"[DEL] {history_file.relative_to(target)}")
-        return 1, 0
     except Exception as e:
         logger.error(f"Failed to delete {history_file.relative_to(target)}: {e}")
         return 0, 1
+    else:
+        return 1, 0
 
 
 def _print_summary(removed_count: int, skipped_count: int, empty_dirs_removed: int, error_count: int) -> None:

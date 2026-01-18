@@ -534,7 +534,7 @@ class TestUninstallEdgeCases:
 
         def mock_unlink(self):
             if self.name == "file.txt":
-                raise PermissionError("Cannot delete file")
+                raise PermissionError("Cannot delete file")  # noqa: TRY003
             return original_unlink(self)
 
         with patch.object(Path, "unlink", mock_unlink):
@@ -564,7 +564,7 @@ class TestUninstallEdgeCases:
 
         def mock_unlink(self):
             if self.name == "history" and ".rhiza" in str(self):
-                raise PermissionError("Cannot delete .rhiza/history")
+                raise PermissionError("Cannot delete .rhiza/history")  # noqa: TRY003
             return original_unlink(self)
 
         with patch.object(Path, "unlink", mock_unlink):
@@ -593,7 +593,7 @@ class TestUninstallEdgeCases:
 
         def mock_rmdir(self):
             if self.name == "dir1":
-                raise PermissionError("Cannot remove directory")
+                raise PermissionError("Cannot remove directory")  # noqa: TRY003
             return original_rmdir(self)
 
         with patch.object(Path, "rmdir", mock_rmdir):
