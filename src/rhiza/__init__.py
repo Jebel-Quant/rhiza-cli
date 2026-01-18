@@ -1,6 +1,6 @@
 """Rhiza — Manage reusable configuration templates for Python projects.
 
-Rhiza is a command‑line interface (CLI) that helps you maintain consistent
+Rhiza is a command-line interface (CLI) that helps you maintain consistent
 configuration across multiple Python projects using templates stored in a
 central repository. It can initialize projects with standard configuration,
 materialize (inject) template files into a target repository, and validate the
@@ -11,8 +11,8 @@ template configuration.
 - Template initialization for new or existing projects.
 - Template materialization with selective include/exclude support.
 - Configuration validation (syntax and basic semantics).
-- Multi‑host support (GitHub and GitLab).
-- Non‑destructive updates by default, with an explicit `--force` flag.
+- Multi-host support (GitHub and GitLab).
+- Non-destructive updates by default, with an explicit `--force` flag.
 
 ## Quick start
 

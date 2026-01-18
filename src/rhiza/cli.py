@@ -5,6 +5,7 @@ Commands are thin wrappers around implementations in `rhiza.commands.*`.
 """
 
 from pathlib import Path
+from typing import Annotated
 
 import typer
 
@@ -65,13 +66,15 @@ def main(
 
 @app.command()
 def init(
-    target: Path = typer.Argument(
-        default=Path("."),  # default to current directory
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        help="Target directory (defaults to current directory)",
-    ),
+    target: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            help="Target directory (defaults to current directory)",
+        ),
+    ] = Path("."),
     project_name: str = typer.Option(
         None,
         "--project-name",
@@ -136,13 +139,15 @@ def init(
 
 @app.command()
 def materialize(
-    target: Path = typer.Argument(
-        default=Path("."),  # default to current directory
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        help="Target git repository (defaults to current directory)",
-    ),
+    target: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            help="Target git repository (defaults to current directory)",
+        ),
+    ] = Path("."),
     branch: str = typer.Option("main", "--branch", "-b", help="Rhiza branch to use"),
     target_branch: str = typer.Option(
         None,
@@ -175,13 +180,15 @@ def materialize(
 
 @app.command()
 def validate(
-    target: Path = typer.Argument(
-        default=Path("."),  # default to current directory
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        help="Target git repository (defaults to current directory)",
-    ),
+    target: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            help="Target git repository (defaults to current directory)",
+        ),
+    ] = Path("."),
 ):
     r"""Validate Rhiza template configuration.
 
@@ -210,13 +217,15 @@ def validate(
 
 @app.command()
 def migrate(
-    target: Path = typer.Argument(
-        default=Path("."),  # default to current directory
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        help="Target git repository (defaults to current directory)",
-    ),
+    target: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            help="Target git repository (defaults to current directory)",
+        ),
+    ] = Path("."),
 ):
     r"""Migrate project to the new .rhiza folder structure.
 
@@ -257,13 +266,15 @@ def welcome():
 
 @app.command()
 def uninstall(
-    target: Path = typer.Argument(
-        default=Path("."),  # default to current directory
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        help="Target git repository (defaults to current directory)",
-    ),
+    target: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            help="Target git repository (defaults to current directory)",
+        ),
+    ] = Path("."),
     force: bool = typer.Option(
         False,
         "--force",
