@@ -6,6 +6,7 @@ This module tests:
 - The inject/materialize commands
 """
 
+import shutil
 import subprocess
 import sys
 
@@ -229,24 +230,27 @@ class TestSummariseCommand:
         # Create a temporary git repo
         repo = tmp_path / "test_repo"
         repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, check=True)
-        subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=repo, check=True)
-        subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+        git_cmd = shutil.which("git") or "git"
+        subprocess.run([git_cmd, "init"], cwd=repo, check=True)
+        subprocess.run([git_cmd, "config", "user.email", "test@test.com"], cwd=repo, check=True)
+        subprocess.run([git_cmd, "config", "user.name", "Test"], cwd=repo, check=True)
 
         # Create template.yml
         template_dir = repo / ".rhiza"
         template_dir.mkdir()
         template_file = template_dir / "template.yml"
-        template_file.write_text('template-repository: "test/repo"\ntemplate-branch: "main"\n')
+        template_file.write_text('template-repository: "test/repo"\ntemplate-branch: "custom-branch"\n')
 
         # Create and stage a test file
         test_file = repo / "test.txt"
         test_file.write_text("test")
-        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=repo, check=True)
 
         runner = CliRunner()
         result = runner.invoke(app, ["summarise", str(repo)])
 
         assert result.exit_code == 0
         assert "Template Synchronization" in result.stdout
+        assert "test/repo" in result.stdout
+        assert "custom-branch" in result.stdout
         assert "files added" in result.stdout
