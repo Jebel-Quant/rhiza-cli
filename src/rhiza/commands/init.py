@@ -81,7 +81,7 @@ def _prompt_git_host() -> str:
         git_host = "github"
         logger.debug("Non-interactive mode detected, defaulting to github")
 
-    return git_host
+    return str(git_host)
 
 
 def _get_include_paths_for_host(git_host: str) -> list[str]:
@@ -263,7 +263,7 @@ def init(
     git_host: str | None = None,
     template_repository: str | None = None,
     template_branch: str | None = None,
-):
+) -> bool:
     """Initialize or validate .rhiza/template.yml in the target repository.
 
     Creates a default .rhiza/template.yml file if it doesn't exist,

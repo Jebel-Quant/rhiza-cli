@@ -7,8 +7,9 @@ YAML parsing.
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 
 def _normalize_to_list(value: str | list[str] | None) -> list[str]:
@@ -94,7 +95,7 @@ class RhizaTemplate:
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Convert to dictionary with YAML-compatible keys
-        config = {}
+        config: dict[str, Any] = {}
 
         # Only include template-repository if it's not None
         if self.template_repository:

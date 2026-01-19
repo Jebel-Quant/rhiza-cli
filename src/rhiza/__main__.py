@@ -11,7 +11,7 @@ import typer
 from rhiza.cli import app
 
 
-def load_plugins(app: typer.Typer):
+def load_plugins(app: typer.Typer) -> None:
     """Load plugins from entry points."""
     # 'rhiza.plugins' matches the group we defined in rhiza-tools
     plugin_entries = entry_points(group="rhiza.plugins")

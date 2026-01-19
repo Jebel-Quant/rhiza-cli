@@ -54,6 +54,14 @@ packages = ["src/rhiza"]
 
 [tool.deptry.package_module_name_map]
 PyYAML = "yaml"
+loguru = "loguru"
+typer = "typer"
+jinja2 = "jinja2"
+rhiza-tools = "rhiza_tools"
+numpy = "numpy"
+marimo = "marimo"
+pandas = "pandas"
+plotly = "plotly"
 
 [tool.marimo.runtime]
 pythonpath = ["src"]

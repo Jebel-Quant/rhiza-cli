@@ -50,6 +50,8 @@ For more detailed usage examples and workflows, see the USAGE.md guide
 or try rhiza <command> --help
 """
 
-from .init import init  # noqa: F401
-from .materialize import materialize  # noqa: F401
-from .validate import validate  # noqa: F401
+from .init import init
+from .materialize import materialize
+from .validate import validate
+
+__all__ = ["init", "materialize", "validate"]
