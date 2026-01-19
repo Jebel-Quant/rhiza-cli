@@ -30,7 +30,7 @@ app = typer.Typer(
 )
 
 
-def version_callback(value: bool):
+def version_callback(value: bool) -> None:
     """Print version information and exit.
 
     Args:
@@ -54,7 +54,7 @@ def main(
         callback=version_callback,
         is_eager=True,
     ),
-):
+) -> None:
     """Rhiza CLI main callback.
 
     This callback is executed before any command. It handles global options
@@ -107,7 +107,7 @@ def init(
         "--template-branch",
         help="Custom template branch. Defaults to 'main'.",
     ),
-):
+) -> None:
     r"""Initialize or validate .rhiza/template.yml.
 
     Creates a default `.rhiza/template.yml` configuration file if one
@@ -157,7 +157,7 @@ def materialize(
         help="Create and checkout a new branch in the target repository for changes",
     ),
     force: bool = typer.Option(False, "--force", "-y", help="Overwrite existing files"),
-):
+) -> None:
     r"""Inject Rhiza configuration templates into a target repository.
 
     Materializes configuration files from the template repository specified
@@ -190,7 +190,7 @@ def validate(
             help="Target git repository (defaults to current directory)",
         ),
     ] = Path("."),
-):
+) -> None:
     r"""Validate Rhiza template configuration.
 
     Validates the .rhiza/template.yml file to ensure it is syntactically
@@ -227,7 +227,7 @@ def migrate(
             help="Target git repository (defaults to current directory)",
         ),
     ] = Path("."),
-):
+) -> None:
     r"""Migrate project to the new .rhiza folder structure.
 
     This command helps transition projects to use the new `.rhiza/` folder
@@ -253,7 +253,7 @@ def migrate(
 
 
 @app.command()
-def welcome():
+def welcome() -> None:
     r"""Display a friendly welcome message and explain what Rhiza is.
 
     Shows a welcome message, explains Rhiza's purpose, key features,
@@ -282,7 +282,7 @@ def uninstall(
         "-y",
         help="Skip confirmation prompt and proceed with deletion",
     ),
-):
+) -> None:
     r"""Remove all Rhiza-managed files from the repository.
 
     Reads the `.rhiza.history` file and removes all files that were
@@ -327,7 +327,7 @@ def summarise(
             help="Output file path (defaults to stdout)",
         ),
     ] = None,
-):
+) -> None:
     r"""Generate a summary of staged changes for PR descriptions.
 
     Analyzes staged git changes and generates a structured PR description

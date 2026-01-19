@@ -46,7 +46,7 @@ def get_staged_changes(repo_path: Path) -> dict[str, list[str]]:
     Returns:
         Dictionary with keys 'added', 'modified', 'deleted' containing file lists
     """
-    changes = {
+    changes: dict[str, list[str]] = {
         "added": [],
         "modified": [],
         "deleted": [],

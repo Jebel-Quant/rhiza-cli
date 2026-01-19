@@ -5,8 +5,9 @@ This module provides functionality to validate template.yml files in the
 """
 
 from pathlib import Path
+from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 from loguru import logger
 
 
@@ -98,7 +99,7 @@ def _check_template_file_exists(target: Path) -> tuple[bool, Path]:
     return True, template_file
 
 
-def _parse_yaml_file(template_file: Path) -> tuple[bool, dict | None]:
+def _parse_yaml_file(template_file: Path) -> tuple[bool, dict[str, Any] | None]:
     """Parse YAML file and return configuration.
 
     Args:
@@ -125,7 +126,7 @@ def _parse_yaml_file(template_file: Path) -> tuple[bool, dict | None]:
     return True, config
 
 
-def _validate_required_fields(config: dict) -> bool:
+def _validate_required_fields(config: dict[str, Any]) -> bool:
     """Validate required fields exist and have correct types.
 
     Args:
@@ -159,7 +160,7 @@ def _validate_required_fields(config: dict) -> bool:
     return validation_passed
 
 
-def _validate_repository_format(config: dict) -> bool:
+def _validate_repository_format(config: dict[str, Any]) -> bool:
     """Validate template-repository format.
 
     Args:
@@ -186,7 +187,7 @@ def _validate_repository_format(config: dict) -> bool:
         return True
 
 
-def _validate_include_paths(config: dict) -> bool:
+def _validate_include_paths(config: dict[str, Any]) -> bool:
     """Validate include paths.
 
     Args:
@@ -218,7 +219,7 @@ def _validate_include_paths(config: dict) -> bool:
         return True
 
 
-def _validate_optional_fields(config: dict) -> None:
+def _validate_optional_fields(config: dict[str, Any]) -> None:
     """Validate optional fields if present.
 
     Args:

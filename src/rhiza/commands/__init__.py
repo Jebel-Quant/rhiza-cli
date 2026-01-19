@@ -53,3 +53,5 @@ or try rhiza <command> --help
 from .init import init  # noqa: F401
 from .materialize import materialize  # noqa: F401
 from .validate import validate  # noqa: F401
+
+__all__ = ["init", "materialize", "validate"]
