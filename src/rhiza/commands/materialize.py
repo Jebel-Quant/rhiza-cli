@@ -91,6 +91,9 @@ def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplat
 
     # Extract template configuration settings
     rhiza_repo = template.template_repository
+    if not rhiza_repo:
+        logger.error("template-repository is not configured in template.yml")
+        raise RuntimeError("template-repository is required")  # noqa: TRY003
     rhiza_branch = template.template_branch or branch
     include_paths = template.include
     excluded_paths = template.exclude

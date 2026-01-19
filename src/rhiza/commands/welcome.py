@@ -10,7 +10,7 @@ and explains what Rhiza is and how it can help manage configuration templates.
 from rhiza import __version__
 
 
-def welcome():
+def welcome() -> None:
     """Display a welcome message and explain what Rhiza is.
 
     Shows a friendly greeting, explains Rhiza's purpose, and provides
