@@ -69,9 +69,6 @@ jobs:
 
           echo "changes_detected=true" >> "$GITHUB_OUTPUT"
 
-          # Generate PR description based on staged changes
-          uvx rhiza summarise --output pr-description.md
-
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -88,4 +85,7 @@ jobs:
           branch: ${{ steps.branch.outputs.name }}
           delete-branch: true
           title: "chore: Sync with rhiza"
-          body-path: pr-description.md
+          body: |
+            This pull request synchronizes the repository with its template.
+
+            Changes were generated automatically using **rhiza**.
