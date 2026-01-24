@@ -13,7 +13,7 @@ import yaml  # type: ignore[import-untyped]
 
 
 def _normalize_to_list(value: str | list[str] | None) -> list[str]:
-    """Convert a value to a list of strings.
+    r"""Convert a value to a list of strings.
 
     Handles the case where YAML multi-line strings (using |) are parsed as
     a single string instead of a list. Splits the string by newlines and
@@ -24,6 +24,20 @@ def _normalize_to_list(value: str | list[str] | None) -> list[str]:
 
     Returns:
         A list of strings. Empty list if value is None or empty.
+
+    Examples:
+        >>> _normalize_to_list(None)
+        []
+        >>> _normalize_to_list([])
+        []
+        >>> _normalize_to_list(['a', 'b', 'c'])
+        ['a', 'b', 'c']
+        >>> _normalize_to_list('single line')
+        ['single line']
+        >>> _normalize_to_list('line1\\n' + 'line2\\n' + 'line3')
+        ['line1', 'line2', 'line3']
+        >>> _normalize_to_list('  item1  \\n' + '  item2  ')
+        ['item1', 'item2']
     """
     if value is None:
         return []
@@ -31,7 +45,14 @@ def _normalize_to_list(value: str | list[str] | None) -> list[str]:
         return value
     if isinstance(value, str):
         # Split by newlines and filter out empty strings
-        return [item.strip() for item in value.strip().split("\n") if item.strip()]
+        # Handle both actual newlines (\n) and literal backslash-n (\\n)
+        if "\\n" in value and "\n" not in value:
+            # Contains literal \n but not actual newlines
+            items = value.split("\\n")
+        else:
+            # Contains actual newlines or neither
+            items = value.split("\n")
+        return [item.strip() for item in items if item.strip()]
     return []
 
 
