@@ -20,6 +20,22 @@ from rhiza.models import RhizaTemplate
 from rhiza.subprocess_utils import get_git_executable
 
 
+def _log_git_stderr_errors(stderr: str | None) -> None:
+    """Extract and log only relevant error messages from git stderr.
+
+    Args:
+        stderr: Git command stderr output.
+    """
+    if stderr:
+        # Extract relevant error message from git stderr
+        stderr_lines = stderr.strip().split("\n")
+        # Show only the most relevant error lines, skip verbose git output
+        for line in stderr_lines:
+            line = line.strip()
+            if line and (line.startswith("fatal:") or line.startswith("error:")):
+                logger.error(line)
+
+
 def _handle_target_branch(
     target: Path, target_branch: str | None, git_executable: str, git_env: dict[str, str]
 ) -> None:
@@ -52,6 +68,8 @@ def _handle_target_branch(
                 [git_executable, "checkout", target_branch],
                 cwd=target,
                 check=True,
+                capture_output=True,
+                text=True,
                 env=git_env,
             )
         else:
@@ -61,10 +79,14 @@ def _handle_target_branch(
                 [git_executable, "checkout", "-b", target_branch],
                 cwd=target,
                 check=True,
+                capture_output=True,
+                text=True,
                 env=git_env,
             )
     except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to create/checkout branch '{target_branch}': {e}")
+        logger.error(f"Failed to create/checkout branch '{target_branch}'")
+        _log_git_stderr_errors(e.stderr)
+        logger.error("Please ensure you have no uncommitted changes or conflicts")
         sys.exit(1)
 
 
@@ -184,11 +206,13 @@ def _clone_template_repository(
         )
         logger.debug("Git clone completed successfully")
     except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to clone repository: {e}")
-        if e.stderr:
-            logger.error(f"Git error: {e.stderr.strip()}")
-        logger.error(f"Check that the repository exists and branch '{rhiza_branch}' is valid")
-        raise
+        logger.error(f"Failed to clone repository from {git_url}")
+        _log_git_stderr_errors(e.stderr)
+        logger.error("Please check that:")
+        logger.error("  - The repository exists and is accessible")
+        logger.error(f"  - Branch '{rhiza_branch}' exists in the repository")
+        logger.error("  - You have network access to the git hosting service")
+        sys.exit(1)
 
     # Initialize sparse checkout in cone mode
     try:
@@ -203,10 +227,9 @@ def _clone_template_repository(
         )
         logger.debug("Sparse checkout initialized")
     except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to initialize sparse checkout: {e}")
-        if e.stderr:
-            logger.error(f"Git error: {e.stderr.strip()}")
-        raise
+        logger.error("Failed to initialize sparse checkout")
+        _log_git_stderr_errors(e.stderr)
+        sys.exit(1)
 
     # Set sparse checkout paths
     try:
@@ -221,10 +244,9 @@ def _clone_template_repository(
         )
         logger.debug("Sparse checkout paths configured")
     except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to set sparse checkout paths: {e}")
-        if e.stderr:
-            logger.error(f"Git error: {e.stderr.strip()}")
-        raise
+        logger.error("Failed to configure sparse checkout paths")
+        _log_git_stderr_errors(e.stderr)
+        sys.exit(1)
 
 
 def _copy_files_to_target(

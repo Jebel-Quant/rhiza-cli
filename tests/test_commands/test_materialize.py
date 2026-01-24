@@ -979,9 +979,10 @@ class TestInjectCommand:
         error = subprocess.CalledProcessError(128, ["git", "clone"], stderr="fatal: repository not found")
         mock_subprocess.side_effect = error
 
-        # Run materialize and expect CalledProcessError to be raised
-        with pytest.raises(subprocess.CalledProcessError):
+        # Run materialize and expect SystemExit (clean error handling)
+        with pytest.raises(SystemExit) as exc_info:
             materialize(tmp_path, "main", None, False)
+        assert exc_info.value.code == 1
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -1036,9 +1037,10 @@ class TestInjectCommand:
 
         mock_subprocess.side_effect = subprocess_side_effect
 
-        # Run materialize and expect CalledProcessError to be raised
-        with pytest.raises(subprocess.CalledProcessError):
+        # Run materialize and expect SystemExit (clean error handling)
+        with pytest.raises(SystemExit) as exc_info:
             materialize(tmp_path, "main", None, False)
+        assert exc_info.value.code == 1
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -1099,9 +1101,10 @@ class TestInjectCommand:
 
         mock_subprocess.side_effect = subprocess_side_effect
 
-        # Run materialize and expect CalledProcessError to be raised
-        with pytest.raises(subprocess.CalledProcessError):
+        # Run materialize and expect SystemExit (clean error handling)
+        with pytest.raises(SystemExit) as exc_info:
             materialize(tmp_path, "main", None, False)
+        assert exc_info.value.code == 1
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
