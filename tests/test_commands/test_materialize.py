@@ -99,6 +99,30 @@ class TestInjectCommand:
         with pytest.raises(SystemExit):
             materialize(tmp_path, "main", None, False)
 
+    def test_inject_fails_with_missing_template_repository(self, tmp_path):
+        """Test that materialize fails when template-repository is not configured."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create template.yml without template-repository
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump({"template-branch": "main", "include": [".github"]}, f)
+
+        # Mock validate to pass, so we can test the check in _validate_and_load_template
+        with patch("rhiza.commands.materialize.validate", return_value=True):
+            # Run inject and expect it to fail with RuntimeError
+            with pytest.raises(RuntimeError, match="template-repository is required"):
+                materialize(tmp_path, "main", None, False)
+
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
