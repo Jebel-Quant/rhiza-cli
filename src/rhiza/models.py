@@ -13,7 +13,7 @@ import yaml  # type: ignore[import-untyped]
 
 
 def _normalize_to_list(value: str | list[str] | None) -> list[str]:
-    r"""Convert a value to a list of strings.
+    """Convert a value to a list of strings.
 
     Handles the case where YAML multi-line strings (using |) are parsed as
     a single string instead of a list. Splits the string by newlines and
@@ -34,9 +34,9 @@ def _normalize_to_list(value: str | list[str] | None) -> list[str]:
         ['a', 'b', 'c']
         >>> _normalize_to_list('single line')
         ['single line']
-        >>> _normalize_to_list('line1\\nline2\\nline3')
+        >>> _normalize_to_list('line1\\n' + 'line2\\n' + 'line3')
         ['line1', 'line2', 'line3']
-        >>> _normalize_to_list('  item1  \\n  item2  ')
+        >>> _normalize_to_list('  item1  \\n' + '  item2  ')
         ['item1', 'item2']
     """
     if value is None:
