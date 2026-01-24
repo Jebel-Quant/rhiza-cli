@@ -13,7 +13,7 @@ import yaml  # type: ignore[import-untyped]
 
 
 def _normalize_to_list(value: str | list[str] | None) -> list[str]:
-    """Convert a value to a list of strings.
+    r"""Convert a value to a list of strings.
 
     Handles the case where YAML multi-line strings (using |) are parsed as
     a single string instead of a list. Splits the string by newlines and
