@@ -432,32 +432,34 @@ class TestSummariseCommand:
 
     def test_get_staged_changes_with_malformed_line(self, git_repo):
         """Test get_staged_changes handles malformed git output."""
-        from rhiza.commands.summarise import get_staged_changes
         from unittest.mock import patch
+
+        from rhiza.commands.summarise import get_staged_changes
 
         # Mock run_git_command to return malformed output
         with patch("rhiza.commands.summarise.run_git_command") as mock_git:
             # Include a line without tab separator
             mock_git.return_value = "A\tfile1.txt\nMALFORMED_LINE\nM\tfile2.txt"
-            
+
             changes = get_staged_changes(git_repo)
-            
+
             # Should have processed valid lines and skipped malformed one
             assert "file1.txt" in changes["added"]
             assert "file2.txt" in changes["modified"]
 
     def test_get_staged_changes_with_unusual_status(self, git_repo):
         """Test get_staged_changes handles unusual git status codes."""
-        from rhiza.commands.summarise import get_staged_changes
         from unittest.mock import patch
+
+        from rhiza.commands.summarise import get_staged_changes
 
         # Mock run_git_command to return output with unusual status codes
         with patch("rhiza.commands.summarise.run_git_command") as mock_git:
             # Include various status codes including unusual ones
             mock_git.return_value = "A\tfile1.txt\nM\tfile2.txt\nT\tfile3.txt\nX\tfile4.txt"
-            
+
             changes = get_staged_changes(git_repo)
-            
+
             # Should have processed A and M, ignored T and X
             assert "file1.txt" in changes["added"]
             assert "file2.txt" in changes["modified"]
@@ -469,7 +471,7 @@ class TestSummariseCommand:
     def test_categorize_file_with_empty_path(self):
         """Test _categorize_single_file handles empty path."""
         from rhiza.commands.summarise import _categorize_single_file
-        
+
         # Empty path should be categorized as "Other"
         result = _categorize_single_file("")
         assert result == "Other"
