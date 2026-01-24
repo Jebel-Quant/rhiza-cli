@@ -336,3 +336,40 @@ exclude: |
             config = yaml.safe_load(f)
         assert config["exclude"] == ["LICENSE", "README.md", ".github/CODEOWNERS"]
         assert isinstance(config["exclude"], list)
+
+    def test_normalize_to_list_with_unexpected_type(self, tmp_path):
+        """Test that _normalize_to_list handles unexpected types gracefully."""
+        from rhiza.models import _normalize_to_list
+
+        # Test with None
+        assert _normalize_to_list(None) == []
+
+        # Test with list
+        assert _normalize_to_list(["a", "b"]) == ["a", "b"]
+
+        # Test with string
+        assert _normalize_to_list("a\nb\nc") == ["a", "b", "c"]
+
+        # Test with unexpected type (e.g., integer) - should return []
+        assert _normalize_to_list(123) == []  # type: ignore[arg-type]
+
+        # Test with dict - should return []
+        assert _normalize_to_list({"key": "value"}) == []  # type: ignore[arg-type]
+
+    def test_rhiza_template_to_yaml_without_repository(self, tmp_path):
+        """Test that to_yaml works when template_repository is None."""
+        template = RhizaTemplate(
+            template_repository=None,
+            template_branch="main",
+            include=[".github"],
+        )
+
+        template_file = tmp_path / "template.yml"
+        template.to_yaml(template_file)
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        # template-repository should not be present when None
+        assert "template-repository" not in config
+        assert config["template-branch"] == "main"
