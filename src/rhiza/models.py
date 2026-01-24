@@ -24,6 +24,20 @@ def _normalize_to_list(value: str | list[str] | None) -> list[str]:
 
     Returns:
         A list of strings. Empty list if value is None or empty.
+
+    Examples:
+        >>> _normalize_to_list(None)
+        []
+        >>> _normalize_to_list([])
+        []
+        >>> _normalize_to_list(['a', 'b', 'c'])
+        ['a', 'b', 'c']
+        >>> _normalize_to_list('single line')
+        ['single line']
+        >>> _normalize_to_list('line1\\nline2\\nline3')
+        ['line1', 'line2', 'line3']
+        >>> _normalize_to_list('  item1  \\n  item2  ')
+        ['item1', 'item2']
     """
     if value is None:
         return []
