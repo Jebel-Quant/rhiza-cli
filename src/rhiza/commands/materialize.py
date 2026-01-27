@@ -120,7 +120,7 @@ def _validate_and_load_template(target: Path, branch: str, sync_only: list[str] 
     rhiza_branch = template.template_branch or branch
     
     # Use sync_only if provided, otherwise use include from template
-    if sync_only:
+    if sync_only is not None:
         include_paths = sync_only
         logger.info("Using --sync-only paths (overriding template.yml include)")
     else:
@@ -130,9 +130,14 @@ def _validate_and_load_template(target: Path, branch: str, sync_only: list[str] 
 
     # Validate that we have paths to include
     if not include_paths:
-        logger.error("No include paths found in template.yml")
-        logger.error("Add at least one path to the 'include' list in template.yml")
-        raise RuntimeError("No include paths found in template.yml")  # noqa: TRY003
+        if sync_only is not None:
+            logger.error("No paths specified in --sync-only")
+            logger.error("Please provide at least one file or directory to sync")
+            raise RuntimeError("No paths specified in --sync-only")  # noqa: TRY003
+        else:
+            logger.error("No include paths found in template.yml")
+            logger.error("Add at least one path to the 'include' list in template.yml")
+            raise RuntimeError("No include paths found in template.yml")  # noqa: TRY003
 
     # Log the paths we'll be including
     logger.info("Include paths:")
