@@ -4,6 +4,7 @@ This module defines the Typer application entry points exposed by Rhiza.
 Commands are thin wrappers around implementations in `rhiza.commands.*`.
 """
 
+import shlex
 from pathlib import Path
 from typing import Annotated
 
@@ -184,7 +185,8 @@ def materialize(
         rhiza materialize --force --sync-only "ruff.toml docker/" .
     """
     # Parse sync_only into a list if provided
-    sync_only_list = sync_only.split() if sync_only else None
+    # Use shlex.split to properly handle quoted paths with spaces
+    sync_only_list = shlex.split(sync_only) if sync_only else None
     materialize_cmd(target, branch, target_branch, force, sync_only_list)
 
 
