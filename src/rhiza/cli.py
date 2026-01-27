@@ -361,6 +361,9 @@ def versions(
     target: Annotated[
         Path,
         typer.Argument(
+            exists=True,
+            file_okay=True,
+            dir_okay=True,
             help="Path to pyproject.toml or directory containing it (defaults to current directory)",
         ),
     ] = Path("."),
