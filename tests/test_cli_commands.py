@@ -6,6 +6,7 @@ This module tests:
 - The inject/materialize commands
 """
 
+import re
 import shutil
 import subprocess
 import sys
@@ -261,17 +262,15 @@ class TestMaterializeCommand:
 
     def test_materialize_help_includes_sync_only(self):
         """Test that materialize command help includes --sync-only option."""
-        import re
-        
         result = subprocess.run(
             [sys.executable, "-m", "rhiza", "materialize", "--help"],
             capture_output=True,
             text=True,
         )
         assert result.returncode == 0
-        
+
         # Strip ANSI color codes for easier testing
         clean_output = re.sub(r'\x1b\[[0-9;]*m', '', result.stdout)
-        
+
         assert "--sync-only" in clean_output
         assert "Space-separated list of specific files/directories to sync" in clean_output
