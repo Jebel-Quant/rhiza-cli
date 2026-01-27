@@ -88,11 +88,11 @@ def satisfies(version: str, specifier: str) -> bool:
     # Split by comma for multiple constraints
     for spec in specifier.split(","):
         spec = spec.strip()
-        # Match operator and version part
-        match = re.match(r"(>=|<=|>|<|==|!=)\s*([\d.]+)", spec)
+        # Match operator and version part; require a fully-formed version like '3', '3.11', '3.11.1'
+        match = re.fullmatch(r"(>=|<=|>|<|==|!=)\s*(\d+(?:\.\d+)*)", spec)
         if not match:
-            # If no operator, assume ==
-            if re.match(r"[\d.]+", spec):
+            # If no operator, assume bare version equality like '3.11'
+            if re.fullmatch(r"\d+(?:\.\d+)*", spec):
                 if version_tuple != parse_version(spec):
                     return False
                 continue
