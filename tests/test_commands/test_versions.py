@@ -42,7 +42,7 @@ class TestParseVersion:
 
     def test_malformed_version(self):
         """Raise ValueError for malformed version."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid version component"):
             parse_version("abc.11")
 
 
@@ -94,7 +94,7 @@ class TestSatisfies:
 
     def test_invalid_specifier(self):
         """Raise ValueError for invalid specifier."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid specifier"):
             satisfies("3.11", "~=3.11")
 
 

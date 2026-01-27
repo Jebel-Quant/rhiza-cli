@@ -7,6 +7,7 @@ which Python versions are supported based on the requires-python field.
 import json
 import re
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
 
 from loguru import logger
@@ -36,14 +37,14 @@ def parse_version(v: str) -> tuple[int, ...]:
         match = re.match(r"\d+", part)
         if not match:
             msg = f"Invalid version component {part!r} in version {v!r}; expected a numeric prefix."
-            raise ValueError(msg)  # noqa: TRY003
+            raise ValueError(msg)
         parts.append(int(match.group(0)))
     return tuple(parts)
 
 
 def _check_operator(version_tuple: tuple[int, ...], op: str, spec_v_tuple: tuple[int, ...]) -> bool:
     """Check if a version tuple satisfies an operator constraint."""
-    operators = {
+    operators: dict[str, Callable[[tuple[int, ...], tuple[int, ...]], bool]] = {
         ">=": lambda v, s: v >= s,
         "<=": lambda v, s: v <= s,
         ">": lambda v, s: v > s,
@@ -84,7 +85,7 @@ def satisfies(version: str, specifier: str) -> bool:
                     return False
                 continue
             msg = f"Invalid specifier {spec!r}; expected format like '>=3.11' or '3.11'"
-            raise ValueError(msg)  # noqa: TRY003
+            raise ValueError(msg)
 
         op, spec_v = match.groups()
         spec_v_tuple = parse_version(spec_v)
@@ -123,7 +124,7 @@ def supported_versions(pyproject_path: Path) -> list[str]:
     spec_str = data.get("project", {}).get("requires-python")
     if not spec_str:
         msg = "pyproject.toml: missing 'project.requires-python'"
-        raise RuntimeError(msg)  # noqa: TRY003
+        raise RuntimeError(msg)
 
     # Filter candidate versions to find which ones satisfy the constraint
     versions: list[str] = []
@@ -133,7 +134,7 @@ def supported_versions(pyproject_path: Path) -> list[str]:
 
     if not versions:
         msg = f"pyproject.toml: no supported Python versions match '{spec_str}'. Evaluated candidates: {CANDIDATES}"
-        raise RuntimeError(msg)  # noqa: TRY003
+        raise RuntimeError(msg)
 
     return versions
 
