@@ -34,6 +34,14 @@ correct and semantically valid. Performs comprehensive validation including
 YAML syntax checking, required field verification, field type validation,
 and repository format verification.
 
+### versions
+
+Extract supported Python versions from pyproject.toml.
+
+Reads the `requires-python` field from pyproject.toml and outputs a JSON
+list of supported Python versions that satisfy the version constraint.
+This is useful for generating test matrices in CI/CD pipelines.
+
 ## Usage Example
 
 These functions are typically invoked through the CLI:
@@ -44,6 +52,8 @@ These functions are typically invoked through the CLI:
     $ rhiza materialize             # Apply templates to project
 
     $ rhiza validate                # Validate template configuration
+
+    $ rhiza versions                # Extract supported Python versions
     ```
 
 For more detailed usage examples and workflows, see the USAGE.md guide
@@ -53,5 +63,6 @@ or try rhiza <command> --help
 from .init import init
 from .materialize import materialize
 from .validate import validate
+from .versions import versions
 
-__all__ = ["init", "materialize", "validate"]
+__all__ = ["init", "materialize", "validate", "versions"]

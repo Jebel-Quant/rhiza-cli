@@ -61,6 +61,28 @@ class TestSatisfies:
         assert satisfies("3.11", "<3.11") is False
         assert satisfies("3.12", "<3.11") is False
 
+    def test_less_than_or_equal(self):
+        """Test <= operator."""
+        assert satisfies("3.11", "<=3.11") is True
+        assert satisfies("3.10", "<=3.11") is True
+        assert satisfies("3.12", "<=3.11") is False
+
+    def test_greater_than(self):
+        """Test > operator."""
+        assert satisfies("3.12", ">3.11") is True
+        assert satisfies("3.11", ">3.11") is False
+        assert satisfies("3.10", ">3.11") is False
+
+    def test_equal(self):
+        """Test == operator."""
+        assert satisfies("3.11", "==3.11") is True
+        assert satisfies("3.12", "==3.11") is False
+
+    def test_not_equal(self):
+        """Test != operator."""
+        assert satisfies("3.12", "!=3.11") is True
+        assert satisfies("3.11", "!=3.11") is False
+
     def test_compound_specifier(self):
         """Test comma-separated specifiers."""
         assert satisfies("3.11", ">=3.11,<3.14") is True
@@ -124,6 +146,16 @@ class TestSupportedVersions:
 
         with pytest.raises(FileNotFoundError):
             supported_versions(pyproject)
+
+    def test_supported_versions_malformed_toml(self, tmp_path):
+        """Test supported_versions raises error for malformed TOML."""
+        pyproject = tmp_path / "pyproject.toml"
+        # Write invalid TOML (missing closing quote)
+        pyproject.write_text('[project]\nname = "test\nrequires-python = ">=3.11"\n')
+
+        with pytest.raises(PyProjectError) as exc_info:
+            supported_versions(pyproject)
+        assert "not valid TOML" in str(exc_info.value)
 
 
 class TestVersionsCommand:

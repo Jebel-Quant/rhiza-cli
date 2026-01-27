@@ -12,6 +12,10 @@ from pathlib import Path
 from loguru import logger
 
 
+# Custom exceptions for version parsing and validation errors.
+# These provide a clear hierarchy for distinguishing between different
+# error types (version parsing vs. pyproject.toml issues) and match
+# the exception design from the original .rhiza/utils/version_matrix.py script.
 class RhizaError(Exception):
     """Base exception for Rhiza-related errors."""
 
@@ -24,6 +28,8 @@ class PyProjectError(RhizaError):
     """Raised when there are issues with pyproject.toml configuration."""
 
 
+# Candidate Python versions to evaluate against pyproject.toml requirements.
+# Includes upcoming versions (e.g., 3.14) for forward compatibility and CI/CD planning.
 CANDIDATES = ["3.11", "3.12", "3.13", "3.14"]  # extend as needed
 
 
