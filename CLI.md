@@ -10,6 +10,7 @@ This document provides a quick reference for the Rhiza command-line interface.
 | `rhiza materialize` | Inject templates into a target repository |
 | `rhiza migrate` | Migrate to the new `.rhiza` folder structure |
 | `rhiza validate` | Validate template configuration |
+| `rhiza versions` | Extract supported Python versions from pyproject.toml |
 
 ## Common Usage Patterns
 
@@ -162,6 +163,69 @@ rhiza validate ..                 # Validate parent directory
 - ✓ Field types correct
 - ✓ Repository format (owner/repo)
 - ✓ Include list not empty
+
+---
+
+### rhiza versions
+
+**Purpose:** Extract supported Python versions from pyproject.toml
+
+**Syntax:**
+```bash
+rhiza versions [TARGET]
+```
+
+**Parameters:**
+- `TARGET` - Path to pyproject.toml file or directory containing it (default: current directory)
+
+**Examples:**
+```bash
+rhiza versions                           # Use pyproject.toml in current directory
+rhiza versions /path/to/project          # Use pyproject.toml in specified directory
+rhiza versions /path/to/pyproject.toml   # Use specific pyproject.toml file
+```
+
+**What It Does:**
+- Reads the `requires-python` field from pyproject.toml
+- Evaluates candidate versions (3.11, 3.12, 3.13, 3.14) against the version specifier
+- Outputs a JSON list of supported Python versions
+
+**Output Format:**
+```json
+["3.11", "3.12", "3.13", "3.14"]
+```
+
+**Use Cases:**
+- Generating test matrices for CI/CD pipelines
+- Determining which Python versions to target
+- Validating version compatibility
+
+**Example Integration with GitHub Actions:**
+```yaml
+jobs:
+  get-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      python-versions: ${{ steps.versions.outputs.versions }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get supported Python versions
+        id: versions
+        run: |
+          pip install rhiza
+          echo "versions=$(rhiza versions)" >> $GITHUB_OUTPUT
+  
+  test:
+    needs: get-versions
+    strategy:
+      matrix:
+        python-version: ${{ fromJson(needs.get-versions.outputs.python-versions) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+```
 
 ---
 
