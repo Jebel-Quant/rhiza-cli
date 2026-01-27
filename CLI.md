@@ -212,7 +212,7 @@ jobs:
       - name: Get supported Python versions
         id: versions
         run: |
-          pip install rhiza
+          pip install rhiza==0.9.0  # Pin to specific version for security
           echo "versions=$(rhiza versions)" >> $GITHUB_OUTPUT
   
   test:
@@ -226,6 +226,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 ```
+
+**Security Note:** Always pin `rhiza` to a specific version (e.g., `pip install rhiza==0.9.0`) in CI/CD workflows to avoid supply chain risks from installing the latest mutable version.
 
 ---
 

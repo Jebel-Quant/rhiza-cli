@@ -37,9 +37,10 @@ def parse_version(v: str) -> tuple[int, ...]:
     """Parse a version string into a tuple of integers.
 
     This is intentionally simple and only supports numeric components.
-    If a component contains non-numeric suffixes (e.g. '3.11.0rc1'),
-    the leading numeric portion will be used (e.g. '0rc1' -> 0). If a
-    component has no leading digits at all, a VersionSpecifierError is raised.
+    For version components with non-numeric suffixes (e.g., the component
+    '0rc1' in version '3.11.0rc1'), only the leading numeric portion is
+    extracted (resulting in 0). If a component has no leading digits at
+    all, a VersionSpecifierError is raised.
 
     Args:
         v: Version string to parse (e.g., "3.11", "3.11.0rc1").
