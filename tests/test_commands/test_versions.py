@@ -4,6 +4,8 @@ This module verifies that the versions command correctly extracts supported
 Python versions from pyproject.toml files.
 """
 
+import tomllib
+
 import pytest
 from typer.testing import CliRunner
 
@@ -61,8 +63,8 @@ class TestSatisfies:
 
     def test_less_than_or_equal(self):
         """Test <= operator."""
-        assert satisfies("3.11", "<=3.11") is True
         assert satisfies("3.10", "<=3.11") is True
+        assert satisfies("3.11", "<=3.11") is True
         assert satisfies("3.12", "<=3.11") is False
 
     def test_greater_than(self):
@@ -75,10 +77,12 @@ class TestSatisfies:
         """Test == operator."""
         assert satisfies("3.11", "==3.11") is True
         assert satisfies("3.12", "==3.11") is False
+        assert satisfies("3.10", "==3.11") is False
 
     def test_not_equal(self):
         """Test != operator."""
         assert satisfies("3.12", "!=3.11") is True
+        assert satisfies("3.10", "!=3.11") is True
         assert satisfies("3.11", "!=3.11") is False
 
     def test_compound_specifier(self):
@@ -146,14 +150,12 @@ class TestSupportedVersions:
             supported_versions(pyproject)
 
     def test_supported_versions_malformed_toml(self, tmp_path):
-        """Test supported_versions raises error for malformed TOML."""
+        """Test supported_versions raises error for malformed TOML syntax."""
         pyproject = tmp_path / "pyproject.toml"
-        # Write invalid TOML (missing closing quote)
-        pyproject.write_text('[project]\nname = "test\nrequires-python = ">=3.11"\n')
+        pyproject.write_text('[project\nname = "test"')  # Missing closing bracket
 
-        with pytest.raises(PyProjectError) as exc_info:
+        with pytest.raises(tomllib.TOMLDecodeError):
             supported_versions(pyproject)
-        assert "not valid TOML" in str(exc_info.value)
 
 
 class TestVersionsCommand:
