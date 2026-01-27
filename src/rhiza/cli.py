@@ -157,6 +157,11 @@ def materialize(
         help="Create and checkout a new branch in the target repository for changes",
     ),
     force: bool = typer.Option(False, "--force", "-y", help="Overwrite existing files"),
+    sync_only: str = typer.Option(
+        None,
+        "--sync-only",
+        help="Space-separated list of specific files/directories to sync (e.g., 'ruff.toml docker/')",
+    ),
 ) -> None:
     r"""Inject Rhiza configuration templates into a target repository.
 
@@ -175,8 +180,12 @@ def materialize(
         rhiza materialize --force
         rhiza materialize --target-branch feature/update-templates
         rhiza materialize /path/to/project -b v2.0 -y
+        rhiza materialize --sync-only "ruff.toml docker/" .
+        rhiza materialize --force --sync-only "ruff.toml docker/" .
     """
-    materialize_cmd(target, branch, target_branch, force)
+    # Parse sync_only into a list if provided
+    sync_only_list = sync_only.split() if sync_only else None
+    materialize_cmd(target, branch, target_branch, force, sync_only_list)
 
 
 @app.command()

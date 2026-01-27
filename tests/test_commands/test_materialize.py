@@ -1871,3 +1871,65 @@ include: ["other.txt"]
         content = template_file.read_text()
         assert "template-repository: test/repo" in content
         assert 'include: ["other.txt"]' in content
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_sync_only_overrides_include_paths(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+        """Test that --sync-only parameter overrides include paths from template.yml."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create template.yml with multiple include paths
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "test/repo",
+                    "template-branch": "main",
+                    "include": [".github", "ruff.toml", "docker"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Create files in temp directory
+        (temp_dir / "ruff.toml").write_text("ruff config")
+        docker_dir = temp_dir / "docker"
+        docker_dir.mkdir()
+        (docker_dir / "Dockerfile").write_text("FROM python:3.11")
+
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize with sync_only
+        sync_only_list = ["ruff.toml", "docker/"]
+        materialize(tmp_path, "main", None, False, sync_only_list)
+
+        # Verify that git sparse-checkout set was called with sync_only paths, not template include paths
+        sparse_checkout_set_calls = [
+            call for call in mock_subprocess.call_args_list 
+            if len(call[0]) > 0 and isinstance(call[0][0], list) and 
+            "sparse-checkout" in call[0][0] and "set" in call[0][0]
+        ]
+
+        # Should have one call to set sparse-checkout paths
+        assert len(sparse_checkout_set_calls) == 1
+        call_args = sparse_checkout_set_calls[0][0][0]  # Get the command list
+        assert "ruff.toml" in call_args
+        assert "docker/" in call_args
+        # .github should NOT be in the sparse checkout call
+        assert ".github" not in call_args
+
