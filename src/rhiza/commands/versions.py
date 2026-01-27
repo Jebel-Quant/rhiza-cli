@@ -125,7 +125,7 @@ def supported_versions(pyproject_path: Path) -> list[str]:
         FileNotFoundError: If pyproject.toml does not exist.
     """
     if not pyproject_path.exists():
-        raise FileNotFoundError(f"pyproject.toml not found at: {pyproject_path}")
+        raise FileNotFoundError(f"pyproject.toml not found at: {pyproject_path}")  # noqa: TRY003
 
     # Load pyproject.toml using the tomllib standard library (Python 3.11+)
     with pyproject_path.open("rb") as f:
@@ -167,7 +167,7 @@ def versions(target: Path) -> None:
     else:
         logger.error(f"Invalid target: {target}")
         logger.error("Target must be a directory or pyproject.toml file")
-        raise ValueError(f"Invalid target: {target}")
+        raise ValueError(f"Invalid target: {target}")  # noqa: TRY003
 
     logger.info(f"Reading Python version requirements from: {pyproject_path}")
 

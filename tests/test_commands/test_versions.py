@@ -4,8 +4,6 @@ This module verifies that the versions command correctly extracts supported
 Python versions from pyproject.toml files.
 """
 
-from pathlib import Path
-
 import pytest
 from typer.testing import CliRunner
 
@@ -157,7 +155,7 @@ class TestVersionsCommand:
         invalid_file = tmp_path / "invalid.txt"
         invalid_file.write_text("content")
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid target"):
             versions(invalid_file)
 
 
