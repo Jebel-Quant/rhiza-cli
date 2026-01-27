@@ -16,6 +16,7 @@ from rhiza.commands import validate as validate_cmd
 from rhiza.commands.migrate import migrate as migrate_cmd
 from rhiza.commands.summarise import summarise as summarise_cmd
 from rhiza.commands.uninstall import uninstall as uninstall_cmd
+from rhiza.commands.versions import versions as versions_cmd
 from rhiza.commands.welcome import welcome as welcome_cmd
 
 app = typer.Typer(
@@ -353,3 +354,28 @@ def summarise(
         gh pr create --title "chore: Sync with rhiza" --body-file pr-body.md
     """
     summarise_cmd(target, output)
+
+
+@app.command()
+def versions(
+    target: Annotated[
+        Path,
+        typer.Argument(
+            help="Path to pyproject.toml or directory containing it (defaults to current directory)",
+        ),
+    ] = Path("."),
+) -> None:
+    r"""Extract supported Python versions from pyproject.toml.
+
+    Reads the 'requires-python' field from pyproject.toml and outputs a JSON
+    list of supported Python versions that satisfy the version constraint.
+
+    This command evaluates candidate versions (3.11, 3.12, 3.13, 3.14) against
+    the version specifier in pyproject.toml and returns those that match.
+
+    Examples:
+        rhiza versions
+        rhiza versions /path/to/project
+        rhiza versions /path/to/project/pyproject.toml
+    """
+    versions_cmd(target)
