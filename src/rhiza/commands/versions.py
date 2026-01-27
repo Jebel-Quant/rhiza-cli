@@ -128,8 +128,12 @@ def supported_versions(pyproject_path: Path) -> list[str]:
         raise FileNotFoundError(f"pyproject.toml not found at: {pyproject_path}")  # noqa: TRY003
 
     # Load pyproject.toml using the tomllib standard library (Python 3.11+)
-    with pyproject_path.open("rb") as f:
-        data = tomllib.load(f)
+    try:
+        with pyproject_path.open("rb") as f:
+            data = tomllib.load(f)
+    except tomllib.TOMLDecodeError as e:
+        msg = f"pyproject.toml is not valid TOML: {e}"
+        raise PyProjectError(msg) from e
 
     # Extract the requires-python field from project metadata
     # This specifies the Python version constraint (e.g., ">=3.11")
