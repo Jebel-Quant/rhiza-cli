@@ -97,6 +97,21 @@ class TestSatisfies:
         with pytest.raises(ValueError, match="Invalid specifier"):
             satisfies("3.11", "~=3.11")
 
+    def test_implicit_equality_match(self):
+        """Test bare version specifier (implicit equality) that matches."""
+        assert satisfies("3.11", "3.11") is True
+
+    def test_implicit_equality_no_match(self):
+        """Test bare version specifier (implicit equality) that doesn't match."""
+        assert satisfies("3.12", "3.11") is False
+
+    def test_implicit_equality_in_compound(self):
+        """Test bare version in compound specifier continues to next constraint."""
+        # First spec matches (3.11 == 3.11), second spec also checked
+        assert satisfies("3.11", "3.11,<3.12") is True
+        # First spec doesn't match, returns False early
+        assert satisfies("3.12", "3.11,<3.14") is False
+
 
 class TestSupportedVersions:
     """Tests for supported_versions function."""
@@ -189,6 +204,24 @@ class TestVersionsCommand:
 
         with pytest.raises(ValueError, match="Invalid target"):
             versions(invalid_file)
+
+    def test_versions_runtime_error_missing_requires_python(self, tmp_path):
+        """Test versions command raises RuntimeError when requires-python is missing."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text('[project]\nname = "test"\n')
+
+        with pytest.raises(RuntimeError) as exc_info:
+            versions(tmp_path)
+        assert "missing 'project.requires-python'" in str(exc_info.value)
+
+    def test_versions_value_error_invalid_specifier(self, tmp_path):
+        """Test versions command raises ValueError for invalid version specifier."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text('[project]\nname = "test"\nrequires-python = "~=3.11"\n')
+
+        with pytest.raises(ValueError) as exc_info:
+            versions(tmp_path)
+        assert "Invalid specifier" in str(exc_info.value)
 
 
 class TestVersionsCLI:
