@@ -1871,3 +1871,110 @@ include: ["other.txt"]
         content = template_file.read_text()
         assert "template-repository: test/repo" in content
         assert 'include: ["other.txt"]' in content
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_sync_only_overrides_include_paths(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+        """Test that --sync-only parameter overrides include paths from template.yml."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create template.yml with multiple include paths
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "test/repo",
+                    "template-branch": "main",
+                    "include": [".github", "ruff.toml", "docker"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Create files in temp directory
+        (temp_dir / "ruff.toml").write_text("ruff config")
+        docker_dir = temp_dir / "docker"
+        docker_dir.mkdir()
+        (docker_dir / "Dockerfile").write_text("FROM python:3.11")
+
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize with sync_only
+        sync_only_list = ["ruff.toml", "docker/"]
+        materialize(tmp_path, "main", None, False, sync_only_list)
+
+        # Verify that git sparse-checkout set was called with sync_only paths
+        # Find the sparse-checkout set call by checking each call's args
+        sparse_checkout_set_call = None
+        for call in mock_subprocess.call_args_list:
+            if call[0] and isinstance(call[0][0], list):
+                cmd = call[0][0]
+                if len(cmd) > 2 and cmd[1] == "sparse-checkout" and cmd[2] == "set":
+                    sparse_checkout_set_call = cmd
+                    break
+
+        # Should have found the sparse-checkout set call
+        assert sparse_checkout_set_call is not None, "sparse-checkout set command not found"
+        
+        # Verify sync_only paths are used, not template include paths
+        assert "ruff.toml" in sparse_checkout_set_call
+        assert "docker/" in sparse_checkout_set_call
+        # .github should NOT be in the sparse checkout call
+        assert ".github" not in sparse_checkout_set_call
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_sync_only_with_empty_list_fails(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+        """Test that --sync-only with empty list shows appropriate error."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create template.yml with include paths
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "test/repo",
+                    "template-branch": "main",
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize with empty sync_only list - should fail with appropriate error
+        sync_only_list = []
+        with pytest.raises(RuntimeError, match="No paths specified in --sync-only"):
+            materialize(tmp_path, "main", None, False, sync_only_list)
+

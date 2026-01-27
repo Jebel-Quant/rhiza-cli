@@ -90,12 +90,13 @@ def _handle_target_branch(
         sys.exit(1)
 
 
-def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplate, str, str, list[str], list[str]]:
+def _validate_and_load_template(target: Path, branch: str, sync_only: list[str] | None = None) -> tuple[RhizaTemplate, str, str, list[str], list[str]]:
     """Validate configuration and load template settings.
 
     Args:
         target: Path to the target repository.
         branch: The Rhiza template branch to use (CLI argument).
+        sync_only: Optional list of specific paths to sync (overrides include paths).
 
     Returns:
         Tuple of (template, rhiza_repo, rhiza_branch, include_paths, excluded_paths).
@@ -117,14 +118,26 @@ def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplat
         logger.error("template-repository is not configured in template.yml")
         raise RuntimeError("template-repository is required")  # noqa: TRY003
     rhiza_branch = template.template_branch or branch
-    include_paths = template.include
+    
+    # Use sync_only if provided, otherwise use include from template
+    if sync_only is not None:
+        include_paths = sync_only
+        logger.info("Using --sync-only paths (overriding template.yml include)")
+    else:
+        include_paths = template.include
+    
     excluded_paths = template.exclude
 
     # Validate that we have paths to include
     if not include_paths:
-        logger.error("No include paths found in template.yml")
-        logger.error("Add at least one path to the 'include' list in template.yml")
-        raise RuntimeError("No include paths found in template.yml")  # noqa: TRY003
+        if sync_only is not None:
+            logger.error("No paths specified in --sync-only")
+            logger.error("Please provide at least one file or directory to sync")
+            raise RuntimeError("No paths specified in --sync-only")  # noqa: TRY003
+        else:
+            logger.error("No include paths found in template.yml")
+            logger.error("Add at least one path to the 'include' list in template.yml")
+            raise RuntimeError("No include paths found in template.yml")  # noqa: TRY003
 
     # Log the paths we'll be including
     logger.info("Include paths:")
@@ -464,7 +477,7 @@ def __expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
     return all_files
 
 
-def materialize(target: Path, branch: str, target_branch: str | None, force: bool) -> None:
+def materialize(target: Path, branch: str, target_branch: str | None, force: bool, sync_only: list[str] | None = None) -> None:
     """Materialize Rhiza templates into the target repository.
 
     This performs a sparse checkout of the template repository and copies the
@@ -477,6 +490,8 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         target_branch (str | None): Optional branch name to create/checkout in
             the target repository.
         force (bool): Whether to overwrite existing files.
+        sync_only (list[str] | None): Optional list of specific paths to sync
+            (overrides include paths from template.yml).
     """
     target = target.resolve()
     logger.info(f"Target repository: {target}")
@@ -492,7 +507,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     _handle_target_branch(target, target_branch, git_executable, git_env)
 
     # Validate and load template configuration
-    template, rhiza_repo, rhiza_branch, include_paths, excluded_paths = _validate_and_load_template(target, branch)
+    template, rhiza_repo, rhiza_branch, include_paths, excluded_paths = _validate_and_load_template(target, branch, sync_only)
     rhiza_host = template.template_host or "github"
 
     # Construct git URL
