@@ -9,8 +9,6 @@ from typer.testing import CliRunner
 
 from rhiza import cli
 from rhiza.commands.versions import (
-    PyProjectError,
-    VersionSpecifierError,
     parse_version,
     satisfies,
     supported_versions,
@@ -41,8 +39,8 @@ class TestParseVersion:
         assert parse_version("3.13.0b2") == (3, 13, 0)
 
     def test_malformed_version(self):
-        """Raise VersionSpecifierError for malformed version."""
-        with pytest.raises(VersionSpecifierError):
+        """Raise ValueError for malformed version."""
+        with pytest.raises(ValueError):
             parse_version("abc.11")
 
 
@@ -91,8 +89,8 @@ class TestSatisfies:
         assert satisfies("3.10", ">=3.11,<3.14") is False
 
     def test_invalid_specifier(self):
-        """Raise VersionSpecifierError for invalid specifier."""
-        with pytest.raises(VersionSpecifierError):
+        """Raise ValueError for invalid specifier."""
+        with pytest.raises(ValueError):
             satisfies("3.11", "~=3.11")
 
 
@@ -127,7 +125,7 @@ class TestSupportedVersions:
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text('[project]\nname = "test"\n')
 
-        with pytest.raises(PyProjectError) as exc_info:
+        with pytest.raises(RuntimeError) as exc_info:
             supported_versions(pyproject)
         assert "missing 'project.requires-python'" in str(exc_info.value)
 
@@ -136,7 +134,7 @@ class TestSupportedVersions:
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text('[project]\nname = "test"\nrequires-python = ">=2.7,<3.0"\n')
 
-        with pytest.raises(PyProjectError) as exc_info:
+        with pytest.raises(RuntimeError) as exc_info:
             supported_versions(pyproject)
         assert "no supported Python versions match" in str(exc_info.value)
 

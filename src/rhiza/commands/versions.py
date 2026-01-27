@@ -11,25 +11,6 @@ from pathlib import Path
 
 from loguru import logger
 
-
-# Custom exceptions for version parsing and validation errors.
-# These provide a clear hierarchy for distinguishing between different
-# error types (version parsing vs. pyproject.toml issues) and match
-# the exception design from the original .rhiza/utils/version_matrix.py script.
-class RhizaError(Exception):
-    """Base exception for Rhiza-related errors."""
-
-
-class VersionSpecifierError(RhizaError):
-    """Raised when a version string or specifier is invalid."""
-
-
-class PyProjectError(RhizaError):
-    """Raised when there are issues with pyproject.toml configuration."""
-
-
-# Candidate Python versions to evaluate against pyproject.toml requirements.
-# Includes upcoming versions (e.g., 3.14) for forward compatibility and CI/CD planning.
 CANDIDATES = ["3.11", "3.12", "3.13", "3.14"]  # extend as needed
 
 
@@ -37,10 +18,9 @@ def parse_version(v: str) -> tuple[int, ...]:
     """Parse a version string into a tuple of integers.
 
     This is intentionally simple and only supports numeric components.
-    For version components with non-numeric suffixes (e.g., the component
-    '0rc1' in version '3.11.0rc1'), only the leading numeric portion is
-    extracted (resulting in 0). If a component has no leading digits at
-    all, a VersionSpecifierError is raised.
+    If a component contains non-numeric suffixes (e.g. '3.11.0rc1'),
+    the leading numeric portion will be used (e.g. '0rc1' -> 0). If a
+    component has no leading digits at all, a ValueError is raised.
 
     Args:
         v: Version string to parse (e.g., "3.11", "3.11.0rc1").
@@ -49,14 +29,14 @@ def parse_version(v: str) -> tuple[int, ...]:
         Tuple of integers representing the version.
 
     Raises:
-        VersionSpecifierError: If a version component has no numeric prefix.
+        ValueError: If a version component has no numeric prefix.
     """
     parts: list[int] = []
     for part in v.split("."):
         match = re.match(r"\d+", part)
         if not match:
             msg = f"Invalid version component {part!r} in version {v!r}; expected a numeric prefix."
-            raise VersionSpecifierError(msg)
+            raise ValueError(msg)  # noqa: TRY003
         parts.append(int(match.group(0)))
     return tuple(parts)
 
@@ -88,7 +68,7 @@ def satisfies(version: str, specifier: str) -> bool:
         True if the version satisfies all specifiers, False otherwise.
 
     Raises:
-        VersionSpecifierError: If the specifier format is invalid.
+        ValueError: If the specifier format is invalid.
     """
     version_tuple = parse_version(version)
 
@@ -104,7 +84,7 @@ def satisfies(version: str, specifier: str) -> bool:
                     return False
                 continue
             msg = f"Invalid specifier {spec!r}; expected format like '>=3.11' or '3.11'"
-            raise VersionSpecifierError(msg)
+            raise ValueError(msg)  # noqa: TRY003
 
         op, spec_v = match.groups()
         spec_v_tuple = parse_version(spec_v)
@@ -128,26 +108,22 @@ def supported_versions(pyproject_path: Path) -> list[str]:
         list[str]: The supported versions (e.g., ["3.11", "3.12"]).
 
     Raises:
-        PyProjectError: If requires-python is missing or no candidates match.
+        RuntimeError: If requires-python is missing or no candidates match.
         FileNotFoundError: If pyproject.toml does not exist.
     """
     if not pyproject_path.exists():
         raise FileNotFoundError(f"pyproject.toml not found at: {pyproject_path}")  # noqa: TRY003
 
     # Load pyproject.toml using the tomllib standard library (Python 3.11+)
-    try:
-        with pyproject_path.open("rb") as f:
-            data = tomllib.load(f)
-    except tomllib.TOMLDecodeError as e:
-        msg = f"pyproject.toml is not valid TOML: {e}"
-        raise PyProjectError(msg) from e
+    with pyproject_path.open("rb") as f:
+        data = tomllib.load(f)
 
     # Extract the requires-python field from project metadata
     # This specifies the Python version constraint (e.g., ">=3.11")
     spec_str = data.get("project", {}).get("requires-python")
     if not spec_str:
         msg = "pyproject.toml: missing 'project.requires-python'"
-        raise PyProjectError(msg)
+        raise RuntimeError(msg)  # noqa: TRY003
 
     # Filter candidate versions to find which ones satisfy the constraint
     versions: list[str] = []
@@ -157,7 +133,7 @@ def supported_versions(pyproject_path: Path) -> list[str]:
 
     if not versions:
         msg = f"pyproject.toml: no supported Python versions match '{spec_str}'. Evaluated candidates: {CANDIDATES}"
-        raise PyProjectError(msg)
+        raise RuntimeError(msg)  # noqa: TRY003
 
     return versions
 
@@ -190,9 +166,9 @@ def versions(target: Path) -> None:
         logger.error(str(e))
         logger.error("Ensure pyproject.toml exists in the target location")
         raise
-    except PyProjectError as e:
+    except RuntimeError as e:
         logger.error(str(e))
         raise
-    except VersionSpecifierError as e:
+    except ValueError as e:
         logger.error(f"Invalid version specifier: {e}")
         raise
