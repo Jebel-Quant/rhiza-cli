@@ -219,9 +219,8 @@ class TestVersionsCommand:
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text('[project]\nname = "test"\nrequires-python = "~=3.11"\n')
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError, match="Invalid specifier"):
             versions(tmp_path)
-        assert "Invalid specifier" in str(exc_info.value)
 
 
 class TestVersionsCLI:
