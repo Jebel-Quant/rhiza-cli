@@ -23,7 +23,7 @@ app = typer.Typer(
         """
         Rhiza - Manage reusable configuration templates for Python projects
 
-        \x1b]8;;https://jebel-quant.github.io/rhiza-cli/\x1b\\https://jebel-quant.github.io/rhiza-cli/\x1b]8;;\x1b\\
+        https://jebel-quant.github.io/rhiza-cli/
         """
     ),
     add_completion=True,
