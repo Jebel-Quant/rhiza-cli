@@ -384,7 +384,7 @@ def validate(target: Path) -> bool:
         validation_passed = False
 
     # Validate include if present (only for legacy mode)
-    if "include" in config and config["include"]:
+    if config.get("include"):
         if not _validate_include_paths(config):
             validation_passed = False
 

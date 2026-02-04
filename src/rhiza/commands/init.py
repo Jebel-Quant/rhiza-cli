@@ -95,9 +95,9 @@ def _get_default_bundles_for_host(git_host: str) -> list[str]:
     """
     common = ["core", "tests", "docs"]
     if git_host == "gitlab":
-        return common + ["gitlab"]
+        return [*common, "gitlab"]
     else:
-        return common + ["github"]
+        return [*common, "github"]
 
 
 def _get_include_paths_for_host(git_host: str) -> list[str]:

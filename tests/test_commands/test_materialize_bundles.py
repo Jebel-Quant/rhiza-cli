@@ -1,11 +1,7 @@
 """Integration tests for materialize command with bundle support."""
 
-import tempfile
-from pathlib import Path
-
 import pytest
 
-from rhiza.commands.materialize import materialize
 from rhiza.models import RhizaTemplate
 
 
@@ -87,7 +83,7 @@ include:
     subprocess.run(["git", "add", "."], cwd=repo, capture_output=True, check=True)
     subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=repo, capture_output=True, check=True)
 
-    yield repo
+    return repo
 
 
 @pytest.fixture
@@ -110,7 +106,7 @@ def target_repo(tmp_path):
     rhiza_dir = repo / ".rhiza"
     rhiza_dir.mkdir()
 
-    yield repo
+    return repo
 
 
 class TestMaterializeWithBundles:

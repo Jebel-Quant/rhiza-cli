@@ -271,7 +271,7 @@ class TestResolveIncludePaths:
             bundles=["core"],
         )
 
-        with pytest.raises(ValueError, match="Template uses bundles but bundles.yml not found"):
+        with pytest.raises(ValueError, match=r"Template uses bundles but bundles\.yml not found"):
             resolve_include_paths(template, None)
 
     def test_no_configuration(self) -> None:

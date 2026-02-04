@@ -111,6 +111,7 @@ class RhizaBundles:
             FileNotFoundError: If the file does not exist.
             yaml.YAMLError: If the YAML is malformed.
             ValueError: If the file is invalid or missing required fields.
+            TypeError: If bundle data has invalid types.
         """
         with open(file_path) as f:
             config = yaml.safe_load(f)
@@ -124,12 +125,14 @@ class RhizaBundles:
 
         bundles_config = config.get("bundles", {})
         if not isinstance(bundles_config, dict):
-            raise ValueError("Bundles must be a dictionary")  # noqa: TRY003
+            msg = "Bundles must be a dictionary"
+            raise TypeError(msg)
 
         bundles: dict[str, BundleDefinition] = {}
         for bundle_name, bundle_data in bundles_config.items():
             if not isinstance(bundle_data, dict):
-                raise ValueError(f"Bundle '{bundle_name}' must be a dictionary")  # noqa: TRY003
+                msg = f"Bundle '{bundle_name}' must be a dictionary"
+                raise TypeError(msg)
 
             files = _normalize_to_list(bundle_data.get("files"))
             workflows = _normalize_to_list(bundle_data.get("workflows"))
