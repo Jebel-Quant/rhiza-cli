@@ -15,6 +15,7 @@ from pathlib import Path
 
 from loguru import logger
 
+from rhiza.bundle_resolver import load_bundles_from_clone, resolve_include_paths
 from rhiza.commands.validate import validate
 from rhiza.models import RhizaTemplate
 from rhiza.subprocess_utils import get_git_executable
@@ -117,19 +118,27 @@ def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplat
         logger.error("template-repository is not configured in template.yml")
         raise RuntimeError("template-repository is required")  # noqa: TRY003
     rhiza_branch = template.template_branch or branch
-    include_paths = template.include
     excluded_paths = template.exclude
 
-    # Validate that we have paths to include
-    if not include_paths:
-        logger.error("No include paths found in template.yml")
-        logger.error("Add at least one path to the 'include' list in template.yml")
-        raise RuntimeError("No include paths found in template.yml")  # noqa: TRY003
+    # Note: We'll resolve bundles to paths after cloning the template repo,
+    # since we need access to bundles.yml from the template
+    include_paths = template.include
 
-    # Log the paths we'll be including
-    logger.info("Include paths:")
-    for p in include_paths:
-        logger.info(f"  - {p}")
+    # Validate that we have either bundles or include paths
+    if not template.bundles and not include_paths:
+        logger.error("No bundles or include paths found in template.yml")
+        logger.error("Add either 'bundles' (new) or 'include' (legacy) list in template.yml")
+        raise RuntimeError("No bundles or include paths found in template.yml")  # noqa: TRY003
+
+    # Log what we'll be using
+    if template.bundles:
+        logger.info("Bundles:")
+        for b in template.bundles:
+            logger.info(f"  - {b}")
+    else:
+        logger.info("Include paths:")
+        for p in include_paths:
+            logger.info(f"  - {p}")
 
     if excluded_paths:
         logger.info("Exclude paths:")
@@ -165,6 +174,37 @@ def _construct_git_url(rhiza_repo: str, rhiza_host: str) -> str:
     return git_url
 
 
+def _update_sparse_checkout(
+    tmp_dir: Path,
+    include_paths: list[str],
+    git_executable: str,
+    git_env: dict[str, str],
+) -> None:
+    """Update sparse checkout paths in an already-cloned repository.
+
+    Args:
+        tmp_dir: Temporary directory with cloned repository.
+        include_paths: Paths to include in sparse checkout.
+        git_executable: Path to git executable.
+        git_env: Environment variables for git commands.
+    """
+    try:
+        logger.debug(f"Updating sparse checkout paths: {include_paths}")
+        subprocess.run(  # nosec B603
+            [git_executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
+            cwd=tmp_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=git_env,
+        )
+        logger.debug("Sparse checkout paths updated")
+    except subprocess.CalledProcessError as e:
+        logger.error("Failed to update sparse checkout paths")
+        _log_git_stderr_errors(e.stderr)
+        sys.exit(1)
+
+
 def _clone_template_repository(
     tmp_dir: Path,
     git_url: str,
@@ -179,7 +219,7 @@ def _clone_template_repository(
         tmp_dir: Temporary directory for cloning.
         git_url: Git repository URL.
         rhiza_branch: Branch to clone.
-        include_paths: Paths to include in sparse checkout.
+        include_paths: Initial paths to include in sparse checkout.
         git_executable: Path to git executable.
         git_env: Environment variables for git commands.
     """
@@ -504,7 +544,25 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     logger.debug(f"Temporary directory: {tmp_dir}")
 
     try:
-        _clone_template_repository(tmp_dir, git_url, rhiza_branch, include_paths, git_executable, git_env)
+        # Clone with initial minimal checkout to load bundles.yml if needed
+        initial_paths = [".rhiza"] if template.bundles else include_paths
+        _clone_template_repository(tmp_dir, git_url, rhiza_branch, initial_paths, git_executable, git_env)
+
+        # Load bundles.yml and resolve bundles to paths if using bundle mode
+        if template.bundles:
+            logger.info("Resolving bundles to file paths...")
+            try:
+                bundles_config = load_bundles_from_clone(tmp_dir)
+                resolved_paths = resolve_include_paths(template, bundles_config)
+                logger.info(f"Resolved {len(template.bundles)} bundle(s) to {len(resolved_paths)} path(s)")
+                logger.debug(f"Resolved paths: {resolved_paths}")
+                # Update sparse checkout with resolved paths
+                _update_sparse_checkout(tmp_dir, resolved_paths, git_executable, git_env)
+                include_paths = resolved_paths
+            except ValueError as e:
+                logger.error(f"Failed to resolve bundles: {e}")
+                sys.exit(1)
+
         materialized_files = _copy_files_to_target(tmp_dir, target, include_paths, excluded_paths, force)
     finally:
         logger.debug(f"Cleaning up temporary directory: {tmp_dir}")

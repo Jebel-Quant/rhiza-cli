@@ -84,8 +84,24 @@ def _prompt_git_host() -> str:
     return str(git_host)
 
 
+def _get_default_bundles_for_host(git_host: str) -> list[str]:
+    """Get default bundles based on git hosting platform.
+
+    Args:
+        git_host: Git hosting platform.
+
+    Returns:
+        List of bundle names.
+    """
+    common = ["core", "tests", "docs"]
+    if git_host == "gitlab":
+        return common + ["gitlab"]
+    else:
+        return common + ["github"]
+
+
 def _get_include_paths_for_host(git_host: str) -> list[str]:
-    """Get include paths based on git hosting platform.
+    """Get include paths based on git hosting platform (legacy, path-based).
 
     Args:
         git_host: Git hosting platform.
@@ -129,6 +145,7 @@ def _create_template_file(
     git_host: str,
     template_repository: str | None = None,
     template_branch: str | None = None,
+    use_bundles: bool = True,
 ) -> None:
     """Create default template.yml file.
 
@@ -137,6 +154,7 @@ def _create_template_file(
         git_host: Git hosting platform.
         template_repository: Custom template repository (format: owner/repo).
         template_branch: Custom template branch.
+        use_bundles: Use bundle-based configuration (new) if True, path-based (legacy) if False.
     """
     rhiza_dir = target / ".rhiza"
     template_file = rhiza_dir / "template.yml"
@@ -146,8 +164,6 @@ def _create_template_file(
 
     logger.info("Creating default .rhiza/template.yml")
     logger.debug("Using default template configuration")
-
-    include_paths = _get_include_paths_for_host(git_host)
 
     # Use custom template repository/branch if provided, otherwise use defaults
     repo = template_repository or "jebel-quant/rhiza"
@@ -159,11 +175,22 @@ def _create_template_file(
     if template_branch:
         logger.info(f"Using custom template branch: {branch}")
 
-    default_template = RhizaTemplate(
-        template_repository=repo,
-        template_branch=branch,
-        include=include_paths,
-    )
+    if use_bundles:
+        bundles = _get_default_bundles_for_host(git_host)
+        logger.info(f"Using bundle-based configuration with bundles: {', '.join(bundles)}")
+        default_template = RhizaTemplate(
+            template_repository=repo,
+            template_branch=branch,
+            bundles=bundles,
+        )
+    else:
+        include_paths = _get_include_paths_for_host(git_host)
+        logger.info("Using legacy path-based configuration")
+        default_template = RhizaTemplate(
+            template_repository=repo,
+            template_branch=branch,
+            include=include_paths,
+        )
 
     logger.debug(f"Writing default template to: {template_file}")
     default_template.to_yaml(template_file)

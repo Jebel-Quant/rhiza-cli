@@ -126,6 +126,68 @@ def _parse_yaml_file(template_file: Path) -> tuple[bool, dict[str, Any] | None]:
     return True, config
 
 
+def _validate_configuration_mode(config: dict[str, Any]) -> bool:
+    """Validate that exactly one of bundles or include is specified.
+
+    Args:
+        config: Configuration dictionary.
+
+    Returns:
+        True if configuration mode is valid, False otherwise.
+    """
+    logger.debug("Validating configuration mode")
+    has_bundles = "bundles" in config and config["bundles"]
+    has_include = "include" in config and config["include"]
+
+    if has_bundles and has_include:
+        logger.error("Cannot specify both 'bundles' and 'include' in template.yml")
+        logger.error("Choose one approach:")
+        logger.error("  • Bundle-based (new): bundles: [core, tests, github]")
+        logger.error("  • Path-based (legacy): include: [.rhiza, .github, ...]")
+        return False
+
+    if not has_bundles and not has_include:
+        logger.error("Must specify either 'bundles' or 'include' in template.yml")
+        logger.error("Choose one approach:")
+        logger.error("  • Bundle-based (new): bundles: [core, tests, github]")
+        logger.error("  • Path-based (legacy): include: [.rhiza, .github, ...]")
+        return False
+
+    return True
+
+
+def _validate_bundles(config: dict[str, Any]) -> bool:
+    """Validate bundles field if present.
+
+    Args:
+        config: Configuration dictionary.
+
+    Returns:
+        True if bundles field is valid, False otherwise.
+    """
+    logger.debug("Validating bundles field")
+    if "bundles" not in config:
+        return True
+
+    bundles = config["bundles"]
+    if not isinstance(bundles, list):
+        logger.error(f"bundles must be a list, got {type(bundles).__name__}")
+        logger.error("Example: bundles: [core, tests, github]")
+        return False
+    elif len(bundles) == 0:
+        logger.error("bundles list cannot be empty")
+        logger.error("Add at least one bundle to materialize")
+        return False
+    else:
+        logger.success(f"bundles list has {len(bundles)} bundle(s)")
+        for bundle in bundles:
+            if not isinstance(bundle, str):
+                logger.warning(f"bundle name should be a string, got {type(bundle).__name__}: {bundle}")
+            else:
+                logger.info(f"  - {bundle}")
+        return True
+
+
 def _validate_required_fields(config: dict[str, Any]) -> bool:
     """Validate required fields exist and have correct types.
 
@@ -136,9 +198,10 @@ def _validate_required_fields(config: dict[str, Any]) -> bool:
         True if all validations pass, False otherwise.
     """
     logger.debug("Validating required fields")
+    # template-repository is required
+    # include or bundles is required (validated separately)
     required_fields = {
         "template-repository": str,
-        "include": list,
     }
 
     validation_passed = True
@@ -305,6 +368,10 @@ def validate(target: Path) -> bool:
     if not success or config is None:
         return False
 
+    # Validate configuration mode (bundles XOR include)
+    if not _validate_configuration_mode(config):
+        return False
+
     # Validate required fields
     validation_passed = _validate_required_fields(config)
 
@@ -312,8 +379,14 @@ def validate(target: Path) -> bool:
     if not _validate_repository_format(config):
         validation_passed = False
 
-    if not _validate_include_paths(config):
+    # Validate bundles if present
+    if not _validate_bundles(config):
         validation_passed = False
+
+    # Validate include if present (only for legacy mode)
+    if "include" in config and config["include"]:
+        if not _validate_include_paths(config):
+            validation_passed = False
 
     # Validate optional fields
     _validate_optional_fields(config)

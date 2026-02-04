@@ -31,9 +31,11 @@ class TestInitCommand:
 
         assert config["template-repository"] == "jebel-quant/rhiza"
         assert config["template-branch"] == "main"
-        assert ".github" in config["include"]
-        assert ".editorconfig" in config["include"]
-        assert "Makefile" in config["include"]
+        # Should use bundles by default (new behavior)
+        assert "bundles" in config
+        assert "core" in config["bundles"]
+        assert "tests" in config["bundles"]
+        assert "github" in config["bundles"]
 
     def test_init_validates_existing_template_yml(self, tmp_path):
         """Test that init validates an existing template.yml."""
@@ -245,11 +247,10 @@ class TestInitCommand:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        # template-host should not appear (defaults to github for template repo)
-        assert "template-host" not in config
-        # Should include .github for GitHub target
-        assert ".github" in config["include"]
-        assert ".gitlab-ci.yml" not in config["include"]
+        # Should use bundles for GitHub target
+        assert "bundles" in config
+        assert "github" in config["bundles"]
+        assert "gitlab" not in config["bundles"]
 
     def test_init_with_gitlab_explicit(self, tmp_path):
         """Test init with explicitly specified GitLab target platform."""
@@ -262,13 +263,10 @@ class TestInitCommand:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        # template-host should not appear because template repo is still on GitHub
-        # We only change the include list based on target platform
-        assert "template-host" not in config
-        # Should include .gitlab-ci.yml for GitLab target
-        assert ".gitlab-ci.yml" in config["include"]
-        # Should NOT include .github for GitLab target
-        assert ".github" not in config["include"]
+        # Should use bundles for GitLab target
+        assert "bundles" in config
+        assert "gitlab" in config["bundles"]
+        assert "github" not in config["bundles"]
 
     def test_init_with_invalid_git_host(self, tmp_path):
         """Test init with invalid git-host raises error."""
@@ -286,10 +284,11 @@ class TestInitCommand:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        # Should include .gitlab-ci.yml for GitLab target
-        assert ".gitlab-ci.yml" in config["include"]
-        # Should NOT include .github for GitLab target
-        assert ".github" not in config["include"]
+        # Should use gitlab bundle for GitLab target
+        assert "bundles" in config
+        assert "gitlab" in config["bundles"]
+        # Should NOT include github bundle for GitLab target
+        assert "github" not in config["bundles"]
 
     def test_init_skips_src_folder_creation_when_exists(self, tmp_path):
         """Test that init skips creating src folder when it already exists."""

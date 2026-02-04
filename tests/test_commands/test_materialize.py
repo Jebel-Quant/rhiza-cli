@@ -722,7 +722,7 @@ class TestInjectCommand:
         mock_validate.return_value = True
 
         # Run materialize and expect RuntimeError
-        with pytest.raises(RuntimeError, match="No include paths found"):
+        with pytest.raises(RuntimeError, match="No bundles or include paths found"):
             materialize(tmp_path, "main", None, False)
 
     @patch("rhiza.commands.materialize.subprocess.run")
