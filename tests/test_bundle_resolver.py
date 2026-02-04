@@ -220,7 +220,7 @@ bundles:
         bundles_file = tmp_path / "bundles.yml"
         bundles_file.write_text("version: '1.0'\nbundles: 'invalid'")
 
-        with pytest.raises(ValueError, match="Bundles must be a dictionary"):
+        with pytest.raises(TypeError, match="Bundles must be a dictionary"):
             RhizaBundles.from_yaml(bundles_file)
 
 
