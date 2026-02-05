@@ -26,7 +26,7 @@ jobs:
         with:
           token: ${{ secrets.GH_PAT }}
 
-      #- name: Validate Rhiza config
-      #  shell: bash
-      #  run: |
-      #     uvx "rhiza>=0.8.0" validate .
+      - name: Validate Rhiza config
+        shell: bash
+        run: |
+           uvx "rhiza>=0.10.0" validate .
