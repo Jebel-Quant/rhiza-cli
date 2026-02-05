@@ -33,7 +33,6 @@ Rhiza is a CLI tool that helps you maintain consistent configuration across mult
   - [init](#rhiza-init)
   - [materialize](#rhiza-materialize)
   - [migrate](#rhiza-migrate)
-  - [validate](#rhiza-validate)
 - [Configuration](#configuration)
 - [Examples](#examples)
 - [Development](#development)
@@ -77,7 +76,6 @@ With uvx, you don't need to install rhiza globally. Each time you run `uvx rhiza
 # Always uses the latest version
 uvx rhiza init
 uvx rhiza materialize
-uvx rhiza validate
 ```
 
 If you want to use a specific version:
@@ -131,19 +129,11 @@ rhiza --help
 
    This fetches and copies template files into your project.
 
-4. **Validate your configuration:**
-
-   ```bash
-   rhiza validate
-   ```
-
-   This checks that your `.rhiza/template.yml` is correctly formatted and valid.
-
 ## Commands
 
 ### `rhiza init`
 
-Initialize or validate `.rhiza/template.yml` in a target directory.
+Initialize `.rhiza/template.yml` in a target directory.
 
 **Usage:**
 
@@ -166,7 +156,7 @@ rhiza init [OPTIONS] [TARGET]
 
 **Description:**
 
-Creates a default `.rhiza/template.yml` file if it doesn't exist, or validates an existing one. The default configuration includes common Python project files like `.github`, `.editorconfig`, `.gitignore`, `.pre-commit-config.yaml`, `Makefile`, and `pytest.ini`.
+Creates a default `.rhiza/template.yml` file if it doesn't exist. The default configuration includes common Python project files like `.github`, `.editorconfig`, `.gitignore`, `.pre-commit-config.yaml`, `Makefile`, and `pytest.ini`.
 
 You can customize the template source by specifying your own template repository and branch using the `--template-repository` and `--template-branch` options.
 
@@ -389,83 +379,6 @@ Next steps:
 
 ---
 
-### `rhiza validate`
-
-Validate Rhiza template configuration.
-
-**Usage:**
-
-```bash
-rhiza validate [TARGET]
-```
-
-**Arguments:**
-
-- `TARGET` - Target git repository directory (defaults to current directory)
-
-**Description:**
-
-Validates the `.rhiza/template.yml` file to ensure it is syntactically correct and semantically valid. This performs authoritative validation including:
-
-- Checking if the file exists
-- Validating YAML syntax
-- Verifying required fields are present
-- Checking field types and formats
-- Validating repository name format
-- Ensuring include paths are not empty
-
-**Examples:**
-
-```bash
-# Validate configuration in current directory
-rhiza validate
-
-# Validate configuration in a specific directory
-rhiza validate /path/to/project
-
-# Validate parent directory
-rhiza validate ..
-```
-
-**Exit codes:**
-
-- `0` - Validation passed
-- `1` - Validation failed
-
-**Output (success):**
-
-```
-[INFO] Validating template configuration in: /path/to/project
-✓ Found template file: /path/to/project/.rhiza/template.yml
-✓ YAML syntax is valid
-✓ Field 'template-repository' is present and valid
-✓ Field 'include' is present and valid
-✓ template-repository format is valid: jebel-quant/rhiza
-✓ include list has 6 path(s)
-  - .github
-  - .editorconfig
-  - .gitignore
-  - .pre-commit-config.yaml
-  - Makefile
-  - pytest.ini
-✓ Validation passed: template.yml is valid
-```
-
-**Output (failure):**
-
-```
-[ERROR] Target directory is not a git repository: /path/to/project
-```
-
-or
-
-```
-[ERROR] Template file not found: /path/to/project/.rhiza/template.yml
-[INFO] Run 'rhiza materialize' or 'rhiza init' to create a default template.yml
-```
-
----
-
 ## Configuration
 
 Rhiza uses a `.rhiza/template.yml` file to define template sources and what to include in your project.
@@ -627,9 +540,6 @@ git commit -m "chore: initialize project with rhiza templates"
 ```bash
 # Navigate to your project
 cd existing-project
-
-# Validate current configuration
-rhiza validate
 
 # Update templates (overwrite existing)
 rhiza materialize --force
@@ -883,7 +793,7 @@ Check that:
 3. Required fields (`template-repository` and `include`) are present
 4. The repository format is `owner/repo`
 
-Run `rhiza validate` for detailed error messages.
+The Rhiza template includes pre-commit hooks that can help validate your configuration.
 
 ### Git clone fails during materialize
 
@@ -929,7 +839,7 @@ A: Not directly. However, you can run `rhiza materialize` multiple times with di
 
 **Q: What's the difference between `rhiza init` and `rhiza materialize`?**
 
-A: `init` creates or validates the `.rhiza/template.yml` configuration file. `materialize` reads that configuration and actually copies the template files into your project.
+A: `init` creates the `.rhiza/template.yml` configuration file. `materialize` reads that configuration and actually copies the template files into your project.
 
 **Q: How do I update my project's templates?**
 

@@ -6,10 +6,9 @@ This document provides a quick reference for the Rhiza command-line interface.
 
 | Command | Description |
 |---------|-------------|
-| `rhiza init` | Initialize or validate `.rhiza/template.yml` |
+| `rhiza init` | Initialize `.rhiza/template.yml` |
 | `rhiza materialize` | Inject templates into a target repository |
 | `rhiza migrate` | Migrate to the new `.rhiza` folder structure |
-| `rhiza validate` | Validate template configuration |
 
 ## Common Usage Patterns
 
@@ -25,16 +24,11 @@ rhiza materialize
 rhiza materialize --force
 ```
 
-### Validate before committing
-```bash
-rhiza validate && git add . && git commit
-```
-
 ## Command Details
 
 ### rhiza init
 
-**Purpose:** Create or validate `.rhiza/template.yml`
+**Purpose:** Create `.rhiza/template.yml`
 
 **Syntax:**
 ```bash
@@ -129,39 +123,6 @@ rhiza migrate /path/to/project   # Migrate specific directory
 - Transitioning to the new `.rhiza/` folder structure
 - Organizing Rhiza configuration separately from `.github/`
 - Cleaning up project structure
-
----
-
-### rhiza validate
-
-**Purpose:** Validate `.rhiza/template.yml` configuration
-
-**Syntax:**
-```bash
-rhiza validate [TARGET]
-```
-
-**Parameters:**
-- `TARGET` - Repository directory to validate (default: current directory)
-
-**Exit Codes:**
-- `0` - Validation passed
-- `1` - Validation failed
-
-**Examples:**
-```bash
-rhiza validate                    # Validate current directory
-rhiza validate /path/to/project   # Validate specific directory
-rhiza validate ..                 # Validate parent directory
-```
-
-**Validation Checks:**
-- ✓ File exists
-- ✓ Valid YAML syntax
-- ✓ Required fields present
-- ✓ Field types correct
-- ✓ Repository format (owner/repo)
-- ✓ Include list not empty
 
 ---
 
@@ -260,9 +221,6 @@ rhiza --show-completion
 Add to your git workflow:
 
 ```bash
-# Before making changes
-rhiza validate || exit 1
-
 # Update templates periodically
 git checkout -b update-templates
 rhiza materialize --force
@@ -272,15 +230,8 @@ git commit -am "chore: update rhiza templates"
 
 ### CI/CD Integration
 
-Add validation to your CI pipeline:
-
-```yaml
-# .github/workflows/validate.yml
-- name: Validate Rhiza config
-  run: |
-    pip install rhiza
-    rhiza validate
-```
+Use Rhiza hooks for validation in your CI pipeline. The Rhiza template includes
+pre-commit hooks that automatically validate your configuration.
 
 ### Multiple Template Repositories
 
@@ -377,7 +328,6 @@ rhiza --help
 # Command-specific help
 rhiza init --help
 rhiza materialize --help
-rhiza validate --help
 ```
 
 ---

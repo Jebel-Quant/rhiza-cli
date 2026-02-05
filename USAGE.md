@@ -156,9 +156,6 @@ git status
 git diff
 git add .
 git commit -m "feat: initial project setup with rhiza"
-
-# 5. Validate everything is correct
-rhiza validate
 ```
 
 ### Workflow 2: Updating Existing Project
@@ -203,16 +200,13 @@ Periodically update your project's templates:
 # 1. Create update branch
 git checkout -b update-templates
 
-# 2. Validate current configuration
-rhiza validate
-
-# 3. Update templates (overwrite existing)
+# 2. Update templates (overwrite existing)
 rhiza materialize --force
 
-# 4. Review changes
+# 3. Review changes
 git diff
 
-# 5. If changes look good, commit
+# 4. If changes look good, commit
 git add .
 git commit -m "chore: update rhiza templates to latest"
 
@@ -378,71 +372,16 @@ done
 
 Validate Rhiza configuration in CI:
 
-**`.github/workflows/validate-rhiza.yml`:**
-
-```yaml
-name: Validate Rhiza Configuration
-
-on:
-  push:
-    paths:
-      - '.rhiza/template.yml'
-  pull_request:
-    paths:
-      - '.rhiza/template.yml'
-
-jobs:
-  validate:
-    name: Validate Template Configuration
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install Rhiza
-        run: pip install rhiza
-      
-      - name: Validate configuration
-        run: rhiza validate
-```
-
-### Pre-commit Hook
-
-Validate before every commit:
-
-**`.git/hooks/pre-commit`:**
-
-```bash
-#!/bin/sh
-# Validate Rhiza configuration before commit
-
-if [ -f .rhiza/template.yml ]; then
-    echo "Validating Rhiza configuration..."
-    rhiza validate || {
-        echo "ERROR: Rhiza validation failed"
-        exit 1
-    }
-fi
-```
-
-Make it executable:
-
-```bash
-chmod +x .git/hooks/pre-commit
-```
+The Rhiza template includes pre-commit hooks that automatically validate
+your configuration. These hooks are defined in `.pre-commit-config.yaml`
+and are installed when you run `rhiza materialize`.
 
 ### Makefile Integration
 
 Add Rhiza commands to your Makefile:
 
 ```makefile
-.PHONY: template-init template-update template-validate
+.PHONY: template-init template-update
 
 template-init: ## Initialize Rhiza templates
 	rhiza init
@@ -451,10 +390,7 @@ template-update: ## Update templates from repository
 	rhiza materialize --force
 	@echo "Review changes with: git diff"
 
-template-validate: ## Validate template configuration
-	rhiza validate
-
-sync-templates: template-validate template-update ## Validate and update templates
+sync-templates: template-update ## Update templates
 ```
 
 Usage:
@@ -462,7 +398,6 @@ Usage:
 ```bash
 make template-init
 make template-update
-make template-validate
 make sync-templates
 ```
 
@@ -486,9 +421,6 @@ COPY . .
 # Initialize templates if needed
 RUN if [ ! -f .rhiza/template.yml ]; then rhiza init; fi
 
-# Validate configuration
-RUN rhiza validate
-
 CMD ["/bin/bash"]
 ```
 
@@ -496,19 +428,9 @@ CMD ["/bin/bash"]
 
 Use with the pre-commit framework:
 
-**`.pre-commit-config.yaml`:**
-
-```yaml
-repos:
-  - repo: local
-    hooks:
-      - id: rhiza-validate
-        name: Validate Rhiza Configuration
-        entry: rhiza validate
-        language: system
-        pass_filenames: false
-        files: ^\.rhiza/template\.yml$
-```
+The Rhiza template includes pre-commit hooks that automatically validate
+your configuration. These hooks are defined in `.pre-commit-config.yaml`
+and are installed when you run `rhiza materialize`.
 
 Install and run:
 
@@ -595,17 +517,7 @@ exclude:
   - .github/CODEOWNERS
 ```
 
-### 7. Validate in CI
-
-Always validate in your CI pipeline:
-
-```yaml
-# In your CI workflow
-- name: Validate Rhiza
-  run: rhiza validate
-```
-
-### 8. Keep Templates Minimal
+### 7. Keep Templates Minimal
 
 Only include what you actually need:
 
