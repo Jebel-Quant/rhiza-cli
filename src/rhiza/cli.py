@@ -13,7 +13,6 @@ from rhiza import __version__
 from rhiza.commands import init as init_cmd
 from rhiza.commands import materialize as materialize_cmd
 from rhiza.commands import validate as validate_cmd
-from rhiza.commands.migrate import migrate as migrate_cmd
 from rhiza.commands.summarise import summarise as summarise_cmd
 from rhiza.commands.uninstall import uninstall as uninstall_cmd
 from rhiza.commands.welcome import welcome as welcome_cmd
@@ -214,42 +213,6 @@ def validate(
     """
     if not validate_cmd(target):
         raise typer.Exit(code=1)
-
-
-@app.command()
-def migrate(
-    target: Annotated[
-        Path,
-        typer.Argument(
-            exists=True,
-            file_okay=False,
-            dir_okay=True,
-            help="Target git repository (defaults to current directory)",
-        ),
-    ] = Path("."),
-) -> None:
-    r"""Migrate project to the new .rhiza folder structure.
-
-    This command helps transition projects to use the new `.rhiza/` folder
-    structure for storing Rhiza state and configuration files. It performs
-    the following migrations:
-
-    - Creates the `.rhiza/` directory in the project root
-    - Moves `.github/rhiza/template.yml` or `.github/template.yml` to `.rhiza/template.yml`
-    - Moves `.rhiza.history` to `.rhiza/history`
-
-    The new `.rhiza/` folder structure separates Rhiza's state and configuration
-    from the `.github/` directory, providing better organization.
-
-    If files already exist in `.rhiza/`, the migration will skip them and leave
-    the old files in place. You can manually remove old files after verifying
-    the migration was successful.
-
-    Examples:
-        rhiza migrate
-        rhiza migrate /path/to/project
-    """
-    migrate_cmd(target)
 
 
 @app.command()
