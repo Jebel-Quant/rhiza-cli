@@ -64,7 +64,7 @@ def _normalize_to_list(value: str | list[str] | None) -> list[str]:
 
 @dataclass
 class BundleDefinition:
-    """Represents a single bundle from bundles.yml.
+    """Represents a single bundle from template_bundles.yml.
 
     Attributes:
         name: The bundle identifier (e.g., "core", "tests", "github").
@@ -87,7 +87,7 @@ class BundleDefinition:
 
 @dataclass
 class RhizaBundles:
-    """Represents the structure of bundles.yml.
+    """Represents the structure of template_bundles.yml.
 
     Attributes:
         version: Version string of the bundles configuration format.
@@ -102,7 +102,7 @@ class RhizaBundles:
         """Load RhizaBundles from a YAML file.
 
         Args:
-            file_path: Path to the bundles.yml file.
+            file_path: Path to the template_bundles.yml file.
 
         Returns:
             The loaded bundles configuration.
@@ -163,7 +163,7 @@ class RhizaBundles:
         # Validate all bundles exist
         for name in bundle_names:
             if name not in self.bundles:
-                raise ValueError(f"Bundle '{name}' not found in bundles.yml")  # noqa: TRY003
+                raise ValueError(f"Bundle '{name}' not found in template_bundles.yml")  # noqa: TRY003
 
         resolved: list[str] = []
         visiting: set[str] = set()
