@@ -227,11 +227,11 @@ bundles:
 class TestResolveIncludePaths:
     """Test resolve_include_paths function."""
 
-    def test_bundle_mode(self) -> None:
-        """Test resolving paths in bundle mode."""
+    def test_template_mode(self) -> None:
+        """Test resolving paths in template mode."""
         template = RhizaTemplate(
             template_repository="test/repo",
-            bundles=["core", "tests"],
+            templates=["core", "tests"],
         )
         bundles = RhizaBundles(
             version="1.0",
@@ -254,8 +254,8 @@ class TestResolveIncludePaths:
         assert "Makefile" in result
         assert "tests/" in result
 
-    def test_legacy_mode(self) -> None:
-        """Test resolving paths in legacy include mode."""
+    def test_include_mode(self) -> None:
+        """Test resolving paths in include mode."""
         template = RhizaTemplate(
             template_repository="test/repo",
             include=[".rhiza", ".github", "tests/"],
@@ -264,23 +264,74 @@ class TestResolveIncludePaths:
         result = resolve_include_paths(template, None)
         assert result == [".rhiza", ".github", "tests/"]
 
-    def test_bundle_mode_no_bundles_config(self) -> None:
-        """Test that bundle mode without bundles config raises error."""
+    def test_hybrid_mode(self) -> None:
+        """Test resolving paths in hybrid mode (templates + include)."""
         template = RhizaTemplate(
             template_repository="test/repo",
-            bundles=["core"],
+            templates=["core"],
+            include=[".github", "custom/"],
+        )
+        bundles = RhizaBundles(
+            version="1.0",
+            bundles={
+                "core": BundleDefinition(
+                    name="core",
+                    description="Core",
+                    files=["Makefile", ".rhiza"],
+                ),
+            },
         )
 
-        with pytest.raises(ValueError, match=r"Template uses bundles but bundles\.yml not found"):
+        result = resolve_include_paths(template, bundles)
+        # Should have paths from both templates and include, deduplicated
+        assert "Makefile" in result
+        assert ".rhiza" in result
+        assert ".github" in result
+        assert "custom/" in result
+        # Check no duplicates
+        assert len(result) == len(set(result))
+
+    def test_hybrid_mode_deduplication(self) -> None:
+        """Test that hybrid mode deduplicates overlapping paths."""
+        template = RhizaTemplate(
+            template_repository="test/repo",
+            templates=["core"],
+            include=[".rhiza", "custom/"],  # .rhiza overlaps with core bundle
+        )
+        bundles = RhizaBundles(
+            version="1.0",
+            bundles={
+                "core": BundleDefinition(
+                    name="core",
+                    description="Core",
+                    files=[".rhiza", "Makefile"],
+                ),
+            },
+        )
+
+        result = resolve_include_paths(template, bundles)
+        # .rhiza should only appear once
+        assert result.count(".rhiza") == 1
+        assert "Makefile" in result
+        assert "custom/" in result
+
+    def test_template_mode_no_bundles_config(self) -> None:
+        """Test that template mode without bundles config raises error."""
+        template = RhizaTemplate(
+            template_repository="test/repo",
+            templates=["core"],
+        )
+
+        with pytest.raises(ValueError, match=r"Template uses templates but bundles\.yml not found"):
             resolve_include_paths(template, None)
 
     def test_no_configuration(self) -> None:
-        """Test that templates with no bundles or include raise error."""
+        """Test that templates with no templates or include raise error."""
         template = RhizaTemplate(
             template_repository="test/repo",
         )
 
-        with pytest.raises(ValueError, match="must specify either 'bundles' or 'include'"):
+        with pytest.raises(ValueError, match="must specify either 'templates' or 'include'"):
             resolve_include_paths(template, None)
 
 

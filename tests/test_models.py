@@ -373,3 +373,77 @@ exclude: |
         # template-repository should not be present when None
         assert "template-repository" not in config
         assert config["template-branch"] == "main"
+
+    def test_rhiza_template_with_templates(self, tmp_path):
+        """Test loading template.yml with templates field."""
+        template_file = tmp_path / "template.yml"
+        config = {
+            "template-repository": "jebel-quant/rhiza",
+            "template-branch": "main",
+            "templates": ["core", "tests", "github"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(config, f)
+
+        template = RhizaTemplate.from_yaml(template_file)
+
+        assert template.template_repository == "jebel-quant/rhiza"
+        assert template.template_branch == "main"
+        assert template.templates == ["core", "tests", "github"]
+        assert template.include == []
+
+    def test_rhiza_template_to_yaml_with_templates(self, tmp_path):
+        """Test saving a RhizaTemplate with templates field."""
+        template = RhizaTemplate(
+            template_repository="jebel-quant/rhiza",
+            template_branch="main",
+            templates=["core", "tests", "docs"],
+        )
+
+        template_file = tmp_path / "template.yml"
+        template.to_yaml(template_file)
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        assert config["template-repository"] == "jebel-quant/rhiza"
+        assert config["template-branch"] == "main"
+        assert config["templates"] == ["core", "tests", "docs"]
+        assert "include" not in config
+
+    def test_rhiza_template_hybrid_mode(self, tmp_path):
+        """Test template.yml with both templates and include fields."""
+        template_file = tmp_path / "template.yml"
+        config = {
+            "template-repository": "jebel-quant/rhiza",
+            "template-branch": "main",
+            "templates": ["core", "tests"],
+            "include": [".custom", "extra/"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(config, f)
+
+        template = RhizaTemplate.from_yaml(template_file)
+
+        assert template.templates == ["core", "tests"]
+        assert template.include == [".custom", "extra/"]
+
+    def test_rhiza_template_to_yaml_hybrid_mode(self, tmp_path):
+        """Test saving a RhizaTemplate with both templates and include."""
+        template = RhizaTemplate(
+            template_repository="jebel-quant/rhiza",
+            template_branch="main",
+            templates=["core", "tests"],
+            include=[".custom", "extra/"],
+        )
+
+        template_file = tmp_path / "template.yml"
+        template.to_yaml(template_file)
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        assert config["templates"] == ["core", "tests"]
+        assert config["include"] == [".custom", "extra/"]
