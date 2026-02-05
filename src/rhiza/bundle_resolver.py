@@ -34,7 +34,10 @@ def resolve_include_paths(
 ) -> list[str]:
     """Resolve template configuration to file paths.
 
-    Supports both bundle-based mode (new) and include-based mode (legacy).
+    Supports:
+    - Template-based mode (templates field)
+    - Path-based mode (include field)
+    - Hybrid mode (both templates and include)
 
     Args:
         template: The template configuration.
@@ -46,15 +49,30 @@ def resolve_include_paths(
     Raises:
         ValueError: If configuration is invalid or bundles.yml is missing.
     """
-    if template.bundles:
-        # Bundle-based mode
+    paths = []
+
+    # Resolve templates to paths if specified
+    if template.templates:
         if not bundles_config:
-            msg = "Template uses bundles but bundles.yml not found in template repository"
+            msg = "Template uses templates but bundles.yml not found in template repository"
             raise ValueError(msg)
-        return bundles_config.resolve_to_paths(template.bundles)
-    elif template.include:
-        # Legacy path-based mode
-        return template.include
-    else:
-        msg = "Template configuration must specify either 'bundles' or 'include'"
+        paths.extend(bundles_config.resolve_to_paths(template.templates))
+
+    # Add include paths if specified
+    if template.include:
+        paths.extend(template.include)
+
+    # At least one must be specified
+    if not paths:
+        msg = "Template configuration must specify either 'templates' or 'include'"
         raise ValueError(msg)
+
+    # Deduplicate while preserving order
+    seen = set()
+    deduplicated = []
+    for path in paths:
+        if path not in seen:
+            deduplicated.append(path)
+            seen.add(path)
+
+    return deduplicated

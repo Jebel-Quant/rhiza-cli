@@ -229,10 +229,10 @@ class RhizaTemplate:
             Can be None if not specified in the template file (defaults to "main" when creating).
         template_host: The git hosting platform ("github" or "gitlab").
             Defaults to "github" if not specified in the template file.
-        include: List of paths to include from the template repository (legacy, path-based mode).
+        include: List of paths to include from the template repository (path-based mode).
         exclude: List of paths to exclude from the template repository (default: empty list).
-        bundles: List of bundle names to include (new, bundle-based mode).
-            Cannot be used together with include/exclude.
+        templates: List of template names to include (template-based mode).
+            Can be used together with include to merge paths.
     """
 
     template_repository: str | None = None
@@ -240,7 +240,7 @@ class RhizaTemplate:
     template_host: str = "github"
     include: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
-    bundles: list[str] = field(default_factory=list)
+    templates: list[str] = field(default_factory=list)
 
     @classmethod
     def from_yaml(cls, file_path: Path) -> "RhizaTemplate":
@@ -269,7 +269,7 @@ class RhizaTemplate:
             template_host=config.get("template-host", "github"),
             include=_normalize_to_list(config.get("include")),
             exclude=_normalize_to_list(config.get("exclude")),
-            bundles=_normalize_to_list(config.get("bundles")),
+            templates=_normalize_to_list(config.get("templates")),
         )
 
     def to_yaml(self, file_path: Path) -> None:
@@ -296,10 +296,12 @@ class RhizaTemplate:
         if self.template_host and self.template_host != "github":
             config["template-host"] = self.template_host
 
-        # Use bundles if present, otherwise use include (backward compatibility)
-        if self.bundles:
-            config["bundles"] = self.bundles
-        else:
+        # Write templates if present
+        if self.templates:
+            config["templates"] = self.templates
+
+        # Write include if present (can coexist with templates)
+        if self.include:
             config["include"] = self.include
 
         # Only include exclude if it's not empty

@@ -112,8 +112,8 @@ def target_repo(tmp_path):
 class TestMaterializeWithBundles:
     """Test materialize command with bundle support."""
 
-    def test_backward_compatibility_with_include(self, target_repo):
-        """Test that existing path-based templates still work."""
+    def test_path_based_template(self, target_repo):
+        """Test that path-based templates still work."""
         template_file = target_repo / ".rhiza" / "template.yml"
         template_file.write_text("""
 template-repository: test/repo
@@ -126,38 +126,37 @@ include:
         # This should load and parse correctly
         template = RhizaTemplate.from_yaml(template_file)
         assert template.include == [".rhiza", "Makefile"]
-        assert template.bundles == []
+        assert template.templates == []
 
-    def test_bundle_based_template(self, target_repo):
-        """Test that bundle-based templates load correctly."""
+    def test_template_based_configuration(self, target_repo):
+        """Test that template-based templates load correctly."""
         template_file = target_repo / ".rhiza" / "template.yml"
         template_file.write_text("""
 template-repository: test/repo
-bundles:
+templates:
   - core
   - tests
 """)
 
         template = RhizaTemplate.from_yaml(template_file)
-        assert template.bundles == ["core", "tests"]
+        assert template.templates == ["core", "tests"]
         assert template.include == []
 
-    def test_to_yaml_with_bundles(self, target_repo):
-        """Test that templates with bundles write correctly to YAML."""
+    def test_to_yaml_with_templates(self, target_repo):
+        """Test that templates with templates field write correctly to YAML."""
         template_file = target_repo / ".rhiza" / "template.yml"
 
         template = RhizaTemplate(
             template_repository="test/repo",
-            bundles=["core", "tests"],
+            templates=["core", "tests"],
         )
         template.to_yaml(template_file)
 
         # Read back and verify
         content = template_file.read_text()
-        assert "bundles:" in content
+        assert "templates:" in content
         assert "- core" in content
         assert "- tests" in content
-        assert "include:" not in content
 
     def test_to_yaml_with_include(self, target_repo):
         """Test that templates with include write correctly to YAML."""
@@ -173,4 +172,36 @@ bundles:
         content = template_file.read_text()
         assert "include:" in content
         assert "- .rhiza" in content
-        assert "bundles:" not in content
+
+    def test_hybrid_mode_template(self, target_repo):
+        """Test that hybrid mode (templates + include) works correctly."""
+        template_file = target_repo / ".rhiza" / "template.yml"
+        template_file.write_text("""
+template-repository: test/repo
+templates:
+  - core
+include:
+  - custom/
+""")
+
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.templates == ["core"]
+        assert template.include == ["custom/"]
+
+    def test_to_yaml_hybrid_mode(self, target_repo):
+        """Test that hybrid mode writes both templates and include to YAML."""
+        template_file = target_repo / ".rhiza" / "template.yml"
+
+        template = RhizaTemplate(
+            template_repository="test/repo",
+            templates=["core", "tests"],
+            include=[".custom", "extra/"],
+        )
+        template.to_yaml(template_file)
+
+        # Read back and verify
+        content = template_file.read_text()
+        assert "templates:" in content
+        assert "include:" in content
+        assert "- core" in content
+        assert "- .custom" in content
