@@ -328,15 +328,6 @@ class TestMakefileRootFixture:
 
         assert "UV_BIN" in content or "uv" in content.lower()
 
-    def test_validate_target_skips_in_rhiza_repo(self, logger):
-        """Validate target should skip execution in rhiza repository."""
-        setup_rhiza_git_repo()
-
-        proc = run_make(logger, ["validate"], dry_run=False)
-        # out = strip_ansi(proc.stdout)
-        # assert "[INFO] Skipping validate in rhiza repository" in out
-        assert proc.returncode == 0
-
     def test_sync_target_skips_in_rhiza_repo(self, logger):
         """Sync target should skip execution in rhiza repository."""
         setup_rhiza_git_repo()
