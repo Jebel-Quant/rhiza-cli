@@ -7,7 +7,7 @@ from rhiza.models import RhizaTemplate
 
 @pytest.fixture
 def template_repo(tmp_path):
-    """Create a mock template repository with bundles.yml."""
+    """Create a mock template repository with template_bundles.yml."""
     repo = tmp_path / "template-repo"
     repo.mkdir()
 
@@ -18,10 +18,10 @@ def template_repo(tmp_path):
     subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo, capture_output=True, check=True)
     subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo, capture_output=True, check=True)
 
-    # Create bundles.yml
+    # Create template_bundles.yml
     rhiza_dir = repo / ".rhiza"
     rhiza_dir.mkdir()
-    bundles_file = rhiza_dir / "bundles.yml"
+    bundles_file = rhiza_dir / "template_bundles.yml"
     bundles_file.write_text("""
 version: "1.0"
 bundles:
