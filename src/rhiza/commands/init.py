@@ -1,6 +1,6 @@
-"""Command to initialize or validate .rhiza/template.yml.
+"""Command to initialize .rhiza/template.yml.
 
-This module provides the init command that creates or validates the
+This module provides the init command that creates the
 .rhiza/template.yml file, which defines where templates come from
 and what paths are governed by Rhiza.
 """

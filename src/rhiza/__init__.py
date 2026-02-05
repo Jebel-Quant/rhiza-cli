@@ -2,17 +2,16 @@
 
 Rhiza is a command-line interface (CLI) that helps you maintain consistent
 configuration across multiple Python projects using templates stored in a
-central repository. It can initialize projects with standard configuration,
-materialize (inject) template files into a target repository, and validate the
-template configuration.
+central repository. It can initialize projects with standard configuration
+and materialize (inject) template files into a target repository.
 
 ## Key features
 
 - Template initialization for new or existing projects.
 - Template materialization with selective include/exclude support.
-- Configuration validation (syntax and basic semantics).
 - Multi-host support (GitHub and GitLab).
 - Non-destructive updates by default, with an explicit `--force` flag.
+- Validation via pre-commit hooks.
 
 ## Quick start
 
@@ -23,12 +22,6 @@ cd your-project
 rhiza init
 ```
 
-Validate your configuration:
-
-```bash
-rhiza validate
-```
-
 Customize `.rhiza/template.yml`, then materialize templates into your project:
 
 ```bash
@@ -37,7 +30,7 @@ rhiza materialize
 
 ## Main modules
 
-- `rhiza.commands` — Core command implementations (init, materialize, validate).
+- `rhiza.commands` — Core command implementations (init, materialize).
 - `rhiza.models` — Data models and schemas for template configuration.
 
 ## Documentation

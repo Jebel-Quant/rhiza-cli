@@ -596,30 +596,6 @@ Then materialize:
 rhiza materialize --force
 ```
 
-### Example 5: Validating before CI/CD
-
-Add to your CI pipeline:
-
-```yaml
-# .github/workflows/validate-rhiza.yml
-name: Validate Rhiza Configuration
-
-on: [push, pull_request]
-
-jobs:
-  validate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install rhiza
-        run: pip install rhiza
-      - name: Validate configuration
-        run: rhiza validate
-```
-
 ## Development
 
 ### Prerequisites
