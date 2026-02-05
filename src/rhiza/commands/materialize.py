@@ -16,7 +16,6 @@ from pathlib import Path
 from loguru import logger
 
 from rhiza.bundle_resolver import load_bundles_from_clone, resolve_include_paths
-from rhiza.commands.validate import validate
 from rhiza.models import RhizaTemplate
 from rhiza.subprocess_utils import get_git_executable
 
@@ -91,8 +90,8 @@ def _handle_target_branch(
         sys.exit(1)
 
 
-def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplate, str, str, list[str], list[str]]:
-    """Validate configuration and load template settings.
+def _load_template(target: Path, branch: str) -> tuple[RhizaTemplate, str, str, list[str], list[str]]:
+    """Load template configuration.
 
     Args:
         target: Path to the target repository.
@@ -101,15 +100,14 @@ def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplat
     Returns:
         Tuple of (template, rhiza_repo, rhiza_branch, include_paths, excluded_paths).
     """
-    # Validate Rhiza configuration
-    valid = validate(target)
-    if not valid:
-        logger.error(f"Rhiza template is invalid in: {target}")
-        logger.error("Please fix validation errors and try again")
-        sys.exit(1)
-
     # Load the template configuration
     template_file = target / ".rhiza" / "template.yml"
+    
+    if not template_file.exists():
+        logger.error(f"Template file not found: {template_file}")
+        logger.error("Run 'rhiza init' to create a template configuration")
+        sys.exit(1)
+    
     template = RhizaTemplate.from_yaml(template_file)
 
     # Extract template configuration settings
@@ -531,8 +529,8 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     # Handle target branch if specified
     _handle_target_branch(target, target_branch, git_executable, git_env)
 
-    # Validate and load template configuration
-    template, rhiza_repo, rhiza_branch, include_paths, excluded_paths = _validate_and_load_template(target, branch)
+    # Load template configuration
+    template, rhiza_repo, rhiza_branch, include_paths, excluded_paths = _load_template(target, branch)
     rhiza_host = template.template_host or "github"
 
     # Construct git URL

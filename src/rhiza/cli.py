@@ -12,7 +12,6 @@ import typer
 from rhiza import __version__
 from rhiza.commands import init as init_cmd
 from rhiza.commands import materialize as materialize_cmd
-from rhiza.commands import validate as validate_cmd
 from rhiza.commands.migrate import migrate as migrate_cmd
 from rhiza.commands.summarise import summarise as summarise_cmd
 from rhiza.commands.uninstall import uninstall as uninstall_cmd
@@ -108,10 +107,10 @@ def init(
         help="Custom template branch. Defaults to 'main'.",
     ),
 ) -> None:
-    r"""Initialize or validate .rhiza/template.yml.
+    r"""Initialize .rhiza/template.yml.
 
     Creates a default `.rhiza/template.yml` configuration file if one
-    doesn't exist, or validates the existing configuration.
+    doesn't exist.
 
     The default template includes common Python project files.
     The --git-host option determines which CI/CD configuration to include:
@@ -177,43 +176,6 @@ def materialize(
         rhiza materialize /path/to/project -b v2.0 -y
     """
     materialize_cmd(target, branch, target_branch, force)
-
-
-@app.command()
-def validate(
-    target: Annotated[
-        Path,
-        typer.Argument(
-            exists=True,
-            file_okay=False,
-            dir_okay=True,
-            help="Target git repository (defaults to current directory)",
-        ),
-    ] = Path("."),
-) -> None:
-    r"""Validate Rhiza template configuration.
-
-    Validates the .rhiza/template.yml file to ensure it is syntactically
-    correct and semantically valid.
-
-    Performs comprehensive validation:
-    - Checks if template.yml exists
-    - Validates YAML syntax
-    - Verifies required fields are present (template-repository, include)
-    - Validates field types and formats
-    - Ensures repository name follows owner/repo format
-    - Confirms include paths are not empty
-
-
-    Returns exit code 0 on success, 1 on validation failure.
-
-    Examples:
-        rhiza validate
-        rhiza validate /path/to/project
-        rhiza validate ..
-    """
-    if not validate_cmd(target):
-        raise typer.Exit(code=1)
 
 
 @app.command()

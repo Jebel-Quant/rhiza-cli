@@ -8,12 +8,12 @@ configuration templates for Python projects.
 
 ### init
 
-Initialize or validate `.rhiza/template.yml` in a target directory.
+Initialize `.rhiza/template.yml` in a target directory.
 
-Creates a default configuration file if it doesn't exist, or validates
-an existing one. The default configuration includes common Python project
-files like `.github`, `.editorconfig`, `.gitignore`,
-`.pre-commit-config.yaml`, `Makefile`, and `pytest.ini`.
+Creates a default configuration file if it doesn't exist. The default 
+configuration includes common Python project files like `.github`, 
+`.editorconfig`, `.gitignore`, `.pre-commit-config.yaml`, `Makefile`, 
+and `pytest.ini`.
 
 ### materialize
 
@@ -25,15 +25,6 @@ copying specified files/directories, and respecting exclusion patterns.
 Files that already exist will not be overwritten unless the `--force` flag
 is used.
 
-### validate
-
-Validate Rhiza template configuration.
-
-Validates the `.rhiza/template.yml` file to ensure it is syntactically
-correct and semantically valid. Performs comprehensive validation including
-YAML syntax checking, required field verification, field type validation,
-and repository format verification.
-
 ## Usage Example
 
 These functions are typically invoked through the CLI:
@@ -42,8 +33,6 @@ These functions are typically invoked through the CLI:
     $ rhiza init                    # Initialize configuration
 
     $ rhiza materialize             # Apply templates to project
-
-    $ rhiza validate                # Validate template configuration
     ```
 
 For more detailed usage examples and workflows, see the USAGE.md guide
@@ -52,6 +41,5 @@ or try rhiza <command> --help
 
 from .init import init
 from .materialize import materialize
-from .validate import validate
 
-__all__ = ["init", "materialize", "validate"]
+__all__ = ["init", "materialize"]

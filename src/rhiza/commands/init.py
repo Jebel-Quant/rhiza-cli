@@ -15,7 +15,6 @@ import typer
 from jinja2 import Template
 from loguru import logger
 
-from rhiza.commands.validate import validate
 from rhiza.models import RhizaTemplate
 
 
@@ -340,6 +339,9 @@ def init(
     _create_pyproject_toml(target, project_name, package_name, with_dev_dependencies)
     _create_readme(target)
 
-    # Validate the template file
-    logger.debug("Validating template configuration")
-    return validate(target)
+    logger.success("✓ Initialization complete")
+    logger.info("""
+Next steps:
+  1. Review and customize .rhiza/template.yml to match your project needs
+  2. Run 'rhiza materialize' to inject templates into your repository
+""")
