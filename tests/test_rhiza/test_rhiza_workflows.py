@@ -6,7 +6,7 @@ This file and its associated tests flow down via a SYNC action from the jebel-qu
 These tests validate:
 - Reading RHIZA_VERSION from .rhiza/.rhiza-version
 - The summarise-sync Makefile target
-- Version usage in sync and validate targets
+- Version usage in sync target
 """
 
 from __future__ import annotations
@@ -108,13 +108,6 @@ class TestRhizaVersion:
     def test_rhiza_version_used_in_sync_target(self, logger):
         """Sync target should use RHIZA_VERSION from .rhiza-version."""
         proc = run_make(logger, ["sync"])
-        out = proc.stdout
-        # Check that rhiza>= is used with the version variable
-        assert 'uvx "rhiza>=' in out or "rhiza>=" in out
-
-    def test_rhiza_version_used_in_validate_target(self, logger):
-        """Validate target should use RHIZA_VERSION from .rhiza-version."""
-        proc = run_make(logger, ["validate"])
         out = proc.stdout
         # Check that rhiza>= is used with the version variable
         assert 'uvx "rhiza>=' in out or "rhiza>=" in out

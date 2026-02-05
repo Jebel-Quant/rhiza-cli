@@ -30,17 +30,14 @@ RESET := \033[0m
 	post-install \
 	post-release \
 	post-sync \
-	post-validate \
 	pre-bump \
 	pre-install \
 	pre-release \
 	pre-sync \
-	pre-validate \
 	release \
 	sync \
 	summarise-sync \
 	update-readme \
-	validate \
 	version-matrix
 
 # we need absolute paths!
@@ -91,13 +88,11 @@ endef
 export RHIZA_LOGO
 
 # Declare phony targets for Rhiza Core
-.PHONY: print-logo sync validate readme pre-sync post-sync pre-validate post-validate
+.PHONY: print-logo sync readme pre-sync post-sync
 
 # Hook targets (double-colon rules allow multiple definitions)
 pre-sync:: ; @:
 post-sync:: ; @:
-pre-validate:: ; @:
-post-validate:: ; @:
 pre-install:: ; @:
 post-install:: ; @:
 pre-release:: ; @:
@@ -127,15 +122,6 @@ summarise-sync: install-uv ## summarise differences created by sync with templat
 		$(MAKE) install-uv; \
 		${UVX_BIN} "rhiza>=$(RHIZA_VERSION)" summarise .; \
 	fi
-
-validate: pre-validate ## validate project structure against template repository as defined in .rhiza/template.yml
-	@if git remote get-url origin 2>/dev/null | grep -iqE 'jebel-quant/rhiza(\.git)?$$'; then \
-		printf "${BLUE}[INFO] Skipping validate in rhiza repository (no template.yml by design)${RESET}\n"; \
-	else \
-		$(MAKE) install-uv; \
-		${UVX_BIN} "rhiza>=$(RHIZA_VERSION)" validate .; \
-	fi
-	@$(MAKE) post-validate
 
 readme: install-uv ## update README.md with current Makefile help output
 	@${UVX_BIN} "rhiza-tools>=0.2.0" update-readme

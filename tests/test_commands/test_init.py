@@ -1,6 +1,6 @@
 """Tests for the init command and CLI wiring.
 
-This module verifies that `init` creates/validates `.rhiza/template.yml` and
+This module verifies that `init` creates `.rhiza/template.yml` and
 that the Typer CLI entry `rhiza init` works as expected.
 """
 
@@ -37,8 +37,8 @@ class TestInitCommand:
         assert "tests" in config["bundles"]
         assert "github" in config["bundles"]
 
-    def test_init_validates_existing_template_yml(self, tmp_path):
-        """Test that init validates an existing template.yml."""
+    def test_init_preserves_existing_template_yml(self, tmp_path):
+        """Test that init preserves an existing template.yml."""
         # Create existing template.yml
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
@@ -54,7 +54,7 @@ class TestInitCommand:
                 f,
             )
 
-        # Run init - should validate without error
+        # Run init - should not overwrite existing template
         init(tmp_path)
 
         # Verify original content is preserved
