@@ -102,12 +102,12 @@ def _load_template(target: Path, branch: str) -> tuple[RhizaTemplate, str, str, 
     """
     # Load the template configuration
     template_file = target / ".rhiza" / "template.yml"
-    
+
     if not template_file.exists():
         logger.error(f"Template file not found: {template_file}")
         logger.error("Run 'rhiza init' to create a template configuration")
         sys.exit(1)
-    
+
     template = RhizaTemplate.from_yaml(template_file)
 
     # Extract template configuration settings
