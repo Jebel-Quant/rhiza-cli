@@ -121,7 +121,7 @@ def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplat
     excluded_paths = template.exclude
 
     # Note: We'll resolve templates to paths after cloning the template repo,
-    # since we need access to template_bundles.yml from the template
+    # since we need access to template-bundles.yml from the template
     include_paths = template.include
 
     # Validate that we have either templates or include paths
@@ -545,11 +545,11 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     logger.debug(f"Temporary directory: {tmp_dir}")
 
     try:
-        # Clone with initial minimal checkout to load template_bundles.yml if needed
+        # Clone with initial minimal checkout to load template-bundles.yml if needed
         initial_paths = [".rhiza"] if template.templates else include_paths
         _clone_template_repository(tmp_dir, git_url, rhiza_branch, initial_paths, git_executable, git_env)
 
-        # Load template_bundles.yml and resolve templates to paths if using template mode
+        # Load template-bundles.yml and resolve templates to paths if using template mode
         if template.templates:
             logger.info("Resolving templates to file paths...")
             try:
