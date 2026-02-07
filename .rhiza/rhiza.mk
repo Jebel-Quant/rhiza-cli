@@ -54,7 +54,7 @@ PYTHON_VERSION ?= $(shell cat .python-version 2>/dev/null || echo "3.13")
 export PYTHON_VERSION
 
 # Read Rhiza version from .rhiza/.rhiza-version (single source of truth for rhiza-tools)
-RHIZA_VERSION ?= $(shell cat .rhiza/.rhiza-version 2>/dev/null || echo "0.9.0")
+RHIZA_VERSION ?= $(shell cat .rhiza/.rhiza-version 2>/dev/null || echo "0.10.2")
 export RHIZA_VERSION
 
 export UV_NO_MODIFY_PATH := 1
@@ -62,18 +62,6 @@ export UV_VENV_CLEAR := 1
 
 # Load .rhiza/.env (if present) and export its variables so recipes see them.
 -include .rhiza/.env
-
-# # Include split Makefiles
-# -include tests/tests.mk
-# -include book/book.mk
-# -include book/marimo/marimo.mk
-# -include presentation/presentation.mk
-# -include docker/docker.mk
-# -include .github/agents/agentic.mk
-# # .rhiza/rhiza.mk is INLINED below
-# -include .github/github.mk
-
-
 
 # ==============================================================================
 # Rhiza Core Actions (formerly .rhiza/rhiza.mk)

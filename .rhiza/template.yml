@@ -1,6 +1,9 @@
 template-repository: "jebel-quant/rhiza"
 template-branch: "main"
+
 templates:
+    - core
+    - github
     - legal
     - tests
     - book
