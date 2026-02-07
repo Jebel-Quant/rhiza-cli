@@ -1997,7 +1997,9 @@ include: ["other.txt"]
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_materialize_handles_sparse_checkout_error(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+    def test_materialize_handles_sparse_checkout_error(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+    ):
         """Test that materialize handles errors from _update_sparse_checkout."""
         # Setup git repo
         git_dir = tmp_path / ".git"
