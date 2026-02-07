@@ -1871,3 +1871,199 @@ include: ["other.txt"]
         content = template_file.read_text()
         assert "template-repository: test/repo" in content
         assert 'include: ["other.txt"]' in content
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_logs_templates_list(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+        """Test that materialize logs the list of templates when present."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create template.yml with templates field
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "test/repo",
+                    "template-branch": "main",
+                    "templates": ["core", "tests"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+
+        # Create template-bundles.yml in temp dir
+        rhiza_temp = temp_dir / ".rhiza"
+        rhiza_temp.mkdir()
+        bundles_file = rhiza_temp / "template-bundles.yml"
+        with open(bundles_file, "w") as f:
+            yaml.dump(
+                {
+                    "version": "1.0",
+                    "bundles": {
+                        "core": {
+                            "description": "Core files",
+                            "files": [".gitignore", "README.md"],
+                        },
+                        "tests": {
+                            "description": "Test files",
+                            "files": ["pytest.ini"],
+                        },
+                    },
+                },
+                f,
+            )
+
+        # Create the files that will be materialized
+        (temp_dir / ".gitignore").write_text("*.pyc")
+        (temp_dir / "README.md").write_text("# Test")
+        (temp_dir / "pytest.ini").write_text("[pytest]")
+
+        mock_mkdtemp.return_value = str(temp_dir)
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Run materialize - should log templates list
+        materialize(tmp_path, "main", None, False)
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_handles_template_resolution_error(self, mock_mkdtemp, mock_rmtree, mock_subprocess, tmp_path):
+        """Test that materialize exits when template resolution fails with ValueError."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create template.yml with templates that don't exist in bundles
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "test/repo",
+                    "template-branch": "main",
+                    "templates": ["nonexistent"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+
+        # Create template-bundles.yml but without the requested template
+        rhiza_temp = temp_dir / ".rhiza"
+        rhiza_temp.mkdir()
+        bundles_file = rhiza_temp / "template-bundles.yml"
+        with open(bundles_file, "w") as f:
+            yaml.dump(
+                {
+                    "version": "1.0",
+                    "bundles": {
+                        "core": {
+                            "description": "Core files",
+                            "files": [".gitignore"],
+                        },
+                    },
+                },
+                f,
+            )
+
+        mock_mkdtemp.return_value = str(temp_dir)
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Should exit with error when template resolution fails
+        with pytest.raises(SystemExit):
+            materialize(tmp_path, "main", None, False)
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_handles_sparse_checkout_error(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+        """Test that materialize handles errors from _update_sparse_checkout."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml for validation
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        # Create template.yml with templates
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "test/repo",
+                    "template-branch": "main",
+                    "templates": ["core"],
+                },
+                f,
+            )
+
+        # Mock tempfile
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+
+        # Create template-bundles.yml
+        rhiza_temp = temp_dir / ".rhiza"
+        rhiza_temp.mkdir()
+        bundles_file = rhiza_temp / "template-bundles.yml"
+        with open(bundles_file, "w") as f:
+            yaml.dump(
+                {
+                    "version": "1.0",
+                    "bundles": {
+                        "core": {
+                            "description": "Core files",
+                            "files": [".gitignore"],
+                        },
+                    },
+                },
+                f,
+            )
+
+        (temp_dir / ".gitignore").write_text("*.pyc")
+
+        mock_mkdtemp.return_value = str(temp_dir)
+
+        # Track how many times sparse-checkout is called
+        call_count = {"sparse_checkout": 0}
+
+        # Make the SECOND sparse-checkout command fail (the _update_sparse_checkout call)
+        def subprocess_side_effect(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if "sparse-checkout" in str(cmd) and "set" in str(cmd):
+                call_count["sparse_checkout"] += 1
+                if call_count["sparse_checkout"] == 2:
+                    # This is the _update_sparse_checkout call after template resolution
+                    error = subprocess.CalledProcessError(1, cmd)
+                    error.stderr = "sparse checkout update failed"
+                    raise error
+            return Mock(returncode=0)
+
+        mock_subprocess.side_effect = subprocess_side_effect
+
+        # Should exit when sparse checkout update fails
+        with pytest.raises(SystemExit):
+            materialize(tmp_path, "main", None, False)

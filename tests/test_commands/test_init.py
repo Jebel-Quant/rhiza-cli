@@ -418,3 +418,45 @@ class TestInitCommand:
         # Should use default repository but custom branch
         assert config["template-repository"] == "jebel-quant/rhiza"
         assert config["template-branch"] == "v2.0"
+
+    def test_create_template_file_with_gitlab_path_based(self, tmp_path):
+        """Test that path-based config with gitlab creates .gitlab paths."""
+        from rhiza.commands.init import _create_template_file
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+
+        _create_template_file(tmp_path, git_host="gitlab", use_templates=False)
+
+        template_file = tmp_path / ".rhiza" / "template.yml"
+        assert template_file.exists()
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        assert "include" in config
+        assert ".gitlab" in config["include"]
+        assert ".gitlab-ci.yml" in config["include"]
+        assert ".github" not in config["include"]
+        assert "templates" not in config
+
+    def test_create_template_file_with_github_path_based(self, tmp_path):
+        """Test that path-based config with github creates .github paths."""
+        from rhiza.commands.init import _create_template_file
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+
+        _create_template_file(tmp_path, git_host="github", use_templates=False)
+
+        template_file = tmp_path / ".rhiza" / "template.yml"
+        assert template_file.exists()
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        assert "include" in config
+        assert ".github" in config["include"]
+        assert ".gitlab" not in config["include"]
+        assert ".gitlab-ci.yml" not in config["include"]
+        assert "templates" not in config
