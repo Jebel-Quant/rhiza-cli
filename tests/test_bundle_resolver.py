@@ -170,8 +170,8 @@ class TestRhizaBundles:
         assert result.index("tests1.txt") < result.index("docs1.txt")
 
     def test_from_yaml_valid(self, tmp_path):
-        """Test loading valid bundles.yml."""
-        bundles_file = tmp_path / "bundles.yml"
+        """Test loading valid template-bundles.yml."""
+        bundles_file = tmp_path / "template-bundles.yml"
         bundles_file.write_text("""
 version: "1.0"
 bundles:
@@ -200,24 +200,24 @@ bundles:
         assert result.bundles["tests"].depends_on == ["core"]
 
     def test_from_yaml_empty(self, tmp_path):
-        """Test loading empty bundles.yml."""
-        bundles_file = tmp_path / "bundles.yml"
+        """Test loading empty template-bundles.yml."""
+        bundles_file = tmp_path / "template-bundles.yml"
         bundles_file.write_text("")
 
         with pytest.raises(ValueError, match="Bundles file is empty"):
             RhizaBundles.from_yaml(bundles_file)
 
     def test_from_yaml_missing_version(self, tmp_path):
-        """Test loading bundles.yml without version."""
-        bundles_file = tmp_path / "bundles.yml"
+        """Test loading template-bundles.yml without version."""
+        bundles_file = tmp_path / "template-bundles.yml"
         bundles_file.write_text("bundles: {}")
 
         with pytest.raises(ValueError, match="missing required field: version"):
             RhizaBundles.from_yaml(bundles_file)
 
     def test_from_yaml_invalid_bundles_type(self, tmp_path):
-        """Test loading bundles.yml with invalid bundles type."""
-        bundles_file = tmp_path / "bundles.yml"
+        """Test loading template-bundles.yml with invalid bundles type."""
+        bundles_file = tmp_path / "template-bundles.yml"
         bundles_file.write_text("version: '1.0'\nbundles: 'invalid'")
 
         with pytest.raises(TypeError, match="Bundles must be a dictionary"):
@@ -227,11 +227,11 @@ bundles:
 class TestResolveIncludePaths:
     """Test resolve_include_paths function."""
 
-    def test_bundle_mode(self) -> None:
-        """Test resolving paths in bundle mode."""
+    def test_template_mode(self) -> None:
+        """Test resolving paths in template mode."""
         template = RhizaTemplate(
             template_repository="test/repo",
-            bundles=["core", "tests"],
+            templates=["core", "tests"],
         )
         bundles = RhizaBundles(
             version="1.0",
@@ -254,8 +254,8 @@ class TestResolveIncludePaths:
         assert "Makefile" in result
         assert "tests/" in result
 
-    def test_legacy_mode(self) -> None:
-        """Test resolving paths in legacy include mode."""
+    def test_include_mode(self) -> None:
+        """Test resolving paths in include mode."""
         template = RhizaTemplate(
             template_repository="test/repo",
             include=[".rhiza", ".github", "tests/"],
@@ -264,23 +264,74 @@ class TestResolveIncludePaths:
         result = resolve_include_paths(template, None)
         assert result == [".rhiza", ".github", "tests/"]
 
-    def test_bundle_mode_no_bundles_config(self) -> None:
-        """Test that bundle mode without bundles config raises error."""
+    def test_hybrid_mode(self) -> None:
+        """Test resolving paths in hybrid mode (templates + include)."""
         template = RhizaTemplate(
             template_repository="test/repo",
-            bundles=["core"],
+            templates=["core"],
+            include=[".github", "custom/"],
+        )
+        bundles = RhizaBundles(
+            version="1.0",
+            bundles={
+                "core": BundleDefinition(
+                    name="core",
+                    description="Core",
+                    files=["Makefile", ".rhiza"],
+                ),
+            },
         )
 
-        with pytest.raises(ValueError, match=r"Template uses bundles but bundles\.yml not found"):
+        result = resolve_include_paths(template, bundles)
+        # Should have paths from both templates and include, deduplicated
+        assert "Makefile" in result
+        assert ".rhiza" in result
+        assert ".github" in result
+        assert "custom/" in result
+        # Check no duplicates
+        assert len(result) == len(set(result))
+
+    def test_hybrid_mode_deduplication(self) -> None:
+        """Test that hybrid mode deduplicates overlapping paths."""
+        template = RhizaTemplate(
+            template_repository="test/repo",
+            templates=["core"],
+            include=[".rhiza", "custom/"],  # .rhiza overlaps with core bundle
+        )
+        bundles = RhizaBundles(
+            version="1.0",
+            bundles={
+                "core": BundleDefinition(
+                    name="core",
+                    description="Core",
+                    files=[".rhiza", "Makefile"],
+                ),
+            },
+        )
+
+        result = resolve_include_paths(template, bundles)
+        # .rhiza should only appear once
+        assert result.count(".rhiza") == 1
+        assert "Makefile" in result
+        assert "custom/" in result
+
+    def test_template_mode_no_bundles_config(self) -> None:
+        """Test that template mode without bundles config raises error."""
+        template = RhizaTemplate(
+            template_repository="test/repo",
+            templates=["core"],
+        )
+
+        with pytest.raises(ValueError, match=r"Template uses templates but template-bundles\.yml not found"):
             resolve_include_paths(template, None)
 
     def test_no_configuration(self) -> None:
-        """Test that templates with no bundles or include raise error."""
+        """Test that templates with no templates or include raise error."""
         template = RhizaTemplate(
             template_repository="test/repo",
         )
 
-        with pytest.raises(ValueError, match="must specify either 'bundles' or 'include'"):
+        with pytest.raises(ValueError, match="must specify either 'templates' or 'include'"):
             resolve_include_paths(template, None)
 
 
@@ -288,10 +339,10 @@ class TestLoadBundlesFromClone:
     """Test load_bundles_from_clone function."""
 
     def test_load_existing_bundles(self, tmp_path):
-        """Test loading bundles.yml from cloned repo."""
+        """Test loading template-bundles.yml from cloned repo."""
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir()
-        bundles_file = rhiza_dir / "bundles.yml"
+        bundles_file = rhiza_dir / "template-bundles.yml"
         bundles_file.write_text("""
 version: "1.0"
 bundles:
@@ -308,6 +359,6 @@ bundles:
         assert "core" in result.bundles
 
     def test_load_missing_bundles(self, tmp_path):
-        """Test that missing bundles.yml returns None."""
+        """Test that missing template-bundles.yml returns None."""
         result = load_bundles_from_clone(tmp_path)
         assert result is None

@@ -123,7 +123,7 @@ def _parse_yaml_file(template_file: Path) -> tuple[bool, dict[str, Any] | None]:
 
 
 def _validate_configuration_mode(config: dict[str, Any]) -> bool:
-    """Validate that exactly one of bundles or include is specified.
+    """Validate that at least one of templates or include is specified.
 
     Args:
         config: Configuration dictionary.
@@ -132,55 +132,65 @@ def _validate_configuration_mode(config: dict[str, Any]) -> bool:
         True if configuration mode is valid, False otherwise.
     """
     logger.debug("Validating configuration mode")
-    has_bundles = "bundles" in config and config["bundles"]
+    has_templates = "templates" in config and config["templates"]
     has_include = "include" in config and config["include"]
 
-    if has_bundles and has_include:
-        logger.error("Cannot specify both 'bundles' and 'include' in template.yml")
-        logger.error("Choose one approach:")
-        logger.error("  • Bundle-based (new): bundles: [core, tests, github]")
-        logger.error("  • Path-based (legacy): include: [.rhiza, .github, ...]")
+    # Error if old "bundles" field is used
+    if "bundles" in config:
+        logger.error("Field 'bundles' has been renamed to 'templates'")
+        logger.error("Update your .rhiza/template.yml:")
+        logger.error("  bundles: [...]  →  templates: [...]")
         return False
 
-    if not has_bundles and not has_include:
-        logger.error("Must specify either 'bundles' or 'include' in template.yml")
-        logger.error("Choose one approach:")
-        logger.error("  • Bundle-based (new): bundles: [core, tests, github]")
-        logger.error("  • Path-based (legacy): include: [.rhiza, .github, ...]")
+    # Require at least one of templates or include
+    if not has_templates and not has_include:
+        logger.error("Must specify at least one of 'templates' or 'include' in template.yml")
+        logger.error("Options:")
+        logger.error("  • Template-based: templates: [core, tests, github]")
+        logger.error("  • Path-based: include: [.rhiza, .github, ...]")
+        logger.error("  • Hybrid: specify both templates and include")
         return False
+
+    # Log what mode is being used
+    if has_templates and has_include:
+        logger.success("Using hybrid mode (templates + include)")
+    elif has_templates:
+        logger.success("Using template-based mode")
+    else:
+        logger.success("Using path-based mode")
 
     return True
 
 
-def _validate_bundles(config: dict[str, Any]) -> bool:
-    """Validate bundles field if present.
+def _validate_templates(config: dict[str, Any]) -> bool:
+    """Validate templates field if present.
 
     Args:
         config: Configuration dictionary.
 
     Returns:
-        True if bundles field is valid, False otherwise.
+        True if templates field is valid, False otherwise.
     """
-    logger.debug("Validating bundles field")
-    if "bundles" not in config:
+    logger.debug("Validating templates field")
+    if "templates" not in config:
         return True
 
-    bundles = config["bundles"]
-    if not isinstance(bundles, list):
-        logger.error(f"bundles must be a list, got {type(bundles).__name__}")
-        logger.error("Example: bundles: [core, tests, github]")
+    templates = config["templates"]
+    if not isinstance(templates, list):
+        logger.error(f"templates must be a list, got {type(templates).__name__}")
+        logger.error("Example: templates: [core, tests, github]")
         return False
-    elif len(bundles) == 0:
-        logger.error("bundles list cannot be empty")
-        logger.error("Add at least one bundle to materialize")
+    elif len(templates) == 0:
+        logger.error("templates list cannot be empty")
+        logger.error("Add at least one template to materialize")
         return False
     else:
-        logger.success(f"bundles list has {len(bundles)} bundle(s)")
-        for bundle in bundles:
-            if not isinstance(bundle, str):
-                logger.warning(f"bundle name should be a string, got {type(bundle).__name__}: {bundle}")
+        logger.success(f"templates list has {len(templates)} template(s)")
+        for template in templates:
+            if not isinstance(template, str):
+                logger.warning(f"template name should be a string, got {type(template).__name__}: {template}")
             else:
-                logger.info(f"  - {bundle}")
+                logger.info(f"  - {template}")
         return True
 
 
@@ -364,7 +374,7 @@ def validate(target: Path) -> bool:
     if not success or config is None:
         return False
 
-    # Validate configuration mode (bundles XOR include)
+    # Validate configuration mode (templates OR include)
     if not _validate_configuration_mode(config):
         return False
 
@@ -375,11 +385,12 @@ def validate(target: Path) -> bool:
     if not _validate_repository_format(config):
         validation_passed = False
 
-    # Validate bundles if present
-    if not _validate_bundles(config):
-        validation_passed = False
+    # Validate templates if present
+    if config.get("templates"):
+        if not _validate_templates(config):
+            validation_passed = False
 
-    # Validate include if present (only for legacy mode)
+    # Validate include if present
     if config.get("include"):
         if not _validate_include_paths(config):
             validation_passed = False

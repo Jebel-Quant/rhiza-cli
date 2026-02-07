@@ -29,4 +29,4 @@ jobs:
       - name: Validate Rhiza config
         shell: bash
         run: |
-          uvx "rhiza>=0.8.0" validate .
+           uvx "rhiza>=0.10.0" validate .
