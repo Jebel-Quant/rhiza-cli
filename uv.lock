@@ -1075,19 +1075,21 @@ dev = [
 
 [[package]]
 name = "rhiza-tools"
-version = "0.2.0"
+version = "0.2.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bump-my-version" },
     { name = "loguru" },
+    { name = "pandas" },
+    { name = "plotly" },
     { name = "questionary" },
     { name = "semver" },
     { name = "tomlkit" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/81/8a/ace58fa90203c1a93b889fdac72758b75abe144e990dc71cefd604fc2c79/rhiza_tools-0.2.0.tar.gz", hash = "sha256:956b3af9ebcc15ebeb691c07d0dae8aa25559809a94b918987e653ebb11b6e19", size = 92854, upload-time = "2026-01-12T10:41:39.74Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c3/c2/bfe0ac0d76adfe944ee3c278c0135a813f728b404c6de14c4f20872f461e/rhiza_tools-0.2.3.tar.gz", hash = "sha256:5cd3fa1784a627d75ace25158e94c2004c8f426863616cda5d5f2e67c06a2075", size = 183670, upload-time = "2026-02-08T16:46:33.874Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8f/a4/651a9ce51494aa59aa129be4c980dfa5b355456b7100ea9a6830e4d30076/rhiza_tools-0.2.0-py3-none-any.whl", hash = "sha256:35a9c78332c74342116bd2d27fd60988345b86105090d2cf1d0e5639f1ec68ed", size = 14926, upload-time = "2026-01-12T10:41:38.425Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/d3/4bde10d81d0e30232d90526b05972caf438743f54a45c6d2e455b7690e81/rhiza_tools-0.2.3-py3-none-any.whl", hash = "sha256:7ef5dc0f2532fa28e6313552bce555565d7abc928a1c5b4b104d0a5df77398a1", size = 21893, upload-time = "2026-02-08T16:46:32.736Z" },
 ]
 
 [[package]]
