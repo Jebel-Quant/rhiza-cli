@@ -27,6 +27,11 @@ class TestRootFixture:
         for dirname in required_dirs:
             assert (root / dirname).exists(), f"Required directory {dirname} not found"
 
+        # Check that at least one CI directory exists (.github or .gitlab)
+        ci_dirs = [".github", ".gitlab"]
+        if not any((root / ci_dir).exists() for ci_dir in ci_dirs):
+            pytest.fail(f"At least one CI directory from {ci_dirs} must exist")
+
         for dirname in optional_dirs:
             if not (root / dirname).exists():
                 pytest.skip(f"Optional directory {dirname} not present in this project")
