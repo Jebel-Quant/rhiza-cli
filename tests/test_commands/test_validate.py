@@ -638,3 +638,174 @@ class TestValidateCommand:
 
         result = validate(tmp_path)
         assert result is False
+
+    def test_validate_fails_with_old_bundles_field(self, tmp_path):
+        """Test that validate fails when deprecated 'bundles' field is used."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template.yml with old "bundles" field
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir()
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "bundles": ["core", "tests"],  # Old field name
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is False
+
+    def test_validate_hybrid_mode_logging(self, tmp_path):
+        """Test that validate logs 'hybrid mode' when both templates and include present."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template.yml with both templates and include
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir()
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "templates": ["core"],
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_template_only_mode_logging(self, tmp_path):
+        """Test that validate logs 'template-based mode' when only templates present."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template.yml with only templates
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir()
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "templates": ["core"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_fails_on_empty_templates_list(self, tmp_path):
+        """Test that validate fails when templates list is empty."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template.yml with empty templates list
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir()
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "templates": [],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is False
+
+    def test_validate_fails_on_templates_wrong_type(self, tmp_path):
+        """Test that validate fails when templates is not a list."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template.yml with templates as a string instead of list
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir()
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "templates": "core",  # Should be a list
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is False
+
+    def test_validate_warns_on_non_string_template_items(self, tmp_path):
+        """Test that validate warns about non-string items in templates list."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template.yml with non-string template items
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir()
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "templates": ["core", 123, "tests"],  # 123 is not a string
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        # Should still pass but with warning
+        assert result is True

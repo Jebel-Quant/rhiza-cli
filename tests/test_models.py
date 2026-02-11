@@ -7,7 +7,7 @@ and handles .rhiza/template.yml configuration.
 import pytest
 import yaml
 
-from rhiza.models import RhizaTemplate
+from rhiza.models import RhizaBundles, RhizaTemplate
 
 
 class TestRhizaTemplate:
@@ -447,3 +447,23 @@ exclude: |
 
         assert config["templates"] == ["core", "tests"]
         assert config["include"] == [".custom", "extra/"]
+
+
+class TestRhizaBundles:
+    """Tests for the RhizaBundles dataclass."""
+
+    def test_rhiza_bundles_invalid_bundle_type(self, tmp_path):
+        """Test that RhizaBundles raises TypeError for non-dict bundle."""
+        bundles_file = tmp_path / "template-bundles.yml"
+        config = {
+            "version": "1.0",
+            "bundles": {
+                "core": ["file1.yml", "file2.yml"],
+            },
+        }
+
+        with open(bundles_file, "w") as f:
+            yaml.dump(config, f)
+
+        with pytest.raises(TypeError, match="Bundle 'core' must be a dictionary"):
+            RhizaBundles.from_yaml(bundles_file)
