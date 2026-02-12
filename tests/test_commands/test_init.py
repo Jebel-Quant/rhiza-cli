@@ -426,7 +426,7 @@ class TestInitCommand:
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
 
-        _create_template_file(tmp_path, git_host="gitlab", use_templates=False)
+        _create_template_file(tmp_path, git_host="gitlab")
 
         template_file = tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
@@ -434,11 +434,7 @@ class TestInitCommand:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        assert "include" in config
-        assert ".gitlab" in config["include"]
-        assert ".gitlab-ci.yml" in config["include"]
-        assert ".github" not in config["include"]
-        assert "templates" not in config
+        assert "templates" in config
 
     def test_create_template_file_with_github_path_based(self, tmp_path):
         """Test that path-based config with github creates .github paths."""
@@ -447,7 +443,7 @@ class TestInitCommand:
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
 
-        _create_template_file(tmp_path, git_host="github", use_templates=False)
+        _create_template_file(tmp_path, git_host="github")
 
         template_file = tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
@@ -455,8 +451,4 @@ class TestInitCommand:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        assert "include" in config
-        assert ".github" in config["include"]
-        assert ".gitlab" not in config["include"]
-        assert ".gitlab-ci.yml" not in config["include"]
-        assert "templates" not in config
+        assert "templates" in config
