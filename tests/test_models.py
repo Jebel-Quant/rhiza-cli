@@ -568,6 +568,23 @@ exclude: |
         assert template.template_repository == "owner/repo"
         assert template.template_branch == "v1.0.0"
 
+    def test_rhiza_template_empty_string_uses_default(self, tmp_path):
+        """Test that empty string values are preserved (not falling back to alternative)."""
+        template_file = tmp_path / "template.yml"
+        config = {
+            "template-repository": "",  # Empty string should be preserved
+            "repository": "should-not-use-this",
+            "templates": ["core"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(config, f)
+
+        template = RhizaTemplate.from_yaml(template_file)
+
+        # Should preserve the empty string from template-repository, not fall back to repository
+        assert template.template_repository == ""
+
 
 class TestRhizaBundles:
     """Tests for the RhizaBundles dataclass."""
