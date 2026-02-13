@@ -568,12 +568,23 @@ exclude: |
         assert template.template_repository == "owner/repo"
         assert template.template_branch == "v1.0.0"
 
-    def test_rhiza_template_empty_string_uses_default(self, tmp_path):
-        """Test that empty string values are preserved (not falling back to alternative)."""
+    def test_rhiza_template_empty_or_null_uses_alternative(self, tmp_path):
+        """Test that empty/null values in primary fields use alternative fields."""
+        # Test with null value
         template_file = tmp_path / "template.yml"
+        template_file.write_text("""template-repository: null
+repository: fallback/repo
+templates:
+  - core
+""")
+
+        template = RhizaTemplate.from_yaml(template_file)
+        assert template.template_repository == "fallback/repo"
+
+        # Test with empty string
         config = {
-            "template-repository": "",  # Empty string should be preserved
-            "repository": "should-not-use-this",
+            "template-repository": "",  # Empty string should fall back
+            "repository": "fallback/repo",
             "templates": ["core"],
         }
 
@@ -581,9 +592,7 @@ exclude: |
             yaml.dump(config, f)
 
         template = RhizaTemplate.from_yaml(template_file)
-
-        # Should preserve the empty string from template-repository, not fall back to repository
-        assert template.template_repository == ""
+        assert template.template_repository == "fallback/repo"
 
 
 class TestRhizaBundles:
