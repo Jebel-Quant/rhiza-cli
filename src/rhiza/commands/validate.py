@@ -210,13 +210,13 @@ def _validate_required_fields(config: dict[str, Any]) -> bool:
     logger.debug("Validating required fields")
     # template-repository (or repository) is required
     # include or bundles is required (validated separately)
-    
+
     validation_passed = True
 
     # Check for template-repository or repository
     has_template_repo = "template-repository" in config
     has_repo = "repository" in config
-    
+
     if not has_template_repo and not has_repo:
         logger.error("Missing required field: 'template-repository' or 'repository'")
         logger.error("Add 'template-repository' or 'repository' to your template.yml")
@@ -225,11 +225,9 @@ def _validate_required_fields(config: dict[str, Any]) -> bool:
         # Check the type of whichever field is present (prefer template-repository)
         repo_field = "template-repository" if has_template_repo else "repository"
         repo_value = config[repo_field]
-        
+
         if not isinstance(repo_value, str):
-            logger.error(
-                f"Field '{repo_field}' must be of type str, got {type(repo_value).__name__}"
-            )
+            logger.error(f"Field '{repo_field}' must be of type str, got {type(repo_value).__name__}")
             logger.error(f"Fix the type of '{repo_field}' in template.yml")
             validation_passed = False
         else:
@@ -248,7 +246,7 @@ def _validate_repository_format(config: dict[str, Any]) -> bool:
         True if valid, False otherwise.
     """
     logger.debug("Validating repository format")
-    
+
     # Check for either template-repository or repository
     repo_field = None
     if "template-repository" in config:
@@ -257,7 +255,7 @@ def _validate_repository_format(config: dict[str, Any]) -> bool:
         repo_field = "repository"
     else:
         return True  # No repository field found, will be caught by _validate_required_fields
-    
+
     repo = config[repo_field]
     if not isinstance(repo, str):
         logger.error(f"{repo_field} must be a string, got {type(repo).__name__}")
@@ -318,7 +316,7 @@ def _validate_optional_fields(config: dict[str, Any]) -> None:
         branch_field = "template-branch"
     elif "ref" in config:
         branch_field = "ref"
-    
+
     if branch_field:
         branch = config[branch_field]
         if not isinstance(branch, str):

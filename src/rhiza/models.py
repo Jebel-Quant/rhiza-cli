@@ -265,17 +265,11 @@ class RhizaTemplate:
 
         # Support both 'template-repository' and 'repository' (template-repository takes precedence)
         template_repository = (
-            config.get("template-repository")
-            if "template-repository" in config
-            else config.get("repository")
+            config.get("template-repository") if "template-repository" in config else config.get("repository")
         )
-        
+
         # Support both 'template-branch' and 'ref' (template-branch takes precedence)
-        template_branch = (
-            config.get("template-branch")
-            if "template-branch" in config
-            else config.get("ref")
-        )
+        template_branch = config.get("template-branch") if "template-branch" in config else config.get("ref")
 
         return cls(
             template_repository=template_repository,
