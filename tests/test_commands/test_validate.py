@@ -809,3 +809,199 @@ class TestValidateCommand:
         result = validate(tmp_path)
         # Should still pass but with warning
         assert result is True
+
+    def test_validate_accepts_repository_field(self, tmp_path):
+        """Test that validate accepts 'repository' as alias for 'template-repository'."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template with 'repository' instead of 'template-repository'
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "repository": "owner/repo",  # Alternative field name
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_accepts_ref_field(self, tmp_path):
+        """Test that validate accepts 'ref' as alias for 'template-branch'."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template with 'ref' instead of 'template-branch'
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "ref": "develop",  # Alternative field name
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_accepts_repository_and_ref_together(self, tmp_path):
+        """Test that validate accepts both 'repository' and 'ref' together."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template with both alternative field names
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "repository": "owner/repo",  # Alternative field name
+                    "ref": "main",  # Alternative field name
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_prefers_template_repository_over_repository(self, tmp_path):
+        """Test that 'template-repository' takes precedence over 'repository'."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template with both field names (template-repository should win)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "correct/repo",
+                    "repository": "wrong/repo",  # This should be ignored
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_prefers_template_branch_over_ref(self, tmp_path):
+        """Test that 'template-branch' takes precedence over 'ref'."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template with both field names (template-branch should win)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "owner/repo",
+                    "template-branch": "correct",
+                    "ref": "wrong",  # This should be ignored
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_repository_field_invalid_format(self, tmp_path):
+        """Test that validate fails when 'repository' has invalid format."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template with invalid repository format
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "repository": "invalid-format",  # Missing slash
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        assert result is False
+
+    def test_validate_ref_field_wrong_type(self, tmp_path):
+        """Test that validate warns when 'ref' has wrong type."""
+        # Setup git repo
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template with wrong type for ref
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump(
+                {
+                    "repository": "owner/repo",
+                    "ref": 123,  # Should be string
+                    "include": [".github"],
+                },
+                f,
+            )
+
+        result = validate(tmp_path)
+        # Should still pass but with warning
+        assert result is True

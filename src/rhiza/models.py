@@ -263,9 +263,17 @@ class RhizaTemplate:
         if not config:
             raise ValueError("Template file is empty")  # noqa: TRY003
 
+        # Support both 'template-repository' and 'repository' (template-repository takes precedence)
+        # Empty or None values fall back to the alternative field
+        template_repository = config.get("template-repository") or config.get("repository")
+
+        # Support both 'template-branch' and 'ref' (template-branch takes precedence)
+        # Empty or None values fall back to the alternative field
+        template_branch = config.get("template-branch") or config.get("ref")
+
         return cls(
-            template_repository=config.get("template-repository"),
-            template_branch=config.get("template-branch"),
+            template_repository=template_repository,
+            template_branch=template_branch,
             template_host=config.get("template-host", "github"),
             include=_normalize_to_list(config.get("include")),
             exclude=_normalize_to_list(config.get("exclude")),

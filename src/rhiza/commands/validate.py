@@ -208,33 +208,36 @@ def _validate_required_fields(config: dict[str, Any]) -> bool:
         True if all validations pass, False otherwise.
     """
     logger.debug("Validating required fields")
-    # template-repository is required
+    # template-repository (or repository) is required
     # include or bundles is required (validated separately)
-    required_fields = {
-        "template-repository": str,
-    }
 
     validation_passed = True
 
-    for field, expected_type in required_fields.items():
-        if field not in config:
-            logger.error(f"Missing required field: {field}")
-            logger.error(f"Add '{field}' to your template.yml")
-            validation_passed = False
-        elif not isinstance(config[field], expected_type):
-            logger.error(
-                f"Field '{field}' must be of type {expected_type.__name__}, got {type(config[field]).__name__}"
-            )
-            logger.error(f"Fix the type of '{field}' in template.yml")
+    # Check for template-repository or repository
+    has_template_repo = "template-repository" in config
+    has_repo = "repository" in config
+
+    if not has_template_repo and not has_repo:
+        logger.error("Missing required field: 'template-repository' or 'repository'")
+        logger.error("Add 'template-repository' or 'repository' to your template.yml")
+        validation_passed = False
+    else:
+        # Check the type of whichever field is present (prefer template-repository)
+        repo_field = "template-repository" if has_template_repo else "repository"
+        repo_value = config[repo_field]
+
+        if not isinstance(repo_value, str):
+            logger.error(f"Field '{repo_field}' must be of type str, got {type(repo_value).__name__}")
+            logger.error(f"Fix the type of '{repo_field}' in template.yml")
             validation_passed = False
         else:
-            logger.success(f"Field '{field}' is present and valid")
+            logger.success(f"Field '{repo_field}' is present and valid")
 
     return validation_passed
 
 
 def _validate_repository_format(config: dict[str, Any]) -> bool:
-    """Validate template-repository format.
+    """Validate template-repository or repository format.
 
     Args:
         config: Configuration dictionary.
@@ -242,21 +245,28 @@ def _validate_repository_format(config: dict[str, Any]) -> bool:
     Returns:
         True if valid, False otherwise.
     """
-    logger.debug("Validating template-repository format")
-    if "template-repository" not in config:
-        return True
+    logger.debug("Validating repository format")
 
-    repo = config["template-repository"]
+    # Check for either template-repository or repository
+    repo_field = None
+    if "template-repository" in config:
+        repo_field = "template-repository"
+    elif "repository" in config:
+        repo_field = "repository"
+    else:
+        return True  # No repository field found, will be caught by _validate_required_fields
+
+    repo = config[repo_field]
     if not isinstance(repo, str):
-        logger.error(f"template-repository must be a string, got {type(repo).__name__}")
+        logger.error(f"{repo_field} must be a string, got {type(repo).__name__}")
         logger.error("Example: 'owner/repository'")
         return False
     elif "/" not in repo:
-        logger.error(f"template-repository must be in format 'owner/repo', got: {repo}")
+        logger.error(f"{repo_field} must be in format 'owner/repo', got: {repo}")
         logger.error("Example: 'jebel-quant/rhiza'")
         return False
     else:
-        logger.success(f"template-repository format is valid: {repo}")
+        logger.success(f"{repo_field} format is valid: {repo}")
         return True
 
 
@@ -300,14 +310,20 @@ def _validate_optional_fields(config: dict[str, Any]) -> None:
     """
     logger.debug("Validating optional fields")
 
-    # template-branch
+    # template-branch or ref
+    branch_field = None
     if "template-branch" in config:
-        branch = config["template-branch"]
+        branch_field = "template-branch"
+    elif "ref" in config:
+        branch_field = "ref"
+
+    if branch_field:
+        branch = config[branch_field]
         if not isinstance(branch, str):
-            logger.warning(f"template-branch should be a string, got {type(branch).__name__}: {branch}")
+            logger.warning(f"{branch_field} should be a string, got {type(branch).__name__}: {branch}")
             logger.warning("Example: 'main' or 'develop'")
         else:
-            logger.success(f"template-branch is valid: {branch}")
+            logger.success(f"{branch_field} is valid: {branch}")
 
     # template-host
     if "template-host" in config:
