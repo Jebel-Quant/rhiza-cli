@@ -448,6 +448,126 @@ exclude: |
         assert config["templates"] == ["core", "tests"]
         assert config["include"] == [".custom", "extra/"]
 
+    def test_rhiza_template_accepts_repository_field(self, tmp_path):
+        """Test that RhizaTemplate.from_yaml accepts 'repository' field."""
+        template_file = tmp_path / "template.yml"
+        config = {
+            "repository": "owner/repo",  # Alternative field name
+            "include": [".github"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(config, f)
+
+        template = RhizaTemplate.from_yaml(template_file)
+
+        assert template.template_repository == "owner/repo"
+        assert template.include == [".github"]
+
+    def test_rhiza_template_accepts_ref_field(self, tmp_path):
+        """Test that RhizaTemplate.from_yaml accepts 'ref' field."""
+        template_file = tmp_path / "template.yml"
+        config = {
+            "template-repository": "owner/repo",
+            "ref": "develop",  # Alternative field name
+            "include": [".github"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(config, f)
+
+        template = RhizaTemplate.from_yaml(template_file)
+
+        assert template.template_repository == "owner/repo"
+        assert template.template_branch == "develop"
+        assert template.include == [".github"]
+
+    def test_rhiza_template_accepts_repository_and_ref(self, tmp_path):
+        """Test that RhizaTemplate.from_yaml accepts both 'repository' and 'ref' fields."""
+        template_file = tmp_path / "template.yml"
+        config = {
+            "repository": "owner/repo",  # Alternative field name
+            "ref": "main",  # Alternative field name
+            "include": [".github"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(config, f)
+
+        template = RhizaTemplate.from_yaml(template_file)
+
+        assert template.template_repository == "owner/repo"
+        assert template.template_branch == "main"
+        assert template.include == [".github"]
+
+    def test_rhiza_template_prefers_template_repository_over_repository(self, tmp_path):
+        """Test that 'template-repository' takes precedence over 'repository'."""
+        template_file = tmp_path / "template.yml"
+        config = {
+            "template-repository": "correct/repo",
+            "repository": "wrong/repo",  # Should be ignored
+            "include": [".github"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(config, f)
+
+        template = RhizaTemplate.from_yaml(template_file)
+
+        # Should use template-repository, not repository
+        assert template.template_repository == "correct/repo"
+
+    def test_rhiza_template_prefers_template_branch_over_ref(self, tmp_path):
+        """Test that 'template-branch' takes precedence over 'ref'."""
+        template_file = tmp_path / "template.yml"
+        config = {
+            "template-repository": "owner/repo",
+            "template-branch": "correct",
+            "ref": "wrong",  # Should be ignored
+            "include": [".github"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(config, f)
+
+        template = RhizaTemplate.from_yaml(template_file)
+
+        # Should use template-branch, not ref
+        assert template.template_branch == "correct"
+
+    def test_rhiza_template_repository_field_only(self, tmp_path):
+        """Test using only 'repository' field without 'template-repository'."""
+        template_file = tmp_path / "template.yml"
+        config = {
+            "repository": "owner/repo",
+            "templates": ["core"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(config, f)
+
+        template = RhizaTemplate.from_yaml(template_file)
+
+        assert template.template_repository == "owner/repo"
+        assert template.templates == ["core"]
+
+    def test_rhiza_template_ref_field_only(self, tmp_path):
+        """Test using only 'ref' field without 'template-branch'."""
+        template_file = tmp_path / "template.yml"
+        config = {
+            "template-repository": "owner/repo",
+            "ref": "v1.0.0",
+            "templates": ["core"],
+        }
+
+        with open(template_file, "w") as f:
+            yaml.dump(config, f)
+
+        template = RhizaTemplate.from_yaml(template_file)
+
+        assert template.template_repository == "owner/repo"
+        assert template.template_branch == "v1.0.0"
+
 
 class TestRhizaBundles:
     """Tests for the RhizaBundles dataclass."""
