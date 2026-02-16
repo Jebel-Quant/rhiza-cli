@@ -93,51 +93,51 @@ def _get_default_templates_for_host(git_host: str) -> list[str]:
     Returns:
         List of template names.
     """
-    common = ["core", "tests", "docs"]
+    common = ["core", "tests", "book", "marimo", "presentation"]
     if git_host == "gitlab":
         return [*common, "gitlab"]
     else:
         return [*common, "github"]
 
 
-def _get_include_paths_for_host(git_host: str) -> list[str]:
-    """Get include paths based on git hosting platform (legacy, path-based).
-
-    Args:
-        git_host: Git hosting platform.
-
-    Returns:
-        List of include paths.
-    """
-    if git_host == "gitlab":
-        return [
-            ".rhiza",
-            ".gitlab",
-            ".gitlab-ci.yml",
-            ".editorconfig",
-            ".gitignore",
-            ".pre-commit-config.yaml",
-            "ruff.toml",
-            "Makefile",
-            "pytest.ini",
-            "book",
-            "presentation",
-            "tests",
-        ]
-    else:
-        return [
-            ".rhiza",
-            ".github",
-            ".editorconfig",
-            ".gitignore",
-            ".pre-commit-config.yaml",
-            "ruff.toml",
-            "Makefile",
-            "pytest.ini",
-            "book",
-            "presentation",
-            "tests",
-        ]
+# def _get_include_paths_for_host(git_host: str) -> list[str]:
+#     """Get include paths based on git hosting platform (legacy, path-based).
+#
+#     Args:
+#         git_host: Git hosting platform.
+#
+#     Returns:
+#         List of include paths.
+#     """
+#     if git_host == "gitlab":
+#         return [
+#             ".rhiza",
+#             ".gitlab",
+#             ".gitlab-ci.yml",
+#             ".editorconfig",
+#             ".gitignore",
+#             ".pre-commit-config.yaml",
+#             "ruff.toml",
+#             "Makefile",
+#             "pytest.ini",
+#             "book",
+#             "presentation",
+#             "tests",
+#         ]
+#     else:
+#         return [
+#             ".rhiza",
+#             ".github",
+#             ".editorconfig",
+#             ".gitignore",
+#             ".pre-commit-config.yaml",
+#             "ruff.toml",
+#             "Makefile",
+#             "pytest.ini",
+#             "book",
+#             "presentation",
+#             "tests",
+#         ]
 
 
 def _create_template_file(
@@ -145,7 +145,6 @@ def _create_template_file(
     git_host: str,
     template_repository: str | None = None,
     template_branch: str | None = None,
-    use_templates: bool = True,
 ) -> None:
     """Create default template.yml file.
 
@@ -154,7 +153,6 @@ def _create_template_file(
         git_host: Git hosting platform.
         template_repository: Custom template repository (format: owner/repo).
         template_branch: Custom template branch.
-        use_templates: Use template-based configuration if True, path-based if False.
     """
     rhiza_dir = target / ".rhiza"
     template_file = rhiza_dir / "template.yml"
@@ -175,22 +173,13 @@ def _create_template_file(
     if template_branch:
         logger.info(f"Using custom template branch: {branch}")
 
-    if use_templates:
-        templates = _get_default_templates_for_host(git_host)
-        logger.info(f"Using template-based configuration with templates: {', '.join(templates)}")
-        default_template = RhizaTemplate(
-            template_repository=repo,
-            template_branch=branch,
-            templates=templates,
-        )
-    else:
-        include_paths = _get_include_paths_for_host(git_host)
-        logger.info("Using path-based configuration")
-        default_template = RhizaTemplate(
-            template_repository=repo,
-            template_branch=branch,
-            include=include_paths,
-        )
+    templates = _get_default_templates_for_host(git_host)
+    logger.info(f"Using template-based configuration with templates: {', '.join(templates)}")
+    default_template = RhizaTemplate(
+        template_repository=repo,
+        template_branch=branch,
+        templates=templates,
+    )
 
     logger.debug(f"Writing default template to: {template_file}")
     default_template.to_yaml(template_file)

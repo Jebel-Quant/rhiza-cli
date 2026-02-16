@@ -9,62 +9,17 @@ Provides test fixtures for testing git-based workflows and version management.
 import logging
 import os
 import pathlib
-import re
 import shutil
 import subprocess  # nosec B404
+import sys
 
 import pytest
 
-# Get absolute paths for executables to avoid S607 warnings
-GIT = shutil.which("git") or "/usr/bin/git"
-MAKE = shutil.which("make") or "/usr/bin/make"
+tests_root = pathlib.Path(__file__).resolve().parent
+if str(tests_root) not in sys.path:
+    sys.path.insert(0, str(tests_root))
 
-
-def strip_ansi(text: str) -> str:
-    """Strip ANSI escape sequences from text."""
-    ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
-    return ansi_escape.sub("", text)
-
-
-def run_make(
-    logger, args: list[str] | None = None, check: bool = True, dry_run: bool = True
-) -> subprocess.CompletedProcess:
-    """Run `make` with optional arguments and return the completed process.
-
-    Args:
-        logger: Logger used to emit diagnostic messages during the run
-        args: Additional arguments for make
-        check: If True, raise on non-zero return code
-        dry_run: If True, use -n to avoid executing commands
-    """
-    cmd = [MAKE]
-    if args:
-        cmd.extend(args)
-    # Use -s to reduce noise, -n to avoid executing commands
-    flags = "-sn" if dry_run else "-s"
-    cmd.insert(1, flags)
-    logger.info("Running command: %s", " ".join(cmd))
-    result = subprocess.run(cmd, capture_output=True, text=True)  # nosec B603
-    logger.debug("make exited with code %d", result.returncode)
-    if result.stdout:
-        logger.debug("make stdout (truncated to 500 chars):\n%s", result.stdout[:500])
-    if result.stderr:
-        logger.debug("make stderr (truncated to 500 chars):\n%s", result.stderr[:500])
-    if check and result.returncode != 0:
-        msg = f"make failed with code {result.returncode}:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
-        raise AssertionError(msg)
-    return result
-
-
-def setup_rhiza_git_repo():
-    """Initialize a git repository and set remote to rhiza."""
-    subprocess.run([GIT, "init"], check=True, capture_output=True)  # nosec B603
-    subprocess.run(  # nosec B603
-        [GIT, "remote", "add", "origin", "https://github.com/jebel-quant/rhiza"],
-        check=True,
-        capture_output=True,
-    )
-
+from test_utils import GIT  # noqa: E402
 
 MOCK_MAKE_SCRIPT = """#!/usr/bin/env python3
 import sys
@@ -109,7 +64,6 @@ def bump_version(current, bump_type):
 
 def main():
     args = sys.argv[1:]
-    # Expected invocations from release.sh start with 'version'
     if not args:
         sys.exit(1)
 
@@ -230,11 +184,8 @@ def git_repo(root, tmp_path, monkeypatch):
     # Ensure our bin comes first on PATH so 'uv' resolves to mock
     monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ.get('PATH', '')}")
 
-    # Copy scripts and core Rhiza Makefiles
-    script_dir = local_dir / ".rhiza" / "scripts"
-    script_dir.mkdir(parents=True)
-
-    shutil.copy(root / ".rhiza" / "scripts" / "release.sh", script_dir / "release.sh")
+    # Copy core Rhiza Makefiles
+    (local_dir / ".rhiza").mkdir(parents=True, exist_ok=True)
     shutil.copy(root / ".rhiza" / "rhiza.mk", local_dir / ".rhiza" / "rhiza.mk")
     shutil.copy(root / "Makefile", local_dir / "Makefile")
 
@@ -248,8 +199,6 @@ def git_repo(root, tmp_path, monkeypatch):
     book_dst = local_dir / "book"
     if book_src.is_dir():
         shutil.copytree(book_src, book_dst, dirs_exist_ok=True)
-
-    (script_dir / "release.sh").chmod(0o755)
 
     # Commit and push initial state
     subprocess.run([GIT, "config", "user.email", "test@example.com"], check=True)  # nosec B603

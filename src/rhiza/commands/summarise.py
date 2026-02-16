@@ -24,8 +24,8 @@ def run_git_command(args: list[str], cwd: Path | None = None) -> str:
         Command output as string
     """
     try:
-        result = subprocess.run(  # nosec B603 B607
-            ["git", *args],
+        result = subprocess.run(  # nosec B603 B607  # noqa: S603
+            ["git", *args],  # noqa: S607
             cwd=cwd,
             capture_output=True,
             text=True,

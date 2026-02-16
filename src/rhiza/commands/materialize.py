@@ -54,7 +54,7 @@ def _handle_target_branch(
     logger.info(f"Creating/checking out target branch: {target_branch}")
     try:
         # Check if branch already exists using git rev-parse
-        result = subprocess.run(  # nosec B603
+        result = subprocess.run(  # nosec B603  # noqa: S603
             [git_executable, "rev-parse", "--verify", target_branch],
             cwd=target,
             capture_output=True,
@@ -65,7 +65,7 @@ def _handle_target_branch(
         if result.returncode == 0:
             # Branch exists, switch to it
             logger.info(f"Branch '{target_branch}' exists, checking out...")
-            subprocess.run(  # nosec B603
+            subprocess.run(  # nosec B603  # noqa: S603
                 [git_executable, "checkout", target_branch],
                 cwd=target,
                 check=True,
@@ -76,7 +76,7 @@ def _handle_target_branch(
         else:
             # Branch doesn't exist, create it from current HEAD
             logger.info(f"Creating new branch '{target_branch}'...")
-            subprocess.run(  # nosec B603
+            subprocess.run(  # nosec B603  # noqa: S603
                 [git_executable, "checkout", "-b", target_branch],
                 cwd=target,
                 check=True,
@@ -191,7 +191,7 @@ def _update_sparse_checkout(
     """
     try:
         logger.debug(f"Updating sparse checkout paths: {include_paths}")
-        subprocess.run(  # nosec B603
+        subprocess.run(  # nosec B603  # noqa: S603
             [git_executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
             cwd=tmp_dir,
             check=True,
@@ -227,7 +227,7 @@ def _clone_template_repository(
     # Clone the repository using sparse checkout
     try:
         logger.debug("Executing git clone with sparse checkout")
-        subprocess.run(  # nosec B603
+        subprocess.run(  # nosec B603  # noqa: S603
             [
                 git_executable,
                 "clone",
@@ -258,7 +258,7 @@ def _clone_template_repository(
     # Initialize sparse checkout in cone mode
     try:
         logger.debug("Initializing sparse checkout")
-        subprocess.run(  # nosec B603
+        subprocess.run(  # nosec B603  # noqa: S603
             [git_executable, "sparse-checkout", "init", "--cone"],
             cwd=tmp_dir,
             check=True,
@@ -275,7 +275,7 @@ def _clone_template_repository(
     # Set sparse checkout paths
     try:
         logger.debug(f"Setting sparse checkout paths: {include_paths}")
-        subprocess.run(  # nosec B603
+        subprocess.run(  # nosec B603  # noqa: S603
             [git_executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
             cwd=tmp_dir,
             check=True,
