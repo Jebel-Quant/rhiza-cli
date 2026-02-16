@@ -316,6 +316,228 @@ def _apply_diff(diff: str, target: Path, git_executable: str, git_env: dict[str,
 
 
 # ---------------------------------------------------------------------------
+# Strategy implementations
+# ---------------------------------------------------------------------------
+
+
+def _copy_files_to_target(snapshot_dir: Path, target: Path, materialized: list[Path]) -> None:
+    """Copy all materialized files from a snapshot into the target project.
+
+    Args:
+        snapshot_dir: Directory containing the snapshot files.
+        target: Path to the target repository.
+        materialized: List of relative file paths to copy.
+    """
+    for rel_path in sorted(materialized):
+        src = snapshot_dir / rel_path
+        dst = target / rel_path
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+        logger.success(f"[COPY] {rel_path}")
+
+
+def _sync_diff(target: Path, upstream_snapshot: Path) -> None:
+    """Execute the diff (dry-run) strategy.
+
+    Shows what would change without modifying any files.
+
+    Args:
+        target: Path to the target repository.
+        upstream_snapshot: Path to the upstream snapshot directory.
+    """
+    diff = get_diff(target, upstream_snapshot)
+    if diff.strip():
+        logger.info(f"\n{diff}")
+        changes = diff.count("diff --git")
+        logger.info(f"{changes} file(s) would be changed")
+    else:
+        logger.success("No differences found")
+
+
+def _sync_overwrite(
+    target: Path,
+    upstream_snapshot: Path,
+    upstream_sha: str,
+    materialized: list[Path],
+    rhiza_repo: str,
+    rhiza_branch: str,
+) -> None:
+    """Execute the overwrite strategy (same as materialize --force).
+
+    Args:
+        target: Path to the target repository.
+        upstream_snapshot: Path to the upstream snapshot directory.
+        upstream_sha: HEAD SHA of the upstream template.
+        materialized: List of relative file paths.
+        rhiza_repo: Template repository name.
+        rhiza_branch: Template branch name.
+    """
+    _copy_files_to_target(upstream_snapshot, target, materialized)
+    _warn_about_workflow_files(materialized)
+    _write_history_file(target, materialized, rhiza_repo, rhiza_branch)
+    _write_lock(target, upstream_sha)
+    logger.success("Sync complete (overwrite strategy)")
+
+
+def _sync_merge(
+    target: Path,
+    upstream_snapshot: Path,
+    upstream_sha: str,
+    base_sha: str | None,
+    materialized: list[Path],
+    include_paths: list[str],
+    excludes: set[str],
+    git_url: str,
+    git_executable: str,
+    git_env: dict[str, str],
+    rhiza_repo: str,
+    rhiza_branch: str,
+) -> None:
+    """Execute the merge strategy (cruft-style 3-way merge).
+
+    When a base SHA exists, computes the diff between base and upstream
+    snapshots and applies it via ``git apply -3``.  On first sync (no base),
+    falls back to a simple copy.
+
+    Args:
+        target: Path to the target repository.
+        upstream_snapshot: Path to the upstream snapshot directory.
+        upstream_sha: HEAD SHA of the upstream template.
+        base_sha: Previously synced commit SHA, or None for first sync.
+        materialized: List of relative file paths.
+        include_paths: Paths to include from the template.
+        excludes: Set of relative paths to exclude.
+        git_url: Remote URL of the template repository.
+        git_executable: Absolute path to git.
+        git_env: Environment variables for git commands.
+        rhiza_repo: Template repository name.
+        rhiza_branch: Template branch name.
+    """
+    base_snapshot = Path(tempfile.mkdtemp())
+    try:
+        if base_sha:
+            _merge_with_base(
+                target,
+                upstream_snapshot,
+                upstream_sha,
+                base_sha,
+                base_snapshot,
+                include_paths,
+                excludes,
+                git_url,
+                git_executable,
+                git_env,
+            )
+        else:
+            logger.info("First sync — copying all template files")
+            _copy_files_to_target(upstream_snapshot, target, materialized)
+
+        _warn_about_workflow_files(materialized)
+        _write_history_file(target, materialized, rhiza_repo, rhiza_branch)
+        _write_lock(target, upstream_sha)
+        logger.success(f"Sync complete — {len(materialized)} file(s) processed")
+    finally:
+        if base_snapshot.exists():
+            shutil.rmtree(base_snapshot)
+
+
+def _merge_with_base(
+    target: Path,
+    upstream_snapshot: Path,
+    upstream_sha: str,
+    base_sha: str,
+    base_snapshot: Path,
+    include_paths: list[str],
+    excludes: set[str],
+    git_url: str,
+    git_executable: str,
+    git_env: dict[str, str],
+) -> None:
+    """Compute and apply the diff between base and upstream snapshots.
+
+    Args:
+        target: Path to the target repository.
+        upstream_snapshot: Path to the upstream snapshot directory.
+        upstream_sha: HEAD SHA of the upstream template.
+        base_sha: Previously synced commit SHA.
+        base_snapshot: Directory to populate with the base snapshot.
+        include_paths: Paths to include from the template.
+        excludes: Set of relative paths to exclude.
+        git_url: Remote URL of the template repository.
+        git_executable: Absolute path to git.
+        git_env: Environment variables for git commands.
+    """
+    logger.info(f"Cloning base snapshot at {base_sha[:12]}")
+    base_clone = Path(tempfile.mkdtemp())
+    try:
+        _clone_at_sha(git_url, base_sha, base_clone, include_paths, git_executable, git_env)
+        _prepare_snapshot(base_clone, include_paths, excludes, base_snapshot)
+    except Exception:
+        logger.warning("Could not checkout base commit — treating all files as new")
+    finally:
+        if base_clone.exists():
+            shutil.rmtree(base_clone)
+
+    diff = get_diff(base_snapshot, upstream_snapshot)
+
+    if not diff.strip():
+        logger.success("Template unchanged since last sync — nothing to apply")
+        _write_lock(target, upstream_sha)
+        return
+
+    logger.info("Applying template changes via 3-way merge (cruft)...")
+    clean = _apply_diff(diff, target, git_executable, git_env)
+
+    if clean:
+        logger.success("All changes applied cleanly")
+    else:
+        logger.warning("Some changes had conflicts. Check for *.rej files and resolve manually.")
+
+
+# ---------------------------------------------------------------------------
+# Upstream clone and resolution
+# ---------------------------------------------------------------------------
+
+
+def _clone_and_resolve_upstream(
+    template,
+    git_url: str,
+    rhiza_branch: str,
+    include_paths: list[str],
+    git_executable: str,
+    git_env: dict[str, str],
+) -> tuple[Path, str, list[str]]:
+    """Clone the upstream template repository and resolve bundle paths.
+
+    Args:
+        template: The loaded RhizaTemplate configuration.
+        git_url: Remote URL of the template repository.
+        rhiza_branch: Branch to clone.
+        include_paths: Initial include paths from template config.
+        git_executable: Absolute path to git.
+        git_env: Environment variables for git commands.
+
+    Returns:
+        Tuple of (upstream_dir, upstream_sha, resolved_include_paths).
+    """
+    upstream_dir = Path(tempfile.mkdtemp())
+
+    initial_paths = [".rhiza"] if template.templates else include_paths
+    _clone_template_repository(upstream_dir, git_url, rhiza_branch, initial_paths, git_executable, git_env)
+
+    if template.templates:
+        bundles_config = load_bundles_from_clone(upstream_dir)
+        resolved_paths = resolve_include_paths(template, bundles_config)
+        _update_sparse_checkout(upstream_dir, resolved_paths, git_executable, git_env)
+        include_paths = resolved_paths
+
+    upstream_sha = _get_head_sha(upstream_dir, git_executable, git_env)
+    logger.info(f"Upstream HEAD: {upstream_sha[:12]}")
+
+    return upstream_dir, upstream_sha, include_paths
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -349,135 +571,57 @@ def sync(
     git_env = os.environ.copy()
     git_env["GIT_TERMINAL_PROMPT"] = "0"
 
-    # Handle target branch if specified
     _handle_target_branch(target, target_branch, git_executable, git_env)
 
-    # Validate and load template configuration
     template, rhiza_repo, rhiza_branch, include_paths, excluded_paths = _validate_and_load_template(target, branch)
     rhiza_host = template.template_host or "github"
     git_url = _construct_git_url(rhiza_repo, rhiza_host)
 
-    # --- Clone upstream (latest) ---
-    upstream_dir = Path(tempfile.mkdtemp())
     logger.info(f"Cloning {rhiza_repo}@{rhiza_branch} (upstream)")
+    upstream_dir, upstream_sha, include_paths = _clone_and_resolve_upstream(
+        template,
+        git_url,
+        rhiza_branch,
+        include_paths,
+        git_executable,
+        git_env,
+    )
 
     try:
-        initial_paths = [".rhiza"] if template.templates else include_paths
-        _clone_template_repository(upstream_dir, git_url, rhiza_branch, initial_paths, git_executable, git_env)
-
-        # Resolve bundles if needed
-        if template.templates:
-            bundles_config = load_bundles_from_clone(upstream_dir)
-            resolved_paths = resolve_include_paths(template, bundles_config)
-            _update_sparse_checkout(upstream_dir, resolved_paths, git_executable, git_env)
-            include_paths = resolved_paths
-
-        upstream_sha = _get_head_sha(upstream_dir, git_executable, git_env)
-        logger.info(f"Upstream HEAD: {upstream_sha[:12]}")
-
-        # --- Determine base SHA ---
         base_sha = _read_lock(target)
-
         if base_sha == upstream_sha:
             logger.success("Already up to date — nothing to sync")
             return
 
-        # --- Build excluded set ---
         excludes = _excluded_set(upstream_dir, excluded_paths)
 
-        # --- Create upstream snapshot ---
         upstream_snapshot = Path(tempfile.mkdtemp())
         try:
             materialized = _prepare_snapshot(upstream_dir, include_paths, excludes, upstream_snapshot)
             logger.info(f"Upstream: {len(materialized)} file(s) to consider")
 
-            # ------------------------------------------------------------------
-            # Strategy: diff (dry-run) — uses cruft's get_diff
-            # ------------------------------------------------------------------
             if strategy == "diff":
-                diff = get_diff(target, upstream_snapshot)
-                if diff.strip():
-                    logger.info(f"\n{diff}")
-                    # Count changed files from diff headers
-                    changes = diff.count("diff --git")
-                    logger.info(f"{changes} file(s) would be changed")
-                else:
-                    logger.success("No differences found")
-                return
-
-            # ------------------------------------------------------------------
-            # Strategy: overwrite  (same as materialize --force)
-            # ------------------------------------------------------------------
-            if strategy == "overwrite":
-                for rel_path in sorted(materialized):
-                    src = upstream_snapshot / rel_path
-                    dst = target / rel_path
-                    dst.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(src, dst)
-                    logger.success(f"[COPY] {rel_path}")
-
-                _warn_about_workflow_files(materialized)
-                _write_history_file(target, materialized, rhiza_repo, rhiza_branch)
-                _write_lock(target, upstream_sha)
-                logger.success("Sync complete (overwrite strategy)")
-                return
-
-            # ------------------------------------------------------------------
-            # Strategy: merge (default — cruft-style 3-way merge)
-            # ------------------------------------------------------------------
-            base_snapshot = Path(tempfile.mkdtemp())
-            try:
-                if base_sha:
-                    # Clone the base version for comparison
-                    logger.info(f"Cloning base snapshot at {base_sha[:12]}")
-                    base_clone = Path(tempfile.mkdtemp())
-                    try:
-                        _clone_at_sha(git_url, base_sha, base_clone, include_paths, git_executable, git_env)
-                        _prepare_snapshot(base_clone, include_paths, excludes, base_snapshot)
-                    except Exception:
-                        logger.warning("Could not checkout base commit — treating all files as new")
-                    finally:
-                        if base_clone.exists():
-                            shutil.rmtree(base_clone)
-
-                    # Use cruft's get_diff to compute the diff between base and upstream
-                    diff = get_diff(base_snapshot, upstream_snapshot)
-
-                    if not diff.strip():
-                        logger.success("Template unchanged since last sync — nothing to apply")
-                        _write_lock(target, upstream_sha)
-                        return
-
-                    logger.info("Applying template changes via 3-way merge (cruft)...")
-                    clean = _apply_diff(diff, target, git_executable, git_env)
-
-                    if clean:
-                        logger.success("All changes applied cleanly")
-                    else:
-                        logger.warning("Some changes had conflicts. Check for *.rej files and resolve manually.")
-                else:
-                    # No base — first sync, copy all files
-                    logger.info("First sync — copying all template files")
-                    for rel_path in sorted(materialized):
-                        src = upstream_snapshot / rel_path
-                        dst = target / rel_path
-                        dst.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(src, dst)
-                        logger.success(f"[COPY] {rel_path}")
-
-                _warn_about_workflow_files(materialized)
-                _write_history_file(target, materialized, rhiza_repo, rhiza_branch)
-                _write_lock(target, upstream_sha)
-                logger.success(f"Sync complete — {len(materialized)} file(s) processed")
-
-            finally:
-                if base_snapshot.exists():
-                    shutil.rmtree(base_snapshot)
-
+                _sync_diff(target, upstream_snapshot)
+            elif strategy == "overwrite":
+                _sync_overwrite(target, upstream_snapshot, upstream_sha, materialized, rhiza_repo, rhiza_branch)
+            else:
+                _sync_merge(
+                    target,
+                    upstream_snapshot,
+                    upstream_sha,
+                    base_sha,
+                    materialized,
+                    include_paths,
+                    excludes,
+                    git_url,
+                    git_executable,
+                    git_env,
+                    rhiza_repo,
+                    rhiza_branch,
+                )
         finally:
             if upstream_snapshot.exists():
                 shutil.rmtree(upstream_snapshot)
-
     finally:
         if upstream_dir.exists():
             shutil.rmtree(upstream_dir)
