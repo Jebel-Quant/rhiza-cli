@@ -15,6 +15,7 @@ from rhiza.commands import materialize as materialize_cmd
 from rhiza.commands import validate as validate_cmd
 from rhiza.commands.migrate import migrate as migrate_cmd
 from rhiza.commands.summarise import summarise as summarise_cmd
+from rhiza.commands.sync import sync as sync_cmd
 from rhiza.commands.uninstall import uninstall as uninstall_cmd
 from rhiza.commands.welcome import welcome as welcome_cmd
 
@@ -177,6 +178,71 @@ def materialize(
         rhiza materialize /path/to/project -b v2.0 -y
     """
     materialize_cmd(target, branch, target_branch, force)
+
+
+@app.command()
+def sync(
+    target: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            help="Target git repository (defaults to current directory)",
+        ),
+    ] = Path("."),
+    branch: str = typer.Option("main", "--branch", "-b", help="Rhiza branch to use"),
+    target_branch: str = typer.Option(
+        None,
+        "--target-branch",
+        "--checkout-branch",
+        help="Create and checkout a new branch in the target repository for changes",
+    ),
+    strategy: str = typer.Option(
+        "merge",
+        "--strategy",
+        "-s",
+        help="Sync strategy: 'merge' (3-way merge preserving local changes), "
+        "'overwrite' (replace files), or 'diff' (dry-run showing changes)",
+    ),
+) -> None:
+    r"""Sync templates using diff/merge instead of overwriting.
+
+    Unlike `materialize --force` which overwrites files, `sync` uses a
+    3-way merge approach so that local customisations are preserved while
+    upstream template changes are applied safely.
+
+    The command tracks the last-synced template commit in
+    `.rhiza/template.lock`. On subsequent syncs it compares three versions
+    of each file:
+
+    \b
+    - **base**: the template at the last-synced commit
+    - **upstream**: the template at the current branch HEAD
+    - **local**: the file in your project (possibly customised)
+
+    Files that changed only upstream are updated automatically.
+    Files that changed only locally are left untouched.
+    Files that changed in both places are merged; conflicts are marked
+    with standard git conflict markers for manual resolution.
+
+    Strategies:
+    \b
+    - merge:     3-way merge preserving local changes (default)
+    - overwrite: replace files (same as materialize --force)
+    - diff:      dry-run showing what would change
+
+    Examples:
+        rhiza sync
+        rhiza sync --strategy diff
+        rhiza sync --strategy overwrite
+        rhiza sync --branch develop
+        rhiza sync --target-branch feature/update-templates
+    """
+    if strategy not in ("merge", "overwrite", "diff"):
+        typer.echo(f"Unknown strategy: {strategy}. Must be 'merge', 'overwrite', or 'diff'.")
+        raise typer.Exit(code=1)
+    sync_cmd(target, branch, target_branch, strategy)
 
 
 @app.command()
