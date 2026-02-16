@@ -201,9 +201,8 @@ def uninstall(target: Path, force: bool) -> None:
     logger.info(f"Found {len(files_to_remove)} file(s) to remove")
 
     # Confirm uninstall unless force is used
-    if not force:
-        if not _confirm_uninstall(files_to_remove, target):
-            return
+    if not force and not _confirm_uninstall(files_to_remove, target):
+        return
 
     # Remove files
     removed_count, skipped_count, error_count = _remove_files(files_to_remove, target)

@@ -52,12 +52,7 @@ def _normalize_to_list(value: str | list[str] | None) -> list[str]:
     if isinstance(value, str):
         # Split by newlines and filter out empty strings
         # Handle both actual newlines (\n) and literal backslash-n (\\n)
-        if "\\n" in value and "\n" not in value:
-            # Contains literal \n but not actual newlines
-            items = value.split("\\n")
-        else:
-            # Contains actual newlines or neither
-            items = value.split("\n")
+        items = value.split("\\n") if "\\n" in value and "\n" not in value else value.split("\n")
         return [item.strip() for item in items if item.strip()]
     return []
 

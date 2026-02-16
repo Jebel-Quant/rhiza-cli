@@ -118,10 +118,12 @@ class TestInjectCommand:
             yaml.dump({"template-branch": "main", "include": [".github"]}, f)
 
         # Mock validate to pass, so we can test the check in _validate_and_load_template
-        with patch("rhiza.commands.materialize.validate", return_value=True):
+        with (
+            patch("rhiza.commands.materialize.validate", return_value=True),
+            pytest.raises(RuntimeError, match="template-repository is required"),
+        ):
             # Run inject and expect it to fail with RuntimeError
-            with pytest.raises(RuntimeError, match="template-repository is required"):
-                materialize(tmp_path, "main", None, False)
+            materialize(tmp_path, "main", None, False)
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -1664,24 +1666,26 @@ class TestInjectCommand:
         test_file = temp_dir / "test.txt"
         test_file.write_text("content")
 
-        with patch("rhiza.commands.materialize.tempfile.mkdtemp", return_value=str(temp_dir)):
-            with patch("rhiza.commands.materialize.subprocess.run") as mock_subprocess:
-                mock_subprocess.return_value = Mock(returncode=0)
+        with (
+            patch("rhiza.commands.materialize.tempfile.mkdtemp", return_value=str(temp_dir)),
+            patch("rhiza.commands.materialize.subprocess.run") as mock_subprocess,
+        ):
+            mock_subprocess.return_value = Mock(returncode=0)
 
-                # Run materialize with custom template branch
-                materialize(tmp_path, "custom-branch", None, True)
+            # Run materialize with custom template branch
+            materialize(tmp_path, "custom-branch", None, True)
 
-                # Verify git clone was called with the custom branch
-                clone_calls = [
-                    call
-                    for call in mock_subprocess.call_args_list
-                    if len(call[0]) > 0
-                    and len(call[0][0]) > 2
-                    and "clone" in call[0][0]
-                    and "--branch" in call[0][0]
-                    and "custom-branch" in call[0][0]
-                ]
-                assert len(clone_calls) > 0, "Expected git clone with custom branch to be called"
+            # Verify git clone was called with the custom branch
+            clone_calls = [
+                call
+                for call in mock_subprocess.call_args_list
+                if len(call[0]) > 0
+                and len(call[0][0]) > 2
+                and "clone" in call[0][0]
+                and "--branch" in call[0][0]
+                and "custom-branch" in call[0][0]
+            ]
+            assert len(clone_calls) > 0, "Expected git clone with custom branch to be called"
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")

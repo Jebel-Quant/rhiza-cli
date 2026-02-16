@@ -406,14 +406,12 @@ def validate(target: Path) -> bool:
         validation_passed = False
 
     # Validate templates if present
-    if config.get("templates"):
-        if not _validate_templates(config):
-            validation_passed = False
+    if config.get("templates") and not _validate_templates(config):
+        validation_passed = False
 
     # Validate include if present
-    if config.get("include"):
-        if not _validate_include_paths(config):
-            validation_passed = False
+    if config.get("include") and not _validate_include_paths(config):
+        validation_passed = False
 
     # Validate optional fields
     _validate_optional_fields(config)
