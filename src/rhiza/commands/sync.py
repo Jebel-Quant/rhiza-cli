@@ -399,11 +399,7 @@ def sync(
                 if diff.strip():
                     logger.info(f"\n{diff}")
                     # Count changed files from diff headers
-                    changes = diff.count("\ndiff --git")
-                    if not diff.startswith("diff --git"):
-                        changes += 0
-                    else:
-                        changes += 1
+                    changes = diff.count("diff --git")
                     logger.info(f"{changes} file(s) would be changed")
                 else:
                     logger.success("No differences found")

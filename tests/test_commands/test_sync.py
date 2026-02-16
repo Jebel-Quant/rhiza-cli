@@ -158,49 +158,36 @@ class TestApplyDiff:
         env["GIT_TERMINAL_PROMPT"] = "0"
         return git, env
 
-    def _init_git_repo(self, path, git_executable, git_env):
-        """Initialise a git repo with an initial commit."""
-        subprocess.run(  # nosec B603
-            [git_executable, "init"],
-            cwd=path,
-            check=True,
-            capture_output=True,
-            env=git_env,
-        )
-        subprocess.run(  # nosec B603
-            [git_executable, "config", "user.email", "test@test.com"],
-            cwd=path,
-            check=True,
-            capture_output=True,
-            env=git_env,
-        )
-        subprocess.run(  # nosec B603
-            [git_executable, "config", "user.name", "Test"],
-            cwd=path,
-            check=True,
-            capture_output=True,
-            env=git_env,
-        )
-
-    def test_apply_clean_diff(self, tmp_path, git_setup):
-        """A clean diff should apply without conflicts."""
+    @pytest.fixture
+    def git_project(self, tmp_path, git_setup):
+        """Create a git-initialised project directory."""
         git_executable, git_env = git_setup
         project = tmp_path / "project"
         project.mkdir()
-        self._init_git_repo(project, git_executable, git_env)
+        for cmd in [
+            [git_executable, "init"],
+            [git_executable, "config", "user.email", "test@test.com"],
+            [git_executable, "config", "user.name", "Test"],
+        ]:
+            subprocess.run(cmd, cwd=project, check=True, capture_output=True, env=git_env)  # nosec B603
+        return project
+
+    def test_apply_clean_diff(self, git_project, git_setup):
+        """A clean diff should apply without conflicts."""
+        git_executable, git_env = git_setup
 
         # Create and commit initial file
-        (project / "test.txt").write_text("line1\nline2\nline3\n")
+        (git_project / "test.txt").write_text("line1\nline2\nline3\n")
         subprocess.run(  # nosec B603
             [git_executable, "add", "."],
-            cwd=project,
+            cwd=git_project,
             check=True,
             capture_output=True,
             env=git_env,
         )
         subprocess.run(  # nosec B603
             [git_executable, "commit", "-m", "initial"],
-            cwd=project,
+            cwd=git_project,
             check=True,
             capture_output=True,
             env=git_env,
@@ -218,18 +205,14 @@ class TestApplyDiff:
             " line3\n"
         )
 
-        result = _apply_diff(diff, project, git_executable, git_env)
+        result = _apply_diff(diff, git_project, git_executable, git_env)
         assert result is True
-        assert "line2-updated" in (project / "test.txt").read_text()
+        assert "line2-updated" in (git_project / "test.txt").read_text()
 
-    def test_apply_empty_diff_returns_true(self, tmp_path, git_setup):
+    def test_apply_empty_diff_returns_true(self, git_project, git_setup):
         """An empty diff is not a failure."""
         git_executable, git_env = git_setup
-        project = tmp_path / "project"
-        project.mkdir()
-        self._init_git_repo(project, git_executable, git_env)
-
-        result = _apply_diff("", project, git_executable, git_env)
+        result = _apply_diff("", git_project, git_executable, git_env)
         assert result is True
 
 
