@@ -88,11 +88,7 @@ def _check_template_file_exists(target: Path) -> tuple[bool, Path]:
         logger.error("The template configuration must be in the .rhiza folder.")
         logger.info("")
         logger.info("To fix this:")
-        logger.info("  • If you're starting fresh, run: rhiza init")
-        logger.info("  • If you have an existing configuration, run: rhiza migrate")
-        logger.info("")
-        logger.info("The 'rhiza migrate' command will move your configuration from")
-        logger.info("  the old location → .rhiza/template.yml")
+        logger.info("  • Run: rhiza init")
         return False, template_file
 
     logger.success(f"Template file exists: {template_file.relative_to(target)}")
