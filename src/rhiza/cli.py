@@ -217,9 +217,9 @@ def sync(
     of each file:
 
     \b
-    - **base**: the template at the last-synced commit
-    - **upstream**: the template at the current branch HEAD
-    - **local**: the file in your project (possibly customised)
+    - base:     the template at the last-synced commit
+    - upstream: the template at the current branch HEAD
+    - local:    the file in your project (possibly customised)
 
     Files that changed only upstream are updated automatically.
     Files that changed only locally are left untouched.
