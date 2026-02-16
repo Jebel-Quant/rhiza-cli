@@ -250,10 +250,11 @@ class TestSyncCommand:
             yaml.dump(config, f)
 
     @patch("rhiza.commands.sync.shutil.rmtree")
+    @patch("rhiza.commands.sync._clone_at_sha")
     @patch("rhiza.commands.sync._clone_template_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
     @patch("rhiza.commands.sync._get_head_sha")
-    def test_sync_already_up_to_date(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
+    def test_sync_already_up_to_date(self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_rmtree, tmp_path):
         """When lock SHA matches upstream HEAD, sync exits early."""
         self._setup_project(tmp_path)
 
@@ -268,8 +269,8 @@ class TestSyncCommand:
 
         sync(tmp_path, "main", None, "merge")
 
-        # Should not have attempted to clone base
-        # (it exits early before that step)
+        # Should not have attempted to clone base (early exit)
+        mock_clone_base.assert_not_called()
 
     @patch("rhiza.commands.sync.shutil.rmtree")
     @patch("rhiza.commands.sync._clone_template_repository")

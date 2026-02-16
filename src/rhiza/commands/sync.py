@@ -470,8 +470,9 @@ def sync(
         # ------------------------------------------------------------------
         # Strategy: overwrite  (same as materialize --force)
         # ------------------------------------------------------------------
+        materialized: list[Path] = []
+
         if strategy == "overwrite":
-            materialized: list[Path] = []
             for rel_path, content in sorted(upstream_files.items()):
                 dst = target / rel_path
                 dst.parent.mkdir(parents=True, exist_ok=True)
@@ -488,7 +489,6 @@ def sync(
         # ------------------------------------------------------------------
         # Strategy: merge (default — 3-way merge)
         # ------------------------------------------------------------------
-        materialized: list[Path] = []  # type: ignore[no-redef]
         conflicts: list[str] = []
 
         for rel_path, upstream_content in sorted(upstream_files.items()):
