@@ -1,18 +1,18 @@
 """Command for syncing Rhiza template files using diff/merge.
 
 This module implements the ``sync`` command. Unlike ``materialize --force``
-which overwrites files, ``sync`` uses a 3-way merge approach (inspired by
-cruft) so that local customisations are preserved and upstream changes are
-applied safely.
+which overwrites files, ``sync`` uses cruft's diff/patch approach so that
+local customisations are preserved and upstream changes are applied safely.
 
 The approach:
 1. Read the last-synced commit SHA from ``.rhiza/template.lock``.
 2. Clone the template repository and obtain two tree snapshots:
    - **base**: the template at the previously synced commit (the common ancestor).
    - **upstream**: the template at the current HEAD of the configured branch.
-3. For every managed file, perform a 3-way merge:
-   ``base → upstream`` (template changes) merged with ``base → local`` (user changes).
-4. Write the result and update the lock file.
+3. Compute a diff between base and upstream using ``git diff --no-index``
+   (via ``cruft._commands.utils.diff.get_diff``).
+4. Apply the diff to the project using ``git apply -3`` for a 3-way merge.
+5. Update the lock file.
 
 When no lock file exists (first sync), the command falls back to a simple
 copy (equivalent to ``materialize --force``) and records the commit SHA.
@@ -25,6 +25,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from cruft._commands.utils.diff import get_diff
 from loguru import logger
 
 from rhiza.bundle_resolver import load_bundles_from_clone, resolve_include_paths
@@ -228,128 +229,90 @@ def _excluded_set(base_dir: Path, excluded_paths: list[str]) -> set[str]:
 
 
 # ---------------------------------------------------------------------------
-# 3-way merge
+# Cruft-based diff / patch helpers
 # ---------------------------------------------------------------------------
 
 
-def _merge_file(
-    base_content: str | None,
-    upstream_content: str,
-    local_content: str | None,
-    rel_path: str,
-    git_executable: str,
-    git_env: dict[str, str],
-) -> tuple[str, bool]:
-    """Perform a 3-way merge on a single file using ``git merge-file``.
+def _prepare_snapshot(
+    clone_dir: Path,
+    include_paths: list[str],
+    excludes: set[str],
+    snapshot_dir: Path,
+) -> list[Path]:
+    """Copy included (non-excluded) files from a clone into a clean snapshot directory.
+
+    This creates a flat directory tree suitable for ``git diff --no-index``.
 
     Args:
-        base_content: Content of the file at the base (last-synced) commit.
-            ``None`` when the file is new in the template.
-        upstream_content: Content from the latest template version.
-        local_content: Current content in the user's project.
-            ``None`` when the file does not exist locally.
-        rel_path: Relative path (used for labelling conflict markers).
+        clone_dir: Root of the template clone.
+        include_paths: Paths to include.
+        excludes: Set of relative paths to exclude.
+        snapshot_dir: Destination directory for the snapshot.
+
+    Returns:
+        List of relative file paths that were copied.
+    """
+    materialized: list[Path] = []
+    for f in _expand_paths(clone_dir, include_paths):
+        rel = str(f.relative_to(clone_dir))
+        if rel not in excludes:
+            dst = snapshot_dir / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, dst)
+            materialized.append(Path(rel))
+    return materialized
+
+
+def _apply_diff(diff: str, target: Path, git_executable: str, git_env: dict[str, str]) -> bool:
+    """Apply a diff to the target project using ``git apply -3`` (3-way merge).
+
+    Falls back to ``git apply --reject`` if the target is not a git repository.
+
+    Args:
+        diff: Unified diff string.
+        target: Path to the target repository.
         git_executable: Absolute path to git.
         git_env: Environment variables for git commands.
 
     Returns:
-        Tuple of (merged content, had_conflicts).
+        True if the diff applied cleanly, False if there were conflicts.
     """
-    # If there's no local file, the upstream content wins
-    if local_content is None:
-        return upstream_content, False
+    if not diff.strip():
+        return True
 
-    # If there's no base, treat as new file with conflict on difference
-    if base_content is None:
-        if local_content == upstream_content:
-            return upstream_content, False
-        # No common ancestor — use upstream as base for a best-effort merge
-        base_content = ""
-
-    # Write the three versions to temp files
-    tmp_dir = Path(tempfile.mkdtemp())
     try:
-        base_file = tmp_dir / "base"
-        upstream_file = tmp_dir / "upstream"
-        local_file = tmp_dir / "local"
-
-        base_file.write_text(base_content, encoding="utf-8")
-        upstream_file.write_text(upstream_content, encoding="utf-8")
-        local_file.write_text(local_content, encoding="utf-8")
-
-        # git merge-file writes merged output into the first file
-        # Returns 0 on clean merge, >0 on conflicts, <0 on error
-        result = subprocess.run(  # nosec B603  # noqa: S603
-            [
-                git_executable,
-                "merge-file",
-                "-L",
-                f"local ({rel_path})",
-                "-L",
-                f"base ({rel_path})",
-                "-L",
-                f"upstream ({rel_path})",
-                str(local_file),
-                str(base_file),
-                str(upstream_file),
-            ],
+        subprocess.run(  # nosec B603  # noqa: S603
+            [git_executable, "apply", "-3"],
+            input=diff.encode(),
+            cwd=target,
+            check=True,
             capture_output=True,
-            text=True,
             env=git_env,
         )
-
-        merged = local_file.read_text(encoding="utf-8")
-        had_conflicts = result.returncode > 0
-        return merged, had_conflicts
-    finally:
-        shutil.rmtree(tmp_dir)
-
-
-# ---------------------------------------------------------------------------
-# Diff-only (dry-run)
-# ---------------------------------------------------------------------------
-
-
-def _diff_file(
-    upstream_content: str,
-    local_content: str | None,
-    rel_path: str,
-) -> str | None:
-    """Return a unified diff between local and upstream, or ``None`` if equal.
-
-    Args:
-        upstream_content: Template content.
-        local_content: Local file content (or ``None``).
-        rel_path: Relative path for diff header.
-
-    Returns:
-        Diff string or ``None``.
-    """
-    import difflib
-
-    if local_content is None:
-        # New file
-        diff_lines = list(
-            difflib.unified_diff(
-                [],
-                upstream_content.splitlines(keepends=True),
-                fromfile=f"a/{rel_path}",
-                tofile=f"b/{rel_path}",
-                lineterm="",
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode() if e.stderr else ""
+        if stderr:
+            logger.warning(f"3-way merge had conflicts:\n{stderr.strip()}")
+        # Fall back to --reject for conflict files
+        try:
+            subprocess.run(  # nosec B603  # noqa: S603
+                [git_executable, "apply", "--reject"],
+                input=diff.encode(),
+                cwd=target,
+                check=True,
+                capture_output=True,
+                env=git_env,
             )
-        )
+        except subprocess.CalledProcessError as e2:
+            stderr2 = e2.stderr.decode() if e2.stderr else ""
+            if stderr2:
+                logger.warning(stderr2.strip())
+            logger.warning(
+                "Some changes could not be applied cleanly. Check for *.rej files and resolve conflicts manually."
+            )
+        return False
     else:
-        diff_lines = list(
-            difflib.unified_diff(
-                local_content.splitlines(keepends=True),
-                upstream_content.splitlines(keepends=True),
-                fromfile=f"a/{rel_path}",
-                tofile=f"b/{rel_path}",
-                lineterm="",
-            )
-        )
-
-    return "\n".join(diff_lines) if diff_lines else None
+        return True
 
 
 # ---------------------------------------------------------------------------
@@ -363,7 +326,11 @@ def sync(
     target_branch: str | None,
     strategy: str,
 ) -> None:
-    """Sync Rhiza templates using diff/merge instead of overwrite.
+    """Sync Rhiza templates using cruft-style diff/merge instead of overwrite.
+
+    Uses ``cruft``'s diff utilities to compute the diff between the base
+    (last-synced) and upstream (latest) template snapshots, then applies
+    the diff to the project using ``git apply -3`` for a 3-way merge.
 
     Args:
         target: Path to the target repository.
@@ -418,133 +385,102 @@ def sync(
         # --- Build excluded set ---
         excludes = _excluded_set(upstream_dir, excluded_paths)
 
-        # --- Collect upstream files ---
-        upstream_files: dict[str, str] = {}
-        for f in _expand_paths(upstream_dir, include_paths):
-            rel = str(f.relative_to(upstream_dir))
-            if rel not in excludes:
-                upstream_files[rel] = f.read_text(encoding="utf-8")
+        # --- Create upstream snapshot ---
+        upstream_snapshot = Path(tempfile.mkdtemp())
+        try:
+            materialized = _prepare_snapshot(upstream_dir, include_paths, excludes, upstream_snapshot)
+            logger.info(f"Upstream: {len(materialized)} file(s) to consider")
 
-        logger.info(f"Upstream: {len(upstream_files)} file(s) to consider")
-
-        # --- Clone base snapshot (if we have a previous SHA) ---
-        base_files: dict[str, str] = {}
-        base_dir: Path | None = None
-
-        if base_sha:
-            logger.info(f"Cloning base snapshot at {base_sha[:12]}")
-            base_dir = Path(tempfile.mkdtemp())
-            try:
-                _clone_at_sha(git_url, base_sha, base_dir, include_paths, git_executable, git_env)
-                for f in _expand_paths(base_dir, include_paths):
-                    rel = str(f.relative_to(base_dir))
-                    if rel not in excludes:
-                        base_files[rel] = f.read_text(encoding="utf-8")
-                logger.info(f"Base: {len(base_files)} file(s)")
-            except Exception:
-                logger.warning("Could not checkout base commit — falling back to no-base merge")
-                base_files = {}
-            finally:
-                if base_dir and base_dir.exists():
-                    shutil.rmtree(base_dir)
-
-        # ------------------------------------------------------------------
-        # Strategy: diff (dry-run)
-        # ------------------------------------------------------------------
-        if strategy == "diff":
-            changes = 0
-            for rel_path, upstream_content in sorted(upstream_files.items()):
-                local_path = target / rel_path
-                local_content = local_path.read_text(encoding="utf-8") if local_path.exists() else None
-                diff = _diff_file(upstream_content, local_content, rel_path)
-                if diff:
-                    changes += 1
+            # ------------------------------------------------------------------
+            # Strategy: diff (dry-run) — uses cruft's get_diff
+            # ------------------------------------------------------------------
+            if strategy == "diff":
+                diff = get_diff(target, upstream_snapshot)
+                if diff.strip():
                     logger.info(f"\n{diff}")
-            if changes == 0:
-                logger.success("No differences found")
-            else:
-                logger.info(f"{changes} file(s) would be changed")
-            # Update lock even in diff mode? No — diff is read-only.
-            return
+                    # Count changed files from diff headers
+                    changes = diff.count("\ndiff --git")
+                    if not diff.startswith("diff --git"):
+                        changes += 0
+                    else:
+                        changes += 1
+                    logger.info(f"{changes} file(s) would be changed")
+                else:
+                    logger.success("No differences found")
+                return
 
-        # ------------------------------------------------------------------
-        # Strategy: overwrite  (same as materialize --force)
-        # ------------------------------------------------------------------
-        materialized: list[Path] = []
+            # ------------------------------------------------------------------
+            # Strategy: overwrite  (same as materialize --force)
+            # ------------------------------------------------------------------
+            if strategy == "overwrite":
+                for rel_path in sorted(materialized):
+                    src = upstream_snapshot / rel_path
+                    dst = target / rel_path
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src, dst)
+                    logger.success(f"[COPY] {rel_path}")
 
-        if strategy == "overwrite":
-            for rel_path, content in sorted(upstream_files.items()):
-                dst = target / rel_path
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                dst.write_text(content, encoding="utf-8")
-                materialized.append(Path(rel_path))
-                logger.success(f"[COPY] {rel_path}")
+                _warn_about_workflow_files(materialized)
+                _write_history_file(target, materialized, rhiza_repo, rhiza_branch)
+                _write_lock(target, upstream_sha)
+                logger.success("Sync complete (overwrite strategy)")
+                return
 
-            _warn_about_workflow_files(materialized)
-            _write_history_file(target, materialized, rhiza_repo, rhiza_branch)
-            _write_lock(target, upstream_sha)
-            logger.success("Sync complete (overwrite strategy)")
-            return
+            # ------------------------------------------------------------------
+            # Strategy: merge (default — cruft-style 3-way merge)
+            # ------------------------------------------------------------------
+            base_snapshot = Path(tempfile.mkdtemp())
+            try:
+                if base_sha:
+                    # Clone the base version for comparison
+                    logger.info(f"Cloning base snapshot at {base_sha[:12]}")
+                    base_clone = Path(tempfile.mkdtemp())
+                    try:
+                        _clone_at_sha(git_url, base_sha, base_clone, include_paths, git_executable, git_env)
+                        _prepare_snapshot(base_clone, include_paths, excludes, base_snapshot)
+                    except Exception:
+                        logger.warning("Could not checkout base commit — treating all files as new")
+                    finally:
+                        if base_clone.exists():
+                            shutil.rmtree(base_clone)
 
-        # ------------------------------------------------------------------
-        # Strategy: merge (default — 3-way merge)
-        # ------------------------------------------------------------------
-        conflicts: list[str] = []
+                    # Use cruft's get_diff to compute the diff between base and upstream
+                    diff = get_diff(base_snapshot, upstream_snapshot)
 
-        for rel_path, upstream_content in sorted(upstream_files.items()):
-            local_path = target / rel_path
-            local_content = local_path.read_text(encoding="utf-8") if local_path.exists() else None
-            base_content = base_files.get(rel_path)
+                    if not diff.strip():
+                        logger.success("Template unchanged since last sync — nothing to apply")
+                        _write_lock(target, upstream_sha)
+                        return
 
-            # Skip if upstream and local are identical
-            if local_content is not None and local_content == upstream_content:
-                materialized.append(Path(rel_path))
-                logger.debug(f"[SKIP] {rel_path} (unchanged)")
-                continue
+                    logger.info("Applying template changes via 3-way merge (cruft)...")
+                    clean = _apply_diff(diff, target, git_executable, git_env)
 
-            # Skip if upstream hasn't changed since base (user change only)
-            if base_content is not None and base_content == upstream_content:
-                materialized.append(Path(rel_path))
-                logger.debug(f"[KEEP] {rel_path} (local-only changes)")
-                continue
+                    if clean:
+                        logger.success("All changes applied cleanly")
+                    else:
+                        logger.warning("Some changes had conflicts. Check for *.rej files and resolve manually.")
+                else:
+                    # No base — first sync, copy all files
+                    logger.info("First sync — copying all template files")
+                    for rel_path in sorted(materialized):
+                        src = upstream_snapshot / rel_path
+                        dst = target / rel_path
+                        dst.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(src, dst)
+                        logger.success(f"[COPY] {rel_path}")
 
-            merged, had_conflicts = _merge_file(
-                base_content,
-                upstream_content,
-                local_content,
-                rel_path,
-                git_executable,
-                git_env,
-            )
+                _warn_about_workflow_files(materialized)
+                _write_history_file(target, materialized, rhiza_repo, rhiza_branch)
+                _write_lock(target, upstream_sha)
+                logger.success(f"Sync complete — {len(materialized)} file(s) processed")
 
-            local_path.parent.mkdir(parents=True, exist_ok=True)
-            local_path.write_text(merged, encoding="utf-8")
-            materialized.append(Path(rel_path))
+            finally:
+                if base_snapshot.exists():
+                    shutil.rmtree(base_snapshot)
 
-            if had_conflicts:
-                conflicts.append(rel_path)
-                logger.warning(f"[CONFLICT] {rel_path}")
-            else:
-                logger.success(f"[MERGE] {rel_path}")
-
-        _warn_about_workflow_files(materialized)
-        _write_history_file(target, materialized, rhiza_repo, rhiza_branch)
-        _write_lock(target, upstream_sha)
-
-        if conflicts:
-            logger.warning(f"{len(conflicts)} file(s) have merge conflicts — resolve manually:")
-            for c in conflicts:
-                logger.warning(f"  {c}")
-            logger.info(
-                "Conflict markers use standard git format:\n"
-                "  <<<<<<< local\n"
-                "  ... your changes ...\n"
-                "  =======\n"
-                "  ... upstream changes ...\n"
-                "  >>>>>>> upstream"
-            )
-        else:
-            logger.success(f"Sync complete — {len(materialized)} file(s) merged cleanly")
+        finally:
+            if upstream_snapshot.exists():
+                shutil.rmtree(upstream_snapshot)
 
     finally:
         if upstream_dir.exists():

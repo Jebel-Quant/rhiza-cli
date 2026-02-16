@@ -208,13 +208,14 @@ def sync(
 ) -> None:
     r"""Sync templates using diff/merge instead of overwriting.
 
-    Unlike `materialize --force` which overwrites files, `sync` uses a
-    3-way merge approach so that local customisations are preserved while
-    upstream template changes are applied safely.
+    Unlike `materialize --force` which overwrites files, `sync` uses
+    cruft's diff utilities to compute the diff between the last-synced
+    and current template versions, then applies it via ``git apply -3``
+    for a 3-way merge so that local customisations are preserved.
 
     The command tracks the last-synced template commit in
-    `.rhiza/template.lock`. On subsequent syncs it compares three versions
-    of each file:
+    `.rhiza/template.lock`. On subsequent syncs it computes the diff
+    between two snapshots of the template:
 
     \b
     - base:     the template at the last-synced commit

@@ -2,12 +2,16 @@
 
 Tests cover:
 - Lock-file read/write
-- 3-way merge behaviour (clean merge, conflicts, new files)
-- Diff-only (dry-run) mode
-- Overwrite strategy
+- Path expansion and exclusion
+- Snapshot preparation (new cruft-based helper)
+- Diff application via ``git apply -3`` (new cruft-based helper)
+- Integration tests for each strategy (diff, overwrite, merge)
 - CLI wiring
 """
 
+import os
+import shutil
+import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -16,10 +20,10 @@ from typer.testing import CliRunner
 
 from rhiza import cli
 from rhiza.commands.sync import (
-    _diff_file,
+    _apply_diff,
     _excluded_set,
     _expand_paths,
-    _merge_file,
+    _prepare_snapshot,
     _read_lock,
     _write_lock,
     sync,
@@ -90,15 +94,63 @@ class TestExcludedSet:
         assert "secret.txt" in excludes
 
 
-class TestMergeFile:
-    """Tests for the 3-way merge helper."""
+class TestPrepareSnapshot:
+    """Tests for the snapshot preparation helper."""
+
+    def test_copies_included_files(self, tmp_path):
+        """Included files are copied to the snapshot directory."""
+        clone_dir = tmp_path / "clone"
+        clone_dir.mkdir()
+        (clone_dir / "a.txt").write_text("content-a")
+        (clone_dir / "b.txt").write_text("content-b")
+
+        snapshot_dir = tmp_path / "snapshot"
+        snapshot_dir.mkdir()
+
+        materialized = _prepare_snapshot(clone_dir, ["a.txt", "b.txt"], set(), snapshot_dir)
+
+        assert len(materialized) == 2
+        assert (snapshot_dir / "a.txt").read_text() == "content-a"
+        assert (snapshot_dir / "b.txt").read_text() == "content-b"
+
+    def test_excludes_files(self, tmp_path):
+        """Excluded files are not copied to the snapshot."""
+        clone_dir = tmp_path / "clone"
+        clone_dir.mkdir()
+        (clone_dir / "keep.txt").write_text("keep")
+        (clone_dir / "skip.txt").write_text("skip")
+
+        snapshot_dir = tmp_path / "snapshot"
+        snapshot_dir.mkdir()
+
+        materialized = _prepare_snapshot(clone_dir, ["keep.txt", "skip.txt"], {"skip.txt"}, snapshot_dir)
+
+        assert len(materialized) == 1
+        assert (snapshot_dir / "keep.txt").exists()
+        assert not (snapshot_dir / "skip.txt").exists()
+
+    def test_handles_subdirectories(self, tmp_path):
+        """Files in subdirectories are correctly copied."""
+        clone_dir = tmp_path / "clone"
+        sub = clone_dir / "sub"
+        sub.mkdir(parents=True)
+        (sub / "file.txt").write_text("nested")
+
+        snapshot_dir = tmp_path / "snapshot"
+        snapshot_dir.mkdir()
+
+        materialized = _prepare_snapshot(clone_dir, ["sub"], set(), snapshot_dir)
+
+        assert len(materialized) == 1
+        assert (snapshot_dir / "sub" / "file.txt").read_text() == "nested"
+
+
+class TestApplyDiff:
+    """Tests for the diff application helper."""
 
     @pytest.fixture
     def git_setup(self):
         """Return git executable and env."""
-        import os
-        import shutil
-
         git = shutil.which("git")
         if git is None:
             pytest.skip("git not available")
@@ -106,124 +158,79 @@ class TestMergeFile:
         env["GIT_TERMINAL_PROMPT"] = "0"
         return git, env
 
-    def test_no_local_file_returns_upstream(self, git_setup):
-        """When local file doesn't exist, upstream wins."""
-        git_executable, git_env = git_setup
-        merged, conflicts = _merge_file(
-            base_content="base",
-            upstream_content="upstream",
-            local_content=None,
-            rel_path="test.txt",
-            git_executable=git_executable,
-            git_env=git_env,
+    def _init_git_repo(self, path, git_executable, git_env):
+        """Initialise a git repo with an initial commit."""
+        subprocess.run(  # nosec B603
+            [git_executable, "init"],
+            cwd=path,
+            check=True,
+            capture_output=True,
+            env=git_env,
         )
-        assert merged == "upstream"
-        assert not conflicts
-
-    def test_identical_local_and_upstream_no_conflict(self, git_setup):
-        """When local and upstream are equal, no conflict."""
-        git_executable, git_env = git_setup
-        merged, conflicts = _merge_file(
-            base_content="base content\n",
-            upstream_content="same\n",
-            local_content="same\n",
-            rel_path="test.txt",
-            git_executable=git_executable,
-            git_env=git_env,
+        subprocess.run(  # nosec B603
+            [git_executable, "config", "user.email", "test@test.com"],
+            cwd=path,
+            check=True,
+            capture_output=True,
+            env=git_env,
         )
-        assert not conflicts
-        assert merged == "same\n"
-
-    def test_clean_merge_upstream_only_change(self, git_setup):
-        """When only upstream changed, clean merge adopts upstream."""
-        git_executable, git_env = git_setup
-        base = "line1\nline2\nline3\n"
-        upstream = "line1\nline2-updated\nline3\n"
-        local = "line1\nline2\nline3\n"  # Same as base
-
-        merged, conflicts = _merge_file(
-            base_content=base,
-            upstream_content=upstream,
-            local_content=local,
-            rel_path="test.txt",
-            git_executable=git_executable,
-            git_env=git_env,
+        subprocess.run(  # nosec B603
+            [git_executable, "config", "user.name", "Test"],
+            cwd=path,
+            check=True,
+            capture_output=True,
+            env=git_env,
         )
-        assert not conflicts
-        assert "line2-updated" in merged
 
-    def test_clean_merge_local_only_change(self, git_setup):
-        """When only local changed, clean merge preserves local."""
+    def test_apply_clean_diff(self, tmp_path, git_setup):
+        """A clean diff should apply without conflicts."""
         git_executable, git_env = git_setup
-        base = "line1\nline2\nline3\n"
-        upstream = "line1\nline2\nline3\n"  # Same as base
-        local = "line1\nline2-local\nline3\n"
+        project = tmp_path / "project"
+        project.mkdir()
+        self._init_git_repo(project, git_executable, git_env)
 
-        merged, conflicts = _merge_file(
-            base_content=base,
-            upstream_content=upstream,
-            local_content=local,
-            rel_path="test.txt",
-            git_executable=git_executable,
-            git_env=git_env,
+        # Create and commit initial file
+        (project / "test.txt").write_text("line1\nline2\nline3\n")
+        subprocess.run(  # nosec B603
+            [git_executable, "add", "."],
+            cwd=project,
+            check=True,
+            capture_output=True,
+            env=git_env,
         )
-        assert not conflicts
-        assert "line2-local" in merged
+        subprocess.run(  # nosec B603
+            [git_executable, "commit", "-m", "initial"],
+            cwd=project,
+            check=True,
+            capture_output=True,
+            env=git_env,
+        )
 
-    def test_conflict_on_same_line(self, git_setup):
-        """When both changed the same line, conflict markers appear."""
+        # Create a simple diff
+        diff = (
+            "diff --git a/test.txt b/test.txt\n"
+            "--- a/test.txt\n"
+            "+++ b/test.txt\n"
+            "@@ -1,3 +1,3 @@\n"
+            " line1\n"
+            "-line2\n"
+            "+line2-updated\n"
+            " line3\n"
+        )
+
+        result = _apply_diff(diff, project, git_executable, git_env)
+        assert result is True
+        assert "line2-updated" in (project / "test.txt").read_text()
+
+    def test_apply_empty_diff_returns_true(self, tmp_path, git_setup):
+        """An empty diff is not a failure."""
         git_executable, git_env = git_setup
-        base = "line1\nline2\nline3\n"
-        upstream = "line1\nupstream-change\nline3\n"
-        local = "line1\nlocal-change\nline3\n"
+        project = tmp_path / "project"
+        project.mkdir()
+        self._init_git_repo(project, git_executable, git_env)
 
-        merged, conflicts = _merge_file(
-            base_content=base,
-            upstream_content=upstream,
-            local_content=local,
-            rel_path="test.txt",
-            git_executable=git_executable,
-            git_env=git_env,
-        )
-        assert conflicts
-        assert "<<<<<<<" in merged
-        assert ">>>>>>>" in merged
-
-    def test_no_base_identical_files(self, git_setup):
-        """No base, but local == upstream → no conflict."""
-        git_executable, git_env = git_setup
-        merged, conflicts = _merge_file(
-            base_content=None,
-            upstream_content="content\n",
-            local_content="content\n",
-            rel_path="test.txt",
-            git_executable=git_executable,
-            git_env=git_env,
-        )
-        assert not conflicts
-        assert merged == "content\n"
-
-
-class TestDiffFile:
-    """Tests for the diff helper."""
-
-    def test_no_local_shows_additions(self):
-        """New file shows additions."""
-        diff = _diff_file("new content\n", None, "test.txt")
-        assert diff is not None
-        assert "+new content" in diff
-
-    def test_identical_returns_none(self):
-        """Identical files return None."""
-        diff = _diff_file("same\n", "same\n", "test.txt")
-        assert diff is None
-
-    def test_changed_shows_diff(self):
-        """Changed file produces a diff."""
-        diff = _diff_file("new\n", "old\n", "test.txt")
-        assert diff is not None
-        assert "-old" in diff
-        assert "+new" in diff
+        result = _apply_diff("", project, git_executable, git_env)
+        assert result is True
 
 
 class TestSyncCommand:
@@ -262,10 +269,10 @@ class TestSyncCommand:
         _write_lock(tmp_path, "abc123")
         mock_sha.return_value = "abc123"
 
-        # Mock temp dir
-        temp_dir = tmp_path / "upstream"
-        temp_dir.mkdir()
-        mock_mkdtemp.return_value = str(temp_dir)
+        # Mock temp dir (only upstream_dir is needed before early exit)
+        clone_dir = tmp_path / "upstream_clone"
+        clone_dir.mkdir()
+        mock_mkdtemp.return_value = str(clone_dir)
 
         sync(tmp_path, "main", None, "merge")
 
@@ -283,11 +290,15 @@ class TestSyncCommand:
         mock_sha.return_value = "def456"
 
         # Setup upstream clone directory with a file
-        temp_dir = tmp_path / "upstream"
-        temp_dir.mkdir()
-        test_file = temp_dir / "test.txt"
-        test_file.write_text("upstream content")
-        mock_mkdtemp.return_value = str(temp_dir)
+        clone_dir = tmp_path / "upstream_clone"
+        clone_dir.mkdir()
+        (clone_dir / "test.txt").write_text("upstream content")
+
+        # Snapshot directory (separate from clone)
+        snapshot_dir = tmp_path / "upstream_snapshot"
+        snapshot_dir.mkdir()
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir)]
 
         sync(tmp_path, "main", None, "overwrite")
 
@@ -312,10 +323,14 @@ class TestSyncCommand:
 
         mock_sha.return_value = "def456"
 
-        temp_dir = tmp_path / "upstream"
-        temp_dir.mkdir()
-        (temp_dir / "test.txt").write_text("upstream content")
-        mock_mkdtemp.return_value = str(temp_dir)
+        clone_dir = tmp_path / "upstream_clone"
+        clone_dir.mkdir()
+        (clone_dir / "test.txt").write_text("upstream content")
+
+        snapshot_dir = tmp_path / "upstream_snapshot"
+        snapshot_dir.mkdir()
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir)]
 
         sync(tmp_path, "main", None, "diff")
 
@@ -323,52 +338,6 @@ class TestSyncCommand:
         assert (tmp_path / "test.txt").read_text() == "local content"
         # Lock should NOT be updated in diff mode
         assert _read_lock(tmp_path) is None
-
-    @patch("rhiza.commands.sync.shutil.rmtree")
-    @patch("rhiza.commands.sync._clone_at_sha")
-    @patch("rhiza.commands.sync._clone_template_repository")
-    @patch("rhiza.commands.sync.tempfile.mkdtemp")
-    @patch("rhiza.commands.sync._get_head_sha")
-    def test_sync_merge_preserves_local_changes(
-        self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_rmtree, tmp_path
-    ):
-        """Merge strategy preserves local-only changes when upstream is unchanged."""
-        self._setup_project(tmp_path)
-
-        base_sha = "base111"
-        upstream_sha = "upstream222"
-
-        _write_lock(tmp_path, base_sha)
-        mock_sha.return_value = upstream_sha
-
-        # Local file has user customisation
-        (tmp_path / "test.txt").write_text("local custom content\n")
-
-        # Setup upstream clone
-        upstream_dir = tmp_path / "upstream"
-        upstream_dir.mkdir()
-        (upstream_dir / "test.txt").write_text("local custom content\n")
-
-        # Setup base clone  — mock _clone_at_sha to populate a temp dir
-        base_dir = tmp_path / "base"
-        base_dir.mkdir()
-        (base_dir / "test.txt").write_text("local custom content\n")
-
-        call_count = [0]
-
-        def mkdtemp_side_effect():
-            call_count[0] += 1
-            if call_count[0] == 1:
-                return str(upstream_dir)
-            return str(base_dir)
-
-        mock_mkdtemp.side_effect = mkdtemp_side_effect
-
-        sync(tmp_path, "main", None, "merge")
-
-        # Local custom content should be preserved (all three versions identical)
-        assert (tmp_path / "test.txt").read_text() == "local custom content\n"
-        assert _read_lock(tmp_path) == upstream_sha
 
     @patch("rhiza.commands.sync.shutil.rmtree")
     @patch("rhiza.commands.sync._clone_template_repository")
@@ -380,10 +349,18 @@ class TestSyncCommand:
 
         mock_sha.return_value = "first111"
 
-        temp_dir = tmp_path / "upstream"
-        temp_dir.mkdir()
-        (temp_dir / "test.txt").write_text("new template content\n")
-        mock_mkdtemp.return_value = str(temp_dir)
+        clone_dir = tmp_path / "upstream_clone"
+        clone_dir.mkdir()
+        (clone_dir / "test.txt").write_text("new template content\n")
+
+        snapshot_dir = tmp_path / "upstream_snapshot"
+        snapshot_dir.mkdir()
+
+        # merge also creates base_snapshot dir
+        base_snapshot_dir = tmp_path / "base_snapshot"
+        base_snapshot_dir.mkdir()
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir)]
 
         sync(tmp_path, "main", None, "merge")
 

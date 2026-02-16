@@ -29,9 +29,10 @@ is used.
 
 Sync templates using diff/merge instead of overwriting.
 
-Uses a 3-way merge approach (inspired by cruft) so that local
-customisations are preserved while upstream changes are applied safely.
-Tracks the last-synced template commit in ``.rhiza/template.lock``.
+Uses cruft's diff utilities (``git diff --no-index``) and 3-way patch
+application (``git apply -3``) so that local customisations are preserved
+while upstream changes are applied safely.  Tracks the last-synced
+template commit in ``.rhiza/template.lock``.
 
 ### validate
 
