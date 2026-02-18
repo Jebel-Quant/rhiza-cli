@@ -224,6 +224,8 @@ class RhizaTemplate:
             Can be None if not specified in the template file (defaults to "main" when creating).
         template_host: The git hosting platform ("github" or "gitlab").
             Defaults to "github" if not specified in the template file.
+        language: The programming language of the project ("python", "go", etc.).
+            Defaults to "python" if not specified in the template file.
         include: List of paths to include from the template repository (path-based mode).
         exclude: List of paths to exclude from the template repository (default: empty list).
         templates: List of template names to include (template-based mode).
@@ -233,6 +235,7 @@ class RhizaTemplate:
     template_repository: str | None = None
     template_branch: str | None = None
     template_host: str = "github"
+    language: str = "python"
     include: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
     templates: list[str] = field(default_factory=list)
@@ -270,6 +273,7 @@ class RhizaTemplate:
             template_repository=template_repository,
             template_branch=template_branch,
             template_host=config.get("template-host", "github"),
+            language=config.get("language", "python"),
             include=_normalize_to_list(config.get("include")),
             exclude=_normalize_to_list(config.get("exclude")),
             templates=_normalize_to_list(config.get("templates")),
@@ -298,6 +302,10 @@ class RhizaTemplate:
         # Only include template-host if it's not the default "github"
         if self.template_host and self.template_host != "github":
             config["template-host"] = self.template_host
+
+        # Only include language if it's not the default "python"
+        if self.language and self.language != "python":
+            config["language"] = self.language
 
         # Write templates if present
         if self.templates:

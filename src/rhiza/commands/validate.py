@@ -10,6 +10,8 @@ from typing import Any
 import yaml  # type: ignore[import-untyped]
 from loguru import logger
 
+from rhiza.language_validators import get_validator_registry
+
 
 def _check_git_repository(target: Path) -> bool:
     """Check if target is a git repository.
@@ -27,49 +29,29 @@ def _check_git_repository(target: Path) -> bool:
     return True
 
 
-def _check_project_structure(target: Path) -> None:
-    """Check for standard project structure.
+def _check_project_structure(target: Path, language: str) -> bool:
+    """Check for language-specific project structure.
 
     Args:
         target: Path to project.
-    """
-    logger.debug("Validating project structure")
-    src_dir = target / "src"
-    tests_dir = target / "tests"
-
-    if not src_dir.exists():
-        logger.warning(f"Standard 'src' folder not found: {src_dir}")
-        logger.warning("Consider creating a 'src' directory for source code")
-    else:
-        logger.success(f"'src' folder exists: {src_dir}")
-
-    if not tests_dir.exists():
-        logger.warning(f"Standard 'tests' folder not found: {tests_dir}")
-        logger.warning("Consider creating a 'tests' directory for test files")
-    else:
-        logger.success(f"'tests' folder exists: {tests_dir}")
-
-
-def _check_pyproject_toml(target: Path) -> bool:
-    """Check for pyproject.toml file.
-
-    Args:
-        target: Path to project.
+        language: The programming language of the project.
 
     Returns:
-        True if pyproject.toml exists, False otherwise.
+        True if validation passes, False otherwise.
     """
-    logger.debug("Validating pyproject.toml")
-    pyproject_file = target / "pyproject.toml"
+    logger.debug(f"Validating project structure for language: {language}")
 
-    if not pyproject_file.exists():
-        logger.error(f"pyproject.toml not found: {pyproject_file}")
-        logger.error("pyproject.toml is required for Python projects")
-        logger.info("Run 'rhiza init' to create a default pyproject.toml")
-        return False
-    else:
-        logger.success(f"pyproject.toml exists: {pyproject_file}")
-        return True
+    # Get the appropriate validator for the language
+    registry = get_validator_registry()
+    validator = registry.get_validator(language)
+
+    if validator is None:
+        logger.warning(f"No validator found for language '{language}'")
+        logger.warning(f"Supported languages: {', '.join(registry.get_supported_languages())}")
+        logger.warning("Skipping project structure validation")
+        return True  # Don't fail validation if language is not supported
+
+    return validator.validate_project_structure(target)
 
 
 def _check_template_file_exists(target: Path) -> tuple[bool, Path]:
@@ -337,6 +319,21 @@ def _validate_optional_fields(config: dict[str, Any]) -> None:
         else:
             logger.success(f"template-host is valid: {host}")
 
+    # language
+    if "language" in config:
+        language = config["language"]
+        if not isinstance(language, str):
+            logger.warning(f"language should be a string, got {type(language).__name__}: {language}")
+            logger.warning("Example: 'python', 'go'")
+        else:
+            registry = get_validator_registry()
+            supported_languages = registry.get_supported_languages()
+            if language.lower() not in supported_languages:
+                logger.warning(f"language '{language}' is not recognized")
+                logger.warning(f"Supported languages: {', '.join(supported_languages)}")
+            else:
+                logger.success(f"language is valid: {language}")
+
     # exclude
     if "exclude" in config:
         exclude = config["exclude"]
@@ -357,8 +354,7 @@ def validate(target: Path) -> bool:
 
     Performs authoritative validation of the template configuration:
     - Checks if target is a git repository
-    - Checks for standard project structure (src and tests folders)
-    - Checks for pyproject.toml (required)
+    - Checks for language-specific project structure
     - Checks if template.yml exists
     - Validates YAML syntax
     - Validates required fields
@@ -377,14 +373,7 @@ def validate(target: Path) -> bool:
     if not _check_git_repository(target):
         return False
 
-    # Check for standard project structure
-    _check_project_structure(target)
-
-    # Check for pyproject.toml
-    if not _check_pyproject_toml(target):
-        return False
-
-    # Check for template file
+    # Check for template file first to get the language
     exists, template_file = _check_template_file_exists(target)
     if not exists:
         return False
@@ -392,6 +381,14 @@ def validate(target: Path) -> bool:
     # Parse YAML file
     success, config = _parse_yaml_file(template_file)
     if not success or config is None:
+        return False
+
+    # Get the language from config (default to "python" for backward compatibility)
+    language = config.get("language", "python")
+    logger.info(f"Project language: {language}")
+
+    # Check for language-specific project structure
+    if not _check_project_structure(target, language):
         return False
 
     # Validate configuration mode (templates OR include)

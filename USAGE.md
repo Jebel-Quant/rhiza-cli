@@ -322,6 +322,106 @@ rhiza materialize --force
 - Repository format is the same: `owner/repo` for GitHub or `group/project` for GitLab
 - All other Rhiza features work identically with GitLab repositories
 
+### Multi-Language Support
+
+Rhiza supports templates for multiple programming languages, not just Python. By default, Rhiza assumes Python projects (requiring `pyproject.toml`), but you can specify a different language in your template configuration.
+
+#### Supported Languages
+
+- **Python** (default): Validates `pyproject.toml`, `src/`, and `tests/` directories
+- **Go**: Validates `go.mod`, `cmd/`, `pkg/`, and `internal/` directories
+
+#### Configuring a Go Project
+
+For a Go project, specify the language in `.rhiza/template.yml`:
+
+```yaml
+template-repository: jebel-quant/rhiza-go
+language: go
+include:
+  - .github
+  - .editorconfig
+  - .gitignore
+  - Makefile
+```
+
+**Validate your Go project:**
+
+```bash
+rhiza validate
+```
+
+You'll see language-specific validation:
+
+```
+[INFO] Project language: go
+[SUCCESS] go.mod exists: /path/to/project/go.mod
+[WARNING] Standard 'cmd' folder not found
+[WARNING] Consider creating a 'cmd' directory for main applications
+```
+
+#### Configuring a Python Project (Explicit)
+
+While Python is the default, you can explicitly specify it:
+
+```yaml
+template-repository: jebel-quant/rhiza
+language: python
+include:
+  - .github
+  - pyproject.toml
+  - Makefile
+```
+
+#### Backward Compatibility
+
+If you omit the `language` field, Rhiza defaults to Python for backward compatibility:
+
+```yaml
+# This is treated as a Python project
+template-repository: jebel-quant/rhiza
+include:
+  - .github
+```
+
+#### Language-Specific Validation
+
+Each language has its own validation rules:
+
+**Python projects must have:**
+- `pyproject.toml` (required)
+- `src/` directory (recommended, warning if missing)
+- `tests/` directory (recommended, warning if missing)
+
+**Go projects must have:**
+- `go.mod` (required)
+- `cmd/` directory (recommended, warning if missing)
+- `pkg/` or `internal/` directory (recommended, warning if missing)
+
+#### Example: Converting a Project to Go
+
+If you have an existing Python project and want to convert it to Go:
+
+```bash
+# 1. Update template.yml
+vim .rhiza/template.yml
+
+# Add or change language field:
+# language: go
+# template-repository: jebel-quant/rhiza-go
+
+# 2. Create Go project structure
+go mod init example.com/myproject
+mkdir -p cmd/myapp
+mkdir -p pkg/mypackage
+
+# 3. Validate
+rhiza validate
+
+# 4. Materialize Go templates
+rhiza materialize --force
+```
+
 ### Selective Inclusion
 
 Include only specific files:
