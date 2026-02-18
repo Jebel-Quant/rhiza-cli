@@ -98,10 +98,18 @@ def init(
         help="Target Git hosting platform (github or gitlab). Determines which CI/CD files to include. "
         "If not provided, will prompt interactively.",
     ),
+    language: str = typer.Option(
+        "python",
+        "--language",
+        help="Programming language for the project (python, go, etc.). Defaults to 'python'.",
+    ),
     template_repository: str = typer.Option(
         None,
         "--template-repository",
-        help="Custom template repository (format: owner/repo). Defaults to 'jebel-quant/rhiza'.",
+        help=(
+            "Custom template repository (format: owner/repo). "
+            "Defaults to 'jebel-quant/rhiza' for Python or 'jebel-quant/rhiza-go' for Go."
+        ),
     ),
     template_branch: str = typer.Option(
         None,
@@ -114,19 +122,24 @@ def init(
     Creates a default `.rhiza/template.yml` configuration file if one
     doesn't exist, or validates the existing configuration.
 
-    The default template includes common Python project files.
+    The default template includes common project files based on the language.
     The --git-host option determines which CI/CD configuration to include:
     - github: includes .github folder (GitHub Actions workflows)
     - gitlab: includes .gitlab-ci.yml (GitLab CI configuration)
 
+    The --language option determines the project type and files created:
+    - python: creates pyproject.toml, src/, and Python project structure
+    - go: creates minimal structure (you'll need to run 'go mod init')
+
     Examples:
       rhiza init
-      rhiza init --git-host github
+      rhiza init --language go
+      rhiza init --language python --git-host github
       rhiza init --git-host gitlab
       rhiza init --template-repository myorg/my-templates
       rhiza init --template-repository myorg/my-templates --template-branch develop
       rhiza init /path/to/project
-      rhiza init ..
+      rhiza init .. --language go
     """
     init_cmd(
         target,
@@ -134,6 +147,7 @@ def init(
         package_name=package_name,
         with_dev_dependencies=with_dev_dependencies,
         git_host=git_host,
+        language=language,
         template_repository=template_repository,
         template_branch=template_branch,
     )

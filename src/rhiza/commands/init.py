@@ -143,6 +143,7 @@ def _get_default_templates_for_host(git_host: str) -> list[str]:
 def _create_template_file(
     target: Path,
     git_host: str,
+    language: str = "python",
     template_repository: str | None = None,
     template_branch: str | None = None,
 ) -> None:
@@ -151,6 +152,7 @@ def _create_template_file(
     Args:
         target: Target repository path.
         git_host: Git hosting platform.
+        language: Programming language for the project (default: python).
         template_repository: Custom template repository (format: owner/repo).
         template_branch: Custom template branch.
     """
@@ -163,13 +165,18 @@ def _create_template_file(
     logger.info("Creating default .rhiza/template.yml")
     logger.debug("Using default template configuration")
 
-    # Use custom template repository/branch if provided, otherwise use defaults
-    repo = template_repository or "jebel-quant/rhiza"
+    # Use custom template repository/branch if provided, otherwise use language defaults
+    if template_repository:
+        repo = template_repository
+        logger.info(f"Using custom template repository: {repo}")
+    else:
+        # Default repositories by language
+        repo = "jebel-quant/rhiza-go" if language == "go" else "jebel-quant/rhiza"
+        logger.debug(f"Using default repository for {language}: {repo}")
+
     branch = template_branch or "main"
 
     # Log when custom values are used
-    if template_repository:
-        logger.info(f"Using custom template repository: {repo}")
     if template_branch:
         logger.info(f"Using custom template branch: {branch}")
 
@@ -178,6 +185,7 @@ def _create_template_file(
     default_template = RhizaTemplate(
         template_repository=repo,
         template_branch=branch,
+        language=language,
         templates=templates,
     )
 
@@ -277,6 +285,7 @@ def init(
     package_name: str | None = None,
     with_dev_dependencies: bool = False,
     git_host: str | None = None,
+    language: str = "python",
     template_repository: str | None = None,
     template_branch: str | None = None,
 ) -> bool:
@@ -292,8 +301,10 @@ def init(
         with_dev_dependencies: Include development dependencies in pyproject.toml.
         git_host: Target Git hosting platform ("github" or "gitlab"). Determines which
             CI/CD configuration files to include. If None, will prompt user interactively.
+        language: Programming language for the project (default: python).
+            Supported: python, go. Determines which project files to create.
         template_repository: Custom template repository (format: owner/repo).
-            Defaults to 'jebel-quant/rhiza'.
+            Defaults to 'jebel-quant/rhiza' for Python or 'jebel-quant/rhiza-go' for Go.
         template_branch: Custom template branch. Defaults to 'main'.
 
     Returns:
@@ -303,6 +314,7 @@ def init(
     git_host = _validate_git_host(git_host)
 
     logger.info(f"Initializing Rhiza configuration in: {target}")
+    logger.info(f"Project language: {language}")
 
     # Create .rhiza directory
     rhiza_dir = target / ".rhiza"
@@ -313,21 +325,31 @@ def init(
     if git_host is None:
         git_host = _prompt_git_host()
 
-    # Create template file
-    _create_template_file(target, git_host, template_repository, template_branch)
+    # Create template file with language
+    _create_template_file(target, git_host, language, template_repository, template_branch)
 
-    # Bootstrap Python project structure
-    if project_name is None:
-        project_name = target.name
-    if package_name is None:
-        package_name = _normalize_package_name(project_name)
+    # Bootstrap project structure based on language
+    if language == "python":
+        # Python-specific setup
+        if project_name is None:
+            project_name = target.name
+        if package_name is None:
+            package_name = _normalize_package_name(project_name)
 
-    logger.debug(f"Project name: {project_name}")
-    logger.debug(f"Package name: {package_name}")
+        logger.debug(f"Project name: {project_name}")
+        logger.debug(f"Package name: {package_name}")
 
-    _create_python_package(target, project_name, package_name)
-    _create_pyproject_toml(target, project_name, package_name, with_dev_dependencies)
-    _create_readme(target)
+        _create_python_package(target, project_name, package_name)
+        _create_pyproject_toml(target, project_name, package_name, with_dev_dependencies)
+        _create_readme(target)
+    elif language == "go":
+        # Go-specific setup - just create README, user should run go mod init
+        _create_readme(target)
+        logger.info("For Go projects, run 'go mod init <module-name>' to initialize the module")
+    else:
+        # Unknown language - just create README
+        logger.warning(f"Unknown language '{language}', creating minimal structure")
+        _create_readme(target)
 
     # Validate the template file
     logger.debug("Validating template configuration")
