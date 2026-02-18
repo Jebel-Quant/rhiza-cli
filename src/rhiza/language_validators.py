@@ -24,7 +24,7 @@ class LanguageValidator(ABC):
         Returns:
             True if validation passes, False otherwise.
         """
-        pass
+        ...
 
     @abstractmethod
     def get_language_name(self) -> str:
@@ -33,7 +33,7 @@ class LanguageValidator(ABC):
         Returns:
             Language name (e.g., "python", "go").
         """
-        pass
+        ...
 
 
 class PythonValidator(LanguageValidator):

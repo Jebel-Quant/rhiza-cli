@@ -284,15 +284,12 @@ def _validate_include_paths(config: dict[str, Any]) -> bool:
         return True
 
 
-def _validate_optional_fields(config: dict[str, Any]) -> None:
-    """Validate optional fields if present.
+def _validate_branch_field(config: dict[str, Any]) -> None:
+    """Validate template-branch or ref field.
 
     Args:
         config: Configuration dictionary.
     """
-    logger.debug("Validating optional fields")
-
-    # template-branch or ref
     branch_field = None
     if "template-branch" in config:
         branch_field = "template-branch"
@@ -307,46 +304,83 @@ def _validate_optional_fields(config: dict[str, Any]) -> None:
         else:
             logger.success(f"{branch_field} is valid: {branch}")
 
-    # template-host
-    if "template-host" in config:
-        host = config["template-host"]
-        if not isinstance(host, str):
-            logger.warning(f"template-host should be a string, got {type(host).__name__}: {host}")
-            logger.warning("Must be 'github' or 'gitlab'")
-        elif host not in ("github", "gitlab"):
-            logger.warning(f"template-host should be 'github' or 'gitlab', got: {host}")
-            logger.warning("Other hosts are not currently supported")
-        else:
-            logger.success(f"template-host is valid: {host}")
 
-    # language
-    if "language" in config:
-        language = config["language"]
-        if not isinstance(language, str):
-            logger.warning(f"language should be a string, got {type(language).__name__}: {language}")
-            logger.warning("Example: 'python', 'go'")
+def _validate_host_field(config: dict[str, Any]) -> None:
+    """Validate template-host field.
+
+    Args:
+        config: Configuration dictionary.
+    """
+    if "template-host" not in config:
+        return
+
+    host = config["template-host"]
+    if not isinstance(host, str):
+        logger.warning(f"template-host should be a string, got {type(host).__name__}: {host}")
+        logger.warning("Must be 'github' or 'gitlab'")
+    elif host not in ("github", "gitlab"):
+        logger.warning(f"template-host should be 'github' or 'gitlab', got: {host}")
+        logger.warning("Other hosts are not currently supported")
+    else:
+        logger.success(f"template-host is valid: {host}")
+
+
+def _validate_language_field(config: dict[str, Any]) -> None:
+    """Validate language field.
+
+    Args:
+        config: Configuration dictionary.
+    """
+    if "language" not in config:
+        return
+
+    language = config["language"]
+    if not isinstance(language, str):
+        logger.warning(f"language should be a string, got {type(language).__name__}: {language}")
+        logger.warning("Example: 'python', 'go'")
+    else:
+        registry = get_validator_registry()
+        supported_languages = registry.get_supported_languages()
+        if language.lower() not in supported_languages:
+            logger.warning(f"language '{language}' is not recognized")
+            logger.warning(f"Supported languages: {', '.join(supported_languages)}")
         else:
-            registry = get_validator_registry()
-            supported_languages = registry.get_supported_languages()
-            if language.lower() not in supported_languages:
-                logger.warning(f"language '{language}' is not recognized")
-                logger.warning(f"Supported languages: {', '.join(supported_languages)}")
+            logger.success(f"language is valid: {language}")
+
+
+def _validate_exclude_field(config: dict[str, Any]) -> None:
+    """Validate exclude field.
+
+    Args:
+        config: Configuration dictionary.
+    """
+    if "exclude" not in config:
+        return
+
+    exclude = config["exclude"]
+    if not isinstance(exclude, list):
+        logger.warning(f"exclude should be a list, got {type(exclude).__name__}")
+        logger.warning("Example: exclude: ['.github/workflows/ci.yml']")
+    else:
+        logger.success(f"exclude list has {len(exclude)} path(s)")
+        for path in exclude:
+            if not isinstance(path, str):
+                logger.warning(f"exclude path should be a string, got {type(path).__name__}: {path}")
             else:
-                logger.success(f"language is valid: {language}")
+                logger.info(f"  - {path}")
 
-    # exclude
-    if "exclude" in config:
-        exclude = config["exclude"]
-        if not isinstance(exclude, list):
-            logger.warning(f"exclude should be a list, got {type(exclude).__name__}")
-            logger.warning("Example: exclude: ['.github/workflows/ci.yml']")
-        else:
-            logger.success(f"exclude list has {len(exclude)} path(s)")
-            for path in exclude:
-                if not isinstance(path, str):
-                    logger.warning(f"exclude path should be a string, got {type(path).__name__}: {path}")
-                else:
-                    logger.info(f"  - {path}")
+
+def _validate_optional_fields(config: dict[str, Any]) -> None:
+    """Validate optional fields if present.
+
+    Args:
+        config: Configuration dictionary.
+    """
+    logger.debug("Validating optional fields")
+    _validate_branch_field(config)
+    _validate_host_field(config)
+    _validate_language_field(config)
+    _validate_exclude_field(config)
 
 
 def validate(target: Path) -> bool:
