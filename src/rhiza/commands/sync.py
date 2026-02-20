@@ -547,6 +547,7 @@ def sync(
     branch: str,
     target_branch: str | None,
     strategy: str,
+    paths: list[str] | None = None,
 ) -> None:
     """Sync Rhiza templates using cruft-style diff/merge instead of overwrite.
 
@@ -561,6 +562,9 @@ def sync(
         strategy: Sync strategy — ``"merge"`` for 3-way merge,
             ``"overwrite"`` for traditional overwrite (same as materialize --force),
             ``"diff"`` for dry-run showing what would change.
+        paths: Optional list of specific file/directory paths to sync. When
+            provided, only these paths are synced instead of the full set
+            resolved from the template configuration.
     """
     target = target.resolve()
     logger.info(f"Target repository: {target}")
@@ -586,6 +590,10 @@ def sync(
         git_executable,
         git_env,
     )
+
+    if paths:
+        logger.info(f"Limiting sync to {len(paths)} path(s): {paths}")
+        include_paths = paths
 
     try:
         base_sha = _read_lock(target)

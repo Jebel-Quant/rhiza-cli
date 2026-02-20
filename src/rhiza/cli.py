@@ -219,6 +219,15 @@ def sync(
         help="Sync strategy: 'merge' (3-way merge preserving local changes), "
         "'overwrite' (replace files), or 'diff' (dry-run showing changes)",
     ),
+    paths: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--paths",
+            "-p",
+            help="Sync only specific files or directories from the template "
+            "(can be specified multiple times). When omitted all template paths are synced.",
+        ),
+    ] = None,
 ) -> None:
     r"""Sync templates using diff/merge instead of overwriting.
 
@@ -253,11 +262,13 @@ def sync(
         rhiza sync --strategy overwrite
         rhiza sync --branch develop
         rhiza sync --target-branch feature/update-templates
+        rhiza sync --paths Makefile --paths pyproject.toml
+        rhiza sync -p .github
     """
     if strategy not in ("merge", "overwrite", "diff"):
         typer.echo(f"Unknown strategy: {strategy}. Must be 'merge', 'overwrite', or 'diff'.")
         raise typer.Exit(code=1)
-    sync_cmd(target, branch, target_branch, strategy)
+    sync_cmd(target, branch, target_branch, strategy, paths=paths)
 
 
 @app.command()
