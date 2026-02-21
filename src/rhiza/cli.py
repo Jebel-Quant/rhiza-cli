@@ -172,6 +172,15 @@ def materialize(
         help="Create and checkout a new branch in the target repository for changes",
     ),
     force: bool = typer.Option(False, "--force", "-y", help="Overwrite existing files"),
+    paths: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--paths",
+            "-p",
+            help="Materialize only specific files or directories from the template "
+            "(can be specified multiple times). When omitted, all template paths are materialized.",
+        ),
+    ] = None,
 ) -> None:
     r"""Inject Rhiza configuration templates into a target repository.
 
@@ -190,8 +199,10 @@ def materialize(
         rhiza materialize --force
         rhiza materialize --target-branch feature/update-templates
         rhiza materialize /path/to/project -b v2.0 -y
+        rhiza materialize --paths Makefile --paths pyproject.toml
+        rhiza materialize -p .github
     """
-    materialize_cmd(target, branch, target_branch, force)
+    materialize_cmd(target, branch, target_branch, force, paths=paths)
 
 
 @app.command()

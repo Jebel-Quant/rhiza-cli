@@ -505,7 +505,13 @@ def __expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
     return all_files
 
 
-def materialize(target: Path, branch: str, target_branch: str | None, force: bool) -> None:
+def materialize(
+    target: Path,
+    branch: str,
+    target_branch: str | None,
+    force: bool,
+    paths: list[str] | None = None,
+) -> None:
     """Materialize Rhiza templates into the target repository.
 
     This performs a sparse checkout of the template repository and copies the
@@ -518,6 +524,10 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         target_branch (str | None): Optional branch name to create/checkout in
             the target repository.
         force (bool): Whether to overwrite existing files.
+        paths (list[str] | None): Optional list of specific file/directory
+            paths to materialize. When provided, only these paths are
+            materialized instead of the full set resolved from the template
+            configuration.
     """
     target = target.resolve()
     logger.info(f"Target repository: {target}")
@@ -563,6 +573,10 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
             except ValueError as e:
                 logger.error(f"Failed to resolve templates: {e}")
                 sys.exit(1)
+
+        if paths:
+            logger.info(f"Limiting materialization to {len(paths)} path(s): {paths}")
+            include_paths = paths
 
         materialized_files = _copy_files_to_target(tmp_dir, target, include_paths, excluded_paths, force)
     finally:
