@@ -2073,3 +2073,37 @@ include: ["other.txt"]
         # Should exit when sparse checkout update fails
         with pytest.raises(SystemExit):
             materialize(tmp_path, "main", None, False)
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.shutil.copy2")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_materialize_with_paths_filter(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+        """--paths limits materialization to only the specified files."""
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text('[project]\nname = "test"\n')
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        with open(rhiza_dir / "template.yml", "w") as f:
+            yaml.dump(
+                {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": ["a.txt", "b.txt"]},
+                f,
+            )
+
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        (temp_dir / "a.txt").write_text("upstream-a")
+        (temp_dir / "b.txt").write_text("upstream-b")
+        mock_mkdtemp.return_value = str(temp_dir)
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        materialize(tmp_path, "main", None, True, paths=["a.txt"])
+
+        # Only a.txt should have been copied
+        copied_destinations = [call.args[1] for call in mock_copy2.call_args_list]
+        assert any("a.txt" in str(d) for d in copied_destinations)
+        assert not any("b.txt" in str(d) for d in copied_destinations)

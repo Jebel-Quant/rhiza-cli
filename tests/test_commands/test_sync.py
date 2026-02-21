@@ -326,6 +326,33 @@ class TestSyncCommand:
     @patch("rhiza.commands.sync._clone_template_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
     @patch("rhiza.commands.sync._get_head_sha")
+    def test_sync_overwrite_with_paths_filter(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
+        """Overwrite strategy with --paths syncs only specified files."""
+        self._setup_project(tmp_path, include=["a.txt", "b.txt"])
+
+        mock_sha.return_value = "def456"
+
+        clone_dir = tmp_path / "upstream_clone"
+        clone_dir.mkdir()
+        (clone_dir / "a.txt").write_text("upstream-a")
+        (clone_dir / "b.txt").write_text("upstream-b")
+
+        snapshot_dir = tmp_path / "upstream_snapshot"
+        snapshot_dir.mkdir()
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir)]
+
+        sync(tmp_path, "main", None, "overwrite", paths=["a.txt"])
+
+        # Only a.txt should be synced
+        assert (tmp_path / "a.txt").exists()
+        assert (tmp_path / "a.txt").read_text() == "upstream-a"
+        assert not (tmp_path / "b.txt").exists()
+
+    @patch("rhiza.commands.sync.shutil.rmtree")
+    @patch("rhiza.commands.sync._clone_template_repository")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
+    @patch("rhiza.commands.sync._get_head_sha")
     def test_sync_merge_first_sync_copies_files(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
         """On first sync (no lock), merge copies new files."""
         self._setup_project(tmp_path)
@@ -363,6 +390,7 @@ class TestSyncCLI:
         assert "merge" in result.output
         assert "diff" in result.output
         assert "overwrite" in result.output
+        assert "paths" in result.output
 
     def test_sync_invalid_strategy(self, tmp_path):
         """Invalid strategy should fail."""
