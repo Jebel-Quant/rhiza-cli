@@ -29,8 +29,8 @@ class TestInitCommand:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        assert config["template-repository"] == "jebel-quant/rhiza"
-        assert config["template-branch"] == "main"
+        assert config["repository"] == "jebel-quant/rhiza"
+        assert config["ref"] == "main"
         # Should use templates by default
         assert "templates" in config
         assert "core" in config["templates"]
@@ -127,7 +127,7 @@ class TestInitCommand:
         with open(new_template_file) as f:
             config = yaml.safe_load(f)
 
-        assert config["template-repository"] == "jebel-quant/rhiza"
+        assert config["repository"] == "jebel-quant/rhiza"
 
         # Old file should still exist (not moved)
         assert old_template_file.exists()
@@ -380,9 +380,9 @@ class TestInitCommand:
             config = yaml.safe_load(f)
 
         # Should use the custom repository
-        assert config["template-repository"] == "myorg/my-templates"
+        assert config["repository"] == "myorg/my-templates"
         # Branch should default to main
-        assert config["template-branch"] == "main"
+        assert config["ref"] == "main"
 
     def test_init_with_custom_template_repository_and_branch(self, tmp_path):
         """Test init with custom template repository and branch."""
@@ -401,8 +401,8 @@ class TestInitCommand:
             config = yaml.safe_load(f)
 
         # Should use the custom repository and branch
-        assert config["template-repository"] == "myorg/my-templates"
-        assert config["template-branch"] == "develop"
+        assert config["repository"] == "myorg/my-templates"
+        assert config["ref"] == "develop"
 
     def test_init_with_custom_template_branch_only(self, tmp_path):
         """Test init with custom template branch but default repository."""
@@ -416,8 +416,8 @@ class TestInitCommand:
             config = yaml.safe_load(f)
 
         # Should use default repository but custom branch
-        assert config["template-repository"] == "jebel-quant/rhiza"
-        assert config["template-branch"] == "v2.0"
+        assert config["repository"] == "jebel-quant/rhiza"
+        assert config["ref"] == "v2.0"
 
     def test_create_template_file_with_gitlab_path_based(self, tmp_path):
         """Test that path-based config with gitlab creates .gitlab paths."""
