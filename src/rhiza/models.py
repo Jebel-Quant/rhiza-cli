@@ -293,11 +293,11 @@ class RhizaTemplate:
 
         # Only include template-repository if it's not None
         if self.template_repository:
-            config["template-repository"] = self.template_repository
+            config["repository"] = self.template_repository
 
         # Only include template-branch if it's not None
         if self.template_branch:
-            config["template-branch"] = self.template_branch
+            config["ref"] = self.template_branch
 
         # Only include template-host if it's not the default "github"
         if self.template_host and self.template_host != "github":

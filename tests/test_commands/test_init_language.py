@@ -19,7 +19,7 @@ class TestInitWithLanguage:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        assert config["template-repository"] == "jebel-quant/rhiza-go"
+        assert config["repository"] == "jebel-quant/rhiza-go"
         assert config["language"] == "go"
 
         # Verify Go-specific structure was NOT created (user should run go mod init)
@@ -39,7 +39,7 @@ class TestInitWithLanguage:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        assert config["template-repository"] == "jebel-quant/rhiza"
+        assert config["repository"] == "jebel-quant/rhiza"
         # Language field should not be in config (it's the default)
         assert "language" not in config
 
@@ -70,7 +70,7 @@ class TestInitWithLanguage:
             config = yaml.safe_load(f)
 
         # Custom repository should override default
-        assert config["template-repository"] == "custom/go-templates"
+        assert config["repository"] == "custom/go-templates"
         assert config["language"] == "go"
 
     def test_init_unknown_language(self, tmp_path):
@@ -92,7 +92,7 @@ class TestInitWithLanguage:
 
         assert config["language"] == "rust"
         # Should use default Python repository since no mapping exists
-        assert config["template-repository"] == "jebel-quant/rhiza"
+        assert config["repository"] == "jebel-quant/rhiza"
 
     def test_init_go_language_with_gitlab(self, tmp_path):
         """Test Go init with GitLab hosting."""
@@ -102,7 +102,7 @@ class TestInitWithLanguage:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        assert config["template-repository"] == "jebel-quant/rhiza-go"
+        assert config["repository"] == "jebel-quant/rhiza-go"
         assert config["language"] == "go"
         # Should include gitlab in templates
         assert "gitlab" in config["templates"]
