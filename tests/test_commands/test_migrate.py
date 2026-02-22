@@ -50,8 +50,8 @@ class TestMigrateCommand:
         with open(new_template_file) as f:
             migrated_content = yaml.safe_load(f)
 
-        assert migrated_content["template-repository"] == "test/repo"
-        assert migrated_content["template-branch"] == "main"
+        assert migrated_content["repository"] == "test/repo"
+        assert migrated_content["ref"] == "main"
         # After migration, .rhiza should be automatically added to include list
         assert migrated_content["include"] == [".github", "Makefile", ".rhiza"]
 
@@ -85,7 +85,7 @@ class TestMigrateCommand:
         with open(new_template_file) as f:
             migrated_content = yaml.safe_load(f)
 
-        assert migrated_content["template-repository"] == "old/location"
+        assert migrated_content["repository"] == "old/location"
 
         # Verify old file was removed
         assert not old_template_file.exists()
@@ -115,7 +115,7 @@ class TestMigrateCommand:
         with open(new_template_file) as f:
             migrated_content = yaml.safe_load(f)
 
-        assert migrated_content["template-repository"] == "correct/repo"
+        assert migrated_content["repository"] == "correct/repo"
 
     def test_migrate_handles_missing_template(self, tmp_path):
         """Test that migrate handles case when no template.yml exists."""
@@ -233,12 +233,12 @@ Makefile
         with open(existing_template) as f:
             content = yaml.safe_load(f)
 
-        assert content["template-repository"] == "existing/repo"
+        assert content["repository"] == "existing/repo"
 
         # Verify old file still exists (not moved since target exists)
         assert old_template.exists()
 
-        assert content["template-repository"] == "existing/repo"
+        assert content["repository"] == "existing/repo"
 
     def test_migrate_adds_rhiza_to_include_list(self, tmp_path):
         """Test that migrate adds .rhiza to include list if not present."""
