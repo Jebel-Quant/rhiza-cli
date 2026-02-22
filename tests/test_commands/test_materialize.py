@@ -2107,3 +2107,85 @@ include: ["other.txt"]
         copied_destinations = [call.args[1] for call in mock_copy2.call_args_list]
         assert any("a.txt" in str(d) for d in copied_destinations)
         assert not any("b.txt" in str(d) for d in copied_destinations)
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_partial_materialize_merges_history(self, mock_mkdtemp, mock_rmtree, mock_subprocess, tmp_path):
+        """--paths merges new files into existing history instead of replacing it."""
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\n')
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        with open(rhiza_dir / "template.yml", "w") as f:
+            yaml.dump(
+                {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": ["a.txt", "b.txt"]},
+                f,
+            )
+
+        # Pre-populate history with b.txt (a previously tracked file)
+        history_file = rhiza_dir / "history"
+        history_file.write_text(
+            "# Rhiza Template History\n"
+            "# Template repository: jebel-quant/rhiza\n"
+            "# Template branch: main\n"
+            "#\n"
+            "# Files under template control:\n"
+            "b.txt\n"
+        )
+
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        (temp_dir / "a.txt").write_text("upstream-a")
+        (temp_dir / "b.txt").write_text("upstream-b")
+        mock_mkdtemp.return_value = str(temp_dir)
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Partial materialize of only a.txt
+        materialize(tmp_path, "main", None, True, paths=["a.txt"])
+
+        history_content = history_file.read_text()
+        # Both a.txt (new) and b.txt (existing) must be in history
+        assert "a.txt" in history_content
+        assert "b.txt" in history_content
+
+    @patch("rhiza.commands.materialize.subprocess.run")
+    @patch("rhiza.commands.materialize.shutil.rmtree")
+    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
+    def test_partial_materialize_does_not_clean_orphans(self, mock_mkdtemp, mock_rmtree, mock_subprocess, tmp_path):
+        """--paths does not delete previously tracked files as orphans."""
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\n')
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        with open(rhiza_dir / "template.yml", "w") as f:
+            yaml.dump(
+                {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": ["a.txt", "b.txt"]},
+                f,
+            )
+
+        # b.txt already exists in the project and is tracked in history
+        (tmp_path / "b.txt").write_text("local-b")
+        (rhiza_dir / "history").write_text(
+            "# Rhiza Template History\n"
+            "# Template repository: jebel-quant/rhiza\n"
+            "# Template branch: main\n"
+            "#\n"
+            "# Files under template control:\n"
+            "b.txt\n"
+        )
+
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        (temp_dir / "a.txt").write_text("upstream-a")
+        mock_mkdtemp.return_value = str(temp_dir)
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        # Partial materialize of only a.txt — b.txt must NOT be deleted
+        materialize(tmp_path, "main", None, True, paths=["a.txt"])
+
+        assert (tmp_path / "b.txt").exists(), "b.txt should not be deleted by a partial materialize"

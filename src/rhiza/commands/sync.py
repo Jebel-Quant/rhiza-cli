@@ -361,6 +361,7 @@ def _sync_overwrite(
     materialized: list[Path],
     rhiza_repo: str,
     rhiza_branch: str,
+    partial: bool = False,
 ) -> None:
     """Execute the overwrite strategy (same as materialize --force).
 
@@ -371,10 +372,11 @@ def _sync_overwrite(
         materialized: List of relative file paths.
         rhiza_repo: Template repository name.
         rhiza_branch: Template branch name.
+        partial: When True, merge history instead of replacing it.
     """
     _copy_files_to_target(upstream_snapshot, target, materialized)
     _warn_about_workflow_files(materialized)
-    _write_history_file(target, materialized, rhiza_repo, rhiza_branch)
+    _write_history_file(target, materialized, rhiza_repo, rhiza_branch, partial=partial)
     _write_lock(target, upstream_sha)
     logger.success("Sync complete (overwrite strategy)")
 
@@ -392,6 +394,7 @@ def _sync_merge(
     git_env: dict[str, str],
     rhiza_repo: str,
     rhiza_branch: str,
+    partial: bool = False,
 ) -> None:
     """Execute the merge strategy (cruft-style 3-way merge).
 
@@ -412,6 +415,7 @@ def _sync_merge(
         git_env: Environment variables for git commands.
         rhiza_repo: Template repository name.
         rhiza_branch: Template branch name.
+        partial: When True, merge history instead of replacing it.
     """
     base_snapshot = Path(tempfile.mkdtemp())
     try:
@@ -433,7 +437,7 @@ def _sync_merge(
             _copy_files_to_target(upstream_snapshot, target, materialized)
 
         _warn_about_workflow_files(materialized)
-        _write_history_file(target, materialized, rhiza_repo, rhiza_branch)
+        _write_history_file(target, materialized, rhiza_repo, rhiza_branch, partial=partial)
         _write_lock(target, upstream_sha)
         logger.success(f"Sync complete — {len(materialized)} file(s) processed")
     finally:
@@ -611,7 +615,9 @@ def sync(
             if strategy == "diff":
                 _sync_diff(target, upstream_snapshot)
             elif strategy == "overwrite":
-                _sync_overwrite(target, upstream_snapshot, upstream_sha, materialized, rhiza_repo, rhiza_branch)
+                _sync_overwrite(
+                    target, upstream_snapshot, upstream_sha, materialized, rhiza_repo, rhiza_branch, partial=bool(paths)
+                )
             else:
                 _sync_merge(
                     target,
@@ -626,6 +632,7 @@ def sync(
                     git_env,
                     rhiza_repo,
                     rhiza_branch,
+                    partial=bool(paths),
                 )
         finally:
             if upstream_snapshot.exists():

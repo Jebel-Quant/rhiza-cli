@@ -439,7 +439,13 @@ def _clean_orphaned_files(target: Path, materialized_files: list[Path]) -> None:
         logger.debug("No orphaned files to clean up")
 
 
-def _write_history_file(target: Path, materialized_files: list[Path], rhiza_repo: str, rhiza_branch: str) -> None:
+def _write_history_file(
+    target: Path,
+    materialized_files: list[Path],
+    rhiza_repo: str,
+    rhiza_branch: str,
+    partial: bool = False,
+) -> None:
     """Write history file tracking materialized files.
 
     Args:
@@ -447,10 +453,26 @@ def _write_history_file(target: Path, materialized_files: list[Path], rhiza_repo
         materialized_files: List of materialized files.
         rhiza_repo: Template repository name.
         rhiza_branch: Template branch name.
+        partial: When True, merge *materialized_files* into the existing
+            history rather than replacing it.  Use this for partial
+            (``--paths``-filtered) operations so previously tracked files
+            are not lost.
     """
     # Always write to new location
     history_file = target / ".rhiza" / "history"
     history_file.parent.mkdir(parents=True, exist_ok=True)
+
+    if partial and history_file.exists():
+        # Read existing entries and merge with the newly materialized files
+        existing: set[Path] = set()
+        with history_file.open("r", encoding="utf-8") as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#"):
+                    existing.add(Path(stripped))
+        all_files = sorted(existing | set(materialized_files))
+    else:
+        all_files = sorted(materialized_files)
 
     logger.debug(f"Writing history file: {history_file.relative_to(target)}")
     with history_file.open("w", encoding="utf-8") as f:
@@ -460,10 +482,10 @@ def _write_history_file(target: Path, materialized_files: list[Path], rhiza_repo
         f.write(f"# Template branch: {rhiza_branch}\n")
         f.write("#\n")
         f.write("# Files under template control:\n")
-        for file_path in sorted(materialized_files):
+        for file_path in all_files:
             f.write(f"{file_path}\n")
 
-    logger.info(f"Updated {history_file.relative_to(target)} with {len(materialized_files)} file(s)")
+    logger.info(f"Updated {history_file.relative_to(target)} with {len(all_files)} file(s)")
 
     # Clean up old history file if it exists (migration)
     old_history_file = target / ".rhiza.history"
@@ -585,8 +607,12 @@ def materialize(
 
     # Post-processing
     _warn_about_workflow_files(materialized_files)
-    _clean_orphaned_files(target, materialized_files)
-    _write_history_file(target, materialized_files, rhiza_repo, rhiza_branch)
+    if not paths:
+        # Only run orphan cleanup for full materializations.  Partial runs
+        # (--paths) skip cleanup to preserve previously tracked files not
+        # included in the current operation.
+        _clean_orphaned_files(target, materialized_files)
+    _write_history_file(target, materialized_files, rhiza_repo, rhiza_branch, partial=bool(paths))
 
     logger.success("Rhiza templates materialized successfully")
     logger.info(

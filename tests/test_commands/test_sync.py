@@ -377,6 +377,43 @@ class TestSyncCommand:
         assert (tmp_path / "test.txt").read_text() == "new template content\n"
         assert _read_lock(tmp_path) == "first111"
 
+    @patch("rhiza.commands.sync.shutil.rmtree")
+    @patch("rhiza.commands.sync._clone_template_repository")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
+    @patch("rhiza.commands.sync._get_head_sha")
+    def test_sync_partial_merges_history(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
+        """Partial sync (--paths) merges new files into the existing history."""
+        self._setup_project(tmp_path, include=["a.txt", "b.txt"])
+
+        # Pre-populate history with b.txt
+        history_file = tmp_path / ".rhiza" / "history"
+        history_file.parent.mkdir(parents=True, exist_ok=True)
+        history_file.write_text(
+            "# Rhiza Template History\n"
+            "# Template repository: jebel-quant/rhiza\n"
+            "# Template branch: main\n"
+            "#\n"
+            "# Files under template control:\n"
+            "b.txt\n"
+        )
+
+        mock_sha.return_value = "abc999"
+
+        clone_dir = tmp_path / "upstream_clone"
+        clone_dir.mkdir()
+        (clone_dir / "a.txt").write_text("upstream-a")
+
+        snapshot_dir = tmp_path / "upstream_snapshot"
+        snapshot_dir.mkdir()
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir)]
+
+        sync(tmp_path, "main", None, "overwrite", paths=["a.txt"])
+
+        history_content = history_file.read_text()
+        assert "a.txt" in history_content
+        assert "b.txt" in history_content
+
 
 class TestSyncCLI:
     """Tests for the CLI wiring of the sync command."""
