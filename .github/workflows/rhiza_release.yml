@@ -122,7 +122,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7.3.0
         with:
-          version: "0.10.4"
+          version: "0.10.2"
 
       - name: Configure git auth for private packages
         uses: ./.github/actions/configure-git-auth
@@ -136,16 +136,11 @@ jobs:
           TAG_VERSION=${TAG_VERSION#v}
           PROJECT_VERSION=$(uv version --short)
 
-          # Normalize tag version to PEP 440 format for comparison.
-          # Tags use semver format (e.g., 0.11.1-beta.1) while uv version --short
-          # returns PEP 440 normalized format (e.g., 0.11.1b1).
-          NORMALIZED_TAG=$(uv run --with packaging --no-project python3 -c "from packaging.version import Version; print(Version('$TAG_VERSION'))")
-
-          if [[ "$PROJECT_VERSION" != "$NORMALIZED_TAG" ]]; then
-            echo "::error::Version mismatch: pyproject.toml has '$PROJECT_VERSION' but tag is '$NORMALIZED_TAG' (from tag '$TAG_VERSION')"
+          if [[ "$PROJECT_VERSION" != "$TAG_VERSION" ]]; then
+            echo "::error::Version mismatch: pyproject.toml has '$PROJECT_VERSION' but tag is '$TAG_VERSION'"
             exit 1
           fi
-          echo "Version verified: $PROJECT_VERSION matches tag (normalized: $NORMALIZED_TAG)"
+          echo "Version verified: $PROJECT_VERSION matches tag"
 
       - name: Detect buildable Python package
         id: buildable
@@ -225,7 +220,7 @@ jobs:
     steps:
       - name: Download SBOM artifact
         # Downloads sbom.cdx.json and sbom.cdx.xml into sbom/ directory
-        uses: actions/download-artifact@v7.0.0
+        uses: actions/download-artifact@v6.0.0
         with:
           name: sbom
           path: sbom
@@ -257,7 +252,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download dist artifact
-        uses: actions/download-artifact@v7.0.0
+        uses: actions/download-artifact@v6.0.0
         with:
           name: dist
           path: dist
@@ -392,7 +387,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7.3.0
         with:
-          version: "0.10.4"
+          version: "0.10.2"
 
       - name: "Sync the virtual environment for ${{ github.repository }}"
         shell: bash
@@ -451,3 +446,4 @@ jobs:
           body: |
             ${{ steps.devcontainer_link.outputs.message }}
             ${{ steps.pypi_link.outputs.message }}
+
