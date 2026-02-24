@@ -5,6 +5,12 @@ This conftest provides:
 - run_make: Helper to execute make commands with dry-run support (imported from test_utils)
 - setup_rhiza_git_repo: Initialize a git repo configured as rhiza origin (imported from test_utils)
 - SPLIT_MAKEFILES: List of split Makefile paths
+
+Security Notes:
+- S101 (assert usage): Asserts are used in pytest tests to validate conditions
+- S603/S607 (subprocess usage): Any subprocess calls (via run_make) are for testing
+  Makefile targets in isolated environments with controlled inputs
+- Test code operates in a controlled environment with trusted inputs
 """
 
 from __future__ import annotations

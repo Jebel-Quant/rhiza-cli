@@ -4,6 +4,13 @@ This file and its associated tests flow down via a SYNC action from the jebel-qu
 (https://github.com/jebel-quant/rhiza).
 
 Provides test fixtures for testing git-based workflows and version management.
+
+Security Notes:
+- S101 (assert usage): Asserts are appropriate in test code for validating conditions
+- S603 (subprocess without shell=True): All subprocess calls use lists of known commands (git),
+  not user input, making them safe from shell injection
+- S607 (subprocess with partial path): Using 'git' from PATH is acceptable in test fixtures
+  as the test environment is controlled and git is a required development dependency
 """
 
 import logging
