@@ -85,11 +85,11 @@ class RhizaBundles:
     """Represents the structure of template-bundles.yml.
 
     Attributes:
-        version: Version string of the bundles configuration format.
+        version: Optional version string of the bundles configuration format.
         bundles: Dictionary mapping bundle names to their definitions.
     """
 
-    version: str
+    version: str | None = None
     bundles: dict[str, BundleDefinition] = field(default_factory=dict)
 
     @classmethod
@@ -105,7 +105,7 @@ class RhizaBundles:
         Raises:
             FileNotFoundError: If the file does not exist.
             yaml.YAMLError: If the YAML is malformed.
-            ValueError: If the file is invalid or missing required fields.
+            ValueError: If the file is empty or invalid.
             TypeError: If bundle data has invalid types.
         """
         with open(file_path) as f:
@@ -115,8 +115,6 @@ class RhizaBundles:
             raise ValueError("Bundles file is empty")  # noqa: TRY003
 
         version = config.get("version")
-        if not version:
-            raise ValueError("Bundles file missing required field: version")  # noqa: TRY003
 
         bundles_config = config.get("bundles", {})
         if not isinstance(bundles_config, dict):
