@@ -7,7 +7,7 @@ This module provides functionality to validate template.yml files in the
 from pathlib import Path
 from typing import Any
 
-import yaml  # type: ignore[import-untyped]
+import yaml
 from loguru import logger
 
 from rhiza.language_validators import get_validator_registry
