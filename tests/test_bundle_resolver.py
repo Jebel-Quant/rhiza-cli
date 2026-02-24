@@ -208,12 +208,13 @@ bundles:
             RhizaBundles.from_yaml(bundles_file)
 
     def test_from_yaml_missing_version(self, tmp_path):
-        """Test loading template-bundles.yml without version."""
+        """Test loading template-bundles.yml without version succeeds."""
         bundles_file = tmp_path / "template-bundles.yml"
         bundles_file.write_text("bundles: {}")
 
-        with pytest.raises(ValueError, match="missing required field: version"):
-            RhizaBundles.from_yaml(bundles_file)
+        result = RhizaBundles.from_yaml(bundles_file)
+        assert result.version is None
+        assert result.bundles == {}
 
     def test_from_yaml_invalid_bundles_type(self, tmp_path):
         """Test loading template-bundles.yml with invalid bundles type."""

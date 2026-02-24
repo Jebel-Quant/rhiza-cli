@@ -598,6 +598,24 @@ templates:
 class TestRhizaBundles:
     """Tests for the RhizaBundles dataclass."""
 
+    def test_from_yaml_without_version(self, tmp_path):
+        """Test that RhizaBundles loads successfully when version field is absent."""
+        bundles_file = tmp_path / "template-bundles.yml"
+        config = {
+            "bundles": {
+                "core": {
+                    "files": ["file1.yml"],
+                },
+            },
+        }
+
+        with open(bundles_file, "w") as f:
+            yaml.dump(config, f)
+
+        result = RhizaBundles.from_yaml(bundles_file)
+        assert result.version is None
+        assert "core" in result.bundles
+
     def test_rhiza_bundles_invalid_bundle_type(self, tmp_path):
         """Test that RhizaBundles raises TypeError for non-dict bundle."""
         bundles_file = tmp_path / "template-bundles.yml"
