@@ -17,7 +17,7 @@ import logging
 import os
 import pathlib
 import shutil
-import subprocess  # nosec B404
+import subprocess  # nosec B404 - subprocess module needed for git operations in test fixtures
 import sys
 
 import pytest
