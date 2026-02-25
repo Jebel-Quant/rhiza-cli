@@ -3,7 +3,7 @@
 This module tests:
 - The __main__.py entry point
 - The cli.py Typer app and command wrappers
-- The inject/materialize commands
+- The deprecated materialize command (now delegates to sync)
 """
 
 import shutil
@@ -181,7 +181,7 @@ class TestWelcomeCommand:
         assert "What Rhiza can do" in output
         assert "Getting started" in output
         assert "rhiza init" in output
-        assert "rhiza materialize" in output
+        assert "rhiza sync" in output
 
     def test_welcome_command_function_coverage(self, capsys):
         """Test the welcome command function directly for coverage."""

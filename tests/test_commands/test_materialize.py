@@ -342,43 +342,43 @@ class TestInjectCommand:
         # Verify rmtree was called to clean up
         assert mock_rmtree.called
 
-    @patch("rhiza.commands.materialize.subprocess.run")
-    @patch("rhiza.commands.materialize.shutil.rmtree")
-    @patch("rhiza.commands.materialize.shutil.copy2")
-    @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_cli_materialize_command(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
-        """Test the CLI materialize command via Typer runner."""
+    @patch("rhiza.cli.sync_cmd")
+    def test_cli_materialize_command(self, mock_sync, tmp_path):
+        """Test the CLI materialize command delegates to sync (deprecated)."""
         runner = CliRunner()
 
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
-        # Create pyproject.toml for validation
-        pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text('[project]\nname = "test"\n')
-
-        # Create template.yml
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        template_file = rhiza_dir / "template.yml"
-
-        with open(template_file, "w") as f:
-            yaml.dump(
-                {"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": [".github"]}, f
-            )
-
-        # Mock tempfile
-        temp_dir = tmp_path / "temp"
-        temp_dir.mkdir()
-        mock_mkdtemp.return_value = str(temp_dir)
-
-        # Mock subprocess to succeed
-        mock_subprocess.return_value = Mock(returncode=0)
-
-        # Run CLI command
+        # Run CLI command — materialize is deprecated and delegates to sync
         result = runner.invoke(cli.app, ["materialize", str(tmp_path), "--branch", "main"])
         assert result.exit_code == 0
+        mock_sync.assert_called_once_with(tmp_path.resolve(), "main", None, "merge")
+
+    @patch("rhiza.cli.sync_cmd")
+    def test_cli_materialize_force_uses_overwrite_strategy(self, mock_sync, tmp_path):
+        """Test that --force maps to overwrite strategy when delegating to sync."""
+        runner = CliRunner()
+
+        # Setup git repo
+        (tmp_path / ".git").mkdir()
+
+        result = runner.invoke(cli.app, ["materialize", str(tmp_path), "--force"])
+        assert result.exit_code == 0
+        mock_sync.assert_called_once_with(tmp_path.resolve(), "main", None, "overwrite")
+
+    @patch("rhiza.cli.sync_cmd")
+    def test_cli_materialize_shows_deprecation_warning(self, mock_sync, tmp_path):
+        """Test that the deprecated materialize command shows a deprecation warning."""
+        runner = CliRunner()
+
+        (tmp_path / ".git").mkdir()
+
+        result = runner.invoke(cli.app, ["materialize", str(tmp_path)])
+        assert result.exit_code == 0
+        # The deprecation warning is written to stderr; CliRunner mixes it into output
+        assert "deprecated" in result.output.lower()
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")

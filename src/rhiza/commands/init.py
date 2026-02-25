@@ -196,7 +196,7 @@ def _create_template_file(
     logger.info("""
 Next steps:
   1. Review and customize .rhiza/template.yml to match your project needs
-  2. Run 'rhiza materialize' to inject templates into your repository
+  2. Run 'rhiza sync' to inject templates into your repository
 """)
 
 

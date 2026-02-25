@@ -35,7 +35,7 @@ Python projects using reusable templates stored in a central repository.
 ✨ What Rhiza can do for you:
 
   • Initialize projects with standard configuration templates
-  • Materialize (inject) templates into target repositories
+  • Sync templates into target repositories (with 3-way merge)
   • Validate template configurations
   • Keep project configurations synchronized
 
@@ -46,8 +46,8 @@ Python projects using reusable templates stored in a central repository.
 
   2. Customize .rhiza/template.yml to match your needs
 
-  3. Materialize templates into your project:
-     $ rhiza materialize
+  3. Sync templates into your project:
+     $ rhiza sync
 
 📚 Learn more:
 
