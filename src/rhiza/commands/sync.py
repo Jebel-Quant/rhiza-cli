@@ -30,6 +30,7 @@ from loguru import logger
 
 from rhiza.bundle_resolver import load_bundles_from_clone, resolve_include_paths
 from rhiza.commands.materialize import (
+    _clean_orphaned_files,
     _clone_template_repository,
     _construct_git_url,
     _handle_target_branch,
@@ -374,6 +375,7 @@ def _sync_overwrite(
     """
     _copy_files_to_target(upstream_snapshot, target, materialized)
     _warn_about_workflow_files(materialized)
+    _clean_orphaned_files(target, materialized)
     _write_history_file(target, materialized, rhiza_repo, rhiza_branch)
     _write_lock(target, upstream_sha)
     logger.success("Sync complete (overwrite strategy)")
@@ -433,6 +435,7 @@ def _sync_merge(
             _copy_files_to_target(upstream_snapshot, target, materialized)
 
         _warn_about_workflow_files(materialized)
+        _clean_orphaned_files(target, materialized)
         _write_history_file(target, materialized, rhiza_repo, rhiza_branch)
         _write_lock(target, upstream_sha)
         logger.success(f"Sync complete — {len(materialized)} file(s) processed")
