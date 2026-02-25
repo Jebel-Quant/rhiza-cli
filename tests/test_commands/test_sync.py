@@ -351,6 +351,123 @@ class TestSyncCommand:
         assert _read_lock(tmp_path) == "first111"
 
 
+class TestSyncOrphanedFiles:
+    """Tests verifying that orphaned files are deleted when template.yml changes during sync."""
+
+    def _setup_project(self, tmp_path, include=None):
+        """Create a minimal project directory with template.yml."""
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text('[project]\nname = "test"\n')
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        template_file = rhiza_dir / "template.yml"
+
+        config = {
+            "template-repository": "jebel-quant/rhiza",
+            "template-branch": "main",
+            "include": include or ["new.txt"],
+        }
+        with open(template_file, "w") as f:
+            yaml.dump(config, f)
+
+    def _write_history(self, tmp_path, files):
+        """Write a history file listing tracked files."""
+        history_file = tmp_path / ".rhiza" / "history"
+        history_file.parent.mkdir(parents=True, exist_ok=True)
+        with history_file.open("w") as f:
+            f.write("# Rhiza Template History\n")
+            for name in files:
+                f.write(f"{name}\n")
+
+    @patch("rhiza.commands.sync.shutil.rmtree")
+    @patch("rhiza.commands.sync._clone_template_repository")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
+    @patch("rhiza.commands.sync._get_head_sha")
+    def test_overwrite_deletes_orphaned_files(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
+        """Overwrite strategy removes files no longer present in the updated template."""
+        # Template now only includes new.txt (old.txt was removed from template.yml)
+        self._setup_project(tmp_path, include=["new.txt"])
+
+        # History from previous sync tracked both files
+        self._write_history(tmp_path, ["old.txt", "new.txt"])
+
+        # Both files exist in the project
+        (tmp_path / "old.txt").write_text("old content")
+        (tmp_path / "new.txt").write_text("existing content")
+
+        mock_sha.return_value = "def456"
+
+        # Upstream clone only provides new.txt
+        clone_dir = tmp_path / "upstream_clone"
+        clone_dir.mkdir()
+        (clone_dir / "new.txt").write_text("upstream new content")
+
+        snapshot_dir = tmp_path / "upstream_snapshot"
+        snapshot_dir.mkdir()
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir)]
+
+        sync(tmp_path, "main", None, "overwrite")
+
+        # new.txt should be updated from upstream
+        assert (tmp_path / "new.txt").exists()
+        # old.txt should be deleted as it is no longer in the template
+        assert not (tmp_path / "old.txt").exists()
+
+        # History file should only contain new.txt (old.txt removed)
+        history_content = (tmp_path / ".rhiza" / "history").read_text()
+        assert "new.txt" in history_content
+        assert "old.txt" not in history_content
+
+    @patch("rhiza.commands.sync.shutil.rmtree")
+    @patch("rhiza.commands.sync._clone_template_repository")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
+    @patch("rhiza.commands.sync._get_head_sha")
+    def test_merge_first_sync_deletes_orphaned_files(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
+        """Merge strategy (first sync) removes files no longer present in the updated template."""
+        # Template now only includes new.txt (old.txt was removed from template.yml)
+        self._setup_project(tmp_path, include=["new.txt"])
+
+        # History from a previous materialize tracked both files
+        self._write_history(tmp_path, ["old.txt", "new.txt"])
+
+        # Both files exist in the project
+        (tmp_path / "old.txt").write_text("old content")
+        (tmp_path / "new.txt").write_text("existing content")
+
+        mock_sha.return_value = "first111"
+
+        # Upstream clone only provides new.txt
+        clone_dir = tmp_path / "upstream_clone"
+        clone_dir.mkdir()
+        (clone_dir / "new.txt").write_text("new template content\n")
+
+        snapshot_dir = tmp_path / "upstream_snapshot"
+        snapshot_dir.mkdir()
+
+        # merge also creates base_snapshot dir
+        base_snapshot_dir = tmp_path / "base_snapshot"
+        base_snapshot_dir.mkdir()
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir)]
+
+        sync(tmp_path, "main", None, "merge")
+
+        # new.txt should be present
+        assert (tmp_path / "new.txt").exists()
+        # old.txt should be deleted as it is no longer in the template
+        assert not (tmp_path / "old.txt").exists()
+
+        # History file should only contain new.txt (old.txt removed)
+        history_content = (tmp_path / ".rhiza" / "history").read_text()
+        assert "new.txt" in history_content
+        assert "old.txt" not in history_content
+
+
 class TestSyncCLI:
     """Tests for the CLI wiring of the sync command."""
 
