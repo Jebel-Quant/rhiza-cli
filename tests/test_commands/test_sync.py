@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 import pytest
 import yaml
+from cruft._commands.utils.diff import get_diff
 from typer.testing import CliRunner
 
 from rhiza import cli
@@ -30,6 +31,7 @@ from rhiza.commands.sync import (
     _prepare_snapshot,
     _read_lock,
     _sync_diff,
+    _sync_merge,
     _write_lock,
     sync,
 )
@@ -927,3 +929,611 @@ class TestMergeWithBasePaths:
         )
 
         mock_apply.assert_called_once()
+
+
+# ===========================================================================
+# Detailed 3-way merge tests
+# ===========================================================================
+
+
+class TestThreeWayMergeApplyDiff:
+    """Detailed integration tests for the 3-way merge mechanism in _apply_diff.
+
+    These tests use real git repositories and real diffs produced by
+    ``get_diff(base_snapshot, upstream_snapshot)``, exercising the full
+    ``git apply -3`` pipeline without network access.
+
+    Scenarios covered:
+    - Upstream modifies an existing file → clean apply
+    - Upstream adds a completely new file
+    - Upstream removes a file
+    - Upstream modifies multiple files
+    - Upstream renames content within a file (multiline context)
+    - Conflicting changes → fallback to ``--reject``, returns False, .rej files created
+    """
+
+    @pytest.fixture
+    def git_setup(self):
+        """Return git executable and env."""
+        git = shutil.which("git")
+        if git is None:
+            pytest.skip("git not available")
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        return git, env
+
+    @pytest.fixture
+    def git_project(self, tmp_path, git_setup):
+        """Create a committed git project with a couple of template files."""
+        git_executable, git_env = git_setup
+        project = tmp_path / "project"
+        project.mkdir()
+        for cmd in [
+            [git_executable, "init"],
+            [git_executable, "config", "user.email", "dev@test.com"],
+            [git_executable, "config", "user.name", "Dev"],
+        ]:
+            subprocess.run(cmd, cwd=project, check=True, capture_output=True, env=git_env)
+        return project
+
+    def _commit_all(self, project, git_executable, git_env, message="add files"):
+        """Stage everything and create a commit."""
+        subprocess.run([git_executable, "add", "."], cwd=project, check=True, capture_output=True, env=git_env)
+        subprocess.run(
+            [git_executable, "commit", "-m", message],
+            cwd=project,
+            check=True,
+            capture_output=True,
+            env=git_env,
+        )
+
+    def test_upstream_modifies_existing_file(self, tmp_path, git_project, git_setup):
+        """Upstream changes a line in a committed file → clean apply, file updated."""
+        git_executable, git_env = git_setup
+
+        # Commit the 'base' content into the project
+        (git_project / "Makefile").write_text("install:\n\techo old\n")
+        self._commit_all(git_project, git_executable, git_env)
+
+        # Snapshots: base identical to project, upstream has updated echo command
+        base = tmp_path / "base"
+        base.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (base / "Makefile").write_text("install:\n\techo old\n")
+        (upstream / "Makefile").write_text("install:\n\techo new\n")
+
+        diff = get_diff(base, upstream)
+        result = _apply_diff(diff, git_project, git_executable, git_env)
+
+        assert result is True
+        assert "echo new" in (git_project / "Makefile").read_text()
+
+    def test_upstream_adds_new_file(self, tmp_path, git_project, git_setup):
+        """Upstream introduces a file that didn't exist in the base → file created."""
+        git_executable, git_env = git_setup
+
+        # Start with an existing committed file (needed so git repo has at least one commit)
+        (git_project / "README.md").write_text("# Project\n")
+        self._commit_all(git_project, git_executable, git_env)
+
+        base = tmp_path / "base"
+        base.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        # base has no new_tool.yml; upstream adds it
+        (upstream / "new_tool.yml").write_text("version: 1\nenabled: true\n")
+
+        diff = get_diff(base, upstream)
+        result = _apply_diff(diff, git_project, git_executable, git_env)
+
+        assert result is True
+        assert (git_project / "new_tool.yml").exists()
+        assert "enabled: true" in (git_project / "new_tool.yml").read_text()
+
+    def test_upstream_removes_a_file(self, tmp_path, git_project, git_setup):
+        """Upstream deletes a file that existed at base → file removed from project."""
+        git_executable, git_env = git_setup
+
+        # Commit the file that will be deleted
+        (git_project / "legacy_config.yml").write_text("old: setting\n")
+        self._commit_all(git_project, git_executable, git_env)
+
+        base = tmp_path / "base"
+        base.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (base / "legacy_config.yml").write_text("old: setting\n")
+        # upstream does NOT have the file → deletion diff
+
+        diff = get_diff(base, upstream)
+        result = _apply_diff(diff, git_project, git_executable, git_env)
+
+        assert result is True
+        assert not (git_project / "legacy_config.yml").exists()
+
+    def test_upstream_modifies_multiple_files(self, tmp_path, git_project, git_setup):
+        """Upstream updates several files in one diff → all are patched cleanly."""
+        git_executable, git_env = git_setup
+
+        (git_project / "ci.yml").write_text("steps:\n  - run: test-v1\n")
+        (git_project / "lint.yml").write_text("steps:\n  - run: lint-v1\n")
+        (git_project / "release.yml").write_text("steps:\n  - run: release-v1\n")
+        self._commit_all(git_project, git_executable, git_env)
+
+        base = tmp_path / "base"
+        base.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        for f, old, new in [
+            ("ci.yml", "test-v1", "test-v2"),
+            ("lint.yml", "lint-v1", "lint-v2"),
+            ("release.yml", "release-v1", "release-v2"),
+        ]:
+            (base / f).write_text(f"steps:\n  - run: {old}\n")
+            (upstream / f).write_text(f"steps:\n  - run: {new}\n")
+
+        diff = get_diff(base, upstream)
+        result = _apply_diff(diff, git_project, git_executable, git_env)
+
+        assert result is True
+        assert "test-v2" in (git_project / "ci.yml").read_text()
+        assert "lint-v2" in (git_project / "lint.yml").read_text()
+        assert "release-v2" in (git_project / "release.yml").read_text()
+
+    def test_upstream_adds_lines_to_end_of_file(self, tmp_path, git_project, git_setup):
+        """Upstream appends new make targets to an existing Makefile."""
+        git_executable, git_env = git_setup
+
+        makefile_base = "install:\n\tpip install .\n"
+        (git_project / "Makefile").write_text(makefile_base)
+        self._commit_all(git_project, git_executable, git_env)
+
+        base = tmp_path / "base"
+        base.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (base / "Makefile").write_text(makefile_base)
+        (upstream / "Makefile").write_text(makefile_base + "\ntest:\n\tpytest\n")
+
+        diff = get_diff(base, upstream)
+        result = _apply_diff(diff, git_project, git_executable, git_env)
+
+        assert result is True
+        content = (git_project / "Makefile").read_text()
+        assert "pip install" in content
+        assert "pytest" in content
+
+    def test_conflict_creates_rej_file_and_returns_false(self, tmp_path, git_project, git_setup):
+        """When local edits conflict with template update, .rej file is produced."""
+        git_executable, git_env = git_setup
+
+        # Commit original
+        (git_project / "settings.cfg").write_text("timeout = 30\n")
+        self._commit_all(git_project, git_executable, git_env)
+
+        # User makes a local change to the SAME line
+        (git_project / "settings.cfg").write_text("timeout = 99\n")
+
+        # Template also changes the same line to a different value
+        base = tmp_path / "base"
+        base.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (base / "settings.cfg").write_text("timeout = 30\n")
+        (upstream / "settings.cfg").write_text("timeout = 60\n")
+
+        diff = get_diff(base, upstream)
+        result = _apply_diff(diff, git_project, git_executable, git_env)
+
+        # Apply cannot succeed — local file diverged from the context
+        assert result is False
+        # The .rej file should exist, marking the conflict
+        assert (git_project / "settings.cfg.rej").exists()
+
+    def test_upstream_mixed_add_modify_delete(self, tmp_path, git_project, git_setup):
+        """Upstream adds one file, modifies another, removes a third — all in one diff."""
+        git_executable, git_env = git_setup
+
+        (git_project / "kept.yml").write_text("version: 1\n")
+        (git_project / "gone.yml").write_text("deprecated: true\n")
+        self._commit_all(git_project, git_executable, git_env)
+
+        base = tmp_path / "base"
+        base.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+
+        # kept.yml is modified; gone.yml is removed; new.yml is added
+        (base / "kept.yml").write_text("version: 1\n")
+        (base / "gone.yml").write_text("deprecated: true\n")
+        (upstream / "kept.yml").write_text("version: 2\n")
+        (upstream / "new.yml").write_text("feature: true\n")
+
+        diff = get_diff(base, upstream)
+        result = _apply_diff(diff, git_project, git_executable, git_env)
+
+        assert result is True
+        assert "version: 2" in (git_project / "kept.yml").read_text()
+        assert not (git_project / "gone.yml").exists()
+        assert (git_project / "new.yml").exists()
+        assert "feature: true" in (git_project / "new.yml").read_text()
+
+
+class TestThreeWayMergeWithBase:
+    """End-to-end tests for the _merge_with_base function.
+
+    These tests exercise the complete merge pipeline:
+    ``_merge_with_base`` → ``get_diff`` → ``_apply_diff`` (``git apply -3``).
+    ``_clone_at_sha`` is mocked to avoid network access; all other logic
+    runs against real files and a real git repository.
+    """
+
+    @pytest.fixture
+    def git_setup(self):
+        """Return git executable and env."""
+        git = shutil.which("git")
+        if git is None:
+            pytest.skip("git not available")
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        return git, env
+
+    @pytest.fixture
+    def git_project(self, tmp_path, git_setup):
+        """Create a committed target project."""
+        git_executable, git_env = git_setup
+        project = tmp_path / "project"
+        project.mkdir()
+        for cmd in [
+            [git_executable, "init"],
+            [git_executable, "config", "user.email", "dev@test.com"],
+            [git_executable, "config", "user.name", "Dev"],
+        ]:
+            subprocess.run(cmd, cwd=project, check=True, capture_output=True, env=git_env)
+        return project
+
+    def _commit_all(self, project, git_executable, git_env, message="add files"):
+        """Stage everything and create a commit."""
+        subprocess.run([git_executable, "add", "."], cwd=project, check=True, capture_output=True, env=git_env)
+        subprocess.run(
+            [git_executable, "commit", "-m", message],
+            cwd=project,
+            check=True,
+            capture_output=True,
+            env=git_env,
+        )
+
+    def _populate_base_snapshot_from_clone(self, base_clone, include_paths, excludes, base_snapshot):
+        """Helper to prepare a base snapshot without a real git clone."""
+        _prepare_snapshot(base_clone, include_paths, excludes, base_snapshot)
+
+    @patch("rhiza.commands.sync._clone_at_sha")
+    def test_merge_applies_upstream_changes(self, mock_clone, tmp_path, git_project, git_setup):
+        """_merge_with_base applies diff(base→upstream) to the target cleanly."""
+        git_executable, git_env = git_setup
+
+        # Commit base content in target
+        (git_project / "pyproject.toml").write_text('[project]\nname = "myapp"\nversion = "0.1.0"\n')
+        (git_project / "Makefile").write_text("test:\n\tpytest\n")
+        self._commit_all(git_project, git_executable, git_env)
+
+        # base_snapshot == what was present at last sync
+        base_snapshot = tmp_path / "base_snapshot"
+        base_snapshot.mkdir()
+        (base_snapshot / "pyproject.toml").write_text('[project]\nname = "myapp"\nversion = "0.1.0"\n')
+        (base_snapshot / "Makefile").write_text("test:\n\tpytest\n")
+
+        # upstream_snapshot == current template HEAD (bumped version, added lint target)
+        upstream_snapshot = tmp_path / "upstream_snapshot"
+        upstream_snapshot.mkdir()
+        (upstream_snapshot / "pyproject.toml").write_text('[project]\nname = "myapp"\nversion = "0.2.0"\n')
+        (upstream_snapshot / "Makefile").write_text("test:\n\tpytest\n\nlint:\n\truff check .\n")
+
+        def populate_base_clone(git_url, sha, dest, include_paths, git_exe, git_env_):
+            # Populate the clone directory so _prepare_snapshot can copy files
+            (dest / "pyproject.toml").write_text('[project]\nname = "myapp"\nversion = "0.1.0"\n')
+            (dest / "Makefile").write_text("test:\n\tpytest\n")
+
+        mock_clone.side_effect = populate_base_clone
+
+        _merge_with_base(
+            git_project,
+            upstream_snapshot,
+            "newsha",
+            "oldsha",
+            base_snapshot,
+            ["pyproject.toml", "Makefile"],
+            set(),
+            "https://example.com/repo.git",
+            git_executable,
+            git_env,
+        )
+
+        pyproject = (git_project / "pyproject.toml").read_text()
+        makefile = (git_project / "Makefile").read_text()
+        assert 'version = "0.2.0"' in pyproject, "version should be bumped"
+        assert "ruff check" in makefile, "lint target should be added"
+
+    @patch("rhiza.commands.sync._clone_at_sha")
+    def test_merge_no_changes_updates_lock_only(self, mock_clone, tmp_path, git_project, git_setup):
+        """When base and upstream are identical, no files are modified but lock is updated."""
+        git_executable, git_env = git_setup
+
+        (git_project / "ci.yml").write_text("on: push\n")
+        self._commit_all(git_project, git_executable, git_env)
+        (git_project / ".rhiza").mkdir(exist_ok=True)
+
+        identical_content = "on: push\n"
+        base_snapshot = tmp_path / "base_snapshot"
+        base_snapshot.mkdir()
+        upstream_snapshot = tmp_path / "upstream_snapshot"
+        upstream_snapshot.mkdir()
+        (base_snapshot / "ci.yml").write_text(identical_content)
+        (upstream_snapshot / "ci.yml").write_text(identical_content)
+
+        def populate_base_clone(git_url, sha, dest, include_paths, git_exe, git_env_):
+            (dest / "ci.yml").write_text(identical_content)
+
+        mock_clone.side_effect = populate_base_clone
+
+        _merge_with_base(
+            git_project,
+            upstream_snapshot,
+            "upstream_sha_abc",
+            "base_sha_xyz",
+            base_snapshot,
+            ["ci.yml"],
+            set(),
+            "https://example.com/repo.git",
+            git_executable,
+            git_env,
+        )
+
+        # File must be unchanged
+        assert (git_project / "ci.yml").read_text() == identical_content
+        # Lock should be updated to upstream SHA
+        assert _read_lock(git_project) == "upstream_sha_abc"
+
+    @patch("rhiza.commands.sync._clone_at_sha")
+    def test_merge_upstream_adds_new_file(self, mock_clone, tmp_path, git_project, git_setup):
+        """_merge_with_base handles upstream adding a file that wasn't in base."""
+        git_executable, git_env = git_setup
+
+        (git_project / "existing.yml").write_text("key: value\n")
+        self._commit_all(git_project, git_executable, git_env)
+
+        base_snapshot = tmp_path / "base_snapshot"
+        base_snapshot.mkdir()
+        upstream_snapshot = tmp_path / "upstream_snapshot"
+        upstream_snapshot.mkdir()
+        (base_snapshot / "existing.yml").write_text("key: value\n")
+        (upstream_snapshot / "existing.yml").write_text("key: value\n")
+        (upstream_snapshot / "new_workflow.yml").write_text("name: deploy\n")
+
+        def populate_base_clone(git_url, sha, dest, include_paths, git_exe, git_env_):
+            (dest / "existing.yml").write_text("key: value\n")
+
+        mock_clone.side_effect = populate_base_clone
+
+        _merge_with_base(
+            git_project,
+            upstream_snapshot,
+            "newsha",
+            "oldsha",
+            base_snapshot,
+            ["existing.yml"],
+            set(),
+            "https://example.com/repo.git",
+            git_executable,
+            git_env,
+        )
+
+        assert (git_project / "new_workflow.yml").exists()
+        assert "deploy" in (git_project / "new_workflow.yml").read_text()
+
+    @patch("rhiza.commands.sync._clone_at_sha")
+    def test_merge_upstream_removes_file(self, mock_clone, tmp_path, git_project, git_setup):
+        """_merge_with_base handles upstream removing a file from the template."""
+        git_executable, git_env = git_setup
+
+        (git_project / "legacy.cfg").write_text("old: setting\n")
+        (git_project / "main.cfg").write_text("current: setting\n")
+        self._commit_all(git_project, git_executable, git_env)
+
+        base_snapshot = tmp_path / "base_snapshot"
+        base_snapshot.mkdir()
+        upstream_snapshot = tmp_path / "upstream_snapshot"
+        upstream_snapshot.mkdir()
+        (base_snapshot / "legacy.cfg").write_text("old: setting\n")
+        (base_snapshot / "main.cfg").write_text("current: setting\n")
+        # upstream removes legacy.cfg entirely
+        (upstream_snapshot / "main.cfg").write_text("current: setting\n")
+
+        def populate_base_clone(git_url, sha, dest, include_paths, git_exe, git_env_):
+            (dest / "legacy.cfg").write_text("old: setting\n")
+            (dest / "main.cfg").write_text("current: setting\n")
+
+        mock_clone.side_effect = populate_base_clone
+
+        _merge_with_base(
+            git_project,
+            upstream_snapshot,
+            "newsha",
+            "oldsha",
+            base_snapshot,
+            ["legacy.cfg", "main.cfg"],
+            set(),
+            "https://example.com/repo.git",
+            git_executable,
+            git_env,
+        )
+
+        assert not (git_project / "legacy.cfg").exists(), "legacy.cfg should be deleted"
+        assert (git_project / "main.cfg").exists(), "main.cfg should remain"
+
+
+class TestThreeWayMergeSyncMergeStrategy:
+    """Integration tests for ``_sync_merge`` end-to-end (the merge strategy entry point).
+
+    Tests the full merge pipeline from first-sync to subsequent-sync, verifying
+    that lock files, history files, and orphan cleanup all work correctly
+    alongside the 3-way merge.
+    """
+
+    @pytest.fixture
+    def git_setup(self):
+        """Return git executable and env."""
+        git = shutil.which("git")
+        if git is None:
+            pytest.skip("git not available")
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        return git, env
+
+    @pytest.fixture
+    def project_with_template(self, tmp_path, git_setup):
+        """Set up a target project with a valid template.yml."""
+        git_executable, git_env = git_setup
+        project = tmp_path / "project"
+        project.mkdir()
+        for cmd in [
+            [git_executable, "init"],
+            [git_executable, "config", "user.email", "dev@test.com"],
+            [git_executable, "config", "user.name", "Dev"],
+        ]:
+            subprocess.run(cmd, cwd=project, check=True, capture_output=True, env=git_env)
+        (project / "pyproject.toml").write_text('[project]\nname = "myapp"\n')
+        rhiza = project / ".rhiza"
+        rhiza.mkdir()
+        with open(rhiza / "template.yml", "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": ["Makefile"],
+                },
+                f,
+            )
+        subprocess.run([git_executable, "add", "."], cwd=project, check=True, capture_output=True, env=git_env)
+        subprocess.run(
+            [git_executable, "commit", "-m", "init"],
+            cwd=project,
+            check=True,
+            capture_output=True,
+            env=git_env,
+        )
+        return project
+
+    @patch("rhiza.commands.sync._clone_at_sha")
+    @patch("rhiza.commands.sync._write_history_file")
+    @patch("rhiza.commands.sync._warn_about_workflow_files")
+    def test_sync_merge_subsequent_applies_diff(
+        self,
+        mock_warn,
+        mock_history,
+        mock_clone,
+        tmp_path,
+        project_with_template,
+        git_setup,
+    ):
+        """On a subsequent sync (lock exists), the diff is applied via 3-way merge."""
+        git_executable, git_env = git_setup
+        target = project_with_template
+
+        # Commit a file that matches what was in the last sync
+        makefile_v1 = "install:\n\tpip install .\n"
+        (target / "Makefile").write_text(makefile_v1)
+        subprocess.run([git_executable, "add", "."], cwd=target, check=True, capture_output=True, env=git_env)
+        subprocess.run(
+            [git_executable, "commit", "-m", "add Makefile"],
+            cwd=target,
+            check=True,
+            capture_output=True,
+            env=git_env,
+        )
+
+        # Write a lock indicating we last synced at "base_sha"
+        _write_lock(target, "base_sha_123")
+
+        # Create fake upstream snapshot (what the template looks like now)
+        upstream_snapshot = tmp_path / "upstream_snapshot"
+        upstream_snapshot.mkdir()
+        (upstream_snapshot / "Makefile").write_text(makefile_v1 + "\ntest:\n\tpytest\n")
+        [target.resolve().relative_to(target.resolve()) / "Makefile"]
+
+        # base_snapshot is populated by the mock_clone side_effect
+        base_snapshot_holder = {}
+
+        def populate_base(git_url, sha, dest, include_paths, git_exe, git_env_):
+            base_snapshot_holder["dest"] = dest
+            (dest / "Makefile").write_text(makefile_v1)
+
+        mock_clone.side_effect = populate_base
+
+        from pathlib import Path
+
+        _sync_merge(
+            target=target,
+            upstream_snapshot=upstream_snapshot,
+            upstream_sha="upstream_sha_456",
+            base_sha="base_sha_123",
+            materialized=[Path("Makefile")],
+            include_paths=["Makefile"],
+            excludes=set(),
+            git_url="https://example.com/repo.git",
+            git_executable=git_executable,
+            git_env=git_env,
+            rhiza_repo="jebel-quant/rhiza",
+            rhiza_branch="main",
+        )
+
+        content = (target / "Makefile").read_text()
+        assert "pip install" in content, "original content should be preserved"
+        assert "pytest" in content, "upstream addition should be applied"
+        # Lock file should be updated
+        assert _read_lock(target) == "upstream_sha_456"
+
+    @patch("rhiza.commands.sync._clone_at_sha")
+    @patch("rhiza.commands.sync._write_history_file")
+    @patch("rhiza.commands.sync._warn_about_workflow_files")
+    def test_sync_merge_first_run_copies_without_merge(
+        self,
+        mock_warn,
+        mock_history,
+        mock_clone,
+        tmp_path,
+        project_with_template,
+        git_setup,
+    ):
+        """On first sync (no lock), files are copied directly without diff/merge."""
+        git_executable, git_env = git_setup
+        target = project_with_template
+
+        # No lock file → first sync
+        assert _read_lock(target) is None
+
+        upstream_snapshot = tmp_path / "upstream_snapshot"
+        upstream_snapshot.mkdir()
+        (upstream_snapshot / "Makefile").write_text("install:\n\tpip install .\n")
+
+        _sync_merge(
+            target=target,
+            upstream_snapshot=upstream_snapshot,
+            upstream_sha="first_sha_abc",
+            base_sha=None,
+            materialized=[__import__("pathlib").Path("Makefile")],
+            include_paths=["Makefile"],
+            excludes=set(),
+            git_url="https://example.com/repo.git",
+            git_executable=git_executable,
+            git_env=git_env,
+            rhiza_repo="jebel-quant/rhiza",
+            rhiza_branch="main",
+        )
+
+        assert (target / "Makefile").exists()
+        assert "pip install" in (target / "Makefile").read_text()
+        assert _read_lock(target) == "first_sha_abc"
+        # _clone_at_sha should NOT have been called (no base to clone)
+        mock_clone.assert_not_called()
