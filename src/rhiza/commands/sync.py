@@ -25,6 +25,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+import yaml
 from cruft._commands.utils.diff import get_diff
 from loguru import logger
 
@@ -39,6 +40,7 @@ from rhiza.commands.materialize import (
     _warn_about_workflow_files,
     _write_history_file,
 )
+from rhiza.models import RhizaTemplate
 from rhiza.subprocess_utils import get_git_executable
 
 # ---------------------------------------------------------------------------
@@ -51,6 +53,9 @@ LOCK_FILE = ".rhiza/template.lock"
 def _read_lock(target: Path) -> str | None:
     """Read the last-synced commit SHA from the lock file.
 
+    Supports both the current YAML format and the legacy plain-text format
+    (a bare SHA string) for backward compatibility.
+
     Args:
         target: Path to the target repository.
 
@@ -60,19 +65,57 @@ def _read_lock(target: Path) -> str | None:
     lock_path = target / LOCK_FILE
     if not lock_path.exists():
         return None
-    return lock_path.read_text(encoding="utf-8").strip()
+    content = lock_path.read_text(encoding="utf-8").strip()
+    if not content:
+        return None
+    try:
+        data = yaml.safe_load(content)
+        if isinstance(data, dict) and "sha" in data:
+            return data["sha"]
+    except yaml.YAMLError:
+        pass
+    # Legacy format: plain-text SHA
+    return content
 
 
-def _write_lock(target: Path, sha: str) -> None:
-    """Persist the synced commit SHA to the lock file.
+def _write_lock(
+    target: Path,
+    sha: str,
+    repo: str,
+    host: str,
+    ref: str,
+    include: list[str],
+    exclude: list[str],
+    templates: list[str],
+) -> None:
+    """Persist the synced commit SHA and template metadata to the lock file.
+
+    The lock file is written in YAML format containing the commit SHA alongside
+    the template configuration (repo, host, ref, include, exclude, templates)
+    so the sync state is fully self-describing.
 
     Args:
         target: Path to the target repository.
         sha: The commit SHA to record.
+        repo: Template repository name (e.g. ``"owner/repo"``).
+        host: Git hosting platform (``"github"`` or ``"gitlab"``).
+        ref: Template branch or tag ref.
+        include: Include paths from the template configuration.
+        exclude: Exclude paths from the template configuration.
+        templates: Template bundle names from the template configuration.
     """
     lock_path = target / LOCK_FILE
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    lock_path.write_text(sha + "\n", encoding="utf-8")
+    data = {
+        "sha": sha,
+        "repo": repo,
+        "host": host,
+        "ref": ref,
+        "include": include,
+        "exclude": exclude,
+        "templates": templates,
+    }
+    lock_path.write_text(yaml.dump(data, default_flow_style=False, sort_keys=False), encoding="utf-8")
     logger.info(f"Updated {LOCK_FILE} → {sha[:12]}")
 
 
@@ -361,6 +404,7 @@ def _sync_overwrite(
     materialized: list[Path],
     rhiza_repo: str,
     rhiza_branch: str,
+    template: RhizaTemplate,
 ) -> None:
     """Execute the overwrite strategy (same as materialize --force).
 
@@ -371,11 +415,21 @@ def _sync_overwrite(
         materialized: List of relative file paths.
         rhiza_repo: Template repository name.
         rhiza_branch: Template branch name.
+        template: The loaded RhizaTemplate configuration.
     """
     _copy_files_to_target(upstream_snapshot, target, materialized)
     _warn_about_workflow_files(materialized)
     _write_history_file(target, materialized, rhiza_repo, rhiza_branch)
-    _write_lock(target, upstream_sha)
+    _write_lock(
+        target,
+        upstream_sha,
+        rhiza_repo,
+        template.template_host or "github",
+        rhiza_branch,
+        template.include,
+        template.exclude,
+        template.templates,
+    )
     logger.success("Sync complete (overwrite strategy)")
 
 
@@ -392,6 +446,7 @@ def _sync_merge(
     git_env: dict[str, str],
     rhiza_repo: str,
     rhiza_branch: str,
+    template: RhizaTemplate,
 ) -> None:
     """Execute the merge strategy (cruft-style 3-way merge).
 
@@ -412,6 +467,7 @@ def _sync_merge(
         git_env: Environment variables for git commands.
         rhiza_repo: Template repository name.
         rhiza_branch: Template branch name.
+        template: The loaded RhizaTemplate configuration.
     """
     base_snapshot = Path(tempfile.mkdtemp())
     try:
@@ -427,6 +483,9 @@ def _sync_merge(
                 git_url,
                 git_executable,
                 git_env,
+                rhiza_repo,
+                rhiza_branch,
+                template,
             )
         else:
             logger.info("First sync — copying all template files")
@@ -434,7 +493,16 @@ def _sync_merge(
 
         _warn_about_workflow_files(materialized)
         _write_history_file(target, materialized, rhiza_repo, rhiza_branch)
-        _write_lock(target, upstream_sha)
+        _write_lock(
+            target,
+            upstream_sha,
+            rhiza_repo,
+            template.template_host or "github",
+            rhiza_branch,
+            template.include,
+            template.exclude,
+            template.templates,
+        )
         logger.success(f"Sync complete — {len(materialized)} file(s) processed")
     finally:
         if base_snapshot.exists():
@@ -452,6 +520,9 @@ def _merge_with_base(
     git_url: str,
     git_executable: str,
     git_env: dict[str, str],
+    rhiza_repo: str,
+    rhiza_branch: str,
+    template: RhizaTemplate,
 ) -> None:
     """Compute and apply the diff between base and upstream snapshots.
 
@@ -466,6 +537,9 @@ def _merge_with_base(
         git_url: Remote URL of the template repository.
         git_executable: Absolute path to git.
         git_env: Environment variables for git commands.
+        rhiza_repo: Template repository name.
+        rhiza_branch: Template branch name.
+        template: The loaded RhizaTemplate configuration.
     """
     logger.info(f"Cloning base snapshot at {base_sha[:12]}")
     base_clone = Path(tempfile.mkdtemp())
@@ -482,7 +556,16 @@ def _merge_with_base(
 
     if not diff.strip():
         logger.success("Template unchanged since last sync — nothing to apply")
-        _write_lock(target, upstream_sha)
+        _write_lock(
+            target,
+            upstream_sha,
+            rhiza_repo,
+            template.template_host or "github",
+            rhiza_branch,
+            template.include,
+            template.exclude,
+            template.templates,
+        )
         return
 
     logger.info("Applying template changes via 3-way merge (cruft)...")
@@ -603,7 +686,9 @@ def sync(
             if strategy == "diff":
                 _sync_diff(target, upstream_snapshot)
             elif strategy == "overwrite":
-                _sync_overwrite(target, upstream_snapshot, upstream_sha, materialized, rhiza_repo, rhiza_branch)
+                _sync_overwrite(
+                    target, upstream_snapshot, upstream_sha, materialized, rhiza_repo, rhiza_branch, template
+                )
             else:
                 _sync_merge(
                     target,
@@ -618,6 +703,7 @@ def sync(
                     git_env,
                     rhiza_repo,
                     rhiza_branch,
+                    template,
                 )
         finally:
             if upstream_snapshot.exists():

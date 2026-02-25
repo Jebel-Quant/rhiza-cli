@@ -1,7 +1,7 @@
 """Tests for the ``sync`` command and its helper functions.
 
 Tests cover:
-- Lock-file read/write
+- Lock-file read/write (YAML format and legacy plain-text backward compat)
 - Path expansion and exclusion
 - Snapshot preparation (new cruft-based helper)
 - Diff application via ``git apply -3`` (new cruft-based helper)
@@ -12,7 +12,7 @@ Tests cover:
 import os
 import shutil
 import subprocess
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
@@ -21,8 +21,10 @@ from typer.testing import CliRunner
 from rhiza import cli
 from rhiza.commands.sync import (
     _apply_diff,
+    _clone_at_sha,
     _excluded_set,
     _expand_paths,
+    _get_head_sha,
     _prepare_snapshot,
     _read_lock,
     _write_lock,
@@ -38,17 +40,62 @@ class TestLockFile:
         assert _read_lock(tmp_path) is None
 
     def test_write_and_read_lock(self, tmp_path):
-        """Round-trip write/read of a lock file."""
+        """Round-trip write/read of a lock file returns the SHA."""
         sha = "abc123def456"
-        _write_lock(tmp_path, sha)
+        _write_lock(tmp_path, sha, "owner/repo", "github", "main", [], [], [])
         assert _read_lock(tmp_path) == sha
 
     def test_write_lock_creates_parent_directory(self, tmp_path):
         """Lock file creation should create .rhiza/ if needed."""
         target = tmp_path / "project"
         target.mkdir()
-        _write_lock(target, "deadbeef")
+        _write_lock(target, "deadbeef", "owner/repo", "github", "main", [], [], [])
         assert (target / ".rhiza" / "template.lock").exists()
+
+    def test_lock_file_is_yaml_format(self, tmp_path):
+        """Written lock file must be valid YAML with all required fields."""
+        _write_lock(
+            tmp_path,
+            "abc123",
+            "owner/repo",
+            "github",
+            "main",
+            [".github"],
+            ["tests"],
+            ["core"],
+        )
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+        data = yaml.safe_load(lock_path.read_text())
+        assert data["sha"] == "abc123"
+        assert data["repo"] == "owner/repo"
+        assert data["host"] == "github"
+        assert data["ref"] == "main"
+        assert data["include"] == [".github"]
+        assert data["exclude"] == ["tests"]
+        assert data["templates"] == ["core"]
+
+    def test_read_lock_backward_compat_plain_text(self, tmp_path):
+        """Legacy plain-text lock files (bare SHA) are still readable."""
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text("abc123def456\n")
+        assert _read_lock(tmp_path) == "abc123def456"
+
+    def test_read_lock_returns_none_for_empty_file(self, tmp_path):
+        """A lock file that is empty (or whitespace-only) returns None."""
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text("   \n")
+        assert _read_lock(tmp_path) is None
+
+    def test_read_lock_falls_back_on_yaml_parse_error(self, tmp_path):
+        """If YAML parsing fails, content is returned as a plain-text SHA."""
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text("some-sha-value\n")
+        with patch("rhiza.commands.sync.yaml.safe_load", side_effect=yaml.YAMLError("parse error")):
+            result = _read_lock(tmp_path)
+        assert result == "some-sha-value"
 
 
 class TestExpandPaths:
@@ -92,6 +139,83 @@ class TestExcludedSet:
         f.write_text("shh")
         excludes = _excluded_set(tmp_path, ["secret.txt"])
         assert "secret.txt" in excludes
+
+
+class TestGetHeadSha:
+    """Tests for the _get_head_sha helper."""
+
+    @pytest.fixture
+    def git_setup(self):
+        """Return git executable and env."""
+        git = shutil.which("git")
+        if git is None:
+            pytest.skip("git not available")
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        return git, env
+
+    def test_get_head_sha_returns_full_sha(self, tmp_path, git_setup):
+        """_get_head_sha returns the 40-character HEAD commit SHA."""
+        git_executable, git_env = git_setup
+        for cmd in [
+            [git_executable, "init"],
+            [git_executable, "config", "user.email", "test@test.com"],
+            [git_executable, "config", "user.name", "Test"],
+        ]:
+            subprocess.run(cmd, cwd=tmp_path, check=True, capture_output=True, env=git_env)  # nosec B603
+        (tmp_path / "file.txt").write_text("content")
+        subprocess.run([git_executable, "add", "."], cwd=tmp_path, check=True, capture_output=True, env=git_env)  # nosec B603
+        subprocess.run(
+            [git_executable, "commit", "-m", "init"], cwd=tmp_path, check=True, capture_output=True, env=git_env
+        )  # nosec B603
+
+        sha = _get_head_sha(tmp_path, git_executable, git_env)
+        assert len(sha) == 40
+        assert all(c in "0123456789abcdef" for c in sha)
+
+
+class TestCloneAtSha:
+    """Tests for error-path handling in _clone_at_sha."""
+
+    @pytest.fixture
+    def git_setup(self):
+        """Return git executable and env."""
+        git = shutil.which("git")
+        if git is None:
+            pytest.skip("git not available")
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        return git, env
+
+    def test_clone_error_exits(self, tmp_path, git_setup):
+        """A git clone failure causes sys.exit(1)."""
+        git_executable, git_env = git_setup
+        error = subprocess.CalledProcessError(1, "git", stderr="fatal: repo not found")
+        with patch("rhiza.commands.sync.subprocess.run", side_effect=error), pytest.raises(SystemExit):
+            _clone_at_sha("https://example.com/repo.git", "abc123", tmp_path, ["file.txt"], git_executable, git_env)
+
+    def test_sparse_checkout_error_exits(self, tmp_path, git_setup):
+        """A sparse-checkout failure (after a successful clone) causes sys.exit(1)."""
+        git_executable, git_env = git_setup
+        error = subprocess.CalledProcessError(1, "git", stderr="error: sparse-checkout")
+        with (
+            patch("rhiza.commands.sync.subprocess.run", side_effect=[MagicMock(), error]),
+            pytest.raises(SystemExit),
+        ):
+            _clone_at_sha("https://example.com/repo.git", "abc123", tmp_path, ["file.txt"], git_executable, git_env)
+
+    def test_checkout_error_exits(self, tmp_path, git_setup):
+        """A checkout failure (after successful clone and sparse-checkout) causes sys.exit(1)."""
+        git_executable, git_env = git_setup
+        error = subprocess.CalledProcessError(1, "git", stderr="error: checkout failed")
+        with (
+            patch(
+                "rhiza.commands.sync.subprocess.run",
+                side_effect=[MagicMock(), MagicMock(), MagicMock(), error],
+            ),
+            pytest.raises(SystemExit),
+        ):
+            _clone_at_sha("https://example.com/repo.git", "abc123", tmp_path, ["file.txt"], git_executable, git_env)
 
 
 class TestPrepareSnapshot:
@@ -215,11 +339,20 @@ class TestApplyDiff:
         result = _apply_diff("", git_project, git_executable, git_env)
         assert result is True
 
+    def test_apply_diff_conflict_both_methods_fail(self, git_project, git_setup):
+        """When both git apply -3 and --reject fail, returns False and logs warnings."""
+        git_executable, git_env = git_setup
+        error1 = subprocess.CalledProcessError(1, "git", stderr=b"conflict in file")
+        error2 = subprocess.CalledProcessError(1, "git", stderr=b"cannot apply patch")
+        with patch("rhiza.commands.sync.subprocess.run", side_effect=[error1, error2]):
+            result = _apply_diff("some diff", git_project, git_executable, git_env)
+        assert result is False
+
 
 class TestSyncCommand:
     """Integration-style tests for the sync command."""
 
-    def _setup_project(self, tmp_path, include=None):
+    def _setup_project(self, tmp_path, include=None, templates=None):
         """Create a minimal project directory with template.yml."""
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
@@ -231,11 +364,14 @@ class TestSyncCommand:
         rhiza_dir.mkdir(parents=True, exist_ok=True)
         template_file = rhiza_dir / "template.yml"
 
-        config = {
+        config: dict = {
             "template-repository": "jebel-quant/rhiza",
             "template-branch": "main",
-            "include": include or ["test.txt"],
         }
+        if templates:
+            config["templates"] = templates
+        else:
+            config["include"] = include or ["test.txt"]
         with open(template_file, "w") as f:
             yaml.dump(config, f)
 
@@ -248,8 +384,8 @@ class TestSyncCommand:
         """When lock SHA matches upstream HEAD, sync exits early."""
         self._setup_project(tmp_path)
 
-        # Write lock matching upstream
-        _write_lock(tmp_path, "abc123")
+        # Write lock matching upstream (new YAML format)
+        _write_lock(tmp_path, "abc123", "jebel-quant/rhiza", "github", "main", ["test.txt"], [], [])
         mock_sha.return_value = "abc123"
 
         # Mock temp dir (only upstream_dir is needed before early exit)
@@ -290,7 +426,7 @@ class TestSyncCommand:
         assert target_file.exists()
         assert target_file.read_text() == "upstream content"
 
-        # Lock should be updated
+        # Lock should be updated with full YAML format
         assert _read_lock(tmp_path) == "def456"
 
     @patch("rhiza.commands.sync.shutil.rmtree")
@@ -323,6 +459,29 @@ class TestSyncCommand:
         assert _read_lock(tmp_path) is None
 
     @patch("rhiza.commands.sync.shutil.rmtree")
+    @patch("rhiza.commands.sync.get_diff")
+    @patch("rhiza.commands.sync._clone_template_repository")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
+    @patch("rhiza.commands.sync._get_head_sha")
+    def test_sync_diff_no_differences(self, mock_sha, mock_mkdtemp, mock_clone, mock_diff, mock_rmtree, tmp_path):
+        """Diff strategy reports 'No differences found' when content matches."""
+        self._setup_project(tmp_path)
+        mock_sha.return_value = "def456"
+        mock_diff.return_value = ""  # no differences
+
+        clone_dir = tmp_path / "upstream_clone"
+        clone_dir.mkdir()
+        snapshot_dir = tmp_path / "upstream_snapshot"
+        snapshot_dir.mkdir()
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir)]
+
+        sync(tmp_path, "main", None, "diff")
+
+        # Lock should NOT be updated in diff mode
+        assert _read_lock(tmp_path) is None
+
+    @patch("rhiza.commands.sync.shutil.rmtree")
     @patch("rhiza.commands.sync._clone_template_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
     @patch("rhiza.commands.sync._get_head_sha")
@@ -349,6 +508,169 @@ class TestSyncCommand:
 
         assert (tmp_path / "test.txt").read_text() == "new template content\n"
         assert _read_lock(tmp_path) == "first111"
+
+    @patch("rhiza.commands.sync.shutil.rmtree")
+    @patch("rhiza.commands.sync.get_diff")
+    @patch("rhiza.commands.sync._clone_at_sha")
+    @patch("rhiza.commands.sync._clone_template_repository")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
+    @patch("rhiza.commands.sync._get_head_sha")
+    def test_sync_merge_with_base_no_diff(
+        self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_diff, mock_rmtree, tmp_path
+    ):
+        """Merge with existing lock: when template is unchanged, only lock is updated."""
+        self._setup_project(tmp_path)
+        _write_lock(tmp_path, "base111", "jebel-quant/rhiza", "github", "main", ["test.txt"], [], [])
+        mock_sha.return_value = "upstream222"
+        mock_diff.return_value = ""  # no diff between base and upstream
+
+        clone_dir = tmp_path / "upstream_clone"
+        clone_dir.mkdir()
+        (clone_dir / "test.txt").write_text("content")
+        snapshot_dir = tmp_path / "upstream_snapshot"
+        snapshot_dir.mkdir()
+        base_snapshot_dir = tmp_path / "base_snapshot"
+        base_snapshot_dir.mkdir()
+        base_clone_dir = tmp_path / "base_clone"
+        base_clone_dir.mkdir()
+
+        # upstream_dir, upstream_snapshot, base_snapshot, base_clone
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir), str(base_clone_dir)]
+
+        sync(tmp_path, "main", None, "merge")
+
+        assert _read_lock(tmp_path) == "upstream222"
+
+    @patch("rhiza.commands.sync.shutil.rmtree")
+    @patch("rhiza.commands.sync._apply_diff")
+    @patch("rhiza.commands.sync.get_diff")
+    @patch("rhiza.commands.sync._clone_at_sha")
+    @patch("rhiza.commands.sync._clone_template_repository")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
+    @patch("rhiza.commands.sync._get_head_sha")
+    def test_sync_merge_with_base_clean_diff(
+        self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_diff, mock_apply, mock_rmtree, tmp_path
+    ):
+        """Merge with existing lock: diff applies cleanly."""
+        self._setup_project(tmp_path)
+        _write_lock(tmp_path, "base111", "jebel-quant/rhiza", "github", "main", ["test.txt"], [], [])
+        mock_sha.return_value = "upstream222"
+        mock_diff.return_value = "diff --git a/test.txt b/test.txt\n--- a/test.txt\n"
+        mock_apply.return_value = True  # clean apply
+
+        clone_dir = tmp_path / "upstream_clone"
+        clone_dir.mkdir()
+        (clone_dir / "test.txt").write_text("updated content")
+        snapshot_dir = tmp_path / "upstream_snapshot"
+        snapshot_dir.mkdir()
+        base_snapshot_dir = tmp_path / "base_snapshot"
+        base_snapshot_dir.mkdir()
+        base_clone_dir = tmp_path / "base_clone"
+        base_clone_dir.mkdir()
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir), str(base_clone_dir)]
+
+        sync(tmp_path, "main", None, "merge")
+
+        assert _read_lock(tmp_path) == "upstream222"
+        mock_apply.assert_called_once()
+
+    @patch("rhiza.commands.sync.shutil.rmtree")
+    @patch("rhiza.commands.sync._apply_diff")
+    @patch("rhiza.commands.sync.get_diff")
+    @patch("rhiza.commands.sync._clone_at_sha")
+    @patch("rhiza.commands.sync._clone_template_repository")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
+    @patch("rhiza.commands.sync._get_head_sha")
+    def test_sync_merge_with_base_conflict_diff(
+        self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_diff, mock_apply, mock_rmtree, tmp_path
+    ):
+        """Merge with existing lock: diff has conflicts."""
+        self._setup_project(tmp_path)
+        _write_lock(tmp_path, "base111", "jebel-quant/rhiza", "github", "main", ["test.txt"], [], [])
+        mock_sha.return_value = "upstream222"
+        mock_diff.return_value = "diff --git a/test.txt b/test.txt\n--- a/test.txt\n"
+        mock_apply.return_value = False  # conflict
+
+        clone_dir = tmp_path / "upstream_clone"
+        clone_dir.mkdir()
+        snapshot_dir = tmp_path / "upstream_snapshot"
+        snapshot_dir.mkdir()
+        base_snapshot_dir = tmp_path / "base_snapshot"
+        base_snapshot_dir.mkdir()
+        base_clone_dir = tmp_path / "base_clone"
+        base_clone_dir.mkdir()
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir), str(base_clone_dir)]
+
+        sync(tmp_path, "main", None, "merge")
+
+        assert _read_lock(tmp_path) == "upstream222"
+        mock_apply.assert_called_once()
+
+    @patch("rhiza.commands.sync.shutil.rmtree")
+    @patch("rhiza.commands.sync.get_diff")
+    @patch("rhiza.commands.sync._clone_at_sha")
+    @patch("rhiza.commands.sync._clone_template_repository")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
+    @patch("rhiza.commands.sync._get_head_sha")
+    def test_sync_merge_with_base_clone_fail(
+        self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_diff, mock_rmtree, tmp_path
+    ):
+        """When base clone fails, merge falls back to treating all files as new."""
+        self._setup_project(tmp_path)
+        _write_lock(tmp_path, "base111", "jebel-quant/rhiza", "github", "main", ["test.txt"], [], [])
+        mock_sha.return_value = "upstream222"
+        mock_clone_base.side_effect = Exception("clone failed")
+        mock_diff.return_value = ""  # no diff (empty base → no changes detected)
+
+        clone_dir = tmp_path / "upstream_clone"
+        clone_dir.mkdir()
+        (clone_dir / "test.txt").write_text("content")
+        snapshot_dir = tmp_path / "upstream_snapshot"
+        snapshot_dir.mkdir()
+        base_snapshot_dir = tmp_path / "base_snapshot"
+        base_snapshot_dir.mkdir()
+        base_clone_dir = tmp_path / "base_clone"
+        base_clone_dir.mkdir()
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir), str(base_clone_dir)]
+
+        sync(tmp_path, "main", None, "merge")
+
+        assert _read_lock(tmp_path) == "upstream222"
+
+    @patch("rhiza.commands.sync._update_sparse_checkout")
+    @patch("rhiza.commands.sync.resolve_include_paths")
+    @patch("rhiza.commands.sync.load_bundles_from_clone")
+    @patch("rhiza.commands.sync.shutil.rmtree")
+    @patch("rhiza.commands.sync._clone_template_repository")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
+    @patch("rhiza.commands.sync._get_head_sha")
+    def test_sync_with_templates_resolves_bundles(
+        self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, mock_bundles, mock_resolve, mock_sparse, tmp_path
+    ):
+        """When template.templates is set, bundle resolution paths are used."""
+        self._setup_project(tmp_path, templates=["core"])
+        mock_sha.return_value = "template111"
+        mock_resolve.return_value = ["test.txt"]
+
+        clone_dir = tmp_path / "upstream_clone"
+        clone_dir.mkdir()
+        (clone_dir / "test.txt").write_text("template content\n")
+        snapshot_dir = tmp_path / "upstream_snapshot"
+        snapshot_dir.mkdir()
+        base_snapshot_dir = tmp_path / "base_snapshot"
+        base_snapshot_dir.mkdir()
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir)]
+
+        sync(tmp_path, "main", None, "merge")
+
+        assert _read_lock(tmp_path) == "template111"
+        mock_bundles.assert_called_once()
+        mock_resolve.assert_called_once()
+        mock_sparse.assert_called_once()
 
 
 class TestSyncCLI:

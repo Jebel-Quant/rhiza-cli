@@ -8,7 +8,12 @@ import yaml
 from typer.testing import CliRunner
 
 from rhiza import cli
-from rhiza.commands.validate import validate
+from rhiza.commands.validate import (
+    _validate_include_paths,
+    _validate_language_field,
+    _validate_templates,
+    validate,
+)
 
 
 class TestValidateCommand:
@@ -1005,3 +1010,56 @@ class TestValidateCommand:
         result = validate(tmp_path)
         # Should still pass but with warning
         assert result is True
+
+
+class TestValidateInternalHelpers:
+    """Tests for internal validate helpers that are unreachable via validate() guards.
+
+    The public validate() function guards some calls (e.g. _validate_templates is only
+    called when templates is truthy, so the early-exit when templates is absent or empty
+    cannot be reached through validate()).  These tests call the helpers directly to
+    achieve 100% line coverage.
+    """
+
+    def test_validate_templates_returns_true_when_key_absent(self):
+        """_validate_templates returns True when 'templates' key is not in config."""
+        assert _validate_templates({}) is True
+        assert _validate_templates({"include": [".github"]}) is True
+
+    def test_validate_templates_returns_false_for_empty_list(self):
+        """_validate_templates returns False when templates list is empty."""
+        assert _validate_templates({"templates": []}) is False
+
+    def test_validate_include_paths_returns_true_when_key_absent(self):
+        """_validate_include_paths returns True when 'include' key is not in config."""
+        assert _validate_include_paths({}) is True
+        assert _validate_include_paths({"templates": ["core"]}) is True
+
+    def test_validate_include_paths_returns_false_for_empty_list(self):
+        """_validate_include_paths returns False when include list is empty."""
+        assert _validate_include_paths({"include": []}) is False
+
+    def test_validate_language_field_warns_for_non_string(self):
+        """_validate_language_field logs a warning when language is not a string."""
+        # Should complete without raising — the function only logs warnings
+        _validate_language_field({"language": 123})
+        _validate_language_field({"language": ["python"]})
+
+    def test_validate_fails_with_include_but_no_repo(self, tmp_path):
+        """validate() fails when include is present but no repository field is given.
+
+        This covers the _validate_required_fields missing-repo path (lines 203-205)
+        and the _validate_repository_format no-repo early-return path (line 239).
+        """
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+        with open(template_file, "w") as f:
+            yaml.dump({"include": [".github"]}, f)
+
+        result = validate(tmp_path)
+        assert result is False
