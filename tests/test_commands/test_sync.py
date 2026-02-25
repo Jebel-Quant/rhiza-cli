@@ -418,6 +418,11 @@ class TestSyncOrphanedFiles:
         # old.txt should be deleted as it is no longer in the template
         assert not (tmp_path / "old.txt").exists()
 
+        # History file should only contain new.txt (old.txt removed)
+        history_content = (tmp_path / ".rhiza" / "history").read_text()
+        assert "new.txt" in history_content
+        assert "old.txt" not in history_content
+
     @patch("rhiza.commands.sync.shutil.rmtree")
     @patch("rhiza.commands.sync._clone_template_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
@@ -456,6 +461,11 @@ class TestSyncOrphanedFiles:
         assert (tmp_path / "new.txt").exists()
         # old.txt should be deleted as it is no longer in the template
         assert not (tmp_path / "old.txt").exists()
+
+        # History file should only contain new.txt (old.txt removed)
+        history_content = (tmp_path / ".rhiza" / "history").read_text()
+        assert "new.txt" in history_content
+        assert "old.txt" not in history_content
 
 
 class TestSyncCLI:
