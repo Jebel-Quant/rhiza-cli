@@ -317,7 +317,6 @@ def migrate(
 
     - Creates the `.rhiza/` directory in the project root
     - Moves `.github/rhiza/template.yml` or `.github/template.yml` to `.rhiza/template.yml`
-    - Moves `.rhiza.history` to `.rhiza/history`
 
     The new `.rhiza/` folder structure separates Rhiza's state and configuration
     from the `.github/` directory, providing better organization.
@@ -366,16 +365,16 @@ def uninstall(
 ) -> None:
     r"""Remove all Rhiza-managed files from the repository.
 
-    Reads the `.rhiza.history` file and removes all files that were
+    Reads the ``.rhiza/template.lock`` file and removes all files that were
     previously materialized by Rhiza templates. This provides a clean
     way to uninstall all template-managed files from a project.
 
     The command will:
-    - Read the list of files from `.rhiza.history`
+    - Read the list of files from ``.rhiza/template.lock``
     - Prompt for confirmation (unless --force is used)
     - Delete all listed files that exist
     - Remove empty directories left behind
-    - Delete the `.rhiza.history` file itself
+    - Delete the ``.rhiza/template.lock`` file itself
 
     Use this command when you want to completely remove Rhiza templates
     from your project.

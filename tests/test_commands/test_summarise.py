@@ -315,14 +315,14 @@ class TestSummariseCommand:
         assert "No changes" in output or "0 file" in output
 
     def test_summarise_with_history_file(self, git_repo, capsys):
-        """Test summarise with .rhiza/history file for last sync date."""
+        """Test summarise with .rhiza/template.lock file for last sync date."""
         git_cmd = shutil.which("git") or "git"
 
-        # Create .rhiza/history file
+        # Create .rhiza/template.lock file (replaces .rhiza/history)
         rhiza_dir = git_repo / ".rhiza"
         rhiza_dir.mkdir(parents=True)
-        history_file = rhiza_dir / "history"
-        history_file.write_text("some history")
+        lock_file = rhiza_dir / "template.lock"
+        lock_file.write_text("sha: abc123\nrepo: owner/repo\nhost: github\nref: main\n")
 
         # Create and stage a file
         test_file = git_repo / "test.txt"

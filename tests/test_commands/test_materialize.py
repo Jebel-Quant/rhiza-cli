@@ -13,7 +13,7 @@ import yaml
 from typer.testing import CliRunner
 
 from rhiza import cli
-from rhiza.commands.materialize import materialize
+from rhiza.commands.materialize import _remove_legacy_history, materialize
 
 
 class TestInjectCommand:
@@ -34,11 +34,14 @@ class TestInjectCommand:
         with pytest.raises(SystemExit):
             materialize(tmp_path, "main", None, False)
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_inject_uses_existing_template_yml(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+    def test_inject_uses_existing_template_yml(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
+    ):
         """Test that inject uses an existing template.yml."""
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -73,11 +76,14 @@ class TestInjectCommand:
         clone_call = mock_subprocess.call_args_list[0]
         assert "custom/repo.git" in str(clone_call)
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_inject_fails_with_no_include_paths(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+    def test_inject_fails_with_no_include_paths(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
+    ):
         """Test that inject fails when template.yml has no include paths."""
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -125,11 +131,12 @@ class TestInjectCommand:
             # Run inject and expect it to fail with RuntimeError
             materialize(tmp_path, "main", None, False)
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_inject_copies_files(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+    def test_inject_copies_files(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path):
         """Test that inject copies files from template to target."""
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -165,12 +172,13 @@ class TestInjectCommand:
         # Verify copy2 was called
         assert mock_copy2.called
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_inject_skips_existing_files_without_force(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
         """Test that inject skips existing files when force=False."""
         # Setup git repo
@@ -213,11 +221,14 @@ class TestInjectCommand:
         # copy2 should not have been called for this file
         # (it might be called 0 times or for other files, depending on implementation)
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_inject_overwrites_with_force(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+    def test_inject_overwrites_with_force(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
+    ):
         """Test that inject overwrites existing files when force=True."""
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -257,11 +268,14 @@ class TestInjectCommand:
         # Verify copy2 was called (force should allow overwrite)
         assert mock_copy2.called
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_inject_excludes_paths(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+    def test_inject_excludes_paths(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
+    ):
         """Test that inject excludes specified paths."""
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -311,9 +325,10 @@ class TestInjectCommand:
             copy_calls = [str(call) for call in mock_copy2.call_args_list]
             assert any("included.txt" in str(call) for call in copy_calls)
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
-    def test_inject_cleans_up_temp_dir(self, mock_rmtree, mock_subprocess, tmp_path):
+    def test_inject_cleans_up_temp_dir(self, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path):
         """Test that inject cleans up the temporary directory."""
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -342,11 +357,14 @@ class TestInjectCommand:
         # Verify rmtree was called to clean up
         assert mock_rmtree.called
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_cli_materialize_command(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+    def test_cli_materialize_command(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
+    ):
         """Test the CLI materialize command via Typer runner."""
         runner = CliRunner()
 
@@ -380,14 +398,15 @@ class TestInjectCommand:
         result = runner.invoke(cli.app, ["materialize", str(tmp_path), "--branch", "main"])
         assert result.exit_code == 0
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_creates_rhiza_history_file(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
-        """Test that materialize creates a .rhiza/history file listing all template files."""
+        """Test that materialize creates a .rhiza/template.lock listing all template files."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
@@ -426,28 +445,24 @@ class TestInjectCommand:
         # Run materialize
         materialize(tmp_path, "main", None, False)
 
-        # Verify .rhiza/history was created
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        history_file = rhiza_dir / "history"
-        assert history_file.exists()
+        # Verify .rhiza/template.lock was created
+        lock_file = tmp_path / ".rhiza" / "template.lock"
+        assert lock_file.exists()
 
         # Verify content
-        history_content = history_file.read_text()
-        assert "# Rhiza Template History" in history_content
-        assert "# Template repository: jebel-quant/rhiza" in history_content
-        assert "# Template branch: main" in history_content
-        assert "file1.txt" in history_content
-        assert "file2.txt" in history_content
+        lock_data = yaml.safe_load(lock_file.read_text())
+        assert "file1.txt" in lock_data["files"]
+        assert "file2.txt" in lock_data["files"]
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_history_includes_skipped_files(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
-        """Test that .rhiza/history includes files that already exist (were skipped)."""
+        """Test that .rhiza/template.lock includes files that already exist (were skipped)."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
@@ -488,19 +503,20 @@ class TestInjectCommand:
         # Run materialize without force (should skip existing file)
         materialize(tmp_path, "main", None, False)
 
-        # Verify .rhiza/history includes the skipped file
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        history_file = rhiza_dir / "history"
-        assert history_file.exists()
-        history_content = history_file.read_text()
-        assert "existing.txt" in history_content
+        # Verify .rhiza/template.lock includes the skipped file
+        lock_file = tmp_path / ".rhiza" / "template.lock"
+        assert lock_file.exists()
+        lock_data = yaml.safe_load(lock_file.read_text())
+        assert "existing.txt" in lock_data["files"]
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_materialize_gitlab_repository(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+    def test_materialize_gitlab_repository(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
+    ):
         """Test that materialize uses GitLab URL when template-host is gitlab."""
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -547,12 +563,13 @@ class TestInjectCommand:
         # assert "gitlab.com" in str(clone_call)
         # assert "mygroup/myproject.git" in str(clone_call)
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_github_repository_explicit(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
         """Test that materialize uses GitHub URL when template-host is explicitly github."""
         # Setup git repo
@@ -633,12 +650,13 @@ class TestInjectCommand:
         with pytest.raises(ValueError, match="Unsupported template-host"):
             materialize(tmp_path, "main", None, False)
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_warns_for_workflow_files(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
         """Test that materialize warns when workflow files are materialized."""
         # Setup git repo
@@ -727,11 +745,14 @@ class TestInjectCommand:
         with pytest.raises(RuntimeError, match="No templates or include paths found"):
             materialize(tmp_path, "main", None, False)
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_materialize_creates_new_branch(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+    def test_materialize_creates_new_branch(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
+    ):
         """Test that materialize creates a new branch when target_branch is specified and doesn't exist."""
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -791,12 +812,13 @@ class TestInjectCommand:
         ]
         assert len(checkout_calls) > 0, "Expected git checkout -b feature/test-branch to be called"
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_checks_out_existing_branch(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
         """Test that materialize checks out an existing branch when target_branch is specified."""
         # Setup git repo
@@ -854,12 +876,13 @@ class TestInjectCommand:
         ]
         assert len(checkout_calls) > 0, "Expected git checkout existing-branch to be called"
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_no_branch_stays_on_current(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
         """Test that materialize stays on current branch when target_branch is not specified."""
         # Setup git repo
@@ -1108,11 +1131,14 @@ class TestInjectCommand:
             materialize(tmp_path, "main", None, False)
         assert exc_info.value.code == 1
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_materialize_deletes_orphaned_files(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+    def test_materialize_deletes_orphaned_files(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
+    ):
         """Test that materialize deletes files in old .rhiza/history but not in new materialization."""
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -1177,18 +1203,21 @@ class TestInjectCommand:
         assert not orphaned_file.exists(), "orphaned.txt should have been deleted"
         assert not nested_orphaned.exists(), "dir/nested_orphaned.txt should have been deleted"
 
-        # Verify .rhiza/history was updated and only contains file1.txt
-        history_content = old_history.read_text()
-        assert "file1.txt" in history_content
-        assert "orphaned.txt" not in history_content
-        assert "nested_orphaned.txt" not in history_content
+        # Verify .rhiza/template.lock was created with only file1.txt
+        lock_file = tmp_path / ".rhiza" / "template.lock"
+        assert lock_file.exists()
+        lock_data = yaml.safe_load(lock_file.read_text())
+        assert "file1.txt" in lock_data["files"]
+        assert "orphaned.txt" not in lock_data["files"]
+        assert "dir/nested_orphaned.txt" not in lock_data["files"]
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_handles_missing_orphaned_files(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
         """Test that materialize handles orphaned files that don't exist gracefully."""
         # Setup git repo
@@ -1243,19 +1272,22 @@ class TestInjectCommand:
         # Run materialize - should not fail even though nonexistent.txt doesn't exist
         materialize(tmp_path, "main", None, False)
 
-        # Verify .rhiza/history was updated
-        history_content = old_history.read_text()
-        assert "file1.txt" in history_content
-        assert "nonexistent.txt" not in history_content
+        # Verify .rhiza/template.lock was created
+        lock_file = tmp_path / ".rhiza" / "template.lock"
+        assert lock_file.exists()
+        lock_data = yaml.safe_load(lock_file.read_text())
+        assert "file1.txt" in lock_data["files"]
+        assert "nonexistent.txt" not in lock_data["files"]
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_no_cleanup_when_no_history(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
-        """Test that materialize works correctly when no .rhiza/history exists yet."""
+        """Test that materialize works correctly when no lock or history exists yet."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
@@ -1294,20 +1326,19 @@ class TestInjectCommand:
         # Run materialize - should work fine without old history
         materialize(tmp_path, "main", None, False)
 
-        # Verify .rhiza/history was created
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        history_file = rhiza_dir / "history"
-        assert history_file.exists()
-        history_content = history_file.read_text()
-        assert "file1.txt" in history_content
+        # Verify .rhiza/template.lock was created
+        lock_file = tmp_path / ".rhiza" / "template.lock"
+        assert lock_file.exists()
+        lock_data = yaml.safe_load(lock_file.read_text())
+        assert "file1.txt" in lock_data["files"]
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_handles_file_deletion_failure(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
         """Test that materialize handles exceptions when deleting orphaned files."""
         # Setup git repo
@@ -1361,12 +1392,13 @@ class TestInjectCommand:
         # Verify the file still exists (deletion failed but was handled)
         assert old_file.exists()
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_with_legacy_history_location(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
         """Test that materialize reads history from legacy .rhiza.history location."""
         # Setup git repo
@@ -1416,16 +1448,17 @@ class TestInjectCommand:
         # Verify old file was deleted (it was in old history but not in new template)
         assert not old_file.exists()
 
-        # Verify new history file was created in new location
-        new_history_file = tmp_path / ".rhiza" / "history"
-        assert new_history_file.exists()
+        # Verify template.lock was created
+        lock_file = tmp_path / ".rhiza" / "template.lock"
+        assert lock_file.exists()
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_cleans_up_legacy_history_file(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
         """Test that materialize removes old .rhiza.history after migration."""
         # Setup git repo
@@ -1471,18 +1504,20 @@ class TestInjectCommand:
         # Run materialize
         materialize(tmp_path, "main", None, False)
 
-        # Verify old history file was removed
+        # Verify old .rhiza.history file was removed
         assert not old_history_file.exists()
 
-        # Verify new history file still exists
-        assert new_history_file.exists()
+        # Verify template.lock was created
+        lock_file = tmp_path / ".rhiza" / "template.lock"
+        assert lock_file.exists()
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_handles_legacy_history_cleanup_failure(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
         """Test that materialize handles failure to remove old .rhiza.history gracefully."""
         # Setup git repo
@@ -1537,19 +1572,21 @@ class TestInjectCommand:
             # Run materialize - should handle cleanup failure gracefully
             materialize(tmp_path, "main", None, False)
 
-        # Verify old history file still exists (cleanup failed but was handled)
+        # Verify old .rhiza.history still exists (cleanup failed but was handled)
         assert old_history_file.exists()
 
-        # Verify new history file was still created
-        assert new_history_file.exists()
+        # Verify template.lock was created
+        lock_file = tmp_path / ".rhiza" / "template.lock"
+        assert lock_file.exists()
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     @patch("rhiza.subprocess_utils.shutil.which")
     def test_materialize_uses_absolute_git_path(
-        self, mock_which, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_which, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
         """Test that materialize uses absolute path for git executable (security fix)."""
         # Setup git repo
@@ -1669,6 +1706,7 @@ class TestInjectCommand:
         with (
             patch("rhiza.commands.materialize.tempfile.mkdtemp", return_value=str(temp_dir)),
             patch("rhiza.commands.materialize.subprocess.run") as mock_subprocess,
+            patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc"),
         ):
             mock_subprocess.return_value = Mock(returncode=0)
 
@@ -1687,12 +1725,13 @@ class TestInjectCommand:
             ]
             assert len(clone_calls) > 0, "Expected git clone with custom branch to be called"
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_preserves_template_yml_with_force(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
         """Test that force=True does NOT overwrite local template.yml with the version from the template repo."""
         # Setup target repo
@@ -1759,12 +1798,13 @@ include:
         # Ensure it was NOT overwritten by the repo's content
         assert "template-repository: Jebel-Quant/rhiza" not in current_content
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_ignores_upstream_history(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
         """Test that .rhiza/history from template is ignored during copy."""
         # Setup target repo
@@ -1819,12 +1859,13 @@ include:
         # Verify pyproject.toml still exists (it wasn't orphaned because history wasn't polluted)
         assert pyproject_file.exists()
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_does_not_delete_orphaned_template_yml(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
         """Test that .rhiza/template.yml is not deleted even if it becomes orphaned."""
         # Setup target repo
@@ -1876,11 +1917,14 @@ include: ["other.txt"]
         assert "template-repository: test/repo" in content
         assert 'include: ["other.txt"]' in content
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_materialize_logs_templates_list(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
+    def test_materialize_logs_templates_list(
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
+    ):
         """Test that materialize logs the list of templates when present."""
         # Setup git repo
         git_dir = tmp_path / ".git"
@@ -1997,12 +2041,13 @@ include: ["other.txt"]
         with pytest.raises(SystemExit):
             materialize(tmp_path, "main", None, False)
 
+    @patch("rhiza.commands.materialize._get_head_sha", return_value="mock_sha_abc")
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_handles_sparse_checkout_error(
-        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
+        self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, mock_head_sha, tmp_path
     ):
         """Test that materialize handles errors from _update_sparse_checkout."""
         # Setup git repo
@@ -2073,3 +2118,47 @@ include: ["other.txt"]
         # Should exit when sparse checkout update fails
         with pytest.raises(SystemExit):
             materialize(tmp_path, "main", None, False)
+
+
+class TestRemoveLegacyHistory:
+    """Tests for the _remove_legacy_history function."""
+
+    def test_removes_rhiza_history_when_exists(self, tmp_path):
+        """Test that _remove_legacy_history removes .rhiza/history when it exists."""
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        history_file = rhiza_dir / "history"
+        history_file.write_text("file1.txt\n")
+
+        _remove_legacy_history(tmp_path)
+
+        assert not history_file.exists()
+
+    def test_removes_root_level_legacy_history_when_exists(self, tmp_path):
+        """Test that _remove_legacy_history removes .rhiza.history at root when it exists."""
+        legacy_file = tmp_path / ".rhiza.history"
+        legacy_file.write_text("file1.txt\n")
+
+        _remove_legacy_history(tmp_path)
+
+        assert not legacy_file.exists()
+
+    def test_handles_missing_files_gracefully(self, tmp_path):
+        """Test that _remove_legacy_history does not error when neither file exists."""
+        # Neither .rhiza/history nor .rhiza.history exist
+        _remove_legacy_history(tmp_path)
+        # No exception raised
+
+    def test_logs_warning_when_deletion_fails(self, tmp_path):
+        """Test that _remove_legacy_history logs a warning when file deletion fails."""
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        history_file = rhiza_dir / "history"
+        history_file.write_text("file1.txt\n")
+
+        with (
+            patch("pathlib.Path.unlink", side_effect=OSError("Permission denied")),
+            patch("rhiza.commands.materialize.logger.warning") as mock_warning,
+        ):
+            _remove_legacy_history(tmp_path)
+            assert mock_warning.called

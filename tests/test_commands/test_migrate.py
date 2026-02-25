@@ -130,68 +130,6 @@ class TestMigrateCommand:
         new_template_file = rhiza_dir / "template.yml"
         assert not new_template_file.exists()
 
-    def test_migrate_copies_history_file(self, tmp_path):
-        """Test that migrate copies .rhiza.history to .rhiza/history."""
-        # Create existing .rhiza.history
-        old_history_file = tmp_path / ".rhiza.history"
-        history_content = """# Rhiza Template History
-# Files under template control:
-.editorconfig
-.gitignore
-Makefile
-"""
-        old_history_file.write_text(history_content)
-
-        # Run migrate
-        migrate(tmp_path)
-
-        # Verify new history file was created
-        new_history_file = tmp_path / ".rhiza" / "history"
-        assert new_history_file.exists()
-
-        # Verify content matches
-        assert new_history_file.read_text() == history_content
-
-        # Verify old file was removed
-        assert not old_history_file.exists()
-
-    def test_migrate_handles_missing_history_file(self, tmp_path):
-        """Test that migrate handles case when no .rhiza.history exists."""
-        # Run migrate without creating .rhiza.history
-        migrate(tmp_path)
-
-        # Verify .rhiza folder was created
-        rhiza_dir = tmp_path / ".rhiza"
-        assert rhiza_dir.exists()
-
-        # Verify no history file was created
-        new_history_file = rhiza_dir / "history"
-        assert not new_history_file.exists()
-
-    def test_migrate_skips_history_when_both_exist(self, tmp_path):
-        """Test that migrate skips history migration when both old and new exist."""
-        # Create existing .rhiza.history
-        old_history_file = tmp_path / ".rhiza.history"
-        old_content = "# Old history content\nold_file.txt\n"
-        old_history_file.write_text(old_content)
-
-        # Create existing .rhiza/history (already migrated)
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True)
-        new_history_file = rhiza_dir / "history"
-        new_content = "# New history content\nnew_file.txt\n"
-        new_history_file.write_text(new_content)
-
-        # Run migrate
-        migrate(tmp_path)
-
-        # Verify new history file was NOT overwritten
-        assert new_history_file.read_text() == new_content
-
-        # Verify old file still exists (not removed since target exists)
-        assert old_history_file.exists()
-        assert old_history_file.read_text() == old_content
-
     def test_migrate_handles_existing_rhiza_history(self, tmp_path):
         """Test that migrate handles when .rhiza/history already exists but .rhiza.history doesn't."""
         # Create existing .rhiza/history (no old file)

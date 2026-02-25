@@ -218,11 +218,11 @@ def get_last_sync_date(repo_path: Path) -> str | None:
     if output:
         return output
 
-    # Fallback: try to get date from history file if it exists
-    history_file = repo_path / ".rhiza" / "history"
-    if history_file.exists():
+    # Fallback: try to get date from lock file if it exists
+    lock_file = repo_path / ".rhiza" / "template.lock"
+    if lock_file.exists():
         # Get the file modification time
-        stat = history_file.stat()
+        stat = lock_file.stat()
         return datetime.fromtimestamp(stat.st_mtime).isoformat()
 
     return None

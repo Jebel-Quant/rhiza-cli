@@ -12,6 +12,7 @@ Tests cover:
 import os
 import shutil
 import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -19,15 +20,18 @@ import yaml
 from typer.testing import CliRunner
 
 from rhiza import cli
+from rhiza.commands.lock import (
+    _get_head_sha,
+    _read_lock,
+    _read_lock_files,
+    _write_lock,
+)
 from rhiza.commands.sync import (
     _apply_diff,
     _clone_at_sha,
     _excluded_set,
     _expand_paths,
-    _get_head_sha,
     _prepare_snapshot,
-    _read_lock,
-    _write_lock,
     sync,
 )
 
@@ -42,14 +46,14 @@ class TestLockFile:
     def test_write_and_read_lock(self, tmp_path):
         """Round-trip write/read of a lock file returns the SHA."""
         sha = "abc123def456"
-        _write_lock(tmp_path, sha, "owner/repo", "github", "main", [], [], [])
+        _write_lock(tmp_path, sha, "owner/repo", "github", "main", [], [], [], [])
         assert _read_lock(tmp_path) == sha
 
     def test_write_lock_creates_parent_directory(self, tmp_path):
         """Lock file creation should create .rhiza/ if needed."""
         target = tmp_path / "project"
         target.mkdir()
-        _write_lock(target, "deadbeef", "owner/repo", "github", "main", [], [], [])
+        _write_lock(target, "deadbeef", "owner/repo", "github", "main", [], [], [], [])
         assert (target / ".rhiza" / "template.lock").exists()
 
     def test_lock_file_is_yaml_format(self, tmp_path):
@@ -63,6 +67,7 @@ class TestLockFile:
             [".github"],
             ["tests"],
             ["core"],
+            [Path("file.txt")],
         )
         lock_path = tmp_path / ".rhiza" / "template.lock"
         data = yaml.safe_load(lock_path.read_text())
@@ -73,6 +78,7 @@ class TestLockFile:
         assert data["include"] == [".github"]
         assert data["exclude"] == ["tests"]
         assert data["templates"] == ["core"]
+        assert data["files"] == ["file.txt"]
 
     def test_read_lock_backward_compat_plain_text(self, tmp_path):
         """Legacy plain-text lock files (bare SHA) are still readable."""
@@ -93,9 +99,63 @@ class TestLockFile:
         lock_path = tmp_path / ".rhiza" / "template.lock"
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         lock_path.write_text("some-sha-value\n")
-        with patch("rhiza.commands.sync.yaml.safe_load", side_effect=yaml.YAMLError("parse error")):
+        with patch("rhiza.commands.lock.yaml.safe_load", side_effect=yaml.YAMLError("parse error")):
             result = _read_lock(tmp_path)
         assert result == "some-sha-value"
+
+    def test_read_lock_files_returns_files_from_lock(self, tmp_path):
+        """_read_lock_files reads the files list from the lock file."""
+        _write_lock(
+            tmp_path,
+            "abc123",
+            "owner/repo",
+            "github",
+            "main",
+            [],
+            [],
+            [],
+            [Path("a.txt"), Path("b.txt")],
+        )
+        result = _read_lock_files(tmp_path)
+        assert sorted(str(f) for f in result) == ["a.txt", "b.txt"]
+
+    def test_read_lock_files_fallback_to_history(self, tmp_path):
+        """_read_lock_files falls back to .rhiza/history when no lock exists."""
+        history = tmp_path / ".rhiza" / "history"
+        history.parent.mkdir(parents=True, exist_ok=True)
+        history.write_text("# comment\nfoo.txt\nbar.txt\n")
+        result = _read_lock_files(tmp_path)
+        assert sorted(str(f) for f in result) == ["bar.txt", "foo.txt"]
+
+    def test_read_lock_files_fallback_to_legacy_history(self, tmp_path):
+        """_read_lock_files falls back to .rhiza.history (root-level) when neither lock nor .rhiza/history exists."""
+        legacy = tmp_path / ".rhiza.history"
+        legacy.write_text("# comment\nbaz.txt\n")
+        result = _read_lock_files(tmp_path)
+        assert [str(f) for f in result] == ["baz.txt"]
+
+    def test_read_lock_files_returns_empty_when_no_lock_or_history(self, tmp_path):
+        """_read_lock_files returns [] when no lock and no history files exist."""
+        assert _read_lock_files(tmp_path) == []
+
+    def test_read_lock_files_empty_when_lock_has_no_files_key(self, tmp_path):
+        """Lock file without 'files' key returns [] (old lock format)."""
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text("sha: abc123\nrepo: owner/repo\n")
+        result = _read_lock_files(tmp_path)
+        assert result == []
+
+    def test_read_lock_files_falls_back_to_history_on_yaml_error(self, tmp_path):
+        """_read_lock_files falls back to .rhiza/history when lock YAML is unparseable."""
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text("sha: abc123\n")
+        history = tmp_path / ".rhiza" / "history"
+        history.write_text("fallback.txt\n")
+        with patch("rhiza.commands.lock.yaml.safe_load", side_effect=yaml.YAMLError("bad yaml")):
+            result = _read_lock_files(tmp_path)
+        assert [str(f) for f in result] == ["fallback.txt"]
 
 
 class TestExpandPaths:
@@ -127,11 +187,15 @@ class TestExpandPaths:
 class TestExcludedSet:
     """Tests for exclusion set building."""
 
-    def test_always_excludes_template_yml_and_history(self, tmp_path):
-        """Template config and history are always excluded."""
+    def test_always_excludes_template_yml(self, tmp_path):
+        """Template config is always excluded."""
         excludes = _excluded_set(tmp_path, [])
         assert ".rhiza/template.yml" in excludes
-        assert ".rhiza/history" in excludes
+
+    def test_history_no_longer_excluded(self, tmp_path):
+        """.rhiza/history is no longer in the default exclusion set."""
+        excludes = _excluded_set(tmp_path, [])
+        assert ".rhiza/history" not in excludes
 
     def test_includes_user_exclusions(self, tmp_path):
         """User-configured exclusions appear in the set."""
@@ -385,7 +449,7 @@ class TestSyncCommand:
         self._setup_project(tmp_path)
 
         # Write lock matching upstream (new YAML format)
-        _write_lock(tmp_path, "abc123", "jebel-quant/rhiza", "github", "main", ["test.txt"], [], [])
+        _write_lock(tmp_path, "abc123", "jebel-quant/rhiza", "github", "main", ["test.txt"], [], [], [])
         mock_sha.return_value = "abc123"
 
         # Mock temp dir (only upstream_dir is needed before early exit)
@@ -520,7 +584,7 @@ class TestSyncCommand:
     ):
         """Merge with existing lock: when template is unchanged, only lock is updated."""
         self._setup_project(tmp_path)
-        _write_lock(tmp_path, "base111", "jebel-quant/rhiza", "github", "main", ["test.txt"], [], [])
+        _write_lock(tmp_path, "base111", "jebel-quant/rhiza", "github", "main", ["test.txt"], [], [], [])
         mock_sha.return_value = "upstream222"
         mock_diff.return_value = ""  # no diff between base and upstream
 
@@ -553,7 +617,7 @@ class TestSyncCommand:
     ):
         """Merge with existing lock: diff applies cleanly."""
         self._setup_project(tmp_path)
-        _write_lock(tmp_path, "base111", "jebel-quant/rhiza", "github", "main", ["test.txt"], [], [])
+        _write_lock(tmp_path, "base111", "jebel-quant/rhiza", "github", "main", ["test.txt"], [], [], [])
         mock_sha.return_value = "upstream222"
         mock_diff.return_value = "diff --git a/test.txt b/test.txt\n--- a/test.txt\n"
         mock_apply.return_value = True  # clean apply
@@ -587,7 +651,7 @@ class TestSyncCommand:
     ):
         """Merge with existing lock: diff has conflicts."""
         self._setup_project(tmp_path)
-        _write_lock(tmp_path, "base111", "jebel-quant/rhiza", "github", "main", ["test.txt"], [], [])
+        _write_lock(tmp_path, "base111", "jebel-quant/rhiza", "github", "main", ["test.txt"], [], [], [])
         mock_sha.return_value = "upstream222"
         mock_diff.return_value = "diff --git a/test.txt b/test.txt\n--- a/test.txt\n"
         mock_apply.return_value = False  # conflict
@@ -619,7 +683,7 @@ class TestSyncCommand:
     ):
         """When base clone fails, merge falls back to treating all files as new."""
         self._setup_project(tmp_path)
-        _write_lock(tmp_path, "base111", "jebel-quant/rhiza", "github", "main", ["test.txt"], [], [])
+        _write_lock(tmp_path, "base111", "jebel-quant/rhiza", "github", "main", ["test.txt"], [], [], [])
         mock_sha.return_value = "upstream222"
         mock_clone_base.side_effect = Exception("clone failed")
         mock_diff.return_value = ""  # no diff (empty base → no changes detected)

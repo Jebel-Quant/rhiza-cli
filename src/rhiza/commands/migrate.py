@@ -98,40 +98,6 @@ def _ensure_rhiza_in_include(template_file: Path) -> None:
         template.to_yaml(template_file)
 
 
-def _migrate_history_file(target: Path, rhiza_dir: Path) -> list[str]:
-    """Migrate .rhiza.history to .rhiza/history.
-
-    Args:
-        target: Target repository path.
-        rhiza_dir: Path to .rhiza directory.
-
-    Returns:
-        List of migrations performed.
-    """
-    old_history_file = target / ".rhiza.history"
-    new_history_file = rhiza_dir / "history"
-    migrations_performed = []
-
-    if old_history_file.exists():
-        if new_history_file.exists():
-            logger.info(".rhiza/history already exists")
-            logger.info(f"Skipping migration of {old_history_file.relative_to(target)}")
-            logger.info(f"Note: Old file at {old_history_file.relative_to(target)} still exists")
-        else:
-            logger.info("Found existing .rhiza.history file")
-            logger.info(f"Moving to new location: {new_history_file.relative_to(target)}")
-            shutil.move(str(old_history_file), str(new_history_file))
-            logger.success("✓ Moved history file to .rhiza/history")
-            migrations_performed.append("Moved history tracking to .rhiza/history")
-    else:
-        if new_history_file.exists():
-            logger.debug(".rhiza/history already exists (no migration needed)")
-        else:
-            logger.debug("No existing .rhiza.history file to migrate")
-
-    return migrations_performed
-
-
 def _print_migration_summary(migrations_performed: list[str]) -> None:
     """Print migration summary.
 
@@ -167,12 +133,11 @@ def migrate(target: Path) -> None:
     This command performs the following actions:
     1. Creates the `.rhiza/` directory in the project root
     2. Moves template.yml from `.github/rhiza/` or `.github/` to `.rhiza/template.yml`
-    3. Moves `.rhiza.history` to `.rhiza/history` if it exists
-    4. Provides instructions for next steps
+    3. Provides instructions for next steps
 
     The `.rhiza/` folder will contain:
     - `template.yml` - Template configuration (replaces `.github/rhiza/template.yml`)
-    - `history` - List of files managed by Rhiza templates (replaces `.rhiza.history`)
+    - `template.lock` - Lock file tracking managed files and sync state
     - Future: Additional state, cache, or metadata files
 
     Args:
@@ -192,9 +157,5 @@ def migrate(target: Path) -> None:
     if template_exists:
         _ensure_rhiza_in_include(rhiza_dir / "template.yml")
 
-    # Migrate history file
-    history_migrations = _migrate_history_file(target, rhiza_dir)
-
     # Print summary
-    all_migrations = template_migrations + history_migrations
-    _print_migration_summary(all_migrations)
+    _print_migration_summary(template_migrations)
