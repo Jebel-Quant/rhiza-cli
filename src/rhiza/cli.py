@@ -4,6 +4,7 @@ This module defines the Typer application entry points exposed by Rhiza.
 Commands are thin wrappers around implementations in `rhiza.commands.*`.
 """
 
+import subprocess  # nosec B404
 from pathlib import Path
 from typing import Annotated
 
@@ -191,7 +192,10 @@ def materialize(
         "Use `rhiza sync` instead.",
         err=True,
     )
-    sync_cmd(target, branch, target_branch, "merge")
+    try:
+        sync_cmd(target, branch, target_branch, "merge")
+    except (subprocess.CalledProcessError, RuntimeError, ValueError):
+        raise typer.Exit(code=1) from None
 
 
 @app.command()
@@ -258,7 +262,10 @@ def sync(
     if strategy not in ("merge", "diff"):
         typer.echo(f"Unknown strategy: {strategy}. Must be 'merge' or 'diff'.")
         raise typer.Exit(code=1)
-    sync_cmd(target, branch, target_branch, strategy)
+    try:
+        sync_cmd(target, branch, target_branch, strategy)
+    except (subprocess.CalledProcessError, RuntimeError, ValueError):
+        raise typer.Exit(code=1) from None
 
 
 @app.command()
@@ -387,7 +394,10 @@ def uninstall(
         rhiza uninstall /path/to/project
         rhiza uninstall /path/to/project -y
     """
-    uninstall_cmd(target, force)
+    try:
+        uninstall_cmd(target, force)
+    except RuntimeError:
+        raise typer.Exit(code=1) from None
 
 
 @app.command()
@@ -434,4 +444,7 @@ def summarise(
         rhiza summarise --output pr-body.md
         gh pr create --title "chore: Sync with rhiza" --body-file pr-body.md
     """
-    summarise_cmd(target, output)
+    try:
+        summarise_cmd(target, output)
+    except RuntimeError:
+        raise typer.Exit(code=1) from None

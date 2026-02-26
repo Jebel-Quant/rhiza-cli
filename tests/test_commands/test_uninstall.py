@@ -537,11 +537,8 @@ class TestUninstallEdgeCases:
                 raise PermissionError("Cannot delete file")  # noqa: TRY003
             return original_unlink(self)
 
-        with patch.object(Path, "unlink", mock_unlink):
-            # Run uninstall - should exit with error code
-            with pytest.raises(SystemExit) as excinfo:
-                uninstall(tmp_path, force=True)
-            assert excinfo.value.code == 1
+        with patch.object(Path, "unlink", mock_unlink), pytest.raises(RuntimeError):
+            uninstall(tmp_path, force=True)
 
     def test_uninstall_handles_history_file_deletion_error(self, tmp_path):
         """Test that uninstall handles .rhiza/history deletion error."""
@@ -567,11 +564,8 @@ class TestUninstallEdgeCases:
                 raise PermissionError("Cannot delete .rhiza/history")  # noqa: TRY003
             return original_unlink(self)
 
-        with patch.object(Path, "unlink", mock_unlink):
-            # Run uninstall - should exit with error code
-            with pytest.raises(SystemExit) as excinfo:
-                uninstall(tmp_path, force=True)
-            assert excinfo.value.code == 1
+        with patch.object(Path, "unlink", mock_unlink), pytest.raises(RuntimeError):
+            uninstall(tmp_path, force=True)
 
     def test_uninstall_handles_directory_removal_error(self, tmp_path):
         """Test that uninstall handles directory removal errors gracefully."""

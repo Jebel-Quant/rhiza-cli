@@ -6,7 +6,6 @@ all files that were previously materialized by Rhiza templates.
 This provides a clean way to remove all template-managed files from a project.
 """
 
-import sys
 from pathlib import Path
 
 from loguru import logger
@@ -168,7 +167,7 @@ def _print_summary(removed_count: int, skipped_count: int, empty_dirs_removed: i
         logger.info(f"  Empty directories removed: {empty_dirs_removed}")
     if error_count > 0:
         logger.error(f"  Errors encountered: {error_count}")
-        sys.exit(1)
+        raise RuntimeError(f"Uninstall completed with {error_count} error(s)")  # noqa: TRY003
 
 
 def uninstall(target: Path, force: bool) -> None:
