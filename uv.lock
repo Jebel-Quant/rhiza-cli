@@ -691,7 +691,7 @@ tools = [
 requires-dist = [
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "loguru", specifier = ">=0.7.3" },
-    { name = "pyyaml", specifier = "==6.0.3" },
+    { name = "pyyaml", specifier = ">=6.0.3,<7" },
     { name = "rhiza-tools", marker = "extra == 'tools'", specifier = ">=0.1.2" },
     { name = "typer", specifier = ">=0.20.0" },
 ]
