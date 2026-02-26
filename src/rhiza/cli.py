@@ -14,6 +14,7 @@ from rhiza import __version__
 from rhiza.commands import init as init_cmd
 from rhiza.commands import validate as validate_cmd
 from rhiza.commands.migrate import migrate as migrate_cmd
+from rhiza.commands.status import status as status_cmd
 from rhiza.commands.summarise import summarise as summarise_cmd
 from rhiza.commands.sync import sync as sync_cmd
 from rhiza.commands.uninstall import uninstall as uninstall_cmd
@@ -266,6 +267,22 @@ def sync(
     try:
         sync_cmd(target, branch, target_branch, strategy)
     except (subprocess.CalledProcessError, RuntimeError, ValueError):
+        raise typer.Exit(code=1) from None
+
+
+@app.command()
+def status(
+    target: Annotated[
+        Path,
+        typer.Argument(
+            help="Path to target repository",
+        ),
+    ] = Path("."),
+) -> None:
+    """Show the current sync status from template.lock."""
+    try:
+        status_cmd(target.resolve())
+    except Exception:
         raise typer.Exit(code=1) from None
 
 
