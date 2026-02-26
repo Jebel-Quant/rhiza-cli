@@ -471,14 +471,18 @@ def _read_lock(target: Path) -> str | None:
 
 
 def _write_lock(target: Path, lock: TemplateLock) -> None:
-    """Persist the lock data to the YAML lock file.
+    """Persist the commit SHA to the lock file.
+
+    Writes the plain-SHA format for backward compatibility with rhiza 0.11.3
+    and earlier, whose ``_read_lock`` reads the file as a raw string.
 
     Args:
         target: Path to the target repository.
         lock: The :class:`~rhiza.models.TemplateLock` to record.
     """
     lock_path = target / LOCK_FILE
-    lock.to_yaml(lock_path)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path.write_text(lock.sha + "\n", encoding="utf-8")
     logger.info(f"Updated {LOCK_FILE} → {lock.sha[:12]}")
 
 

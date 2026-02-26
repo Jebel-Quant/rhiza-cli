@@ -58,8 +58,8 @@ class TestLockFile:
         _write_lock(target, TemplateLock(sha="deadbeef"))
         assert (target / ".rhiza" / "template.lock").exists()
 
-    def test_write_lock_yaml_format(self, tmp_path):
-        """Lock file is written as YAML with all required fields (files is excluded)."""
+    def test_write_lock_plain_sha_format(self, tmp_path):
+        """Lock file is written as plain SHA for backward compatibility."""
         lock = TemplateLock(
             sha="abc123def456",
             repo="jebel-quant/rhiza",
@@ -71,15 +71,8 @@ class TestLockFile:
         )
         _write_lock(tmp_path, lock)
         lock_path = tmp_path / ".rhiza" / "template.lock"
-        data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
-        assert data["sha"] == "abc123def456"
-        assert data["repo"] == "jebel-quant/rhiza"
-        assert data["host"] == "github"
-        assert data["ref"] == "main"
-        assert data["include"] == [".github/", ".rhiza/"]
-        assert data["exclude"] == []
-        assert data["templates"] == []
-        assert "files" not in data
+        content = lock_path.read_text(encoding="utf-8")
+        assert content == "abc123def456\n"
 
     def test_read_lock_legacy_plain_sha(self, tmp_path):
         """Legacy plain-SHA lock files are still readable."""
