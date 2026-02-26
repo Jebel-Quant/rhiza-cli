@@ -357,8 +357,8 @@ class TestInjectCommand:
         mock_sync.assert_called_once_with(tmp_path.resolve(), "main", None, "merge")
 
     @patch("rhiza.cli.sync_cmd")
-    def test_cli_materialize_force_uses_overwrite_strategy(self, mock_sync, tmp_path):
-        """Test that --force maps to overwrite strategy when delegating to sync."""
+    def test_cli_materialize_force_uses_merge_strategy(self, mock_sync, tmp_path):
+        """Test that --force maps to merge strategy when delegating to sync."""
         runner = CliRunner()
 
         # Setup git repo
@@ -366,7 +366,7 @@ class TestInjectCommand:
 
         result = runner.invoke(cli.app, ["materialize", str(tmp_path), "--force"])
         assert result.exit_code == 0
-        mock_sync.assert_called_once_with(tmp_path.resolve(), "main", None, "overwrite")
+        mock_sync.assert_called_once_with(tmp_path.resolve(), "main", None, "merge")
 
     @patch("rhiza.cli.sync_cmd")
     def test_cli_materialize_shows_deprecation_warning(self, mock_sync, tmp_path):

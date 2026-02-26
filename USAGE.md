@@ -206,8 +206,8 @@ git checkout -b update-templates
 # 2. Validate current configuration
 rhiza validate
 
-# 3. Update templates (overwrite existing)
-rhiza sync --strategy overwrite
+# 3. Update templates
+rhiza sync
 
 # 4. Review changes
 git diff
@@ -275,7 +275,7 @@ exclude:
 **Materialize:**
 
 ```bash
-rhiza sync --strategy overwrite
+rhiza sync
 ```
 
 ### Using Different Branches
@@ -314,7 +314,7 @@ exclude:
 **Materialize:**
 
 ```bash
-rhiza sync --strategy overwrite
+rhiza sync
 ```
 
 **Notes:**
@@ -419,7 +419,7 @@ mkdir -p pkg/mypackage
 rhiza validate
 
 # 4. Materialize Go templates
-rhiza sync --strategy overwrite
+rhiza sync
 ```
 
 ### Selective Inclusion
@@ -468,7 +468,7 @@ While Rhiza doesn't directly support multiple repositories, you can manage them:
 
 for template in .rhiza/template-*.yml; do
   cp "$template" .rhiza/template.yml
-  rhiza sync --strategy overwrite
+  rhiza sync
 done
 ```
 
@@ -548,7 +548,7 @@ template-init: ## Initialize Rhiza templates
 	rhiza init
 
 template-update: ## Update templates from repository
-	rhiza sync --strategy overwrite
+	rhiza sync
 	@echo "Review changes with: git diff"
 
 template-validate: ## Validate template configuration
@@ -657,7 +657,7 @@ Set up a schedule for template updates:
 
 ```bash
 # Monthly template update
-0 0 1 * * cd /path/to/project && rhiza sync --strategy overwrite
+0 0 1 * * cd /path/to/project && rhiza sync
 ```
 
 ### 4. Review Before Committing
@@ -665,7 +665,7 @@ Set up a schedule for template updates:
 Always review changes before committing:
 
 ```bash
-rhiza sync --strategy overwrite
+rhiza sync
 git diff                    # Review all changes
 git add -p                  # Stage changes selectively
 git commit -m "chore: update templates"
@@ -677,7 +677,7 @@ Test template changes in feature branches:
 
 ```bash
 git checkout -b test-template-update
-rhiza sync --strategy overwrite
+rhiza sync
 # Test your project
 # If OK: merge; If not: delete branch
 ```
@@ -766,7 +766,7 @@ git commit -m "chore: update rhiza templates" \
 
 ```bash
 # Update templates
-rhiza sync --strategy overwrite
+rhiza sync
 
 # If conflicts, review each file
 git diff path/to/conflicted/file
@@ -817,7 +817,7 @@ cat important-file.yml
 
 # If satisfied, apply to real project
 cd /path/to/project
-rhiza sync --strategy overwrite
+rhiza sync
 ```
 
 ## Additional Resources
