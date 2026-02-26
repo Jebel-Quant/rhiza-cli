@@ -36,10 +36,10 @@ uvx rhiza init --anchor https://github.com/jebel-quant/rhiza
 
 This sets up your project to track and synchronize with the anchor repository.
 
-### Materialize templates
+### Sync templates
 
 ```bash
-uvx rhiza materialize
+uvx rhiza sync
 ```
 
 This will:
@@ -52,7 +52,7 @@ This will:
 
 ### Schedule automatic updates (optional)
 
-Rhiza supports scheduled materializations, so projects stay in sync automatically. Example GitHub Actions snippet:
+Rhiza supports scheduled syncs, so projects stay in sync automatically. Example GitHub Actions snippet:
 
 ```yaml
 on:
@@ -63,5 +63,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - run: uvx rhiza materialize
+      - run: uvx rhiza sync
 

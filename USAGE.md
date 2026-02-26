@@ -85,7 +85,7 @@ This tells Rhiza to fetch these files from the `jebel-quant/rhiza` repository.
 Apply the templates to your project:
 
 ```bash
-rhiza materialize
+rhiza sync
 ```
 
 Review what was added:
@@ -127,11 +127,11 @@ Makefile
 
 This file helps you:
 - Track which files are managed by the template
-- Understand what will be updated when you re-run `rhiza materialize`
+- Understand what will be updated when you re-run `rhiza sync`
 - Identify which files to be careful with when making local modifications
-- **Detect orphaned files** - when you re-run `rhiza materialize`, any files listed in `.rhiza.history` but no longer in the current template configuration will be automatically deleted
+- **Detect orphaned files** - when you re-run `rhiza sync`, any files listed in `.rhiza.history` but no longer in the current template configuration will be automatically deleted
 
-**Important:** The `.rhiza.history` file is regenerated each time you run `rhiza materialize`, so you should commit it along with your other template files. When re-running materialize, Rhiza will compare the old history with the new configuration and remove any files that are no longer being managed.
+**Important:** The `.rhiza.history` file is regenerated each time you run `rhiza sync`, so you should commit it along with your other template files. When re-running sync, Rhiza will compare the old history with the new configuration and remove any files that are no longer being managed.
 
 ## Basic Workflows
 
@@ -149,7 +149,7 @@ git init
 rhiza init
 
 # 3. Materialize templates
-rhiza materialize
+rhiza sync
 
 # 4. Review and commit
 git status
@@ -182,7 +182,7 @@ rhiza init
 vim .rhiza/template.yml
 
 # 6. Materialize templates (use --force carefully!)
-rhiza materialize
+rhiza sync
 
 # 7. Review changes carefully
 git diff
@@ -207,7 +207,7 @@ git checkout -b update-templates
 rhiza validate
 
 # 3. Update templates (overwrite existing)
-rhiza materialize --force
+rhiza sync --strategy overwrite
 
 # 4. Review changes
 git diff
@@ -249,7 +249,7 @@ git init
 rhiza init --template-repository mycompany/python-templates --template-branch stable
 
 # Materialize templates
-rhiza materialize
+rhiza sync
 ```
 
 ### Custom Template Repository
@@ -275,7 +275,7 @@ exclude:
 **Materialize:**
 
 ```bash
-rhiza materialize --force
+rhiza sync --strategy overwrite
 ```
 
 ### Using Different Branches
@@ -284,11 +284,11 @@ Test templates from a development branch:
 
 ```bash
 # Temporarily override template branch
-rhiza materialize --branch develop
+rhiza sync --branch develop
 
 # Or update template.yml
 vim .rhiza/template.yml  # Change template-branch to 'develop'
-rhiza materialize
+rhiza sync
 ```
 
 ### Using GitLab Repositories
@@ -314,7 +314,7 @@ exclude:
 **Materialize:**
 
 ```bash
-rhiza materialize --force
+rhiza sync --strategy overwrite
 ```
 
 **Notes:**
@@ -419,7 +419,7 @@ mkdir -p pkg/mypackage
 rhiza validate
 
 # 4. Materialize Go templates
-rhiza materialize --force
+rhiza sync --strategy overwrite
 ```
 
 ### Selective Inclusion
@@ -468,7 +468,7 @@ While Rhiza doesn't directly support multiple repositories, you can manage them:
 
 for template in .rhiza/template-*.yml; do
   cp "$template" .rhiza/template.yml
-  rhiza materialize --force
+  rhiza sync --strategy overwrite
 done
 ```
 
@@ -548,7 +548,7 @@ template-init: ## Initialize Rhiza templates
 	rhiza init
 
 template-update: ## Update templates from repository
-	rhiza materialize --force
+	rhiza sync --strategy overwrite
 	@echo "Review changes with: git diff"
 
 template-validate: ## Validate template configuration
@@ -657,7 +657,7 @@ Set up a schedule for template updates:
 
 ```bash
 # Monthly template update
-0 0 1 * * cd /path/to/project && rhiza materialize --force
+0 0 1 * * cd /path/to/project && rhiza sync --strategy overwrite
 ```
 
 ### 4. Review Before Committing
@@ -665,7 +665,7 @@ Set up a schedule for template updates:
 Always review changes before committing:
 
 ```bash
-rhiza materialize --force
+rhiza sync --strategy overwrite
 git diff                    # Review all changes
 git add -p                  # Stage changes selectively
 git commit -m "chore: update templates"
@@ -677,7 +677,7 @@ Test template changes in feature branches:
 
 ```bash
 git checkout -b test-template-update
-rhiza materialize --force
+rhiza sync --strategy overwrite
 # Test your project
 # If OK: merge; If not: delete branch
 ```
@@ -766,7 +766,7 @@ git commit -m "chore: update rhiza templates" \
 
 ```bash
 # Update templates
-rhiza materialize --force
+rhiza sync --strategy overwrite
 
 # If conflicts, review each file
 git diff path/to/conflicted/file
@@ -808,8 +808,8 @@ git init
 # Copy your template.yml
 cp /path/to/project/.rhiza/template.yml .rhiza/
 
-# Test materialize
-rhiza materialize
+# Test sync
+rhiza sync
 
 # Review what would be added
 ls -la
@@ -817,7 +817,7 @@ cat important-file.yml
 
 # If satisfied, apply to real project
 cd /path/to/project
-rhiza materialize --force
+rhiza sync --strategy overwrite
 ```
 
 ## Additional Resources

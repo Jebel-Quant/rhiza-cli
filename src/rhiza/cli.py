@@ -11,7 +11,6 @@ import typer
 
 from rhiza import __version__
 from rhiza.commands import init as init_cmd
-from rhiza.commands import materialize as materialize_cmd
 from rhiza.commands import validate as validate_cmd
 from rhiza.commands.migrate import migrate as migrate_cmd
 from rhiza.commands.summarise import summarise as summarise_cmd
@@ -153,7 +152,7 @@ def init(
     )
 
 
-@app.command()
+@app.command(deprecated=True)
 def materialize(
     target: Annotated[
         Path,
@@ -173,25 +172,29 @@ def materialize(
     ),
     force: bool = typer.Option(False, "--force", "-y", help="Overwrite existing files"),
 ) -> None:
-    r"""Inject Rhiza configuration templates into a target repository.
+    r"""[Deprecated] Use ``rhiza sync`` instead.
 
-    Materializes configuration files from the template repository specified
-    in .rhiza/template.yml into your project. This command:
+    This command is deprecated. ``rhiza sync`` now handles all use cases:
 
-    - Reads .rhiza/template.yml configuration
-    - Performs a sparse clone of the template repository
-    - Copies specified files/directories to your project
-    - Respects exclusion patterns defined in the configuration
-    - Files that already exist will NOT be overwritten unless --force is used.
+    \b
+    - rhiza sync              # first time → copies everything, writes lock
+    - rhiza sync              # subsequent → 3-way merge preserving local changes
+    - rhiza sync --strategy overwrite  # equivalent to materialize --force
+    - rhiza sync --strategy diff       # dry-run showing what would change
 
     Examples:
-        rhiza materialize
-        rhiza materialize --branch develop
-        rhiza materialize --force
-        rhiza materialize --target-branch feature/update-templates
-        rhiza materialize /path/to/project -b v2.0 -y
+        rhiza sync
+        rhiza sync --branch develop
+        rhiza sync --strategy overwrite
+        rhiza sync --target-branch feature/update-templates
     """
-    materialize_cmd(target, branch, target_branch, force)
+    typer.echo(
+        "DeprecationWarning: `rhiza materialize` is deprecated and will be removed in a future release. "
+        "Use `rhiza sync` instead.",
+        err=True,
+    )
+    strategy = "overwrite" if force else "merge"
+    sync_cmd(target, branch, target_branch, strategy)
 
 
 @app.command()
@@ -220,12 +223,16 @@ def sync(
         "'overwrite' (replace files), or 'diff' (dry-run showing changes)",
     ),
 ) -> None:
-    r"""Sync templates using diff/merge instead of overwriting.
+    r"""Sync templates using diff/merge, preserving local customisations.
 
-    Unlike `materialize --force` which overwrites files, `sync` uses
-    cruft's diff utilities to compute the diff between the last-synced
-    and current template versions, then applies it via ``git apply -3``
-    for a 3-way merge so that local customisations are preserved.
+    This is the primary command for keeping your project up to date with
+    the template repository. It replaces the deprecated ``materialize`` command.
+
+    On **first sync** (no lock file) the command copies all template files and
+    records the current template HEAD in `.rhiza/template.lock`.  On
+    **subsequent syncs** it computes the diff between the last-synced commit
+    and the current HEAD then applies it via ``git apply -3`` so local edits
+    are preserved.
 
     The command tracks the last-synced template commit in
     `.rhiza/template.lock`. On subsequent syncs it computes the diff
@@ -244,7 +251,7 @@ def sync(
     Strategies:
     \b
     - merge:     3-way merge preserving local changes (default)
-    - overwrite: replace files (same as materialize --force)
+    - overwrite: replace all files (equivalent to the old materialize --force)
     - diff:      dry-run showing what would change
 
     Examples:
@@ -366,8 +373,8 @@ def uninstall(
 ) -> None:
     r"""Remove all Rhiza-managed files from the repository.
 
-    Reads the `.rhiza.history` file and removes all files that were
-    previously materialized by Rhiza templates. This provides a clean
+    Reads the `.rhiza/history` file and removes all files that were
+    previously synced by Rhiza templates. This provides a clean
     way to uninstall all template-managed files from a project.
 
     The command will:
@@ -419,7 +426,7 @@ def summarise(
     - Template repository information
     - Last sync date
 
-    This is useful when creating pull requests after running `rhiza materialize`
+    This is useful when creating pull requests after running `rhiza sync`
     to provide reviewers with a clear overview of what changed.
 
     Examples:
@@ -428,7 +435,7 @@ def summarise(
         rhiza summarise /path/to/project -o description.md
 
     Typical workflow:
-        rhiza materialize
+        rhiza sync
         git add .
         rhiza summarise --output pr-body.md
         gh pr create --title "chore: Sync with rhiza" --body-file pr-body.md

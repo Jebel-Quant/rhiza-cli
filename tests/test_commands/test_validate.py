@@ -8,7 +8,14 @@ import yaml
 from typer.testing import CliRunner
 
 from rhiza import cli
-from rhiza.commands.validate import validate
+from rhiza.commands.validate import (
+    _validate_include_paths,
+    _validate_language_field,
+    _validate_repository_format,
+    _validate_required_fields,
+    _validate_templates,
+    validate,
+)
 
 
 class TestValidateCommand:
@@ -1005,3 +1012,42 @@ class TestValidateCommand:
         result = validate(tmp_path)
         # Should still pass but with warning
         assert result is True
+
+
+class TestValidateHelperFunctions:
+    """Tests that directly exercise private helper function edge-case branches."""
+
+    def test_validate_templates_without_templates_key(self):
+        """_validate_templates returns True when config has no 'templates' key (line 162)."""
+        result = _validate_templates({"include": [".github"]})
+        assert result is True
+
+    def test_validate_templates_empty_list(self):
+        """_validate_templates returns False for an empty templates list (lines 170-172)."""
+        result = _validate_templates({"templates": []})
+        assert result is False
+
+    def test_validate_required_fields_missing_repo(self):
+        """_validate_required_fields returns False when no repo field present (lines 203-205)."""
+        result = _validate_required_fields({"include": [".github"]})
+        assert result is False
+
+    def test_validate_repository_format_no_repo_field(self):
+        """_validate_repository_format returns True when no repo field present (line 239)."""
+        result = _validate_repository_format({})
+        assert result is True
+
+    def test_validate_include_paths_without_include_key(self):
+        """_validate_include_paths returns True when config has no 'include' key (line 266)."""
+        result = _validate_include_paths({})
+        assert result is True
+
+    def test_validate_include_paths_empty_list(self):
+        """_validate_include_paths returns False for an empty include list (lines 274-276)."""
+        result = _validate_include_paths({"include": []})
+        assert result is False
+
+    def test_validate_language_non_string(self):
+        """_validate_language_field warns when language is not a string (lines 339-340)."""
+        # Should not raise — just logs a warning
+        _validate_language_field({"language": 42})

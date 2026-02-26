@@ -31,7 +31,8 @@ Rhiza is a CLI tool that helps you maintain consistent configuration across mult
 - [Quick Start](#quick-start)
 - [Commands](#commands)
   - [init](#rhiza-init)
-  - [materialize](#rhiza-materialize)
+  - [sync](#rhiza-sync)
+  - [materialize](#rhiza-materialize-deprecated) *(deprecated)*
   - [migrate](#rhiza-migrate)
   - [validate](#rhiza-validate)
 - [Configuration](#configuration)
@@ -76,7 +77,7 @@ With uvx, you don't need to install rhiza globally. Each time you run `uvx rhiza
 ```bash
 # Always uses the latest version
 uvx rhiza init
-uvx rhiza materialize
+uvx rhiza sync
 uvx rhiza validate
 ```
 
@@ -123,13 +124,13 @@ rhiza --help
 
    Edit `.rhiza/template.yml` to specify which files/directories to include from your template repository.
 
-3. **Materialize templates into your project:**
+3. **Sync templates into your project:**
 
    ```bash
-   rhiza materialize
+   rhiza sync
    ```
 
-   This fetches and copies template files into your project.
+   This fetches and copies template files into your project (first run) or applies updates via 3-way merge (subsequent runs).
 
 4. **Validate your configuration:**
 
@@ -202,7 +203,7 @@ When creating a new template file:
 
 Next steps:
   1. Review and customize .rhiza/template.yml to match your project needs
-  2. Run 'rhiza materialize' to inject templates into your repository
+  2. Run 'rhiza sync' to inject templates into your repository
 ```
 
 When validating an existing file:
@@ -219,14 +220,14 @@ When validating an existing file:
 
 ---
 
-### `rhiza materialize`
+### `rhiza sync`
 
-Inject Rhiza configuration templates into a target repository.
+Sync Rhiza configuration templates into a target repository using diff/merge, preserving local customisations.
 
 **Usage:**
 
 ```bash
-rhiza materialize [OPTIONS] [TARGET]
+rhiza sync [OPTIONS] [TARGET]
 ```
 
 **Arguments:**
@@ -236,35 +237,34 @@ rhiza materialize [OPTIONS] [TARGET]
 **Options:**
 
 - `--branch, -b TEXT` - Rhiza branch to use [default: main]
-- `--force, -y` - Overwrite existing files without prompting
+- `--strategy, -s TEXT` - Sync strategy: `merge` (default), `overwrite`, or `diff`
+- `--target-branch TEXT` - Create/checkout a branch in the target repo for changes
 - `--help` - Show help message and exit
 
 **Description:**
 
-Materializes template files from the configured template repository into your target project. This command:
+Keeps your project in sync with the template repository:
 
-1. Reads the `.rhiza/template.yml` configuration
-2. Performs a sparse clone of the template repository
-3. Copies specified files/directories to your project
-4. Respects exclusion patterns defined in the configuration
+- **First run (no lock file):** copies all template files and writes `.rhiza/template.lock`
+- **Subsequent runs:** computes diff (base → upstream) and applies it via `git apply -3` — local edits are preserved
 
 **Examples:**
 
 ```bash
-# Materialize templates in current directory
-rhiza materialize
+# Sync templates (first time or update with 3-way merge)
+rhiza sync
 
-# Materialize templates from a specific branch
-rhiza materialize --branch develop
+# Preview what would change (dry-run)
+rhiza sync --strategy diff
 
-# Materialize and overwrite existing files
-rhiza materialize --force
+# Overwrite all template files
+rhiza sync --strategy overwrite
 
-# Materialize in a specific directory with custom branch
-rhiza materialize /path/to/project --branch v2.0 --force
+# Sync from a specific branch
+rhiza sync --branch develop
 
-# Short form with all options
-rhiza materialize -b main -y
+# Sync to a dedicated branch
+rhiza sync --target-branch update-templates
 ```
 
 **Output:**
@@ -272,40 +272,27 @@ rhiza materialize -b main -y
 ```
 [INFO] Target repository: /path/to/project
 [INFO] Rhiza branch: main
-[INFO] Initializing Rhiza configuration in: /path/to/project
-[INFO] Include paths:
-  - .github
-  - .editorconfig
-  - .gitignore
-  - .pre-commit-config.yaml
-  - Makefile
-  - pytest.ini
-[INFO] Cloning jebel-quant/rhiza@main into temporary directory
-[ADD] .github/workflows/ci.yml
-[ADD] .editorconfig
-[ADD] .gitignore
-[ADD] Makefile
-✓ Rhiza templates materialized successfully
-
-Next steps:
-  1. Review changes:
-       git status
-       git diff
-
-  2. Commit:
-       git add .
-       git commit -m "chore: import rhiza templates"
-
-This is a one-shot snapshot.
-Re-run this script to update templates explicitly.
+[INFO] Sync strategy: merge
+[INFO] Cloning jebel-quant/rhiza@main (upstream)
+[INFO] Upstream HEAD: abc123def456
+[INFO] First sync — copying all template files
+[COPY] .github/workflows/ci.yml
+[COPY] .editorconfig
+[COPY] .gitignore
+[COPY] Makefile
+✓ Sync complete — 4 file(s) processed
 ```
 
-**Notes:**
+---
 
-- Files that already exist will not be overwritten unless `--force` is used
-- The command performs a sparse clone for efficiency
-- Template files are copied with their original permissions
-- Excluded paths (if defined) are filtered out
+### `rhiza materialize` *(Deprecated)*
+
+> **Deprecated.** Use `rhiza sync` instead.
+
+| Old command | Equivalent new command |
+|-------------|----------------------|
+| `rhiza materialize` | `rhiza sync` |
+| `rhiza materialize --force` | `rhiza sync --strategy overwrite` |
 
 ---
 
@@ -461,7 +448,7 @@ or
 
 ```
 [ERROR] Template file not found: /path/to/project/.rhiza/template.yml
-[INFO] Run 'rhiza materialize' or 'rhiza init' to create a default template.yml
+[INFO] Run 'rhiza sync' or 'rhiza init' to create a default template.yml
 ```
 
 ---
@@ -611,8 +598,8 @@ rhiza init
 # Review the generated template.yml
 cat .rhiza/template.yml
 
-# Materialize templates
-rhiza materialize
+# Sync templates
+rhiza sync
 
 # Review the imported files
 git status
@@ -632,7 +619,7 @@ cd existing-project
 rhiza validate
 
 # Update templates (overwrite existing)
-rhiza materialize --force
+rhiza sync --strategy overwrite
 
 # Review changes
 git diff
@@ -658,10 +645,10 @@ exclude:
   - .github/workflows/experimental.yml
 ```
 
-Then materialize:
+Then sync:
 
 ```bash
-rhiza materialize --force
+rhiza sync --strategy overwrite
 ```
 
 ### Example 4: Using a GitLab template repository
@@ -680,10 +667,10 @@ include:
   - pytest.ini
 ```
 
-Then materialize:
+Then sync:
 
 ```bash
-rhiza materialize --force
+rhiza sync --strategy overwrite
 ```
 
 ### Example 5: Validating before CI/CD
@@ -851,7 +838,8 @@ src/rhiza/
 └── commands/           # Command implementations
     ├── __init__.py
     ├── init.py         # Initialize template.yml
-    ├── materialize.py  # Materialize templates
+    ├── materialize.py  # Shared helpers (used by sync.py)
+    ├── sync.py         # Sync templates (primary command)
     └── validate.py     # Validate configuration
 ```
 
@@ -885,7 +873,7 @@ Check that:
 
 Run `rhiza validate` for detailed error messages.
 
-### Git clone fails during materialize
+### Git clone fails during sync
 
 Ensure:
 1. The template repository exists and is accessible
@@ -900,7 +888,7 @@ Check:
 1. The paths in `include` are correct relative to the template repository root
 2. The paths exist in the specified branch
 3. Any `exclude` patterns are not filtering out wanted files
-4. You're using `--force` if files already exist and need to be overwritten
+4. You're using `--strategy overwrite` if files already exist and need to be overwritten
 
 ## FAQ
 
@@ -923,17 +911,17 @@ include:
   - Makefile
 ```
 
-**Q: Can I materialize templates from multiple repositories?**
+**Q: Can I sync templates from multiple repositories?**
 
-A: Not directly. However, you can run `rhiza materialize` multiple times with different configurations, or combine templates manually.
+A: Not directly. However, you can run `rhiza sync` multiple times with different configurations, or combine templates manually.
 
-**Q: What's the difference between `rhiza init` and `rhiza materialize`?**
+**Q: What's the difference between `rhiza init` and `rhiza sync`?**
 
-A: `init` creates or validates the `.rhiza/template.yml` configuration file. `materialize` reads that configuration and actually copies the template files into your project.
+A: `init` creates or validates the `.rhiza/template.yml` configuration file. `sync` reads that configuration and actually copies the template files into your project (and performs 3-way merges on subsequent runs).
 
 **Q: How do I update my project's templates?**
 
-A: Simply run `rhiza materialize --force` to fetch and overwrite with the latest versions from your template repository.
+A: Run `rhiza sync` — it applies a 3-way merge so your local changes are preserved. Use `rhiza sync --strategy overwrite` to force-overwrite all template files.
 
 **Q: How do I update rhiza-cli itself?**
 

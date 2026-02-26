@@ -7,7 +7,8 @@ This document provides a quick reference for the Rhiza command-line interface.
 | Command | Description |
 |---------|-------------|
 | `rhiza init` | Initialize or validate `.rhiza/template.yml` |
-| `rhiza materialize` | Inject templates into a target repository |
+| `rhiza sync` | Sync templates (first-time copy **or** 3-way merge on updates) |
+| `rhiza materialize` | *(Deprecated)* Use `rhiza sync` instead |
 | `rhiza migrate` | Migrate to the new `.rhiza` folder structure |
 | `rhiza validate` | Validate template configuration |
 
@@ -17,12 +18,17 @@ This document provides a quick reference for the Rhiza command-line interface.
 ```bash
 cd your-project
 rhiza init
-rhiza materialize
+rhiza sync
 ```
 
-### Update templates
+### Update templates (preserving local changes)
 ```bash
-rhiza materialize --force
+rhiza sync
+```
+
+### Force-overwrite all template files
+```bash
+rhiza sync --strategy overwrite
 ```
 
 ### Validate before committing
@@ -64,13 +70,13 @@ rhiza init ..                                       # Initialize parent director
 
 ---
 
-### rhiza materialize
+### rhiza sync
 
-**Purpose:** Copy template files into your project
+**Purpose:** Sync template files into your project — first-time copy *or* 3-way merge on subsequent updates
 
 **Syntax:**
 ```bash
-rhiza materialize [OPTIONS] [TARGET]
+rhiza sync [OPTIONS] [TARGET]
 ```
 
 **Parameters:**
@@ -78,25 +84,41 @@ rhiza materialize [OPTIONS] [TARGET]
 
 **Options:**
 - `--branch, -b <branch>` - Template branch to use (default: main)
-- `--force, -y` - Overwrite existing files without prompting
+- `--strategy, -s <strategy>` - Sync strategy: `merge` (default), `overwrite`, or `diff`
+- `--target-branch <branch>` - Create / checkout a branch in the target repo for changes
+
+**Strategies:**
+| Strategy | What it does |
+|----------|-------------|
+| `merge` (default) | 3-way merge — upstream changes applied, local edits preserved |
+| `overwrite` | Replace all files with the latest template versions |
+| `diff` | Dry-run — show what *would* change, no files modified |
 
 **Examples:**
 ```bash
-rhiza materialize                           # Basic usage
-rhiza materialize --branch develop          # Use develop branch
-rhiza materialize --force                   # Overwrite existing files
-rhiza materialize /path/to/project -b v2.0  # Specific directory and branch
-rhiza materialize -b main -y                # Short form
+rhiza sync                                  # First sync or 3-way merge update
+rhiza sync --strategy diff                  # Preview changes
+rhiza sync --strategy overwrite             # Force-overwrite all files
+rhiza sync --branch develop                 # Use develop branch
+rhiza sync --target-branch update-templates # Work in a dedicated branch
 ```
 
 **Behavior:**
-- Creates `.rhiza/template.yml` if it doesn't exist
-- Performs sparse clone of template repository
-- Copies only specified files/directories
-- Respects exclude patterns
-- Skips existing files unless `--force` is used
-- Creates `.rhiza.history` file listing all files under template control
-- **Automatically removes orphaned files** - files that were previously managed by the template but are no longer in the current `include` list
+- **First run (no lock):** copies all template files, writes `.rhiza/template.lock`
+- **Subsequent runs:** computes diff (base → upstream) and applies it via `git apply -3`
+- Automatically removes orphaned files (files no longer in the template's `include` list)
+- Updates `.rhiza/history` with the current set of managed files
+
+---
+
+### rhiza materialize *(Deprecated)*
+
+> **Deprecated.** Use `rhiza sync` instead.
+>
+> | Old command | Equivalent new command |
+> |-------------|----------------------|
+> | `rhiza materialize` | `rhiza sync` |
+> | `rhiza materialize --force` | `rhiza sync --strategy overwrite` |
 
 ---
 
@@ -167,13 +189,13 @@ rhiza validate ..                 # Validate parent directory
 
 ## Generated Files
 
-### .rhiza.history
+### .rhiza/history
 
-After running `rhiza materialize`, a `.rhiza.history` file is created in the project root. This file:
+After running `rhiza sync`, a `.rhiza/history` file is created in the `.rhiza/` directory. This file:
 
 - Lists all files managed by the template
 - Includes metadata about the template repository and branch
-- Is regenerated each time `rhiza materialize` runs
+- Is regenerated each time `rhiza sync` runs
 - Should be committed to version control
 - Is used to detect and remove orphaned files (files that were previously managed but are no longer in the current template configuration)
 
@@ -193,10 +215,10 @@ Makefile
 **Usage:**
 ```bash
 # View tracked files
-cat .rhiza.history
+cat .rhiza/history
 
 # Check if a file is managed by template
-grep "myfile.txt" .rhiza.history
+grep "myfile.txt" .rhiza/history
 ```
 
 ---
@@ -265,7 +287,7 @@ rhiza validate || exit 1
 
 # Update templates periodically
 git checkout -b update-templates
-rhiza materialize --force
+rhiza sync --strategy overwrite
 git diff  # Review changes
 git commit -am "chore: update rhiza templates"
 ```
@@ -292,10 +314,10 @@ While Rhiza doesn't directly support multiple template repositories, you can:
 ```bash
 # Use different templates
 cp .rhiza/template-base.yml .rhiza/template.yml
-rhiza materialize --force
+rhiza sync --strategy overwrite
 
 cp .rhiza/template-testing.yml .rhiza/template.yml  
-rhiza materialize --force
+rhiza sync --strategy overwrite
 ```
 
 ### Debugging
@@ -305,14 +327,14 @@ Enable verbose output with Python logging:
 ```bash
 # Set log level to DEBUG
 export LOGURU_LEVEL=DEBUG
-rhiza materialize
+rhiza sync
 ```
 
 View what git operations are happening:
 
 ```bash
 # Watch git commands
-GIT_TRACE=1 rhiza materialize
+GIT_TRACE=1 rhiza sync
 ```
 
 ---
@@ -350,7 +372,7 @@ rhiza init
 - [ ] Not filtered by `exclude` patterns
 - [ ] Using `--force` if files already exist
 
-### Clone fails during materialize
+### Clone fails during sync
 
 **Possible causes:**
 - Repository doesn't exist or is private
@@ -376,7 +398,7 @@ rhiza --help
 
 # Command-specific help
 rhiza init --help
-rhiza materialize --help
+rhiza sync --help
 rhiza validate --help
 ```
 
