@@ -12,7 +12,7 @@ solely for backward compatibility and will be removed in a future release.
 
 import warnings
 
-from rhiza.commands.sync import (
+from rhiza._sync_helpers import (
     _clean_orphaned_files,
     _clone_template_repository,
     _construct_git_url,
@@ -21,8 +21,8 @@ from rhiza.commands.sync import (
     _update_sparse_checkout,
     _validate_and_load_template,
     _warn_about_workflow_files,
-    sync,
 )
+from rhiza.commands.sync import sync
 
 __all__ = [
     "_clean_orphaned_files",
