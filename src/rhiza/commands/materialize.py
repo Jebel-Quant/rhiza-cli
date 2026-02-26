@@ -607,7 +607,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         repo=rhiza_repo,
         host=rhiza_host,
         ref=rhiza_branch,
-        include=include_paths,
+        include=template.include,
         exclude=excluded_paths,
         templates=template.templates,
         files=sorted(str(f) for f in materialized_files),
