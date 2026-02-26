@@ -476,20 +476,6 @@ def _clean_orphaned_files(target: Path, materialized_files: list[Path]) -> None:
         _delete_orphaned_file(target, file_path)
 
 
-def _write_history(target: Path, materialized_files: list[Path]) -> None:
-    """Write the list of tracked files to .rhiza/history.
-
-    Args:
-        target: Target repository path.
-        materialized_files: List of materialized file paths (relative to target).
-    """
-    history_path = target / ".rhiza" / "history"
-    history_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(history_path, "w", encoding="utf-8") as f:
-        for file_path in sorted(str(fp) for fp in materialized_files):
-            f.write(f"{file_path}\n")
-
-
 def __expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
     """Expand files/directories relative to base_dir into a flat list of files.
 
@@ -627,7 +613,6 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     )
     lock_path = target / ".rhiza" / "template.lock"
     lock.to_yaml(lock_path)
-    _write_history(target, materialized_files)
     logger.info(f"Updated .rhiza/template.lock with {len(materialized_files)} file(s)")
 
     logger.success("Rhiza templates materialized successfully")

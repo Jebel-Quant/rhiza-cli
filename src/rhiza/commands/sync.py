@@ -39,7 +39,6 @@ from rhiza.commands.materialize import (
     _update_sparse_checkout,
     _validate_and_load_template,
     _warn_about_workflow_files,
-    _write_history,
 )
 from rhiza.models import TemplateLock
 from rhiza.subprocess_utils import get_git_executable
@@ -426,7 +425,6 @@ def _sync_merge(
         _warn_about_workflow_files(materialized)
         _clean_orphaned_files(target, materialized)
         _write_lock(target, lock)
-        _write_history(target, materialized)
         logger.success(f"Sync complete — {len(materialized)} file(s) processed")
     finally:
         if base_snapshot.exists():

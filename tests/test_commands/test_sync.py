@@ -429,13 +429,6 @@ class TestSyncOrphanedFiles:
         # old.txt should be deleted as it is no longer in the template
         assert not (tmp_path / "old.txt").exists()
 
-        # .rhiza/history should be updated with only new.txt
-        history_file = tmp_path / ".rhiza" / "history"
-        assert history_file.exists()
-        history_content = history_file.read_text(encoding="utf-8")
-        assert "new.txt" in history_content
-        assert "old.txt" not in history_content
-
         # template.lock should not contain files section
         lock_content = TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock")
         assert lock_content.files == []
