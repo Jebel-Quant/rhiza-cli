@@ -1471,8 +1471,8 @@ class TestInjectCommand:
         # Run materialize
         materialize(tmp_path, "main", None, False)
 
-        # Verify old history file was NOT removed (migration no longer performed by materialize)
-        # The legacy _write_history_file migration is replaced by template.lock
+        # Verify old history file was NOT removed — materialize no longer migrates it;
+        # the legacy .rhiza.history is still read during orphan cleanup (backward compat) but never deleted
         assert old_history_file.exists()
 
         # Verify template.lock was written

@@ -428,6 +428,7 @@ def _clean_orphaned_files(target: Path, materialized_files: list[Path]) -> None:
     orphaned_files = previously_tracked_files - currently_materialized_files
 
     # Protected files that should never be deleted automatically
+    # even if they are orphaned (e.g. user chose to stop tracking them)
     protected_files = {Path(".rhiza/template.yml")}
 
     if orphaned_files:
