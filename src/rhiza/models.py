@@ -15,6 +15,7 @@ __all__ = [
     "BundleDefinition",
     "RhizaBundles",
     "RhizaTemplate",
+    "TemplateLock",
 ]
 
 
@@ -318,4 +319,91 @@ class RhizaTemplate:
             config["exclude"] = self.exclude
 
         with open(file_path, "w") as f:
+            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+
+@dataclass
+class TemplateLock:
+    """Represents the structure of .rhiza/template.lock.
+
+    Attributes:
+        sha: The commit SHA of the last-synced template.
+        repo: The template repository (e.g., "jebel-quant/rhiza").
+        host: The git hosting platform (e.g., "github", "gitlab").
+        ref: The branch or ref that was synced (e.g., "main").
+        include: List of paths included from the template.
+        exclude: List of paths excluded from the template.
+        templates: List of template bundle names.
+        files: List of file paths that were synced.
+    """
+
+    sha: str
+    repo: str = ""
+    host: str = "github"
+    ref: str = "main"
+    include: list[str] = field(default_factory=list)
+    exclude: list[str] = field(default_factory=list)
+    templates: list[str] = field(default_factory=list)
+    files: list[str] = field(default_factory=list)
+
+    @classmethod
+    def from_yaml(cls, file_path: Path) -> "TemplateLock":
+        """Load TemplateLock from a YAML file.
+
+        Supports both the structured YAML format and the legacy plain-SHA format.
+
+        Args:
+            file_path: Path to the template.lock file.
+
+        Returns:
+            The loaded lock data.
+
+        Raises:
+            FileNotFoundError: If the file does not exist.
+            yaml.YAMLError: If the YAML is malformed.
+            ValueError: If the file format is not recognised.
+        """
+        with open(file_path, encoding="utf-8") as f:
+            content = f.read()
+
+        data = yaml.safe_load(content)
+
+        # Legacy plain-SHA format: yaml.safe_load returns the SHA string directly.
+        if isinstance(data, str):
+            return cls(sha=data.strip())
+
+        if not isinstance(data, dict):
+            raise TypeError("Invalid template.lock format")  # noqa: TRY003
+
+        return cls(
+            sha=data.get("sha", ""),
+            repo=data.get("repo", ""),
+            host=data.get("host", "github"),
+            ref=data.get("ref", "main"),
+            include=_normalize_to_list(data.get("include")),
+            exclude=_normalize_to_list(data.get("exclude")),
+            templates=_normalize_to_list(data.get("templates")),
+            files=_normalize_to_list(data.get("files")),
+        )
+
+    def to_yaml(self, file_path: Path) -> None:
+        """Save TemplateLock to a YAML file.
+
+        Args:
+            file_path: Path where the template.lock file should be saved.
+        """
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        config: dict[str, Any] = {
+            "sha": self.sha,
+            "repo": self.repo,
+            "host": self.host,
+            "ref": self.ref,
+            "include": self.include,
+            "exclude": self.exclude,
+            "templates": self.templates,
+            "files": self.files,
+        }
+
+        with open(file_path, "w", encoding="utf-8") as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
