@@ -170,6 +170,25 @@ class TestRhizaTemplate:
         assert loaded.include == original.include
         assert loaded.exclude == original.exclude
 
+    def test_rhiza_template_round_trip_preserves_canonical_key_names(self, tmp_path):
+        """Test that to_yaml writes canonical key names (repository, ref)."""
+        template = RhizaTemplate(
+            template_repository="jebel-quant/rhiza",
+            template_branch="main",
+            include=[".github"],
+        )
+
+        template_file = tmp_path / "template.yml"
+        template.to_yaml(template_file)
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        assert "repository" in config
+        assert "ref" in config
+        assert "template-repository" not in config
+        assert "template-branch" not in config
+
     def test_rhiza_template_creates_parent_directory(self, tmp_path):
         """Test that to_yaml creates parent directories if they don't exist."""
         template = RhizaTemplate(
@@ -500,12 +519,12 @@ exclude: |
         assert template.template_branch == "main"
         assert template.include == [".github"]
 
-    def test_rhiza_template_prefers_template_repository_over_repository(self, tmp_path):
-        """Test that 'template-repository' takes precedence over 'repository'."""
+    def test_rhiza_template_prefers_repository_over_template_repository(self, tmp_path):
+        """Test that 'repository' takes precedence over 'template-repository'."""
         template_file = tmp_path / "template.yml"
         config = {
-            "template-repository": "correct/repo",
-            "repository": "wrong/repo",  # Should be ignored
+            "repository": "correct/repo",
+            "template-repository": "wrong/repo",  # Should be ignored
             "include": [".github"],
         }
 
@@ -514,16 +533,16 @@ exclude: |
 
         template = RhizaTemplate.from_yaml(template_file)
 
-        # Should use template-repository, not repository
+        # Should use repository, not template-repository
         assert template.template_repository == "correct/repo"
 
-    def test_rhiza_template_prefers_template_branch_over_ref(self, tmp_path):
-        """Test that 'template-branch' takes precedence over 'ref'."""
+    def test_rhiza_template_prefers_ref_over_template_branch(self, tmp_path):
+        """Test that 'ref' takes precedence over 'template-branch'."""
         template_file = tmp_path / "template.yml"
         config = {
-            "template-repository": "owner/repo",
-            "template-branch": "correct",
-            "ref": "wrong",  # Should be ignored
+            "repository": "owner/repo",
+            "ref": "correct",
+            "template-branch": "wrong",  # Should be ignored
             "include": [".github"],
         }
 
@@ -532,7 +551,7 @@ exclude: |
 
         template = RhizaTemplate.from_yaml(template_file)
 
-        # Should use template-branch, not ref
+        # Should use ref, not template-branch
         assert template.template_branch == "correct"
 
     def test_rhiza_template_repository_field_only(self, tmp_path):
@@ -572,8 +591,8 @@ exclude: |
         """Test that empty/null values in primary fields use alternative fields."""
         # Test with null value
         template_file = tmp_path / "template.yml"
-        template_file.write_text("""template-repository: null
-repository: fallback/repo
+        template_file.write_text("""repository: null
+template-repository: fallback/repo
 templates:
   - core
 """)
@@ -583,8 +602,8 @@ templates:
 
         # Test with empty string
         config = {
-            "template-repository": "",  # Empty string should fall back
-            "repository": "fallback/repo",
+            "repository": "",  # Empty string should fall back
+            "template-repository": "fallback/repo",
             "templates": ["core"],
         }
 

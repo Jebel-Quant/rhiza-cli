@@ -260,13 +260,13 @@ class RhizaTemplate:
         if not config:
             raise ValueError("Template file is empty")  # noqa: TRY003
 
-        # Support both 'template-repository' and 'repository' (template-repository takes precedence)
+        # Support both 'repository' and 'template-repository' (repository takes precedence)
         # Empty or None values fall back to the alternative field
-        template_repository = config.get("template-repository") or config.get("repository")
+        template_repository = config.get("repository") or config.get("template-repository")
 
-        # Support both 'template-branch' and 'ref' (template-branch takes precedence)
+        # Support both 'ref' and 'template-branch' (ref takes precedence)
         # Empty or None values fall back to the alternative field
-        template_branch = config.get("template-branch") or config.get("ref")
+        template_branch = config.get("ref") or config.get("template-branch")
 
         return cls(
             template_repository=template_repository,
@@ -290,11 +290,11 @@ class RhizaTemplate:
         # Convert to dictionary with YAML-compatible keys
         config: dict[str, Any] = {}
 
-        # Only include template-repository if it's not None
+        # Only include repository if it's not None
         if self.template_repository:
             config["repository"] = self.template_repository
 
-        # Only include template-branch if it's not None
+        # Only include ref if it's not None
         if self.template_branch:
             config["ref"] = self.template_branch
 
