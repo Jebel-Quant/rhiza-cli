@@ -16,7 +16,6 @@ from unittest.mock import patch
 
 import pytest
 import yaml
-from cruft._commands.utils.diff import get_diff
 from typer.testing import CliRunner
 
 from rhiza import cli
@@ -26,6 +25,7 @@ from rhiza.commands.sync import (
     _clone_at_sha,
     _excluded_set,
     _expand_paths,
+    _get_diff,
     _get_head_sha,
     _merge_with_base,
     _prepare_snapshot,
@@ -823,7 +823,7 @@ class TestMergeWithBasePaths:
             TemplateLock(sha="newsha"),
         )
 
-    @patch("rhiza.commands.sync.get_diff")
+    @patch("rhiza.commands.sync._get_diff")
     @patch("rhiza.commands.sync._clone_at_sha")
     @patch("rhiza.commands.sync._prepare_snapshot")
     def test_merge_with_base_no_diff(self, mock_prepare, mock_clone, mock_get_diff, tmp_path, git_setup):
@@ -857,7 +857,7 @@ class TestMergeWithBasePaths:
         assert _read_lock(target) == "newsha"
 
     @patch("rhiza.commands.sync._apply_diff")
-    @patch("rhiza.commands.sync.get_diff")
+    @patch("rhiza.commands.sync._get_diff")
     @patch("rhiza.commands.sync._clone_at_sha")
     @patch("rhiza.commands.sync._prepare_snapshot")
     def test_merge_with_base_clean_apply(
@@ -964,7 +964,7 @@ class TestThreeWayMergeApplyDiff:
         (base / "Makefile").write_text("install:\n\techo old\n")
         (upstream / "Makefile").write_text("install:\n\techo new\n")
 
-        diff = get_diff(base, upstream)
+        diff = _get_diff(base, upstream)
         result = _apply_diff(diff, git_project, git_executable, git_env)
 
         assert result is True
@@ -985,7 +985,7 @@ class TestThreeWayMergeApplyDiff:
         # base has no new_tool.yml; upstream adds it
         (upstream / "new_tool.yml").write_text("version: 1\nenabled: true\n")
 
-        diff = get_diff(base, upstream)
+        diff = _get_diff(base, upstream)
         result = _apply_diff(diff, git_project, git_executable, git_env)
 
         assert result is True
@@ -1007,7 +1007,7 @@ class TestThreeWayMergeApplyDiff:
         (base / "legacy_config.yml").write_text("old: setting\n")
         # upstream does NOT have the file → deletion diff
 
-        diff = get_diff(base, upstream)
+        diff = _get_diff(base, upstream)
         result = _apply_diff(diff, git_project, git_executable, git_env)
 
         assert result is True
@@ -1034,7 +1034,7 @@ class TestThreeWayMergeApplyDiff:
             (base / f).write_text(f"steps:\n  - run: {old}\n")
             (upstream / f).write_text(f"steps:\n  - run: {new}\n")
 
-        diff = get_diff(base, upstream)
+        diff = _get_diff(base, upstream)
         result = _apply_diff(diff, git_project, git_executable, git_env)
 
         assert result is True
@@ -1057,7 +1057,7 @@ class TestThreeWayMergeApplyDiff:
         (base / "Makefile").write_text(makefile_base)
         (upstream / "Makefile").write_text(makefile_base + "\ntest:\n\tpytest\n")
 
-        diff = get_diff(base, upstream)
+        diff = _get_diff(base, upstream)
         result = _apply_diff(diff, git_project, git_executable, git_env)
 
         assert result is True
@@ -1084,7 +1084,7 @@ class TestThreeWayMergeApplyDiff:
         (base / "settings.cfg").write_text("timeout = 30\n")
         (upstream / "settings.cfg").write_text("timeout = 60\n")
 
-        diff = get_diff(base, upstream)
+        diff = _get_diff(base, upstream)
         result = _apply_diff(diff, git_project, git_executable, git_env)
 
         # Apply cannot succeed — local file diverged from the context
@@ -1111,7 +1111,7 @@ class TestThreeWayMergeApplyDiff:
         (upstream / "kept.yml").write_text("version: 2\n")
         (upstream / "new.yml").write_text("feature: true\n")
 
-        diff = get_diff(base, upstream)
+        diff = _get_diff(base, upstream)
         result = _apply_diff(diff, git_project, git_executable, git_env)
 
         assert result is True

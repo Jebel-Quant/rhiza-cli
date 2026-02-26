@@ -1,6 +1,6 @@
 """Command for syncing Rhiza template files using diff/merge.
 
-This module implements the ``sync`` command. It uses cruft's diff/patch
+This module implements the ``sync`` command. It uses a cruft-style diff/patch
 approach so that local customisations are preserved and upstream changes
 are applied safely.
 
@@ -9,8 +9,7 @@ The approach:
 2. Clone the template repository and obtain two tree snapshots:
    - **base**: the template at the previously synced commit (the common ancestor).
    - **upstream**: the template at the current HEAD of the configured branch.
-3. Compute a diff between base and upstream using ``git diff --no-index``
-   (via ``cruft._commands.utils.diff.get_diff``).
+3. Compute a diff between base and upstream using ``git diff --no-index``.
 4. Apply the diff to the project using ``git apply -3`` for a 3-way merge.
 5. Update the lock file.
 
@@ -24,9 +23,9 @@ import shutil
 import subprocess  # nosec B404
 import tempfile
 from pathlib import Path
+from re import sub
 
 import yaml
-from cruft._commands.utils.diff import get_diff
 from loguru import logger
 
 from rhiza.bundle_resolver import load_bundles_from_clone, resolve_include_paths
@@ -42,6 +41,44 @@ from rhiza.commands.materialize import (
 )
 from rhiza.models import TemplateLock
 from rhiza.subprocess_utils import get_git_executable
+
+_DIFF_SRC_PREFIX = "upstream-template-old"
+_DIFF_DST_PREFIX = "upstream-template-new"
+
+
+def _get_diff(repo0: Path, repo1: Path) -> str:
+    """Compute the raw diff between two directory trees using ``git diff --no-index``."""
+    git = get_git_executable()
+    repo0_str = repo0.resolve().as_posix()
+    repo1_str = repo1.resolve().as_posix()
+    result = subprocess.run(  # nosec B603  # noqa: S603
+        [
+            git,
+            "-c",
+            "diff.noprefix=",
+            "diff",
+            "--no-index",
+            "--relative",
+            "--binary",
+            f"--src-prefix={_DIFF_SRC_PREFIX}/",
+            f"--dst-prefix={_DIFF_DST_PREFIX}/",
+            "--no-ext-diff",
+            "--no-color",
+            repo0_str,
+            repo1_str,
+        ],
+        cwd=repo0_str,
+        capture_output=True,
+    )
+    diff = result.stdout.decode()
+    for repo in [repo0_str, repo1_str]:
+        repo_nix = sub("/[a-z]:", "", repo)
+        diff = diff.replace(f"{_DIFF_SRC_PREFIX}{repo_nix}", _DIFF_SRC_PREFIX).replace(
+            f"{_DIFF_DST_PREFIX}{repo_nix}", _DIFF_DST_PREFIX
+        )
+    diff = diff.replace(repo0_str + "/", "").replace(repo1_str + "/", "")
+    return diff
+
 
 # ---------------------------------------------------------------------------
 # Lock-file helpers
@@ -357,7 +394,7 @@ def _sync_diff(target: Path, upstream_snapshot: Path) -> None:
         target: Path to the target repository.
         upstream_snapshot: Path to the upstream snapshot directory.
     """
-    diff = get_diff(target, upstream_snapshot)
+    diff = _get_diff(target, upstream_snapshot)
     if diff.strip():
         logger.info(f"\n{diff}")
         changes = diff.count("diff --git")
@@ -470,7 +507,7 @@ def _merge_with_base(
         if base_clone.exists():
             shutil.rmtree(base_clone)
 
-    diff = get_diff(base_snapshot, upstream_snapshot)
+    diff = _get_diff(base_snapshot, upstream_snapshot)
 
     if not diff.strip():
         logger.success("Template unchanged since last sync — nothing to apply")
