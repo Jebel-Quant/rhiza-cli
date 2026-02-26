@@ -622,3 +622,59 @@ Repository at v0.11.4-rc.6 on `main` branch. This is a **mature, actively-mainta
 **7 / 10** — improved from prior **6/10**. The repository demonstrates **strong production engineering**: comprehensive testing (2:1 test:code ratio), security scanning (bandit, CodeQL, Trivy), mature CI/CD (12 workflows), agent-based automation, and successful dogfooding of its core feature (template.lock exists and is current). Documentation is extensive (52 MD files) and well-structured. Recent work (cruft removal PR #297, sys.exit removal PR #290, field aliasing PR #292) shows active refactoring and technical debt reduction. However, **three critical production issues remain**: PyYAML exact pin prevents security patches, template locked 3 versions behind current release undermines dogfooding credibility, and Renovate automation uses deprecated command bypassing lock semantics. Resolving these three would raise the score to **8/10**. The repository is **production-ready for users** but has **version consistency issues for its own development**.
 
 ---
+
+## 2026-02-26 — Analysis Entry: `rhiza init --template-repository` Validation Gap
+
+### Summary
+
+Branch `copilot/add-early-repository-validation` contains a single "Initial plan" commit over `main` with no code changes. This entry is a focused, pre-implementation analysis of the specific problem the branch targets: **`rhiza init --template-repository=<value>` performs no format validation at the CLI layer before writing to disk**, deferring all repository validation to `validate()` at the end of `init()` and again at the start of `sync()`. The lexical check (`"/" in repo`) is the only structural guard, and it fires too late — only after the template file is already written. A non-existent but syntactically valid value (e.g., `typo/real-repo`) produces no error until `sync` issues a `git clone` that fails with `fatal: repository not found`.
+
+---
+
+### Strengths
+
+- **`_validate_git_host()` (`init.py:36–52`) is a correct model for early validation.** It raises `ValueError` before any filesystem state is created, and is called at the top of `init()` before `rhiza_dir.mkdir()`. An equivalent `_validate_template_repository_format()` function called at the same site would be architecturally consistent and require only ~10 lines.
+
+- **`_validate_repository_format()` (`validate.py:221–252`) is already implemented and correct for the format check.** The function checks `"/" not in repo` and emits an actionable error message (`"must be in format 'owner/repo', got: typo"` / `"Example: 'jebel-quant/rhiza'"`). It is called by `validate()` (`validate.py:436`) which is called at the end of `init()` (`init.py:356`) and at the start of `sync()` via `_validate_and_load_template()` (`sync.py:153`). The check exists; it is simply placed post-write rather than pre-write.
+
+- **Validation runs consistently in both `init` and `sync`.** Neither command proceeds to network operations if `validate()` returns `False`. In `sync`, the guard is stricter: `_validate_and_load_template()` (`sync.py:143–191`) raises `RuntimeError("Rhiza template validation failed")` when `validate()` returns `False`, ensuring the command exits with a non-zero status before any `git clone` is attempted.
+
+- **`init()` returns `bool` (`init.py:313`, `356`).** The function signature already supports propagating validation failure to the caller. The CLI wrapper in `cli.py` does not act on this return value (no `raise typer.Exit(1)`), but the function contract is correct.
+
+- **Test coverage for `_validate_repository_format` is thorough.** `test_validate_fails_on_invalid_repository_format` (`test_validate.py:106`) covers the no-slash case with `"invalid-repo-format"`. `test_validate_fails_on_wrong_type_template_repository` (`test_validate.py:379`) covers the integer-type case (`12345`). `TestValidateRepositoryFormat` tests both `"template-repository"` and `"repository"` field names. These unit tests would survive a refactor that moves format checking earlier.
+
+---
+
+### Weaknesses
+
+- **No format validation of `--template-repository` before the file is written.** In `_create_template_file()` (`init.py:130–200`), the `template_repository` argument is passed directly to `RhizaTemplate(template_repository=repo)` and written to disk via `default_template.to_yaml(template_file)` (`init.py:193`) without any prior check. The value `"noslash"` would produce a `.rhiza/template.yml` with `repository: noslash` that immediately fails the subsequent `validate()`, but only after filesystem state has been created.
+
+- **`cli.py`'s `init()` wrapper (`cli.py:71–153`) ignores the return value of `init_cmd()`.** `init_cmd()` returns `bool`, but `cli.py` calls it without `raise typer.Exit(code=1)` on `False`. This means `rhiza init --template-repository=noslash` exits with code 0 despite validation failing — a silent failure at the CLI level. The user sees loguru error output but no non-zero exit code, breaking `rhiza init && rhiza sync` pipelines and CI usage.
+
+- **The format check (`"/" in repo`) is purely lexical and underconstrained.** Values like `"////"`, `"a/b/c/d"`, `" / "` (whitespace around slash), `"http://github.com/owner/repo"` (full URL), and `"github.com/owner/repo"` (hostname prefix) all pass the current check but would cause a `git clone` failure. The validation offers a false sense of correctness: passing `_validate_repository_format` does not imply the value is a usable `owner/repo` slug.
+
+- **No test covers `rhiza init --template-repository` with an invalid format through the CLI entry point.** `test_init_with_custom_template_repository` (`test_init.py:371`) only tests the happy path (`"myorg/my-templates"`, valid format). There is no test asserting that `init(tmp_path, template_repository="noslash")` returns `False`, or that the CLI emits a non-zero exit code. This gap means any future refactor could silently regress the error path.
+
+- **`_create_template_file()` is idempotent (skips if file exists, `init.py:162–164`) but `init()` runs `validate()` unconditionally.** If a user runs `rhiza init --template-repository=typo/repo`, fails validation, manually edits the template file to fix it, and re-runs `rhiza init`, the second run will skip `_create_template_file()` (file exists) and re-run validation correctly. However, the first run leaves a corrupt template file on disk with `repository: typo/repo`, requiring manual remediation. An early check would prevent this.
+
+---
+
+### Risks / Technical Debt
+
+- **Asymmetry between `--git-host` and `--template-repository` validation.** `--git-host` is validated immediately via `_validate_git_host()` before any I/O, raising `ValueError` with a clear message (`init.py:44–52`). `--template-repository` has no equivalent pre-I/O guard. This asymmetry is a design inconsistency that will cause user confusion: two flags passed together, one validated early and one not, producing different UX for similarly invalid inputs.
+
+- **Error propagation gap: `init()` returns `False` but CLI exits with code 0.** All automation tooling (CI scripts, shell pipelines, Makefiles) that calls `rhiza init` relies on the exit code. A `False` return that maps to exit code 0 means `rhiza init --template-repository=badvalue && rhiza sync` will proceed to `sync`, which will fail with a `RuntimeError` deep in `_validate_and_load_template()`. The error surfaces further from the cause than necessary.
+
+- **The validation gap affects the documented usage pattern.** `CLI.md` and `cli.py:141–153` document `rhiza init --template-repository myorg/my-templates` as a first-class usage. Users who follow this pattern and make a typo get a file written to disk and a loguru error rather than a clean rejection at argument parse time. First-run UX is degraded precisely where users are most likely to make mistakes (custom repositories).
+
+- **`RuntimeError` is the sync failure mode for invalid template.** `_validate_and_load_template()` (`sync.py:157`) raises `RuntimeError("Rhiza template validation failed")` as an untyped exception string. This is caught by the Typer app framework and produces a generic traceback rather than a structured error message. Introducing a custom `RhizaValidationError` exception would allow callers to handle validation failures distinctly from unexpected runtime errors, and would improve the user-facing error message on `rhiza sync`.
+
+- **Branch has no code changes.** This is the first analysis entry for this branch. The identified fix is well-scoped: add a `_validate_template_repository_format(template_repository)` call at the top of `init()` (mirroring `_validate_git_host()`), add `raise typer.Exit(code=1)` in `cli.py`'s `init()` when `init_cmd()` returns `False`, tighten the format regex from `"/" in repo` to `re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo)`, and add negative test cases for the CLI entry point. Estimated change: ~30 lines of source, ~40 lines of tests.
+
+---
+
+### Score
+
+**7 / 10** — unchanged from prior entry. The core structural quality of the repository (test coverage, CI/CD, security scanning, clean command separation) remains high. The targeted issue (`--template-repository` validation) is a genuine UX defect but is low-severity: it affects only users providing custom repository values, the error is surfaced before any network I/O (by the post-write `validate()` call), and the fix is straightforward. It does not affect correctness for the default repository path. The exit-code propagation gap is the more impactful defect, as it silently breaks CI pipelines. This would be a **7.5** if not for the pattern of branches with "Initial plan" commits that contain no implementation — four consecutive entries (across three branch names) have noted this same situation.
+
+---
