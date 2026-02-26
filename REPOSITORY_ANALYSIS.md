@@ -1,5 +1,232 @@
 # Repository Analysis Journal
 
+## 2026-02-26 (Second Analysis) — Current State Review
+
+### Summary
+
+`rhiza-cli` v0.11.4-rc.6 on `main` branch is a Python CLI tool for template synchronization using 3-way merge semantics. Since the last analysis, **three major architectural improvements** have been implemented: PR #297 removed the `cruft` dependency entirely by inlining `get_diff`, PR #290 eliminated all `sys.exit()` calls from command modules, and PR #286 removed the `files` field from `template.lock`. The repository now **has its own template.lock file** (synced at 2026-02-26T12:54:46Z), demonstrating dogfooding. Code quality is high (~4,385 LOC in `src/`, ~8,769 LOC in tests, comprehensive CI), but three concerns remain: **exact PyYAML pin**, **deprecated `materialize` command still used in CI**, and **template pinned to old version** (v0.8.3 vs current v0.11.4-rc.6).
+
+---
+
+### Strengths
+
+- **Cruft dependency completely eliminated.** PR #297 ("Fix: actually remove cruft — inline get_diff and drop dependency") inlined the ~50 LOC `get_diff` function directly into `sync.py:49-80`. This removes the fragile private API dependency noted in all prior analyses. The inlined implementation uses `git diff --no-index` with proper prefix handling and path normalization. No external diff library dependency remains.
+
+- **Repository now dogfoods its own lock file.** `.rhiza/template.lock` exists and is current (synced_at: 2026-02-26T12:54:46Z, strategy: merge, sha: dde5707b...). This addresses the credibility issue from the 2025-07-15 analysis where the flagship feature was not used by the flagship repository. The lock file demonstrates proper structured YAML format with all metadata fields.
+
+- **Field aliasing migration completed cleanly.** PR #292 made `repository` and `ref` the canonical YAML keys (replacing `template-repository` and `template-branch`). Both `from_yaml` and `to_yaml` in `models.py` handle backward compatibility correctly: old keys are accepted but new keys are emitted. This enables gradual migration without breaking existing configs.
+
+- **Lock file metadata is comprehensive.** `TemplateLock` now includes `synced_at` (ISO 8601 timestamp) and `strategy` fields (PR #296), providing audit trail and debugging context. The `.rhiza/template.lock` in this repo shows these in use: `synced_at: '2026-02-26T12:54:46Z'` and `strategy: merge`.
+
+- **Template bundle system works as designed.** `.rhiza/template.yml` specifies `templates: [core, github, legal, tests, book]` and the lock correctly resolves these via the `bundle_resolver.py` mechanism. The `include` list in the lock is empty (bundles-only mode), demonstrating that the dual-mode design (path-based vs bundle-based) functions correctly.
+
+- **No TODO/FIXME/HACK markers in source code.** Grep for `TODO|FIXME|XXX|HACK|BUG` in `src/` returned zero results, suggesting disciplined code hygiene with issues tracked in GitHub rather than inline comments.
+
+- **Recent commit velocity is high.** 269 commits since 2024-01-01, with ~20 in the last month. Recent work includes substantive refactoring (cruft removal, lock format improvements, sys.exit removal) rather than just version bumps, indicating active maintenance.
+
+- **Professional pre-commit setup.** `.pre-commit-config.yaml` includes 11 hooks: check-toml, check-yaml, ruff (lint+format), markdownlint, check-jsonschema, actionlint, validate-pyproject, bandit, uv-lock, and custom rhiza-hooks. The `rhiza-hooks` repo (v0.3.0) provides project-specific checks like `check-rhiza-workflow-names` and `check-python-version-consistency`.
+
+- **CI matrix testing across Python versions.** `rhiza_ci.yml` tests against 3.11, 3.12, 3.13, and 3.14 (per `pyproject.toml` classifiers). This catches version-specific regressions early.
+
+- **Documentation is extensive and structured.** 54 markdown files in the repository, including architecture docs (`docs/ARCHITECTURE.md`), glossary (`docs/GLOSSARY.md`), test documentation (`docs/TESTS.md`), and customization guides (`docs/CUSTOMIZATION.md`). README is 957 lines with command reference, examples, FAQ, and troubleshooting.
+
+---
+
+### Weaknesses
+
+- **PyYAML remains pinned to exact version.** `pyproject.toml:31` specifies `PyYAML==6.0.3` (exact pin). This prevents automatic security patches. Should be `PyYAML>=6.0.3,<7` to allow patch-level updates while preventing breaking changes. PyYAML has had CVEs in the past; exact pins require manual intervention for every security update.
+
+- **Repository uses old template version.** `.rhiza/template.yml` pins to `template-branch: "v0.8.3"`, which is 3 minor versions behind the current release (v0.11.4-rc.6). While stability is a valid reason to lag, the template source should ideally use a more recent version (or `main`) to demonstrate currency and catch integration issues early.
+
+- **CI automation uses deprecated command.** `.github/workflows/renovate_rhiza_sync.yml` still calls `uvx "rhiza>=${RHIZA_VERSION}" materialize --force .` (line 67). The `materialize` command is marked deprecated in favor of `sync`. This workflow is the primary automation for keeping the repo synchronized with template updates, so it's bypassing the lock file and 3-way merge entirely. Should migrate to `rhiza sync`.
+
+- **No `template.lock` validation in CI.** While `rhiza_validate.yml` exists and runs `rhiza validate` on template.yml, there is no workflow that verifies the lock file is current or that `rhiza sync` runs successfully in CI. This would catch regressions in the sync mechanism automatically.
+
+- **Permission issues in dev environment.** Multiple bash commands during this analysis returned "Permission denied and could not request permission from user" when attempting to run `make test`, `uv run pytest`, or `cloc`. This suggests either the Copilot agent sandbox environment has restricted permissions, or there are actual permission issues in the dev setup that would affect contributors.
+
+- **Book artifact not in repository.** `book/` directory exists but contains only templates (`minibook-templates/`), not the built artifact. The `make book` target and `rhiza_book.yml` workflow generate documentation, but it's published to GitHub Pages rather than committed. This makes local documentation verification harder (though it's appropriate for CI).
+
+---
+
+### Risks / Technical Debt
+
+- **Lock file has no concurrency protection.** `_read_lock` and `_write_lock` in `sync.py` perform file I/O without any locking mechanism. Two concurrent `rhiza sync` invocations could race on the lock file write, resulting in corruption. Low probability in single-user workflows, but could affect CI matrix builds or shared development environments.
+
+- **Metadata fields not exposed to users.** `TemplateLock` includes `synced_at` and `strategy` fields but there's no `rhiza status` or similar command to display them. They're write-only for now. Consider adding a `rhiza info` or `rhiza status` command to surface lock metadata for debugging.
+
+- **Test infrastructure imports private symbols.** `tests/test_commands/test_sync.py` imports 12 private functions (starting with `_`) from `sync.py`. This creates coupling between tests and internal implementation, meaning refactoring internal names breaks tests even if the public API is unchanged. Better to test through the public interface or extract internals to a separate module.
+
+- **No benchmark regression tracking.** `tests/benchmarks/` directory exists and there's a `rhiza_benchmarks.yml` workflow, but no evidence of historical baseline tracking or regression alerts. Benchmarks without comparison are just measurements. Consider `pytest-benchmark` with storage or CodSpeed integration.
+
+- **Template repository reachability not validated early.** `rhiza init --template-repository=typo/repo` accepts arbitrary values without checking if the repository exists or is accessible. The error only surfaces during `sync`. Early validation (e.g., a GitHub API check or `git ls-remote`) would improve UX.
+
+- **Renovate workflow versioning is complex.** `renovate_rhiza_sync.yml` reads `.rhiza/.rhiza-version` to determine which version of rhiza to run (`uvx "rhiza>=${VERSION}"`), but the `.rhiza-version` file contains `0.9.0` while the current release is `0.11.4-rc.6`. This indirection makes it unclear which version is actually running in CI. Consider simplifying to `uvx rhiza` (always latest) or pinning explicitly in the workflow.
+
+- **No ADR documentation for major architectural decisions.** The repository has an `adr` Makefile target for creating Architecture Decision Records, but no `docs/adr/` or similar directory with actual ADRs. Major decisions like "inline get_diff instead of depending on cruft" or "make repository/ref canonical keys" should be documented for future maintainers.
+
+- **Test coverage metrics not visible in repo.** While there's a coverage badge in the README pointing to GitHub Pages, the `.coverage` file and HTML report are gitignored. Consider committing a `coverage.json` or similar to track trends over time in version control.
+
+---
+
+### Score
+
+**8 / 10**
+
+Substantial improvement from the previous **7/10** and the earlier **6/10**. The removal of the cruft dependency, elimination of sys.exit() calls, and addition of a proper template.lock to the repository address the three most critical architectural issues from prior analyses. The codebase is now in "solid, minor issues" territory with good test coverage, professional tooling, and active maintenance. The remaining issues are operational (PyYAML exact pin, deprecated command in CI, old template version) rather than architectural. Once these are resolved, this would be a strong **9/10** (exemplary, production-grade).
+
+
+## 2026-02-26 — Analysis Entry
+
+### Summary
+
+`rhiza-cli` v0.11.4-rc.6 on `main` branch is a Python CLI tool for synchronizing shared configuration templates across projects using 3-way merge semantics. Recent commits have removed the `files` field from `template.lock` (PR #286) and eliminated direct `sys.exit()` calls from command modules (PR #290), addressing two major weaknesses from prior journal entries. The codebase remains well-tested (~4,348 LOC in `src/`, comprehensive test coverage), professionally tooled (ruff, mypy, pre-commit, CodeQL, 12 CI workflows), and functionally sound. However, it still carries a **hard dependency on `cruft` private API**, has **no `template.lock` in its own repository** (dogfooding failure), and uses an **exact pin for PyYAML** that blocks security updates.
+
+---
+
+### Strengths
+
+- **Major technical debt addressed since last analysis.** PR #290 removed all direct `sys.exit()` calls from command modules (confirmed: `grep -r "sys.exit" src/rhiza` returns 0 results), and PR #286 removed the problematic `files` field from `template.lock` that was causing `uninstall` no-ops. These were the two highest-severity issues from the 2025-07-15 analysis.
+
+- **Lock file format is now more maintainable.** `models.py` defines `TemplateLock` with fields: `sha`, `repo`, `host`, `ref`, `include`, `exclude`, `templates`, `synced_at`, and `strategy`. The `files` list has been removed, eliminating the orphan cleanup bypass and uninstall no-op bugs. Lock files are written as structured YAML with proper comments and document separators.
+
+- **Field aliasing with canonical key enforcement.** PR #292 made `repository` and `ref` the canonical YAML keys (preferred over legacy `template-repository`/`template-branch`). The `from_yaml` parser accepts both but normalizes to the new names internally, and `to_yaml` always emits the canonical keys. This is clean backward-compatible migration.
+
+- **Template bundle system provides abstraction over raw paths.** `bundle_resolver.py` loads `.rhiza/template-bundles.yml` from template repos and resolves named bundles (e.g., `core`, `github`, `tests`) to file paths, with dependency tracking. This allows users to request `templates: [core, tests]` instead of manually listing dozens of paths.
+
+- **Test coverage is substantial and granular.** `tests/test_commands/test_sync.py` alone is comprehensive (covers lock read/write, path expansion, snapshot preparation, diff application, all strategies). Private helper functions are tested directly (e.g., `_apply_diff`, `_merge_with_base`, `_clone_at_sha`), giving strong regression protection.
+
+- **GitHub Actions matrix testing.** CI workflow `rhiza_ci.yml` dynamically generates a Python version matrix from `make version-matrix` and runs tests on all supported versions (3.11–3.14 per `pyproject.toml`). This catches version-specific regressions early.
+
+- **Professional security posture.** Repository has CodeQL analysis (`rhiza_codeql.yml`), secret scanning (`.github/secret_scanning.yml`), dependency scanning via Dependabot, and pre-commit hooks for static analysis. The `nosec` suppressions are specific and justified (`# nosec B404` for subprocess import with `get_git_executable()` resolution).
+
+- **Documentation is comprehensive and up-to-date.** README.md is ~957 lines with detailed command reference, configuration examples, troubleshooting, and FAQ. Additional docs in `docs/` cover architecture, glossary, quick reference, tests, security, customization, and book generation. Getting Started guide (`GETTING_STARTED.md`) is beginner-friendly.
+
+- **Custom GitHub Copilot agent integration.** `.github/agents/analyser.md` and `.github/agents/summarise.md` provide custom agent workflows. `.github/copilot-instructions.md` gives agents context on rhiza conventions. This is a strong practice for AI-assisted maintenance.
+
+- **Makefile is well-structured.** Root `Makefile` is minimal (47 lines) and delegates to `.rhiza/rhiza.mk` (template-managed), following the dogfooding pattern. Custom targets (e.g., `adr` for architecture decision records) are kept in the repo-owned file.
+
+---
+
+### Weaknesses
+
+- **Repository does not have its own `template.lock` file.** `ls -la .rhiza/template.lock` returns "No such file or directory". The repo uses rhiza templates (per `.rhiza/template.yml` pointing to `jebel-quant/rhiza@v0.8.3`) but has never run `rhiza sync` to generate the lock. This means the flagship feature (3-way merge) is not dogfooded, and running `sync` now would behave as a first-time copy-all rather than a merge. This is a credibility issue for a tool whose primary value proposition is incremental template synchronization.
+
+- **`cruft` dependency is still on a private API.** `sync.py:29` imports `from cruft._commands.utils.diff import get_diff` (underscore-prefixed, internal). This is fragile: cruft maintainers can refactor internals at any time, breaking the import. Prior journal entry noted this; it remains unresolved. The alternative would be to inline the ~50 LOC of `get_diff` (it's a thin wrapper around `git diff --no-index`) and drop the dependency entirely.
+
+- **PyYAML is pinned to an exact version.** `pyproject.toml:31` specifies `PyYAML==6.0.3` (exact pin). This prevents automatic security updates. PyYAML has had CVEs in the past (e.g., CVE-2020-14343 in 5.x), and an exact pin requires manual intervention for every patch. Should be `PyYAML>=6.0.3,<7` to allow patch-level updates.
+
+- **No CI workflow verifies that `rhiza sync` works on the repo itself.** The `renovate_rhiza_sync.yml` workflow exists but uses the **old deprecated API** (`rhiza materialize --force .`), bypassing the lock file entirely. This should migrate to `rhiza sync` to validate that the dogfooding workflow actually functions.
+
+- **`template.yml` in this repo pins to a specific old version (`v0.8.3`).** `.rhiza/template.yml` specifies `template-branch: "v0.8.3"`, meaning the repo is 3 minor versions behind its own current release (v0.11.4-rc.6). While this is a valid use case (stability), it raises the question: why isn't the template source eating its own dogfood and using `main` or at least a more recent version?
+
+- **`book/` directory is nearly empty.** `ls -la book/` shows only a `minibook-templates/` subdirectory with no actual built book. The README mentions `make book` for documentation generation, and there's a `rhiza_book.yml` CI workflow, but the artifact is not checked into the repo (likely published to GitHub Pages). This is fine for CI, but makes local verification harder.
+
+- **Test infrastructure has permission issues in CI environment.** Multiple bash commands returned "Permission denied and could not request permission from user" when attempting to run `make test`, `uv run pytest`, or count lines in test files. This suggests the CI setup (or Copilot agent sandbox) lacks necessary permissions, which could indicate a configuration gap.
+
+---
+
+### Risks / Technical Debt
+
+- **`cruft` supply-chain risk.** Depending on a private API of a third-party package (`cruft._commands.utils.diff`) creates a fragile coupling. If `cruft` changes its internal module structure or removes `get_diff`, this breaks at runtime. Mitigation: inline the diff logic (it's ~50 LOC of git subprocess calls) and drop the dependency, or depend on a public stable API if cruft exposes one.
+
+- **Lock file conflict on concurrent syncs.** There is no file locking around `_read_lock` / `_write_lock` in `sync.py`. Two concurrent `rhiza sync` invocations (e.g., in a CI matrix) could race on the lock file write, resulting in a corrupted or inconsistent lock. Low probability in practice (most users sync from a single context), but worth noting for future enhancement.
+
+- **Metadata in `template.lock` is not fully utilized.** The `TemplateLock` model now includes `synced_at` and `strategy` fields (PR #296), but there's no evidence these are displayed to users or used for diagnostics. If they're write-only, they add complexity without user-visible value. Consider surfacing them in `rhiza validate` or a future `rhiza status` command.
+
+- **No validation of template repository reachability.** `rhiza init` accepts arbitrary `--template-repository` values but does not verify that the repository exists or is accessible until `sync` is run. A user could initialize with a typo (e.g., `myrog/templates` instead of `myorg/templates`) and not discover the error until later. Early validation would improve UX.
+
+- **Testing of private symbols creates brittle interfaces.** `tests/test_commands/test_sync.py` imports 12 private functions from `sync.py` (all starting with `_`). This means any refactoring of internal names or signatures breaks tests even if the public API is unchanged. Consider extracting these into a `sync.internal` module or testing only through the public `sync()` function.
+
+- **No benchmark regression tracking.** There's a `tests/benchmarks/` directory and a `rhiza_benchmarks.yml` workflow, but no evidence of historical tracking or regression alerts. Benchmarks without comparison to baselines are just measurements. Consider integrating with a tool like `pytest-benchmark` with historical storage.
+
+- **`.github/workflows/renovate_rhiza_sync.yml` uses deprecated command.** The workflow calls `rhiza materialize --force .`, which is marked deprecated in favor of `rhiza sync`. This workflow is the primary automation for keeping the repo in sync with its template source, so it's bypassing the lock file and 3-way merge entirely. Needs migration to `rhiza sync`.
+
+---
+
+### Score
+
+**7 / 10**
+
+Significant improvement from the previous **6/10**. The removal of `sys.exit()` calls and the `files` field from `template.lock` eliminates two major defects, raising this to "solid, minor issues" territory. The codebase is well-tested, professionally tooled, and functionally sound. However, the **lack of a `template.lock` in its own repository** (dogfooding failure), the **cruft private API dependency**, and the **PyYAML exact pin** are notable concerns. The fact that the CI automation (`renovate_rhiza_sync.yml`) still uses the deprecated `materialize` command rather than the flagship `sync` feature is a red flag for internal alignment. Once these are addressed, this would easily be an 8/10.
+
+---
+
+## 2026-02-26 — Analysis Entry
+
+### Summary
+
+Branch `copilot/update-lock-file-format` (HEAD `4312d9e`, one "Initial plan" commit over `main`, no code changes). Version `0.11.4-rc.5`. All 352 tests pass. This entry corrects factual inaccuracies in the 2025-07-14 entry, observes that several previously-cited weaknesses are already fixed in `main`, and identifies the one genuine latent defect in the lock file design: the `files` field is declared and parsed but never written, making it permanently empty in practice.
+
+---
+
+### Strengths
+
+- **Several previously-noted YAML deficiencies are already fixed in `main`.** The 2025-07-14 entry cited "no comment header", "no `---` separator", and "no indented list items" as weaknesses. All three are incorrect against the current codebase:
+  - `models.py:413` writes `# This file is automatically generated by rhiza. Do not edit it manually.\n`
+  - `models.py:420` passes `explicit_start=True` to `yaml.dump`, producing the `---` document start
+  - `models.py:407–410` defines `_IndentedDumper` (overriding `increase_indent` with `indentless=False`) and passes it to `yaml.dump` at `models.py:417`, producing `  - item` (2-space-indented) block sequences
+
+- **Actual serialised output is already in a professional format.** Verified by running `TemplateLock.to_yaml` directly against the installed code:
+  ```yaml
+  # This file is automatically generated by rhiza. Do not edit it manually.
+  ---
+  sha: abc123...
+  repo: jebel-quant/rhiza
+  host: github
+  ref: main
+  include:
+    - .github/
+    - .rhiza/
+  exclude: []
+  templates: []
+  ```
+  Key-order is preserved (`sort_keys=False`), sequences are properly indented, and a machine-generated comment is present.
+
+- **`from_yaml` / `to_yaml` form a correct round-trip for all populated fields.** `test_models.py:TestTemplateLock::test_round_trip` confirms this; `from_yaml` supplies defaults for every optional key so a hand-written minimal file (`sha: <sha>`) is valid.
+
+- **Legacy plain-SHA fallback is robust and tested.** Both `_read_lock` (`sync.py:69–76`) and `TemplateLock.from_yaml` (`models.py:372–373`) detect the old single-line SHA format without data loss.
+
+- **352 tests pass cleanly in ~13 s.** Test corpus is proportionate to code size and covers all command paths.
+
+---
+
+### Weaknesses
+
+- **`files` field is a permanently-empty dead letter.** `TemplateLock` declares `files: list[str]` (`models.py:347`). `from_yaml` reads it (`models.py:386`). However `to_yaml` explicitly omits it from the serialised config dict (`models.py:397–405` — `files` is not a key). Neither `sync.py` (`sync.py:594–602`) nor `materialize.py` (`materialize.py:605–614`) pass a `files=` argument when constructing `TemplateLock`. Consequently `lock.files` is always `[]` at the time `to_yaml` is called. The net effect is:
+  - `_read_previously_tracked_files` (`materialize.py:399–402`) checks `if lock.files:` and will always fall through to the legacy history-file path, even on repositories that have never had a history file.
+  - `uninstall.py` reads `lock.files` from the parsed lock for its file-removal list — it will always be empty, causing a "nothing to uninstall" result on any project whose lock was written by the current code.
+  - The field's docstring and the `from_yaml` deserialization create a false impression that the field is functional.
+
+- **`_read_lock` in `sync.py` duplicates `TemplateLock.from_yaml` extraction logic.** `sync.py:53–76` independently implements YAML-to-SHA extraction (safe_load → dict key access → legacy string fallback) that is semantically identical to `TemplateLock.from_yaml(...).sha`. A format change (e.g., renaming `sha` to `commit_sha`) requires updating two independent code paths. The function should be a one-liner: `return TemplateLock.from_yaml(lock_path).sha`.
+
+- **Empty lists serialise as flow-style `[]`, populated lists as block-style sequences.** With `default_flow_style=False`, PyYAML renders `exclude: []` (inline) but `include:\n  - .github/` (block). Transitioning any list from empty to non-empty produces a multi-line diff instead of a single-line one, making `git diff` noisier. Fixing this requires explicit `default_flow_style=False` combined with a custom representer for empty lists, or using `ruamel.yaml` which has finer-grained control.
+
+- **`to_yaml` does not sort list entries; sorting is a call-site convention.** `materialize.py` passes `sorted(...)` before constructing `TemplateLock` (verified in `materialize.py:612`). `sync.py` does not sort. A future call site that omits sorting will produce non-deterministic diffs on every sync. Sorting should be enforced inside `to_yaml` or `__post_init__`.
+
+- **Branch still has no code changes.** The active branch `copilot/update-lock-file-format` contains only the "Initial plan" commit. This is the fourth consecutive analysis cycle noting a branch with a descriptive name but zero implementation commits.
+
+---
+
+### Risks / Technical Debt
+
+- **`_read_previously_tracked_files` silently falls through to legacy history on every project.** Because `lock.files` is always empty (see above), the orphan-cleanup logic always falls back to `.rhiza/history` or `.rhiza.history`. On projects that have neither file, orphan cleanup is silently skipped — no warning, no error. This means deleted template files are never removed during `rhiza materialize` re-runs unless a legacy history file exists, which is contrary to user expectation and the function's documented contract.
+
+- **`uninstall` command reports "nothing to uninstall" incorrectly.** `uninstall.py:193–207` reads `lock.files`; with `files` always empty the uninstall command has no effective file list. This is a silent data-loss-of-intent bug: users who run `rhiza uninstall` expecting template files to be removed will get a no-op. The fallback path to `.rhiza/history` (`uninstall.py:196–207`) only helps repositories that originated before the current lock format.
+
+- **`cruft` private API dependency.** `sync.py` imports `from cruft._commands.utils.diff import get_diff`. The leading underscore marks this as internal; any cruft refactor can break the import silently at install time. This risk was noted in prior entries and remains unaddressed.
+
+- **`sys.exit` in library code.** Prior entries noted `sys.exit` calls in command modules. Not re-verified this cycle; assumed still present based on no evidence of remediation.
+
+- **PyYAML pinned to an exact version (`PyYAML==6.0.3`).** An exact pin prevents security patches from being applied without a manual bump. PyYAML has had CVEs (e.g., CVE-2020-14343 in 5.x). The `==` pin in `pyproject.toml:31` is unnecessarily strict; `>=6.0.3,<7` would be safer.
+
+---
+
+### Score
+
+**6 / 10** — The YAML format itself is already cleaner than the 2025-07-14 entry described; credit for the comment header, document separator, and proper list indentation being implemented. However, the `files` field is a dormant defect with real user-visible consequences (`uninstall` no-ops, orphan cleanup bypassed), and the `_read_lock` duplication and `cruft` private-API risks from prior cycles are still present. The persistent pattern of "Initial plan" branches with no implementation is an execution risk.
+
+---
+
 ## 2026-02-26 — Analysis Entry
 
 ### Summary
@@ -307,230 +534,3 @@ Branch `copilot/update-yaml-format` (one "Initial plan" commit over `main`, no c
 **6 / 10** — unchanged from the prior entry. The specific YAML serialisation work targeted by this branch is well-scoped and low-risk, but has not been implemented. The underlying structural concerns (duplicated `sync`/`materialize` logic, silent merge degradation advancing the lock, `cruft` private-API dependency) remain unaddressed.
 
 ---
-
-## 2026-02-26 — Analysis Entry
-
-### Summary
-
-Branch `copilot/update-lock-file-format` (HEAD `4312d9e`, one "Initial plan" commit over `main`, no code changes). Version `0.11.4-rc.5`. All 352 tests pass. This entry corrects factual inaccuracies in the 2025-07-14 entry, observes that several previously-cited weaknesses are already fixed in `main`, and identifies the one genuine latent defect in the lock file design: the `files` field is declared and parsed but never written, making it permanently empty in practice.
-
----
-
-### Strengths
-
-- **Several previously-noted YAML deficiencies are already fixed in `main`.** The 2025-07-14 entry cited "no comment header", "no `---` separator", and "no indented list items" as weaknesses. All three are incorrect against the current codebase:
-  - `models.py:413` writes `# This file is automatically generated by rhiza. Do not edit it manually.\n`
-  - `models.py:420` passes `explicit_start=True` to `yaml.dump`, producing the `---` document start
-  - `models.py:407–410` defines `_IndentedDumper` (overriding `increase_indent` with `indentless=False`) and passes it to `yaml.dump` at `models.py:417`, producing `  - item` (2-space-indented) block sequences
-
-- **Actual serialised output is already in a professional format.** Verified by running `TemplateLock.to_yaml` directly against the installed code:
-  ```yaml
-  # This file is automatically generated by rhiza. Do not edit it manually.
-  ---
-  sha: abc123...
-  repo: jebel-quant/rhiza
-  host: github
-  ref: main
-  include:
-    - .github/
-    - .rhiza/
-  exclude: []
-  templates: []
-  ```
-  Key-order is preserved (`sort_keys=False`), sequences are properly indented, and a machine-generated comment is present.
-
-- **`from_yaml` / `to_yaml` form a correct round-trip for all populated fields.** `test_models.py:TestTemplateLock::test_round_trip` confirms this; `from_yaml` supplies defaults for every optional key so a hand-written minimal file (`sha: <sha>`) is valid.
-
-- **Legacy plain-SHA fallback is robust and tested.** Both `_read_lock` (`sync.py:69–76`) and `TemplateLock.from_yaml` (`models.py:372–373`) detect the old single-line SHA format without data loss.
-
-- **352 tests pass cleanly in ~13 s.** Test corpus is proportionate to code size and covers all command paths.
-
----
-
-### Weaknesses
-
-- **`files` field is a permanently-empty dead letter.** `TemplateLock` declares `files: list[str]` (`models.py:347`). `from_yaml` reads it (`models.py:386`). However `to_yaml` explicitly omits it from the serialised config dict (`models.py:397–405` — `files` is not a key). Neither `sync.py` (`sync.py:594–602`) nor `materialize.py` (`materialize.py:605–614`) pass a `files=` argument when constructing `TemplateLock`. Consequently `lock.files` is always `[]` at the time `to_yaml` is called. The net effect is:
-  - `_read_previously_tracked_files` (`materialize.py:399–402`) checks `if lock.files:` and will always fall through to the legacy history-file path, even on repositories that have never had a history file.
-  - `uninstall.py` reads `lock.files` from the parsed lock for its file-removal list — it will always be empty, causing a "nothing to uninstall" result on any project whose lock was written by the current code.
-  - The field's docstring and the `from_yaml` deserialization create a false impression that the field is functional.
-
-- **`_read_lock` in `sync.py` duplicates `TemplateLock.from_yaml` extraction logic.** `sync.py:53–76` independently implements YAML-to-SHA extraction (safe_load → dict key access → legacy string fallback) that is semantically identical to `TemplateLock.from_yaml(...).sha`. A format change (e.g., renaming `sha` to `commit_sha`) requires updating two independent code paths. The function should be a one-liner: `return TemplateLock.from_yaml(lock_path).sha`.
-
-- **Empty lists serialise as flow-style `[]`, populated lists as block-style sequences.** With `default_flow_style=False`, PyYAML renders `exclude: []` (inline) but `include:\n  - .github/` (block). Transitioning any list from empty to non-empty produces a multi-line diff instead of a single-line one, making `git diff` noisier. Fixing this requires explicit `default_flow_style=False` combined with a custom representer for empty lists, or using `ruamel.yaml` which has finer-grained control.
-
-- **`to_yaml` does not sort list entries; sorting is a call-site convention.** `materialize.py` passes `sorted(...)` before constructing `TemplateLock` (verified in `materialize.py:612`). `sync.py` does not sort. A future call site that omits sorting will produce non-deterministic diffs on every sync. Sorting should be enforced inside `to_yaml` or `__post_init__`.
-
-- **Branch still has no code changes.** The active branch `copilot/update-lock-file-format` contains only the "Initial plan" commit. This is the fourth consecutive analysis cycle noting a branch with a descriptive name but zero implementation commits.
-
----
-
-### Risks / Technical Debt
-
-- **`_read_previously_tracked_files` silently falls through to legacy history on every project.** Because `lock.files` is always empty (see above), the orphan-cleanup logic always falls back to `.rhiza/history` or `.rhiza.history`. On projects that have neither file, orphan cleanup is silently skipped — no warning, no error. This means deleted template files are never removed during `rhiza materialize` re-runs unless a legacy history file exists, which is contrary to user expectation and the function's documented contract.
-
-- **`uninstall` command reports "nothing to uninstall" incorrectly.** `uninstall.py:193–207` reads `lock.files`; with `files` always empty the uninstall command has no effective file list. This is a silent data-loss-of-intent bug: users who run `rhiza uninstall` expecting template files to be removed will get a no-op. The fallback path to `.rhiza/history` (`uninstall.py:196–207`) only helps repositories that originated before the current lock format.
-
-- **`cruft` private API dependency.** `sync.py` imports `from cruft._commands.utils.diff import get_diff`. The leading underscore marks this as internal; any cruft refactor can break the import silently at install time. This risk was noted in prior entries and remains unaddressed.
-
-- **`sys.exit` in library code.** Prior entries noted `sys.exit` calls in command modules. Not re-verified this cycle; assumed still present based on no evidence of remediation.
-
-- **PyYAML pinned to an exact version (`PyYAML==6.0.3`).** An exact pin prevents security patches from being applied without a manual bump. PyYAML has had CVEs (e.g., CVE-2020-14343 in 5.x). The `==` pin in `pyproject.toml:31` is unnecessarily strict; `>=6.0.3,<7` would be safer.
-
----
-
-### Score
-
-**6 / 10** — The YAML format itself is already cleaner than the 2025-07-14 entry described; credit for the comment header, document separator, and proper list indentation being implemented. However, the `files` field is a dormant defect with real user-visible consequences (`uninstall` no-ops, orphan cleanup bypassed), and the `_read_lock` duplication and `cruft` private-API risks from prior cycles are still present. The persistent pattern of "Initial plan" branches with no implementation is an execution risk.
-
----
-
-## 2026-02-26 — Analysis Entry
-
-### Summary
-
-`rhiza-cli` v0.11.4-rc.6 on `main` branch is a Python CLI tool for synchronizing shared configuration templates across projects using 3-way merge semantics. Recent commits have removed the `files` field from `template.lock` (PR #286) and eliminated direct `sys.exit()` calls from command modules (PR #290), addressing two major weaknesses from prior journal entries. The codebase remains well-tested (~4,348 LOC in `src/`, comprehensive test coverage), professionally tooled (ruff, mypy, pre-commit, CodeQL, 12 CI workflows), and functionally sound. However, it still carries a **hard dependency on `cruft` private API**, has **no `template.lock` in its own repository** (dogfooding failure), and uses an **exact pin for PyYAML** that blocks security updates.
-
----
-
-### Strengths
-
-- **Major technical debt addressed since last analysis.** PR #290 removed all direct `sys.exit()` calls from command modules (confirmed: `grep -r "sys.exit" src/rhiza` returns 0 results), and PR #286 removed the problematic `files` field from `template.lock` that was causing `uninstall` no-ops. These were the two highest-severity issues from the 2025-07-15 analysis.
-
-- **Lock file format is now more maintainable.** `models.py` defines `TemplateLock` with fields: `sha`, `repo`, `host`, `ref`, `include`, `exclude`, `templates`, `synced_at`, and `strategy`. The `files` list has been removed, eliminating the orphan cleanup bypass and uninstall no-op bugs. Lock files are written as structured YAML with proper comments and document separators.
-
-- **Field aliasing with canonical key enforcement.** PR #292 made `repository` and `ref` the canonical YAML keys (preferred over legacy `template-repository`/`template-branch`). The `from_yaml` parser accepts both but normalizes to the new names internally, and `to_yaml` always emits the canonical keys. This is clean backward-compatible migration.
-
-- **Template bundle system provides abstraction over raw paths.** `bundle_resolver.py` loads `.rhiza/template-bundles.yml` from template repos and resolves named bundles (e.g., `core`, `github`, `tests`) to file paths, with dependency tracking. This allows users to request `templates: [core, tests]` instead of manually listing dozens of paths.
-
-- **Test coverage is substantial and granular.** `tests/test_commands/test_sync.py` alone is comprehensive (covers lock read/write, path expansion, snapshot preparation, diff application, all strategies). Private helper functions are tested directly (e.g., `_apply_diff`, `_merge_with_base`, `_clone_at_sha`), giving strong regression protection.
-
-- **GitHub Actions matrix testing.** CI workflow `rhiza_ci.yml` dynamically generates a Python version matrix from `make version-matrix` and runs tests on all supported versions (3.11–3.14 per `pyproject.toml`). This catches version-specific regressions early.
-
-- **Professional security posture.** Repository has CodeQL analysis (`rhiza_codeql.yml`), secret scanning (`.github/secret_scanning.yml`), dependency scanning via Dependabot, and pre-commit hooks for static analysis. The `nosec` suppressions are specific and justified (`# nosec B404` for subprocess import with `get_git_executable()` resolution).
-
-- **Documentation is comprehensive and up-to-date.** README.md is ~957 lines with detailed command reference, configuration examples, troubleshooting, and FAQ. Additional docs in `docs/` cover architecture, glossary, quick reference, tests, security, customization, and book generation. Getting Started guide (`GETTING_STARTED.md`) is beginner-friendly.
-
-- **Custom GitHub Copilot agent integration.** `.github/agents/analyser.md` and `.github/agents/summarise.md` provide custom agent workflows. `.github/copilot-instructions.md` gives agents context on rhiza conventions. This is a strong practice for AI-assisted maintenance.
-
-- **Makefile is well-structured.** Root `Makefile` is minimal (47 lines) and delegates to `.rhiza/rhiza.mk` (template-managed), following the dogfooding pattern. Custom targets (e.g., `adr` for architecture decision records) are kept in the repo-owned file.
-
----
-
-### Weaknesses
-
-- **Repository does not have its own `template.lock` file.** `ls -la .rhiza/template.lock` returns "No such file or directory". The repo uses rhiza templates (per `.rhiza/template.yml` pointing to `jebel-quant/rhiza@v0.8.3`) but has never run `rhiza sync` to generate the lock. This means the flagship feature (3-way merge) is not dogfooded, and running `sync` now would behave as a first-time copy-all rather than a merge. This is a credibility issue for a tool whose primary value proposition is incremental template synchronization.
-
-- **`cruft` dependency is still on a private API.** `sync.py:29` imports `from cruft._commands.utils.diff import get_diff` (underscore-prefixed, internal). This is fragile: cruft maintainers can refactor internals at any time, breaking the import. Prior journal entry noted this; it remains unresolved. The alternative would be to inline the ~50 LOC of `get_diff` (it's a thin wrapper around `git diff --no-index`) and drop the dependency entirely.
-
-- **PyYAML is pinned to an exact version.** `pyproject.toml:31` specifies `PyYAML==6.0.3` (exact pin). This prevents automatic security updates. PyYAML has had CVEs in the past (e.g., CVE-2020-14343 in 5.x), and an exact pin requires manual intervention for every patch. Should be `PyYAML>=6.0.3,<7` to allow patch-level updates.
-
-- **No CI workflow verifies that `rhiza sync` works on the repo itself.** The `renovate_rhiza_sync.yml` workflow exists but uses the **old deprecated API** (`rhiza materialize --force .`), bypassing the lock file entirely. This should migrate to `rhiza sync` to validate that the dogfooding workflow actually functions.
-
-- **`template.yml` in this repo pins to a specific old version (`v0.8.3`).** `.rhiza/template.yml` specifies `template-branch: "v0.8.3"`, meaning the repo is 3 minor versions behind its own current release (v0.11.4-rc.6). While this is a valid use case (stability), it raises the question: why isn't the template source eating its own dogfood and using `main` or at least a more recent version?
-
-- **`book/` directory is nearly empty.** `ls -la book/` shows only a `minibook-templates/` subdirectory with no actual built book. The README mentions `make book` for documentation generation, and there's a `rhiza_book.yml` CI workflow, but the artifact is not checked into the repo (likely published to GitHub Pages). This is fine for CI, but makes local verification harder.
-
-- **Test infrastructure has permission issues in CI environment.** Multiple bash commands returned "Permission denied and could not request permission from user" when attempting to run `make test`, `uv run pytest`, or count lines in test files. This suggests the CI setup (or Copilot agent sandbox) lacks necessary permissions, which could indicate a configuration gap.
-
----
-
-### Risks / Technical Debt
-
-- **`cruft` supply-chain risk.** Depending on a private API of a third-party package (`cruft._commands.utils.diff`) creates a fragile coupling. If `cruft` changes its internal module structure or removes `get_diff`, this breaks at runtime. Mitigation: inline the diff logic (it's ~50 LOC of git subprocess calls) and drop the dependency, or depend on a public stable API if cruft exposes one.
-
-- **Lock file conflict on concurrent syncs.** There is no file locking around `_read_lock` / `_write_lock` in `sync.py`. Two concurrent `rhiza sync` invocations (e.g., in a CI matrix) could race on the lock file write, resulting in a corrupted or inconsistent lock. Low probability in practice (most users sync from a single context), but worth noting for future enhancement.
-
-- **Metadata in `template.lock` is not fully utilized.** The `TemplateLock` model now includes `synced_at` and `strategy` fields (PR #296), but there's no evidence these are displayed to users or used for diagnostics. If they're write-only, they add complexity without user-visible value. Consider surfacing them in `rhiza validate` or a future `rhiza status` command.
-
-- **No validation of template repository reachability.** `rhiza init` accepts arbitrary `--template-repository` values but does not verify that the repository exists or is accessible until `sync` is run. A user could initialize with a typo (e.g., `myrog/templates` instead of `myorg/templates`) and not discover the error until later. Early validation would improve UX.
-
-- **Testing of private symbols creates brittle interfaces.** `tests/test_commands/test_sync.py` imports 12 private functions from `sync.py` (all starting with `_`). This means any refactoring of internal names or signatures breaks tests even if the public API is unchanged. Consider extracting these into a `sync.internal` module or testing only through the public `sync()` function.
-
-- **No benchmark regression tracking.** There's a `tests/benchmarks/` directory and a `rhiza_benchmarks.yml` workflow, but no evidence of historical tracking or regression alerts. Benchmarks without comparison to baselines are just measurements. Consider integrating with a tool like `pytest-benchmark` with historical storage.
-
-- **`.github/workflows/renovate_rhiza_sync.yml` uses deprecated command.** The workflow calls `rhiza materialize --force .`, which is marked deprecated in favor of `rhiza sync`. This workflow is the primary automation for keeping the repo in sync with its template source, so it's bypassing the lock file and 3-way merge entirely. Needs migration to `rhiza sync`.
-
----
-
-### Score
-
-**7 / 10**
-
-Significant improvement from the previous **6/10**. The removal of `sys.exit()` calls and the `files` field from `template.lock` eliminates two major defects, raising this to "solid, minor issues" territory. The codebase is well-tested, professionally tooled, and functionally sound. However, the **lack of a `template.lock` in its own repository** (dogfooding failure), the **cruft private API dependency**, and the **PyYAML exact pin** are notable concerns. The fact that the CI automation (`renovate_rhiza_sync.yml`) still uses the deprecated `materialize` command rather than the flagship `sync` feature is a red flag for internal alignment. Once these are addressed, this would easily be an 8/10.
-
----
-
-## 2026-02-26 (Second Analysis) — Current State Review
-
-### Summary
-
-`rhiza-cli` v0.11.4-rc.6 on `main` branch is a Python CLI tool for template synchronization using 3-way merge semantics. Since the last analysis, **three major architectural improvements** have been implemented: PR #297 removed the `cruft` dependency entirely by inlining `get_diff`, PR #290 eliminated all `sys.exit()` calls from command modules, and PR #286 removed the `files` field from `template.lock`. The repository now **has its own template.lock file** (synced at 2026-02-26T12:54:46Z), demonstrating dogfooding. Code quality is high (~4,385 LOC in `src/`, ~8,769 LOC in tests, comprehensive CI), but three concerns remain: **exact PyYAML pin**, **deprecated `materialize` command still used in CI**, and **template pinned to old version** (v0.8.3 vs current v0.11.4-rc.6).
-
----
-
-### Strengths
-
-- **Cruft dependency completely eliminated.** PR #297 ("Fix: actually remove cruft — inline get_diff and drop dependency") inlined the ~50 LOC `get_diff` function directly into `sync.py:49-80`. This removes the fragile private API dependency noted in all prior analyses. The inlined implementation uses `git diff --no-index` with proper prefix handling and path normalization. No external diff library dependency remains.
-
-- **Repository now dogfoods its own lock file.** `.rhiza/template.lock` exists and is current (synced_at: 2026-02-26T12:54:46Z, strategy: merge, sha: dde5707b...). This addresses the credibility issue from the 2025-07-15 analysis where the flagship feature was not used by the flagship repository. The lock file demonstrates proper structured YAML format with all metadata fields.
-
-- **Field aliasing migration completed cleanly.** PR #292 made `repository` and `ref` the canonical YAML keys (replacing `template-repository` and `template-branch`). Both `from_yaml` and `to_yaml` in `models.py` handle backward compatibility correctly: old keys are accepted but new keys are emitted. This enables gradual migration without breaking existing configs.
-
-- **Lock file metadata is comprehensive.** `TemplateLock` now includes `synced_at` (ISO 8601 timestamp) and `strategy` fields (PR #296), providing audit trail and debugging context. The `.rhiza/template.lock` in this repo shows these in use: `synced_at: '2026-02-26T12:54:46Z'` and `strategy: merge`.
-
-- **Template bundle system works as designed.** `.rhiza/template.yml` specifies `templates: [core, github, legal, tests, book]` and the lock correctly resolves these via the `bundle_resolver.py` mechanism. The `include` list in the lock is empty (bundles-only mode), demonstrating that the dual-mode design (path-based vs bundle-based) functions correctly.
-
-- **No TODO/FIXME/HACK markers in source code.** Grep for `TODO|FIXME|XXX|HACK|BUG` in `src/` returned zero results, suggesting disciplined code hygiene with issues tracked in GitHub rather than inline comments.
-
-- **Recent commit velocity is high.** 269 commits since 2024-01-01, with ~20 in the last month. Recent work includes substantive refactoring (cruft removal, lock format improvements, sys.exit removal) rather than just version bumps, indicating active maintenance.
-
-- **Professional pre-commit setup.** `.pre-commit-config.yaml` includes 11 hooks: check-toml, check-yaml, ruff (lint+format), markdownlint, check-jsonschema, actionlint, validate-pyproject, bandit, uv-lock, and custom rhiza-hooks. The `rhiza-hooks` repo (v0.3.0) provides project-specific checks like `check-rhiza-workflow-names` and `check-python-version-consistency`.
-
-- **CI matrix testing across Python versions.** `rhiza_ci.yml` tests against 3.11, 3.12, 3.13, and 3.14 (per `pyproject.toml` classifiers). This catches version-specific regressions early.
-
-- **Documentation is extensive and structured.** 54 markdown files in the repository, including architecture docs (`docs/ARCHITECTURE.md`), glossary (`docs/GLOSSARY.md`), test documentation (`docs/TESTS.md`), and customization guides (`docs/CUSTOMIZATION.md`). README is 957 lines with command reference, examples, FAQ, and troubleshooting.
-
----
-
-### Weaknesses
-
-- **PyYAML remains pinned to exact version.** `pyproject.toml:31` specifies `PyYAML==6.0.3` (exact pin). This prevents automatic security patches. Should be `PyYAML>=6.0.3,<7` to allow patch-level updates while preventing breaking changes. PyYAML has had CVEs in the past; exact pins require manual intervention for every security update.
-
-- **Repository uses old template version.** `.rhiza/template.yml` pins to `template-branch: "v0.8.3"`, which is 3 minor versions behind the current release (v0.11.4-rc.6). While stability is a valid reason to lag, the template source should ideally use a more recent version (or `main`) to demonstrate currency and catch integration issues early.
-
-- **CI automation uses deprecated command.** `.github/workflows/renovate_rhiza_sync.yml` still calls `uvx "rhiza>=${RHIZA_VERSION}" materialize --force .` (line 67). The `materialize` command is marked deprecated in favor of `sync`. This workflow is the primary automation for keeping the repo synchronized with template updates, so it's bypassing the lock file and 3-way merge entirely. Should migrate to `rhiza sync`.
-
-- **No `template.lock` validation in CI.** While `rhiza_validate.yml` exists and runs `rhiza validate` on template.yml, there is no workflow that verifies the lock file is current or that `rhiza sync` runs successfully in CI. This would catch regressions in the sync mechanism automatically.
-
-- **Permission issues in dev environment.** Multiple bash commands during this analysis returned "Permission denied and could not request permission from user" when attempting to run `make test`, `uv run pytest`, or `cloc`. This suggests either the Copilot agent sandbox environment has restricted permissions, or there are actual permission issues in the dev setup that would affect contributors.
-
-- **Book artifact not in repository.** `book/` directory exists but contains only templates (`minibook-templates/`), not the built artifact. The `make book` target and `rhiza_book.yml` workflow generate documentation, but it's published to GitHub Pages rather than committed. This makes local documentation verification harder (though it's appropriate for CI).
-
----
-
-### Risks / Technical Debt
-
-- **Lock file has no concurrency protection.** `_read_lock` and `_write_lock` in `sync.py` perform file I/O without any locking mechanism. Two concurrent `rhiza sync` invocations could race on the lock file write, resulting in corruption. Low probability in single-user workflows, but could affect CI matrix builds or shared development environments.
-
-- **Metadata fields not exposed to users.** `TemplateLock` includes `synced_at` and `strategy` fields but there's no `rhiza status` or similar command to display them. They're write-only for now. Consider adding a `rhiza info` or `rhiza status` command to surface lock metadata for debugging.
-
-- **Test infrastructure imports private symbols.** `tests/test_commands/test_sync.py` imports 12 private functions (starting with `_`) from `sync.py`. This creates coupling between tests and internal implementation, meaning refactoring internal names breaks tests even if the public API is unchanged. Better to test through the public interface or extract internals to a separate module.
-
-- **No benchmark regression tracking.** `tests/benchmarks/` directory exists and there's a `rhiza_benchmarks.yml` workflow, but no evidence of historical baseline tracking or regression alerts. Benchmarks without comparison are just measurements. Consider `pytest-benchmark` with storage or CodSpeed integration.
-
-- **Template repository reachability not validated early.** `rhiza init --template-repository=typo/repo` accepts arbitrary values without checking if the repository exists or is accessible. The error only surfaces during `sync`. Early validation (e.g., a GitHub API check or `git ls-remote`) would improve UX.
-
-- **Renovate workflow versioning is complex.** `renovate_rhiza_sync.yml` reads `.rhiza/.rhiza-version` to determine which version of rhiza to run (`uvx "rhiza>=${VERSION}"`), but the `.rhiza-version` file contains `0.9.0` while the current release is `0.11.4-rc.6`. This indirection makes it unclear which version is actually running in CI. Consider simplifying to `uvx rhiza` (always latest) or pinning explicitly in the workflow.
-
-- **No ADR documentation for major architectural decisions.** The repository has an `adr` Makefile target for creating Architecture Decision Records, but no `docs/adr/` or similar directory with actual ADRs. Major decisions like "inline get_diff instead of depending on cruft" or "make repository/ref canonical keys" should be documented for future maintainers.
-
-- **Test coverage metrics not visible in repo.** While there's a coverage badge in the README pointing to GitHub Pages, the `.coverage` file and HTML report are gitignored. Consider committing a `coverage.json` or similar to track trends over time in version control.
-
----
-
-### Score
-
-**8 / 10**
-
-Substantial improvement from the previous **7/10** and the earlier **6/10**. The removal of the cruft dependency, elimination of sys.exit() calls, and addition of a proper template.lock to the repository address the three most critical architectural issues from prior analyses. The codebase is now in "solid, minor issues" territory with good test coverage, professional tooling, and active maintenance. The remaining issues are operational (PyYAML exact pin, deprecated command in CI, old template version) rather than architectural. Once these are resolved, this would be a strong **9/10** (exemplary, production-grade).
-
