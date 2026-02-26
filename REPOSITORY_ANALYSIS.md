@@ -36,7 +36,7 @@
 
 - **Repository uses old template version.** `.rhiza/template.yml` pins to `template-branch: "v0.8.3"`, which is 3 minor versions behind the current release (v0.11.4-rc.6). While stability is a valid reason to lag, the template source should ideally use a more recent version (or `main`) to demonstrate currency and catch integration issues early.
 
-- **CI automation uses deprecated command.** `.github/workflows/renovate_rhiza_sync.yml` still calls `uvx "rhiza>=${RHIZA_VERSION}" materialize --force .` (line 67). The `materialize` command is marked deprecated in favor of `sync`. This workflow is the primary automation for keeping the repo synchronized with template updates, so it's bypassing the lock file and 3-way merge entirely. Should migrate to `rhiza sync`.
+- **CI automation now uses `rhiza sync`.** `.github/workflows/rhiza_sync.yml` was migrated from the deprecated `uvx "rhiza>=${RHIZA_VERSION}" materialize --force .` to `uvx "rhiza>=${RHIZA_VERSION}" sync`. The `renovate_rhiza_sync.yml` was already using `sync`. Both automation workflows now use the current API with lock-file tracking and 3-way merge.
 
 - **No `template.lock` validation in CI.** While `rhiza_validate.yml` exists and runs `rhiza validate` on template.yml, there is no workflow that verifies the lock file is current or that `rhiza sync` runs successfully in CI. This would catch regressions in the sync mechanism automatically.
 
@@ -113,7 +113,7 @@ Substantial improvement from the previous **7/10** and the earlier **6/10**. The
 
 - **PyYAML is pinned to an exact version.** `pyproject.toml:31` specifies `PyYAML==6.0.3` (exact pin). This prevents automatic security updates. PyYAML has had CVEs in the past (e.g., CVE-2020-14343 in 5.x), and an exact pin requires manual intervention for every patch. Should be `PyYAML>=6.0.3,<7` to allow patch-level updates.
 
-- **No CI workflow verifies that `rhiza sync` works on the repo itself.** The `renovate_rhiza_sync.yml` workflow exists but uses the **old deprecated API** (`rhiza materialize --force .`), bypassing the lock file entirely. This should migrate to `rhiza sync` to validate that the dogfooding workflow actually functions.
+- **Both CI sync workflows now use `rhiza sync`.** `rhiza_sync.yml` was migrated from `rhiza materialize --force .` to `rhiza sync`, and `renovate_rhiza_sync.yml` already uses `sync`. This means both automation workflows now use the lock file and 3-way merge, validating that the dogfooding workflow functions correctly.
 
 - **`template.yml` in this repo pins to a specific old version (`v0.8.3`).** `.rhiza/template.yml` specifies `template-branch: "v0.8.3"`, meaning the repo is 3 minor versions behind its own current release (v0.11.4-rc.6). While this is a valid use case (stability), it raises the question: why isn't the template source eating its own dogfood and using `main` or at least a more recent version?
 
@@ -137,7 +137,7 @@ Substantial improvement from the previous **7/10** and the earlier **6/10**. The
 
 - **No benchmark regression tracking.** There's a `tests/benchmarks/` directory and a `rhiza_benchmarks.yml` workflow, but no evidence of historical tracking or regression alerts. Benchmarks without comparison to baselines are just measurements. Consider integrating with a tool like `pytest-benchmark` with historical storage.
 
-- **`.github/workflows/renovate_rhiza_sync.yml` uses deprecated command.** The workflow calls `rhiza materialize --force .`, which is marked deprecated in favor of `rhiza sync`. This workflow is the primary automation for keeping the repo in sync with its template source, so it's bypassing the lock file and 3-way merge entirely. Needs migration to `rhiza sync`.
+- ~~**`.github/workflows/rhiza_sync.yml` uses deprecated command.**~~ *Fixed*: The workflow now calls `rhiza sync` (with lock-file tracking and 3-way merge) instead of the deprecated `rhiza materialize --force .`.
 
 ---
 
@@ -145,7 +145,7 @@ Substantial improvement from the previous **7/10** and the earlier **6/10**. The
 
 **7 / 10**
 
-Significant improvement from the previous **6/10**. The removal of `sys.exit()` calls and the `files` field from `template.lock` eliminates two major defects, raising this to "solid, minor issues" territory. The codebase is well-tested, professionally tooled, and functionally sound. However, the **lack of a `template.lock` in its own repository** (dogfooding failure), the **cruft private API dependency**, and the **PyYAML exact pin** are notable concerns. The fact that the CI automation (`renovate_rhiza_sync.yml`) still uses the deprecated `materialize` command rather than the flagship `sync` feature is a red flag for internal alignment. Once these are addressed, this would easily be an 8/10.
+Significant improvement from the previous **6/10**. The removal of `sys.exit()` calls and the `files` field from `template.lock` eliminates two major defects, raising this to "solid, minor issues" territory. The codebase is well-tested, professionally tooled, and functionally sound. However, the **lack of a `template.lock` in its own repository** (dogfooding failure), the **cruft private API dependency**, and the **PyYAML exact pin** are notable concerns. Once these are addressed, this would easily be an 8/10.
 
 ---
 
@@ -282,7 +282,7 @@ Branch `copilot/update-lock-file-format` (HEAD `4312d9e`, one "Initial plan" com
 
 - **Branch `copilot/enhance-template-lock-file` is currently empty.** The branch exists with one "Initial plan" commit but contains no code changes. Any enhancement described in the PR description has not yet been implemented. Analysis of the lock file behaviour reflects the `main` branch state.
 
-- **`renovate_rhiza_sync.yml` uses the deprecated `materialize --force` command** (`rhiza>={RHIZA_VERSION} materialize --force .`). This workflow is the primary automation for keeping the repo up to date, and it bypasses the lock file entirely. The new `sync --strategy overwrite` replacement would also write the lock file, which is the intended behaviour.
+- ~~**`rhiza_sync.yml` uses the deprecated `materialize --force` command** (`rhiza>={RHIZA_VERSION} materialize --force .`).~~ *Fixed*: `rhiza_sync.yml` now calls `rhiza sync`, using the lock file and 3-way merge instead of force-overwrite. (`renovate_rhiza_sync.yml` was already using `sync`.)
 
 - **Lock file conflict on concurrent syncs.** There is no file locking around the `_read_lock` / `_write_lock` pair. Two concurrent `rhiza sync` invocations (e.g., in a CI matrix) would race on the lock file write. Low probability in practice but worth noting.
 
