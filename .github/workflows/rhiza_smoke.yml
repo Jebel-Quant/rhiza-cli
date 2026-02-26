@@ -1,0 +1,37 @@
+name: (RHIZA) SMOKE TEST
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.2
+        with:
+          lfs: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7.3.0
+        with:
+          version: "0.10.4"
+
+      - name: Install rhiza from source
+        run: make install
+
+      - name: Add venv to PATH
+        run: echo "${{ github.workspace }}/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Run rhiza status (requires lock file)
+        run: rhiza status .
+
+      - name: Run rhiza sync (idempotency check — must say "Already up to date")
+        run: rhiza sync . 2>&1 | tee /tmp/sync_out.txt && grep -q "Already up to date" /tmp/sync_out.txt
