@@ -59,7 +59,7 @@ class TestLockFile:
         assert (target / ".rhiza" / "template.lock").exists()
 
     def test_write_lock_yaml_format(self, tmp_path):
-        """Lock file is written as YAML with all required fields."""
+        """Lock file is written as YAML with all required fields (files is excluded)."""
         lock = TemplateLock(
             sha="abc123def456",
             repo="jebel-quant/rhiza",
@@ -68,7 +68,6 @@ class TestLockFile:
             include=[".github/", ".rhiza/"],
             exclude=[],
             templates=[],
-            files=[".github/workflows/ci.yml", ".rhiza/template.yml"],
         )
         _write_lock(tmp_path, lock)
         lock_path = tmp_path / ".rhiza" / "template.lock"
@@ -80,7 +79,7 @@ class TestLockFile:
         assert data["include"] == [".github/", ".rhiza/"]
         assert data["exclude"] == []
         assert data["templates"] == []
-        assert data["files"] == [".github/workflows/ci.yml", ".rhiza/template.yml"]
+        assert "files" not in data
 
     def test_read_lock_legacy_plain_sha(self, tmp_path):
         """Legacy plain-SHA lock files are still readable."""
@@ -430,10 +429,9 @@ class TestSyncOrphanedFiles:
         # old.txt should be deleted as it is no longer in the template
         assert not (tmp_path / "old.txt").exists()
 
-        # template.lock should be written with only new.txt
+        # template.lock should not contain files section
         lock_content = TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock")
-        assert "new.txt" in lock_content.files
-        assert "old.txt" not in lock_content.files
+        assert lock_content.files == []
 
 
 class TestSyncCLI:
