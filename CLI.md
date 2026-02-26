@@ -26,9 +26,9 @@ rhiza sync
 rhiza sync
 ```
 
-### Force-overwrite all template files
+### Sync template files
 ```bash
-rhiza sync --strategy overwrite
+rhiza sync
 ```
 
 ### Validate before committing
@@ -84,21 +84,19 @@ rhiza sync [OPTIONS] [TARGET]
 
 **Options:**
 - `--branch, -b <branch>` - Template branch to use (default: main)
-- `--strategy, -s <strategy>` - Sync strategy: `merge` (default), `overwrite`, or `diff`
+- `--strategy, -s <strategy>` - Sync strategy: `merge` (default) or `diff`
 - `--target-branch <branch>` - Create / checkout a branch in the target repo for changes
 
 **Strategies:**
 | Strategy | What it does |
 |----------|-------------|
 | `merge` (default) | 3-way merge — upstream changes applied, local edits preserved |
-| `overwrite` | Replace all files with the latest template versions |
 | `diff` | Dry-run — show what *would* change, no files modified |
 
 **Examples:**
 ```bash
 rhiza sync                                  # First sync or 3-way merge update
 rhiza sync --strategy diff                  # Preview changes
-rhiza sync --strategy overwrite             # Force-overwrite all files
 rhiza sync --branch develop                 # Use develop branch
 rhiza sync --target-branch update-templates # Work in a dedicated branch
 ```
@@ -118,7 +116,7 @@ rhiza sync --target-branch update-templates # Work in a dedicated branch
 > | Old command | Equivalent new command |
 > |-------------|----------------------|
 > | `rhiza materialize` | `rhiza sync` |
-> | `rhiza materialize --force` | `rhiza sync --strategy overwrite` |
+> | `rhiza materialize --force` | `rhiza sync` |
 
 ---
 
@@ -287,7 +285,7 @@ rhiza validate || exit 1
 
 # Update templates periodically
 git checkout -b update-templates
-rhiza sync --strategy overwrite
+rhiza sync
 git diff  # Review changes
 git commit -am "chore: update rhiza templates"
 ```
@@ -314,10 +312,10 @@ While Rhiza doesn't directly support multiple template repositories, you can:
 ```bash
 # Use different templates
 cp .rhiza/template-base.yml .rhiza/template.yml
-rhiza sync --strategy overwrite
+rhiza sync
 
 cp .rhiza/template-testing.yml .rhiza/template.yml  
-rhiza sync --strategy overwrite
+rhiza sync
 ```
 
 ### Debugging

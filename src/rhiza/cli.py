@@ -179,13 +179,11 @@ def materialize(
     \b
     - rhiza sync              # first time → copies everything, writes lock
     - rhiza sync              # subsequent → 3-way merge preserving local changes
-    - rhiza sync --strategy overwrite  # equivalent to materialize --force
     - rhiza sync --strategy diff       # dry-run showing what would change
 
     Examples:
         rhiza sync
         rhiza sync --branch develop
-        rhiza sync --strategy overwrite
         rhiza sync --target-branch feature/update-templates
     """
     typer.echo(
@@ -193,8 +191,7 @@ def materialize(
         "Use `rhiza sync` instead.",
         err=True,
     )
-    strategy = "overwrite" if force else "merge"
-    sync_cmd(target, branch, target_branch, strategy)
+    sync_cmd(target, branch, target_branch, "merge")
 
 
 @app.command()
@@ -219,8 +216,7 @@ def sync(
         "merge",
         "--strategy",
         "-s",
-        help="Sync strategy: 'merge' (3-way merge preserving local changes), "
-        "'overwrite' (replace files), or 'diff' (dry-run showing changes)",
+        help="Sync strategy: 'merge' (3-way merge preserving local changes) or 'diff' (dry-run showing changes)",
     ),
 ) -> None:
     r"""Sync templates using diff/merge, preserving local customisations.
@@ -250,19 +246,17 @@ def sync(
 
     Strategies:
     \b
-    - merge:     3-way merge preserving local changes (default)
-    - overwrite: replace all files (equivalent to the old materialize --force)
-    - diff:      dry-run showing what would change
+    - merge:  3-way merge preserving local changes (default)
+    - diff:   dry-run showing what would change
 
     Examples:
         rhiza sync
         rhiza sync --strategy diff
-        rhiza sync --strategy overwrite
         rhiza sync --branch develop
         rhiza sync --target-branch feature/update-templates
     """
-    if strategy not in ("merge", "overwrite", "diff"):
-        typer.echo(f"Unknown strategy: {strategy}. Must be 'merge', 'overwrite', or 'diff'.")
+    if strategy not in ("merge", "diff"):
+        typer.echo(f"Unknown strategy: {strategy}. Must be 'merge' or 'diff'.")
         raise typer.Exit(code=1)
     sync_cmd(target, branch, target_branch, strategy)
 

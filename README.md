@@ -237,7 +237,7 @@ rhiza sync [OPTIONS] [TARGET]
 **Options:**
 
 - `--branch, -b TEXT` - Rhiza branch to use [default: main]
-- `--strategy, -s TEXT` - Sync strategy: `merge` (default), `overwrite`, or `diff`
+- `--strategy, -s TEXT` - Sync strategy: `merge` (default) or `diff`
 - `--target-branch TEXT` - Create/checkout a branch in the target repo for changes
 - `--help` - Show help message and exit
 
@@ -256,9 +256,6 @@ rhiza sync
 
 # Preview what would change (dry-run)
 rhiza sync --strategy diff
-
-# Overwrite all template files
-rhiza sync --strategy overwrite
 
 # Sync from a specific branch
 rhiza sync --branch develop
@@ -292,7 +289,7 @@ rhiza sync --target-branch update-templates
 | Old command | Equivalent new command |
 |-------------|----------------------|
 | `rhiza materialize` | `rhiza sync` |
-| `rhiza materialize --force` | `rhiza sync --strategy overwrite` |
+| `rhiza materialize --force` | `rhiza sync` |
 
 ---
 
@@ -618,8 +615,8 @@ cd existing-project
 # Validate current configuration
 rhiza validate
 
-# Update templates (overwrite existing)
-rhiza sync --strategy overwrite
+# Update templates
+rhiza sync
 
 # Review changes
 git diff
@@ -648,7 +645,7 @@ exclude:
 Then sync:
 
 ```bash
-rhiza sync --strategy overwrite
+rhiza sync
 ```
 
 ### Example 4: Using a GitLab template repository
@@ -670,7 +667,7 @@ include:
 Then sync:
 
 ```bash
-rhiza sync --strategy overwrite
+rhiza sync
 ```
 
 ### Example 5: Validating before CI/CD
@@ -888,7 +885,6 @@ Check:
 1. The paths in `include` are correct relative to the template repository root
 2. The paths exist in the specified branch
 3. Any `exclude` patterns are not filtering out wanted files
-4. You're using `--strategy overwrite` if files already exist and need to be overwritten
 
 ## FAQ
 
@@ -921,7 +917,7 @@ A: `init` creates or validates the `.rhiza/template.yml` configuration file. `sy
 
 **Q: How do I update my project's templates?**
 
-A: Run `rhiza sync` — it applies a 3-way merge so your local changes are preserved. Use `rhiza sync --strategy overwrite` to force-overwrite all template files.
+A: Run `rhiza sync` — it applies a 3-way merge so your local changes are preserved.
 
 **Q: How do I update rhiza-cli itself?**
 

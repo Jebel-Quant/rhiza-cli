@@ -5,7 +5,7 @@ Tests cover:
 - Path expansion and exclusion
 - Snapshot preparation (new cruft-based helper)
 - Diff application via ``git apply -3`` (new cruft-based helper)
-- Integration tests for each strategy (diff, overwrite, merge)
+- Integration tests for each strategy (diff, merge)
 - CLI wiring
 """
 
@@ -273,37 +273,6 @@ class TestSyncCommand:
     @patch("rhiza.commands.sync._clone_template_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
     @patch("rhiza.commands.sync._get_head_sha")
-    def test_sync_overwrite_copies_files(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
-        """Overwrite strategy copies upstream files to target."""
-        self._setup_project(tmp_path)
-
-        mock_sha.return_value = "def456"
-
-        # Setup upstream clone directory with a file
-        clone_dir = tmp_path / "upstream_clone"
-        clone_dir.mkdir()
-        (clone_dir / "test.txt").write_text("upstream content")
-
-        # Snapshot directory (separate from clone)
-        snapshot_dir = tmp_path / "upstream_snapshot"
-        snapshot_dir.mkdir()
-
-        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir)]
-
-        sync(tmp_path, "main", None, "overwrite")
-
-        # File should be copied to target
-        target_file = tmp_path / "test.txt"
-        assert target_file.exists()
-        assert target_file.read_text() == "upstream content"
-
-        # Lock should be updated
-        assert _read_lock(tmp_path) == "def456"
-
-    @patch("rhiza.commands.sync.shutil.rmtree")
-    @patch("rhiza.commands.sync._clone_template_repository")
-    @patch("rhiza.commands.sync.tempfile.mkdtemp")
-    @patch("rhiza.commands.sync._get_head_sha")
     def test_sync_diff_does_not_modify_files(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
         """Diff strategy shows changes but does not modify files."""
         self._setup_project(tmp_path)
@@ -394,46 +363,6 @@ class TestSyncOrphanedFiles:
     @patch("rhiza.commands.sync._clone_template_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
     @patch("rhiza.commands.sync._get_head_sha")
-    def test_overwrite_deletes_orphaned_files(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
-        """Overwrite strategy removes files no longer present in the updated template."""
-        # Template now only includes new.txt (old.txt was removed from template.yml)
-        self._setup_project(tmp_path, include=["new.txt"])
-
-        # History from previous sync tracked both files
-        self._write_history(tmp_path, ["old.txt", "new.txt"])
-
-        # Both files exist in the project
-        (tmp_path / "old.txt").write_text("old content")
-        (tmp_path / "new.txt").write_text("existing content")
-
-        mock_sha.return_value = "def456"
-
-        # Upstream clone only provides new.txt
-        clone_dir = tmp_path / "upstream_clone"
-        clone_dir.mkdir()
-        (clone_dir / "new.txt").write_text("upstream new content")
-
-        snapshot_dir = tmp_path / "upstream_snapshot"
-        snapshot_dir.mkdir()
-
-        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir)]
-
-        sync(tmp_path, "main", None, "overwrite")
-
-        # new.txt should be updated from upstream
-        assert (tmp_path / "new.txt").exists()
-        # old.txt should be deleted as it is no longer in the template
-        assert not (tmp_path / "old.txt").exists()
-
-        # History file should only contain new.txt (old.txt removed)
-        history_content = (tmp_path / ".rhiza" / "history").read_text()
-        assert "new.txt" in history_content
-        assert "old.txt" not in history_content
-
-    @patch("rhiza.commands.sync.shutil.rmtree")
-    @patch("rhiza.commands.sync._clone_template_repository")
-    @patch("rhiza.commands.sync.tempfile.mkdtemp")
-    @patch("rhiza.commands.sync._get_head_sha")
     def test_merge_first_sync_deletes_orphaned_files(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
         """Merge strategy (first sync) removes files no longer present in the updated template."""
         # Template now only includes new.txt (old.txt was removed from template.yml)
@@ -486,7 +415,6 @@ class TestSyncCLI:
         assert result.exit_code == 0
         assert "merge" in result.output
         assert "diff" in result.output
-        assert "overwrite" in result.output
 
     def test_sync_invalid_strategy(self, tmp_path):
         """Invalid strategy should fail."""
