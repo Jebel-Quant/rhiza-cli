@@ -599,7 +599,6 @@ def sync(
                 include=template.include,
                 exclude=excluded_paths,
                 templates=template.templates,
-                files=sorted(str(f) for f in materialized),
             )
 
             if strategy == "diff":
