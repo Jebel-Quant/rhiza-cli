@@ -29,17 +29,8 @@ import yaml
 from loguru import logger
 
 from rhiza.bundle_resolver import load_bundles_from_clone, resolve_include_paths
-from rhiza.commands.materialize import (
-    _clean_orphaned_files,
-    _clone_template_repository,
-    _construct_git_url,
-    _handle_target_branch,
-    _log_git_stderr_errors,
-    _update_sparse_checkout,
-    _validate_and_load_template,
-    _warn_about_workflow_files,
-)
-from rhiza.models import TemplateLock
+from rhiza.commands.validate import validate
+from rhiza.models import RhizaTemplate, TemplateLock
 from rhiza.subprocess_utils import get_git_executable
 
 _DIFF_SRC_PREFIX = "upstream-template-old"
@@ -78,6 +69,372 @@ def _get_diff(repo0: Path, repo1: Path) -> str:
         )
     diff = diff.replace(repo0_str + "/", "").replace(repo1_str + "/", "")
     return diff
+
+
+# ---------------------------------------------------------------------------
+# Shared template helpers (canonical home for helpers used by sync)
+# ---------------------------------------------------------------------------
+
+
+def _log_git_stderr_errors(stderr: str | None) -> None:
+    """Extract and log only relevant error messages from git stderr.
+
+    Args:
+        stderr: Git command stderr output.
+    """
+    if stderr:
+        for line in stderr.strip().split("\n"):
+            line = line.strip()
+            if line and (line.startswith("fatal:") or line.startswith("error:")):
+                logger.error(line)
+
+
+def _handle_target_branch(
+    target: Path, target_branch: str | None, git_executable: str, git_env: dict[str, str]
+) -> None:
+    """Handle target branch creation or checkout if specified.
+
+    Args:
+        target: Path to the target repository.
+        target_branch: Optional branch name to create/checkout.
+        git_executable: Path to git executable.
+        git_env: Environment variables for git commands.
+    """
+    if not target_branch:
+        return
+
+    logger.info(f"Creating/checking out target branch: {target_branch}")
+    try:
+        result = subprocess.run(  # nosec B603  # noqa: S603
+            [git_executable, "rev-parse", "--verify", target_branch],
+            cwd=target,
+            capture_output=True,
+            text=True,
+            env=git_env,
+        )
+
+        if result.returncode == 0:
+            logger.info(f"Branch '{target_branch}' exists, checking out...")
+            subprocess.run(  # nosec B603  # noqa: S603
+                [git_executable, "checkout", target_branch],
+                cwd=target,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=git_env,
+            )
+        else:
+            logger.info(f"Creating new branch '{target_branch}'...")
+            subprocess.run(  # nosec B603  # noqa: S603
+                [git_executable, "checkout", "-b", target_branch],
+                cwd=target,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=git_env,
+            )
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to create/checkout branch '{target_branch}'")
+        _log_git_stderr_errors(e.stderr)
+        logger.error("Please ensure you have no uncommitted changes or conflicts")
+        raise
+
+
+def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplate, str, str, list[str], list[str]]:
+    """Validate configuration and load template settings.
+
+    Args:
+        target: Path to the target repository.
+        branch: The Rhiza template branch to use (CLI argument).
+
+    Returns:
+        Tuple of (template, rhiza_repo, rhiza_branch, include_paths, excluded_paths).
+    """
+    valid = validate(target)
+    if not valid:
+        logger.error(f"Rhiza template is invalid in: {target}")
+        logger.error("Please fix validation errors and try again")
+        raise RuntimeError("Rhiza template validation failed")  # noqa: TRY003
+
+    template_file = target / ".rhiza" / "template.yml"
+    template = RhizaTemplate.from_yaml(template_file)
+
+    rhiza_repo = template.template_repository
+    if not rhiza_repo:
+        logger.error("template-repository is not configured in template.yml")
+        raise RuntimeError("template-repository is required")  # noqa: TRY003
+    rhiza_branch = template.template_branch or branch
+    excluded_paths = template.exclude
+    include_paths = template.include
+
+    if not template.templates and not include_paths:
+        logger.error("No templates or include paths found in template.yml")
+        logger.error("Add either 'templates' or 'include' list in template.yml")
+        raise RuntimeError("No templates or include paths found in template.yml")  # noqa: TRY003
+
+    if template.templates:
+        logger.info("Templates:")
+        for t in template.templates:
+            logger.info(f"  - {t}")
+
+    if include_paths:
+        logger.info("Include paths:")
+        for p in include_paths:
+            logger.info(f"  - {p}")
+
+    if excluded_paths:
+        logger.info("Exclude paths:")
+        for p in excluded_paths:
+            logger.info(f"  - {p}")
+
+    return template, rhiza_repo, rhiza_branch, include_paths, excluded_paths
+
+
+def _construct_git_url(rhiza_repo: str, rhiza_host: str) -> str:
+    """Construct git clone URL based on host.
+
+    Args:
+        rhiza_repo: Repository name in 'owner/repo' format.
+        rhiza_host: Git hosting platform ('github' or 'gitlab').
+
+    Returns:
+        Git URL for cloning.
+
+    Raises:
+        ValueError: If rhiza_host is not supported.
+    """
+    if rhiza_host == "gitlab":
+        git_url = f"https://gitlab.com/{rhiza_repo}.git"
+        logger.debug(f"Using GitLab repository: {git_url}")
+    elif rhiza_host == "github":
+        git_url = f"https://github.com/{rhiza_repo}.git"
+        logger.debug(f"Using GitHub repository: {git_url}")
+    else:
+        logger.error(f"Unsupported template-host: {rhiza_host}")
+        logger.error("template-host must be 'github' or 'gitlab'")
+        raise ValueError(f"Unsupported template-host: {rhiza_host}. Must be 'github' or 'gitlab'.")  # noqa: TRY003
+    return git_url
+
+
+def _update_sparse_checkout(
+    tmp_dir: Path,
+    include_paths: list[str],
+    git_executable: str,
+    git_env: dict[str, str],
+) -> None:
+    """Update sparse checkout paths in an already-cloned repository.
+
+    Args:
+        tmp_dir: Temporary directory with cloned repository.
+        include_paths: Paths to include in sparse checkout.
+        git_executable: Path to git executable.
+        git_env: Environment variables for git commands.
+    """
+    try:
+        logger.debug(f"Updating sparse checkout paths: {include_paths}")
+        subprocess.run(  # nosec B603  # noqa: S603
+            [git_executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
+            cwd=tmp_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=git_env,
+        )
+        logger.debug("Sparse checkout paths updated")
+    except subprocess.CalledProcessError as e:
+        logger.error("Failed to update sparse checkout paths")
+        _log_git_stderr_errors(e.stderr)
+        raise
+
+
+def _clone_template_repository(
+    tmp_dir: Path,
+    git_url: str,
+    rhiza_branch: str,
+    include_paths: list[str],
+    git_executable: str,
+    git_env: dict[str, str],
+) -> None:
+    """Clone template repository with sparse checkout.
+
+    Args:
+        tmp_dir: Temporary directory for cloning.
+        git_url: Git repository URL.
+        rhiza_branch: Branch to clone.
+        include_paths: Initial paths to include in sparse checkout.
+        git_executable: Path to git executable.
+        git_env: Environment variables for git commands.
+    """
+    try:
+        logger.debug("Executing git clone with sparse checkout")
+        subprocess.run(  # nosec B603  # noqa: S603
+            [
+                git_executable,
+                "clone",
+                "--depth",
+                "1",
+                "--filter=blob:none",
+                "--sparse",
+                "--branch",
+                rhiza_branch,
+                git_url,
+                str(tmp_dir),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=git_env,
+        )
+        logger.debug("Git clone completed successfully")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to clone repository from {git_url}")
+        _log_git_stderr_errors(e.stderr)
+        logger.error("Please check that:")
+        logger.error("  - The repository exists and is accessible")
+        logger.error(f"  - Branch '{rhiza_branch}' exists in the repository")
+        logger.error("  - You have network access to the git hosting service")
+        raise
+
+    try:
+        logger.debug("Initializing sparse checkout")
+        subprocess.run(  # nosec B603  # noqa: S603
+            [git_executable, "sparse-checkout", "init", "--cone"],
+            cwd=tmp_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=git_env,
+        )
+        logger.debug("Sparse checkout initialized")
+    except subprocess.CalledProcessError as e:
+        logger.error("Failed to initialize sparse checkout")
+        _log_git_stderr_errors(e.stderr)
+        raise
+
+    try:
+        logger.debug(f"Setting sparse checkout paths: {include_paths}")
+        subprocess.run(  # nosec B603  # noqa: S603
+            [git_executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
+            cwd=tmp_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=git_env,
+        )
+        logger.debug("Sparse checkout paths configured")
+    except subprocess.CalledProcessError as e:
+        logger.error("Failed to configure sparse checkout paths")
+        _log_git_stderr_errors(e.stderr)
+        raise
+
+
+def _warn_about_workflow_files(materialized_files: list[Path]) -> None:
+    """Warn if workflow files were materialized.
+
+    Args:
+        materialized_files: List of materialized file paths.
+    """
+    workflow_files = [p for p in materialized_files if p.parts[:2] == (".github", "workflows")]
+
+    if workflow_files:
+        logger.warning(
+            "Workflow files were materialized. Updating these files requires "
+            "a token with the 'workflow' permission in GitHub Actions."
+        )
+        logger.info(f"Workflow files affected: {len(workflow_files)}")
+
+
+def _read_previously_tracked_files(target: Path) -> set[Path]:
+    """Return the set of files tracked by the last sync.
+
+    Prefers ``template.lock.files`` and falls back to legacy ``.rhiza/history``
+    and ``.rhiza.history`` files for backward compatibility.
+
+    Args:
+        target: Target repository path.
+
+    Returns:
+        Set of previously tracked file paths (relative to target), or an empty
+        set when no tracking information is found.
+    """
+    lock_file = target / ".rhiza" / "template.lock"
+    if lock_file.exists():
+        try:
+            lock = TemplateLock.from_yaml(lock_file)
+            if lock.files:
+                files = {Path(f) for f in lock.files}
+                logger.debug(f"Reading previous file list from template.lock ({len(files)} files)")
+                return files
+        except Exception as e:
+            logger.debug(f"Could not read template.lock for orphan cleanup: {e}")
+
+    new_history_file = target / ".rhiza" / "history"
+    old_history_file = target / ".rhiza.history"
+
+    if new_history_file.exists():
+        history_file = new_history_file
+        logger.debug(f"Reading existing history file from new location: {history_file.relative_to(target)}")
+    elif old_history_file.exists():
+        history_file = old_history_file
+        logger.debug(f"Reading existing history file from old location: {history_file.relative_to(target)}")
+    else:
+        logger.debug("No previous file tracking found")
+        return set()
+
+    files = set()
+    with history_file.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                files.add(Path(line))
+    return files
+
+
+def _delete_orphaned_file(target: Path, file_path: Path) -> None:
+    """Delete a single orphaned file from the target repository.
+
+    Args:
+        target: Target repository path.
+        file_path: Relative path of the orphaned file to delete.
+    """
+    full_path = target / file_path
+    if full_path.exists():
+        try:
+            full_path.unlink()
+            logger.success(f"[DEL] {file_path}")
+        except Exception as e:
+            logger.warning(f"Failed to delete {file_path}: {e}")
+    else:
+        logger.debug(f"Skipping {file_path} (already deleted)")
+
+
+def _clean_orphaned_files(target: Path, materialized_files: list[Path]) -> None:
+    """Clean up files that are no longer maintained by template.
+
+    Args:
+        target: Target repository path.
+        materialized_files: List of currently materialized files.
+    """
+    previously_tracked_files = _read_previously_tracked_files(target)
+    if not previously_tracked_files:
+        return
+
+    logger.debug(f"Found {len(previously_tracked_files)} file(s) in previous tracking")
+
+    orphaned_files = previously_tracked_files - set(materialized_files)
+
+    protected_files = {Path(".rhiza/template.yml")}
+
+    if not orphaned_files:
+        logger.debug("No orphaned files to clean up")
+        return
+
+    logger.info(f"Found {len(orphaned_files)} orphaned file(s) no longer maintained by template")
+    for file_path in sorted(orphaned_files):
+        if file_path in protected_files:
+            logger.info(f"Skipping protected file: {file_path}")
+            continue
+        _delete_orphaned_file(target, file_path)
 
 
 # ---------------------------------------------------------------------------
