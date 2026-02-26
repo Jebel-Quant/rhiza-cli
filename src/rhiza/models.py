@@ -402,7 +402,6 @@ class TemplateLock:
             "include": self.include,
             "exclude": self.exclude,
             "templates": self.templates,
-            "files": self.files,
         }
 
         class _IndentedDumper(yaml.Dumper):
