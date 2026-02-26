@@ -15,15 +15,12 @@ an existing one. The default configuration includes common Python project
 files like `.github`, `.editorconfig`, `.gitignore`,
 `.pre-commit-config.yaml`, `Makefile`, and `pytest.ini`.
 
-### materialize
+### materialize (deprecated)
 
-Inject Rhiza configuration templates into a target repository.
+This command is deprecated. Use ``rhiza sync`` instead.
 
-Materializes template files from the configured template repository into
-your target project by performing a sparse clone of the template repository,
-copying specified files/directories, and respecting exclusion patterns.
-Files that already exist will not be overwritten unless the `--force` flag
-is used.
+Retained as a backward-compatibility shim; it delegates to :func:`sync`
+with the ``"merge"`` strategy.
 
 ### sync
 
@@ -50,9 +47,11 @@ These functions are typically invoked through the CLI:
     ```bash
     $ rhiza init                    # Initialize configuration
 
-    $ rhiza materialize             # Apply templates to project
+    $ rhiza sync                    # Sync templates (primary command)
 
     $ rhiza validate                # Validate template configuration
+
+    $ rhiza materialize             # Deprecated — use rhiza sync
     ```
 
 For more detailed usage examples and workflows, see the USAGE.md guide

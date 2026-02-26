@@ -1500,3 +1500,417 @@ class TestThreeWayMergeSyncMergeStrategy:
         assert _read_lock(target) == "first_sha_abc"
         # _clone_at_sha should NOT have been called (no base to clone)
         mock_clone.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Tests for helpers moved from materialize.py
+# ---------------------------------------------------------------------------
+
+from rhiza.commands.sync import (  # noqa: E402
+    _clean_orphaned_files,
+    _clone_template_repository,
+    _construct_git_url,
+    _handle_target_branch,
+    _log_git_stderr_errors,
+    _read_previously_tracked_files,
+    _update_sparse_checkout,
+    _validate_and_load_template,
+    _warn_about_workflow_files,
+)
+
+
+class TestConstructGitUrl:
+    """Tests for _construct_git_url."""
+
+    def test_github_url(self):
+        """GitHub host produces the correct HTTPS URL."""
+        url = _construct_git_url("owner/repo", "github")
+        assert url == "https://github.com/owner/repo.git"
+
+    def test_gitlab_url(self):
+        """GitLab host produces the correct HTTPS URL."""
+        url = _construct_git_url("mygroup/myproject", "gitlab")
+        assert url == "https://gitlab.com/mygroup/myproject.git"
+
+    def test_invalid_host_raises(self):
+        """An unsupported template-host raises ValueError."""
+        with pytest.raises(ValueError, match="Unsupported template-host"):
+            _construct_git_url("owner/repo", "bitbucket")
+
+
+class TestHandleTargetBranch:
+    """Tests for _handle_target_branch."""
+
+    @pytest.fixture
+    def git_setup(self):
+        """Return git executable and env."""
+        git = shutil.which("git")
+        if git is None:
+            pytest.skip("git not available")
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        return git, env
+
+    def test_no_branch_is_noop(self, tmp_path, git_setup):
+        """Passing None for target_branch should not call git."""
+        git_executable, git_env = git_setup
+        with patch("rhiza.commands.sync.subprocess.run") as mock_run:
+            _handle_target_branch(tmp_path, None, git_executable, git_env)
+        mock_run.assert_not_called()
+
+    def test_creates_new_branch(self, tmp_path, git_setup):
+        """When the branch does not exist, ``checkout -b`` is called."""
+        git_executable, git_env = git_setup
+
+        def _side_effect(*args, **kwargs):
+            from unittest.mock import Mock
+
+            cmd = args[0] if args else kwargs.get("args", [])
+            result = Mock()
+            if "rev-parse" in cmd:
+                result.returncode = 1  # branch not found
+            else:
+                result.returncode = 0
+            return result
+
+        with patch("rhiza.commands.sync.subprocess.run", side_effect=_side_effect) as mock_run:
+            _handle_target_branch(tmp_path, "new-branch", git_executable, git_env)
+
+        calls = [str(c) for c in mock_run.call_args_list]
+        assert any("checkout" in c and "-b" in c for c in calls)
+
+    def test_checks_out_existing_branch(self, tmp_path, git_setup):
+        """When the branch already exists, a plain ``checkout`` is called."""
+        git_executable, git_env = git_setup
+
+        def _side_effect(*args, **kwargs):
+            from unittest.mock import Mock
+
+            args[0] if args else kwargs.get("args", [])
+            result = Mock()
+            result.returncode = 0  # branch found
+            return result
+
+        with patch("rhiza.commands.sync.subprocess.run", side_effect=_side_effect) as mock_run:
+            _handle_target_branch(tmp_path, "existing-branch", git_executable, git_env)
+
+        calls = [str(c) for c in mock_run.call_args_list]
+        assert any("checkout" in c and "existing-branch" in c for c in calls)
+
+    def test_checkout_failure_propagates(self, tmp_path, git_setup):
+        """A CalledProcessError during checkout is re-raised."""
+        git_executable, git_env = git_setup
+
+        def _side_effect(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if "rev-parse" in cmd:
+                from unittest.mock import Mock
+
+                r = Mock()
+                r.returncode = 0
+                return r
+            raise subprocess.CalledProcessError(1, cmd, stderr="error: conflict")
+
+        with pytest.raises(subprocess.CalledProcessError):
+            _handle_target_branch(tmp_path, "bad-branch", git_executable, git_env)
+
+
+class TestValidateAndLoadTemplate:
+    """Tests for _validate_and_load_template."""
+
+    def _write_template(self, target, data):
+        import yaml
+
+        rhiza_dir = target / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        (rhiza_dir / "template.yml").write_text(yaml.dump(data))
+
+    def test_valid_config_returns_tuple(self, tmp_path):
+        """A valid template.yml returns a 5-tuple."""
+        (tmp_path / ".git").mkdir()
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\n')
+        self._write_template(
+            tmp_path,
+            {"template-repository": "owner/repo", "template-branch": "main", "include": [".github"]},
+        )
+        result = _validate_and_load_template(tmp_path, "main")
+        _template, repo, branch, include, _exclude = result
+        assert repo == "owner/repo"
+        assert branch == "main"
+        assert ".github" in include
+
+    def test_missing_template_repository_raises(self, tmp_path):
+        """A template.yml without template-repository raises RuntimeError."""
+        from unittest.mock import Mock
+
+        import yaml
+
+        from rhiza.models import RhizaTemplate
+
+        (tmp_path / ".git").mkdir()
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\n')
+        # Write template without template-repository but with include (to pass validation check)
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        (rhiza_dir / "template.yml").write_text(yaml.dump({"include": [".github"]}))
+
+        m = Mock()
+        m.template_repository = None
+        m.template_branch = None
+        m.exclude = []
+        m.include = [".github"]
+        m.templates = []
+        with (
+            patch("rhiza.commands.sync.validate", return_value=True),
+            patch.object(RhizaTemplate, "from_yaml", return_value=m),
+            pytest.raises(RuntimeError, match="template-repository is required"),
+        ):
+            _validate_and_load_template(tmp_path, "main")
+
+    def test_no_include_paths_raises(self, tmp_path):
+        """A template.yml with no include or templates raises RuntimeError."""
+        from unittest.mock import Mock
+
+        from rhiza.models import RhizaTemplate
+
+        (tmp_path / ".git").mkdir()
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\n')
+
+        m = Mock()
+        m.template_repository = "owner/repo"
+        m.template_branch = "main"
+        m.exclude = []
+        m.include = []
+        m.templates = []
+        with (
+            patch("rhiza.commands.sync.validate", return_value=True),
+            patch.object(RhizaTemplate, "from_yaml", return_value=m),
+            pytest.raises(RuntimeError, match="No templates or include paths"),
+        ):
+            _validate_and_load_template(tmp_path, "main")
+
+    def test_validation_failure_raises(self, tmp_path):
+        """When validate() returns False, RuntimeError is raised."""
+        (tmp_path / ".git").mkdir()
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\n')
+        with (
+            patch("rhiza.commands.sync.validate", return_value=False),
+            pytest.raises(RuntimeError, match="Rhiza template validation failed"),
+        ):
+            _validate_and_load_template(tmp_path, "main")
+
+
+class TestWarnAboutWorkflowFiles:
+    """Tests for _warn_about_workflow_files."""
+
+    def test_no_warning_without_workflow_files(self):
+        """No warning is emitted when there are no workflow files."""
+        from pathlib import Path
+
+        with patch("rhiza.commands.sync.logger") as mock_logger:
+            _warn_about_workflow_files([Path("Makefile"), Path(".github/CODEOWNERS")])
+        mock_logger.warning.assert_not_called()
+
+    def test_warning_with_workflow_files(self):
+        """A warning is emitted when workflow files are present."""
+        from pathlib import Path
+
+        with patch("rhiza.commands.sync.logger") as mock_logger:
+            _warn_about_workflow_files([Path(".github/workflows/ci.yml")])
+        mock_logger.warning.assert_called_once()
+        assert "workflow" in mock_logger.warning.call_args[0][0].lower()
+
+
+class TestCloneTemplateRepository:
+    """Tests for _clone_template_repository error handling."""
+
+    @pytest.fixture
+    def git_setup(self):
+        """Return git executable and env."""
+        git = shutil.which("git")
+        if git is None:
+            pytest.skip("git not available")
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        return git, env
+
+    def test_clone_failure_logs_and_reraises(self, tmp_path, git_setup):
+        """A clone failure logs the error and re-raises the exception."""
+        git_executable, git_env = git_setup
+
+        def _side_effect(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if "clone" in cmd:
+                raise subprocess.CalledProcessError(128, cmd, stderr="fatal: repository not found")
+            from unittest.mock import Mock
+
+            return Mock(returncode=0)
+
+        with (
+            patch("rhiza.commands.sync.subprocess.run", side_effect=_side_effect),
+            pytest.raises(subprocess.CalledProcessError),
+        ):
+            _clone_template_repository(
+                tmp_path, "https://github.com/bad/repo.git", "main", [".github"], git_executable, git_env
+            )
+
+    def test_sparse_checkout_init_failure_reraises(self, tmp_path, git_setup):
+        """A sparse-checkout init failure re-raises the exception."""
+        git_executable, git_env = git_setup
+
+        call_count = [0]
+
+        def _side_effect(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            call_count[0] += 1
+            # First call (clone) succeeds; second call (sparse-checkout init) fails
+            if call_count[0] == 2 and "sparse-checkout" in cmd and "init" in cmd:
+                raise subprocess.CalledProcessError(128, cmd, stderr="error: sparse-checkout failed")
+            from unittest.mock import Mock
+
+            return Mock(returncode=0)
+
+        with (
+            patch("rhiza.commands.sync.subprocess.run", side_effect=_side_effect),
+            pytest.raises(subprocess.CalledProcessError),
+        ):
+            _clone_template_repository(
+                tmp_path, "https://github.com/owner/repo.git", "main", [".github"], git_executable, git_env
+            )
+
+
+class TestLogGitStderrErrors:
+    """Tests for _log_git_stderr_errors."""
+
+    def test_logs_fatal_lines(self):
+        """Lines starting with 'fatal:' are logged as errors."""
+        with patch("rhiza.commands.sync.logger") as mock_logger:
+            _log_git_stderr_errors("fatal: repository not found\nHint: some hint")
+        mock_logger.error.assert_called_once_with("fatal: repository not found")
+
+    def test_logs_error_lines(self):
+        """Lines starting with 'error:' are logged as errors."""
+        with patch("rhiza.commands.sync.logger") as mock_logger:
+            _log_git_stderr_errors("error: pathspec 'bad' did not match")
+        mock_logger.error.assert_called_once_with("error: pathspec 'bad' did not match")
+
+    def test_none_input_is_noop(self):
+        """None stderr produces no log calls."""
+        with patch("rhiza.commands.sync.logger") as mock_logger:
+            _log_git_stderr_errors(None)
+        mock_logger.error.assert_not_called()
+
+    def test_irrelevant_lines_skipped(self):
+        """Non-fatal/error lines are not logged."""
+        with patch("rhiza.commands.sync.logger") as mock_logger:
+            _log_git_stderr_errors("Hint: some helpful hint\nremote: counting objects")
+        mock_logger.error.assert_not_called()
+
+
+class TestCleanOrphanedFiles:
+    """Tests for _clean_orphaned_files and _read_previously_tracked_files."""
+
+    def test_no_cleanup_when_no_lock(self, tmp_path):
+        """No files are deleted when there is no previous tracking info."""
+        from pathlib import Path
+
+        _clean_orphaned_files(tmp_path, [Path("Makefile")])
+        # Should complete without error and delete nothing
+
+    def test_deletes_orphaned_files(self, tmp_path):
+        """Files in the lock but not in materialized are deleted."""
+        from pathlib import Path
+
+        # Create a file that was previously tracked
+        old_file = tmp_path / "old-file.txt"
+        old_file.write_text("old content")
+
+        # Write a lock file referencing the old file
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        import yaml
+
+        lock_data = {
+            "sha": "abc123",
+            "repo": "owner/repo",
+            "host": "github",
+            "ref": "main",
+            "include": [".github"],
+            "exclude": [],
+            "templates": [],
+            "files": ["old-file.txt"],
+        }
+        (rhiza_dir / "template.lock").write_text(yaml.dump(lock_data))
+
+        _clean_orphaned_files(tmp_path, [Path("Makefile")])
+
+        assert not old_file.exists(), "orphaned file should have been deleted"
+
+    def test_protected_files_not_deleted(self, tmp_path):
+        """template.yml is never deleted even if it appears orphaned."""
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_yml = rhiza_dir / "template.yml"
+        template_yml.write_text("template-repository: owner/repo\n")
+
+        import yaml
+
+        lock_data = {
+            "sha": "abc123",
+            "repo": "owner/repo",
+            "host": "github",
+            "ref": "main",
+            "include": [".github"],
+            "exclude": [],
+            "templates": [],
+            "files": [".rhiza/template.yml"],
+        }
+        (rhiza_dir / "template.lock").write_text(yaml.dump(lock_data))
+
+        _clean_orphaned_files(tmp_path, [])
+
+        assert template_yml.exists(), ".rhiza/template.yml must never be auto-deleted"
+
+    def test_read_previously_tracked_files_legacy_history(self, tmp_path):
+        """Falls back to .rhiza/history when no template.lock files list."""
+        from pathlib import Path
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        (rhiza_dir / "history").write_text("Makefile\n.github/workflows/ci.yml\n# comment\n")
+
+        files = _read_previously_tracked_files(tmp_path)
+        assert Path("Makefile") in files
+        assert Path(".github/workflows/ci.yml") in files
+
+    def test_read_previously_tracked_files_old_history(self, tmp_path):
+        """Falls back to .rhiza.history (legacy root-level file)."""
+        from pathlib import Path
+
+        (tmp_path / ".rhiza.history").write_text("Makefile\n")
+
+        files = _read_previously_tracked_files(tmp_path)
+        assert Path("Makefile") in files
+
+
+class TestUpdateSparseCheckout:
+    """Tests for _update_sparse_checkout error handling."""
+
+    @pytest.fixture
+    def git_setup(self):
+        """Return git executable and env."""
+        git = shutil.which("git")
+        if git is None:
+            pytest.skip("git not available")
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        return git, env
+
+    def test_failure_reraises(self, tmp_path, git_setup):
+        """A sparse-checkout failure re-raises the exception."""
+        git_executable, git_env = git_setup
+
+        with patch("rhiza.commands.sync.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.CalledProcessError(128, ["git"], stderr="error: failed")
+            with pytest.raises(subprocess.CalledProcessError):
+                _update_sparse_checkout(tmp_path, [".github"], git_executable, git_env)
