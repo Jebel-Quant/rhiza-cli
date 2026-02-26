@@ -31,7 +31,7 @@ class TestInjectCommand:
 
         # Run materialize without creating template.yml first
         # It should fail because template.yml doesn't exist
-        with pytest.raises(SystemExit):
+        with pytest.raises(RuntimeError):
             materialize(tmp_path, "main", None, False)
 
     @patch("rhiza.commands.materialize.subprocess.run")
@@ -96,7 +96,7 @@ class TestInjectCommand:
             yaml.dump({"template-repository": "jebel-quant/rhiza", "template-branch": "main", "include": []}, f)
 
         # Run inject and expect it to fail
-        with pytest.raises(SystemExit):
+        with pytest.raises(RuntimeError):
             materialize(tmp_path, "main", None, False)
 
     def test_inject_fails_with_missing_template_repository(self, tmp_path):
@@ -947,8 +947,8 @@ class TestInjectCommand:
 
         mock_subprocess.side_effect = subprocess_side_effect
 
-        # Run materialize and expect it to exit
-        with pytest.raises(SystemExit):
+        # Run materialize and expect it to raise CalledProcessError
+        with pytest.raises(subprocess.CalledProcessError):
             materialize(tmp_path, "main", "bad-branch", False)
 
     @patch("rhiza.commands.materialize.subprocess.run")
@@ -983,10 +983,9 @@ class TestInjectCommand:
         error = subprocess.CalledProcessError(128, ["git", "clone"], stderr="fatal: repository not found")
         mock_subprocess.side_effect = error
 
-        # Run materialize and expect SystemExit (clean error handling)
-        with pytest.raises(SystemExit) as exc_info:
+        # Run materialize and expect CalledProcessError (clean error handling)
+        with pytest.raises(subprocess.CalledProcessError):
             materialize(tmp_path, "main", None, False)
-        assert exc_info.value.code == 1
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -1041,10 +1040,9 @@ class TestInjectCommand:
 
         mock_subprocess.side_effect = subprocess_side_effect
 
-        # Run materialize and expect SystemExit (clean error handling)
-        with pytest.raises(SystemExit) as exc_info:
+        # Run materialize and expect CalledProcessError (clean error handling)
+        with pytest.raises(subprocess.CalledProcessError):
             materialize(tmp_path, "main", None, False)
-        assert exc_info.value.code == 1
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -1105,10 +1103,9 @@ class TestInjectCommand:
 
         mock_subprocess.side_effect = subprocess_side_effect
 
-        # Run materialize and expect SystemExit (clean error handling)
-        with pytest.raises(SystemExit) as exc_info:
+        # Run materialize and expect CalledProcessError (clean error handling)
+        with pytest.raises(subprocess.CalledProcessError):
             materialize(tmp_path, "main", None, False)
-        assert exc_info.value.code == 1
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -1986,8 +1983,8 @@ include: ["other.txt"]
         mock_mkdtemp.return_value = str(temp_dir)
         mock_subprocess.return_value = Mock(returncode=0)
 
-        # Should exit with error when template resolution fails
-        with pytest.raises(SystemExit):
+        # Should raise ValueError when template resolution fails
+        with pytest.raises(ValueError, match="nonexistent"):
             materialize(tmp_path, "main", None, False)
 
     @patch("rhiza.commands.materialize.subprocess.run")
@@ -2063,6 +2060,6 @@ include: ["other.txt"]
 
         mock_subprocess.side_effect = subprocess_side_effect
 
-        # Should exit when sparse checkout update fails
-        with pytest.raises(SystemExit):
+        # Should raise when sparse checkout update fails
+        with pytest.raises(subprocess.CalledProcessError):
             materialize(tmp_path, "main", None, False)

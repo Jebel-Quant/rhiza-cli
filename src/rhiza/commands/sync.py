@@ -22,7 +22,6 @@ import datetime
 import os
 import shutil
 import subprocess  # nosec B404
-import sys
 import tempfile
 from pathlib import Path
 
@@ -153,7 +152,7 @@ def _clone_at_sha(
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to clone repository for base snapshot: {git_url}")
         _log_git_stderr_errors(e.stderr)
-        sys.exit(1)
+        raise
 
     # Init sparse checkout and set paths
     try:
@@ -176,7 +175,7 @@ def _clone_at_sha(
     except subprocess.CalledProcessError as e:
         logger.error("Failed to configure sparse checkout for base snapshot")
         _log_git_stderr_errors(e.stderr)
-        sys.exit(1)
+        raise
 
     # Checkout the specific SHA
     try:
@@ -191,7 +190,7 @@ def _clone_at_sha(
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to checkout base commit {sha[:12]}")
         _log_git_stderr_errors(e.stderr)
-        sys.exit(1)
+        raise
 
 
 # ---------------------------------------------------------------------------
