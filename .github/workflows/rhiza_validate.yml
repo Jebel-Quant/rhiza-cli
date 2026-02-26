@@ -35,6 +35,27 @@ jobs:
         shell: bash
         run: |
           uvx "rhiza>=0.8.0" validate .
+
+      - name: Get Rhiza version
+        id: rhiza-version
+        if: ${{ github.repository != 'jebel-quant/rhiza' }}
+        run: |
+          VERSION=$(cat .rhiza/.rhiza-version 2>/dev/null || echo "0.9.0")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify template.lock is current
+        if: ${{ github.repository != 'jebel-quant/rhiza' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          uvx "rhiza>=${{ steps.rhiza-version.outputs.version }}" sync
+          git add -A
+          if ! git diff --cached --quiet; then
+            echo "::error::template.lock is stale or sync produced changes. Run 'rhiza sync' locally and commit the result."
+            git diff --cached --stat
+            exit 1
+          fi
+          echo "✓ template.lock is current."
         
       - name: Run Rhiza Tests
         shell: bash
