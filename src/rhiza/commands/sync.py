@@ -25,6 +25,15 @@ import tempfile
 from pathlib import Path
 from re import sub
 
+try:
+    import fcntl
+
+    _FCNTL_AVAILABLE = True
+except ImportError:  # pragma: no cover - Windows
+    _FCNTL_AVAILABLE = False
+
+import contextlib
+
 import yaml
 from loguru import logger
 
@@ -448,6 +457,9 @@ def _read_lock(target: Path) -> str | None:
     """Read the last-synced commit SHA from the lock file.
 
     Handles both the structured YAML format and the legacy plain-SHA format.
+    Uses an exclusive advisory lock (via ``fcntl.flock``) when available so
+    that two concurrent ``rhiza sync`` processes cannot read a partially-written
+    file.  Falls back silently on platforms without ``fcntl`` (e.g. Windows).
 
     Args:
         target: Path to the target repository.
@@ -458,7 +470,12 @@ def _read_lock(target: Path) -> str | None:
     lock_path = target / LOCK_FILE
     if not lock_path.exists():
         return None
-    content = lock_path.read_text(encoding="utf-8").strip()
+    with lock_path.open(encoding="utf-8") as fh:
+        if _FCNTL_AVAILABLE:
+            fcntl.flock(fh, fcntl.LOCK_EX)
+        else:
+            logger.debug("fcntl not available - skipping advisory lock on read")
+        content = fh.read().strip()
     # Try structured YAML format first
     try:
         data = yaml.safe_load(content)
@@ -473,12 +490,34 @@ def _read_lock(target: Path) -> str | None:
 def _write_lock(target: Path, lock: TemplateLock) -> None:
     """Persist the lock data to the YAML lock file.
 
+    Writes to a ``.tmp`` sibling file first, then replaces the real lock file
+    atomically with ``os.replace()``.  An exclusive advisory lock (via
+    ``fcntl.flock``) is held for the entire write + rename sequence when
+    ``fcntl`` is available so that concurrent writers do not corrupt the file.
+    Falls back silently on platforms without ``fcntl`` (e.g. Windows).
+
     Args:
         target: Path to the target repository.
         lock: The :class:`~rhiza.models.TemplateLock` to record.
     """
     lock_path = target / LOCK_FILE
-    lock.to_yaml(lock_path)
+    tmp_path = Path(str(lock_path) + ".tmp")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    # Acquire an exclusive advisory lock via a dedicated lock-fd file so that
+    # the flock survives the os.replace() rename of the actual lock file.
+    lock_fd_path = Path(str(lock_path) + ".fd")
+    try:
+        with lock_fd_path.open("a", encoding="utf-8") as lock_fd:
+            if _FCNTL_AVAILABLE:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            else:
+                logger.debug("fcntl not available - skipping advisory lock on write")
+            lock.to_yaml(tmp_path)
+            os.replace(tmp_path, lock_path)
+    finally:
+        # Best-effort cleanup of the fd file; failures here are non-critical.
+        with contextlib.suppress(OSError):
+            lock_fd_path.unlink(missing_ok=True)
     logger.info(f"Updated {LOCK_FILE} → {lock.sha[:12]}")
 
 
