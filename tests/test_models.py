@@ -647,6 +647,8 @@ class TestTemplateLock:
         assert lock.exclude == []
         assert lock.templates == []
         assert lock.files == []
+        assert lock.synced_at == ""
+        assert lock.strategy == ""
 
     def test_to_yaml_writes_all_fields(self, tmp_path):
         """to_yaml writes all fields in the expected YAML format (files is excluded)."""
@@ -658,6 +660,8 @@ class TestTemplateLock:
             include=[".github/", ".rhiza/"],
             exclude=[],
             templates=[],
+            synced_at="2026-02-26T12:00:00Z",
+            strategy="merge",
         )
         lock_path = tmp_path / "template.lock"
         lock.to_yaml(lock_path)
@@ -670,7 +674,27 @@ class TestTemplateLock:
         assert data["include"] == [".github/", ".rhiza/"]
         assert data["exclude"] == []
         assert data["templates"] == []
+        assert data["synced_at"] == "2026-02-26T12:00:00Z"
+        assert data["strategy"] == "merge"
         assert "files" not in data
+
+    def test_to_yaml_omits_empty_synced_at_and_strategy(self, tmp_path):
+        """to_yaml omits synced_at and strategy when they are empty strings."""
+        lock = TemplateLock(
+            sha="abc123def456",
+            repo="jebel-quant/rhiza",
+            host="github",
+            ref="main",
+            include=[],
+            exclude=[],
+            templates=[],
+        )
+        lock_path = tmp_path / "template.lock"
+        lock.to_yaml(lock_path)
+
+        data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+        assert "synced_at" not in data
+        assert "strategy" not in data
 
     def test_to_yaml_professional_format(self, tmp_path):
         """to_yaml emits a header comment, document separator, and indented lists."""
@@ -745,6 +769,8 @@ class TestTemplateLock:
             exclude=["README.md"],
             templates=["core"],
             files=[".github/workflows/ci.yml"],
+            synced_at="2026-02-26T12:00:00Z",
+            strategy="merge",
         )
         lock_path = tmp_path / "template.lock"
         original.to_yaml(lock_path)
@@ -757,6 +783,8 @@ class TestTemplateLock:
         assert loaded.include == original.include
         assert loaded.exclude == original.exclude
         assert loaded.templates == original.templates
+        assert loaded.synced_at == original.synced_at
+        assert loaded.strategy == original.strategy
         # files is not written to the lock file, so it will be empty after round-trip.
         # Backward compatibility reading (old locks WITH files section) is tested
         # in test_from_yaml_structured_format.
@@ -771,6 +799,8 @@ class TestTemplateLock:
         assert lock.host == "github"
         assert lock.ref == "main"
         assert lock.files == []
+        assert lock.synced_at == ""
+        assert lock.strategy == ""
 
     def test_from_yaml_invalid_format(self, tmp_path):
         """from_yaml raises ValueError for unrecognised formats."""
