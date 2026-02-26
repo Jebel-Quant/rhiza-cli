@@ -649,7 +649,7 @@ class TestTemplateLock:
         assert lock.files == []
 
     def test_to_yaml_writes_all_fields(self, tmp_path):
-        """to_yaml writes all fields in the expected YAML format."""
+        """to_yaml writes all fields in the expected YAML format (files is excluded)."""
         lock = TemplateLock(
             sha="abc123def456",
             repo="jebel-quant/rhiza",
@@ -658,7 +658,6 @@ class TestTemplateLock:
             include=[".github/", ".rhiza/"],
             exclude=[],
             templates=[],
-            files=[".github/workflows/ci.yml", ".rhiza/template.yml"],
         )
         lock_path = tmp_path / "template.lock"
         lock.to_yaml(lock_path)
@@ -671,7 +670,7 @@ class TestTemplateLock:
         assert data["include"] == [".github/", ".rhiza/"]
         assert data["exclude"] == []
         assert data["templates"] == []
-        assert data["files"] == [".github/workflows/ci.yml", ".rhiza/template.yml"]
+        assert "files" not in data
 
     def test_to_yaml_professional_format(self, tmp_path):
         """to_yaml emits a header comment, document separator, and indented lists."""
@@ -683,7 +682,6 @@ class TestTemplateLock:
             include=[],
             exclude=[],
             templates=["core", "github"],
-            files=["README.md"],
         )
         lock_path = tmp_path / "template.lock"
         lock.to_yaml(lock_path)
@@ -694,7 +692,7 @@ class TestTemplateLock:
         assert lines[1] == "---"
         assert "  - core" in lines
         assert "  - github" in lines
-        assert "  - README.md" in lines
+        assert "  - README.md" not in lines
 
     def test_to_yaml_creates_parent_directory(self, tmp_path):
         """to_yaml creates parent directories if they don't exist."""
@@ -737,7 +735,7 @@ class TestTemplateLock:
         assert lock.files == []
 
     def test_round_trip(self, tmp_path):
-        """to_yaml then from_yaml preserves all fields."""
+        """to_yaml then from_yaml preserves all fields except files (which is not written)."""
         original = TemplateLock(
             sha="abc123def456",
             repo="jebel-quant/rhiza",
@@ -759,7 +757,10 @@ class TestTemplateLock:
         assert loaded.include == original.include
         assert loaded.exclude == original.exclude
         assert loaded.templates == original.templates
-        assert loaded.files == original.files
+        # files is not written to the lock file, so it will be empty after round-trip.
+        # Backward compatibility reading (old locks WITH files section) is tested
+        # in test_from_yaml_structured_format.
+        assert loaded.files == []
 
     def test_from_yaml_missing_optional_fields(self, tmp_path):
         """from_yaml uses defaults for missing optional fields."""

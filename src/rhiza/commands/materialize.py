@@ -610,7 +610,6 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         include=template.include,
         exclude=excluded_paths,
         templates=template.templates,
-        files=sorted(str(f) for f in materialized_files),
     )
     lock_path = target / ".rhiza" / "template.lock"
     lock.to_yaml(lock_path)
