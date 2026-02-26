@@ -6,6 +6,7 @@ into the target Git repository, and records managed files in
 `.rhiza/template.lock`. Use this to take a one-shot snapshot of template files.
 """
 
+import datetime
 import os
 import shutil
 import subprocess  # nosec B404
@@ -610,6 +611,8 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         include=template.include,
         exclude=excluded_paths,
         templates=template.templates,
+        synced_at=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        strategy="materialize",
     )
     lock_path = target / ".rhiza" / "template.lock"
     lock.to_yaml(lock_path)

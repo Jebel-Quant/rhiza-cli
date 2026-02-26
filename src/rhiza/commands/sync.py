@@ -18,6 +18,7 @@ When no lock file exists (first sync), the command falls back to a simple
 copy and records the commit SHA.
 """
 
+import datetime
 import os
 import shutil
 import subprocess  # nosec B404
@@ -599,6 +600,8 @@ def sync(
                 include=template.include,
                 exclude=excluded_paths,
                 templates=template.templates,
+                synced_at=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                strategy=strategy,
             )
 
             if strategy == "diff":
