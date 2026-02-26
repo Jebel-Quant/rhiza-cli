@@ -30,7 +30,7 @@ jobs:
       name: github-pages  # 👈 this is the critical missing piece
 
     permissions:
-      contents: read
+      contents: write         # Permission to commit coverage summary back to the repository
       pages: write            # Permission to deploy to Pages
       id-token: write         # Permission to verify deployment origin
 
@@ -63,6 +63,14 @@ jobs:
           UV_EXTRA_INDEX_URL: ${{ secrets.UV_EXTRA_INDEX_URL }}
         run: |
           make book
+
+      - name: Commit coverage summary
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add assets/coverage-summary.json
+          git diff --staged --quiet || git commit -m "chore: update coverage summary [skip ci]"
+          git push
 
       # Step 5: Package all artifacts for GitHub Pages deployment
       # This prepares the combined outputs for deployment by creating a single artifact

@@ -38,6 +38,9 @@ test:: install ## run all tests
 	  --cov-fail-under=$(COVERAGE_FAIL_UNDER) \
 	  --cov-report=json:_tests/coverage.json \
 	  --html=_tests/html-report/report.html; \
+	  mkdir -p assets; \
+	  cp _tests/coverage.json assets/coverage-summary.json; \
+	  printf "${GREEN}[SUCCESS] Coverage summary saved to assets/coverage-summary.json${RESET}\n"; \
 	else \
 	  printf "${YELLOW}[WARN] Source folder ${SOURCE_FOLDER} not found, running tests without coverage${RESET}\n"; \
 	  ${UV_BIN} run pytest \
