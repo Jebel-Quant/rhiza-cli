@@ -430,10 +430,10 @@ class TestSyncOrphanedFiles:
         # old.txt should be deleted as it is no longer in the template
         assert not (tmp_path / "old.txt").exists()
 
-        # History file should only contain new.txt (old.txt removed)
-        history_content = (tmp_path / ".rhiza" / "history").read_text()
-        assert "new.txt" in history_content
-        assert "old.txt" not in history_content
+        # template.lock should be written with only new.txt
+        lock_content = TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock")
+        assert "new.txt" in lock_content.files
+        assert "old.txt" not in lock_content.files
 
 
 class TestSyncCLI:
@@ -1393,12 +1393,10 @@ class TestThreeWayMergeSyncMergeStrategy:
         return project
 
     @patch("rhiza.commands.sync._clone_at_sha")
-    @patch("rhiza.commands.sync._write_history_file")
     @patch("rhiza.commands.sync._warn_about_workflow_files")
     def test_sync_merge_subsequent_applies_diff(
         self,
         mock_warn,
-        mock_history,
         mock_clone,
         tmp_path,
         project_with_template,
@@ -1463,12 +1461,10 @@ class TestThreeWayMergeSyncMergeStrategy:
         assert _read_lock(target) == "upstream_sha_456"
 
     @patch("rhiza.commands.sync._clone_at_sha")
-    @patch("rhiza.commands.sync._write_history_file")
     @patch("rhiza.commands.sync._warn_about_workflow_files")
     def test_sync_merge_first_run_copies_without_merge(
         self,
         mock_warn,
-        mock_history,
         mock_clone,
         tmp_path,
         project_with_template,

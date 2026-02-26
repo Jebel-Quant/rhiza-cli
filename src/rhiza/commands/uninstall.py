@@ -1,7 +1,8 @@
 """Command for uninstalling Rhiza template files from a repository.
 
-This module implements the `uninstall` command. It reads the `.rhiza/history`
-file and removes all files that were previously materialized by Rhiza templates.
+This module implements the `uninstall` command. It reads the
+`.rhiza/template.lock` file (or falls back to `.rhiza/history`) and removes
+all files that were previously materialized by Rhiza templates.
 This provides a clean way to remove all template-managed files from a project.
 """
 
@@ -173,8 +174,9 @@ def _print_summary(removed_count: int, skipped_count: int, empty_dirs_removed: i
 def uninstall(target: Path, force: bool) -> None:
     """Uninstall Rhiza templates from the target repository.
 
-    Reads the `.rhiza/history` file and removes all files listed in it.
-    This effectively removes all files that were materialized by Rhiza.
+    Reads `.rhiza/template.lock` (or falls back to `.rhiza/history`) and removes
+    all files listed in it. This effectively removes all files that were
+    materialized by Rhiza.
 
     Args:
         target (Path): Path to the target repository.
@@ -183,18 +185,32 @@ def uninstall(target: Path, force: bool) -> None:
     target = target.resolve()
     logger.info(f"Target repository: {target}")
 
-    # Check for history file
+    files_to_remove: list[Path] | None = None
+    lock_file = target / ".rhiza" / "template.lock"
     history_file = target / ".rhiza" / "history"
-    if not history_file.exists():
-        logger.warning(f"No history file found at: {history_file.relative_to(target)}")
-        logger.info("Nothing to uninstall. This repository may not have Rhiza templates materialized.")
-        logger.info("If you haven't migrated yet, run 'rhiza migrate' first.")
-        return
 
-    # Read history file
-    files_to_remove = _read_history_file(history_file, target)
+    # Try template.lock first
+    if lock_file.exists():
+        try:
+            from rhiza.models import TemplateLock
+
+            lock = TemplateLock.from_yaml(lock_file)
+            if lock.files:
+                files_to_remove = [Path(f) for f in lock.files]
+                logger.debug(f"Reading file list from template.lock ({len(files_to_remove)} files)")
+        except Exception as e:
+            logger.warning(f"Failed to read template.lock: {e}")
+
+    # Fall back to history file
+    if files_to_remove is None:
+        if not history_file.exists():
+            logger.warning(f"No lock file or history file found at: {(target / '.rhiza').relative_to(target)}")
+            logger.info("Nothing to uninstall. This repository may not have Rhiza templates materialized.")
+            return
+        files_to_remove = _read_history_file(history_file, target)
+
     if not files_to_remove:
-        logger.warning("History file is empty (only contains comments)")
+        logger.warning("No files found to uninstall")
         logger.info("Nothing to uninstall.")
         return
 
@@ -210,10 +226,12 @@ def uninstall(target: Path, force: bool) -> None:
     # Clean up empty directories
     empty_dirs_removed = _cleanup_empty_directories(files_to_remove, target)
 
-    # Remove history file
-    history_removed, history_error = _remove_history_file(history_file, target)
-    removed_count += history_removed
-    error_count += history_error
+    # Remove tracking files (lock and/or history)
+    for tracking_file in [lock_file, history_file]:
+        if tracking_file.exists():
+            r, e = _remove_history_file(tracking_file, target)
+            removed_count += r
+            error_count += e
 
     # Print summary
     _print_summary(removed_count, skipped_count, empty_dirs_removed, error_count)
