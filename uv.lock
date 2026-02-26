@@ -1120,7 +1120,7 @@ wheels = [
 
 [[package]]
 name = "rhiza"
-version = "0.11.4rc1"
+version = "0.11.4rc2"
 source = { editable = "." }
 dependencies = [
     { name = "cruft" },
