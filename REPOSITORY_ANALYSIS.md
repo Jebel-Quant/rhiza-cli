@@ -76,3 +76,91 @@
 **6 / 10**
 
 The tool solves a real problem well (3-way template merge with lock-file tracking) and has solid test coverage and lint discipline. However, the core architectural flaw — two semi-overlapping command implementations (`sync.py` imports from `materialize.py` while reimplementing some of the same logic) — combined with the silent-failure path in `_merge_with_base` that advances the lock even after degraded merges, and a lock format that is already hitting its extensibility ceiling, place this in the "mixed quality, notable concerns" band. The primary feature enhancement the current branch was created for has not yet been started.
+
+---
+
+## 2025-07-14 — Analysis Entry
+
+### Summary
+
+Branch `copilot/update-yaml-format` (one "Initial plan" commit over `main`, no code changes yet). This entry focuses on the specific `template.lock` serialisation path: where the file is written, how the YAML is formatted today, what concrete deficiencies exist, and what a "more professional format" should mean in precise, actionable terms. Version has bumped to `0.11.4-rc.3` (`pyproject.toml:7`). All prior structural findings remain unchanged.
+
+---
+
+### Strengths
+
+- **`TemplateLock.to_yaml` / `from_yaml` are a clean round-trip pair.** `models.py:389–409` and `349–387` share field names exactly; `from_yaml` supplies defaults for every optional key so a minimally hand-written lock file (`sha: <sha>`) is also valid. Round-trip fidelity is tested explicitly in `test_models.py:716–739`.
+
+- **Legacy plain-SHA fallback is correct and tested.** Both `TemplateLock.from_yaml` (`models.py:372–373`) and `_read_lock` (`sync.py:69–76`) detect the old single-line SHA format and handle it without data loss. `test_read_lock_legacy_plain_sha` (`test_sync.py:85–90`) covers this path.
+
+- **Two independent write sites call `lock.to_yaml(path)` correctly.** `sync.py:87` (`_write_lock`) and `materialize.py:616` both delegate to the model method, so any format improvement made in one place propagates everywhere automatically.
+
+- **Test suite validates YAML content structurally.** `test_write_lock_yaml_format` (`test_sync.py:61–83`) and `test_to_yaml_writes_all_fields` (`test_models.py:651–674`) call `yaml.safe_load` on the written file and assert all eight fields. This gives confidence that a format change will not silently corrupt the data.
+
+---
+
+### Weaknesses
+
+- **Inconsistent list serialisation: empty lists use flow style, non-empty use block style.** PyYAML 6.0.3 with `default_flow_style=False` renders `exclude: []` and `templates: []` as inline flow scalars while `include: ['.github/']` and `files: ['a.txt']` render as block sequences (`- item`). The actual output of `TemplateLock.to_yaml` for a common sync produces:
+  ```yaml
+  sha: abc123...
+  repo: jebel-quant/rhiza
+  host: github
+  ref: main
+  include:
+  - .github/
+  - .rhiza/
+  exclude: []         ← flow style (inconsistent)
+  templates: []       ← flow style (inconsistent)
+  files:
+  - file1.txt
+  ```
+  This inconsistency is cosmetically jarring and makes the file harder to diff cleanly when an initially-empty list gains its first entry (the key line changes from `exclude: []` to `exclude:\n- item`, producing a two-line diff instead of one).
+
+- **No machine-generated header comment.** Comparable auto-generated lock files (`poetry.lock`, `package-lock.json`, `Cargo.lock`, `Pipfile.lock`) all carry a "do not edit manually" notice. `.rhiza/template.lock` has none. Users who open the file may not understand it is authoritative and may edit it in place, corrupting the sync base.
+
+- **No YAML document separator (`---`).** `yaml.dump` is called without `explicit_start=True` (`models.py:408`). Adding `---` is a one-argument change that makes the file a well-formed YAML document stream and is conventional for machine-written YAML (`.github/workflows/*.yml`, `pre-commit-config.yaml`, etc.).
+
+- **List items are not indented under their parent key.** PyYAML's default indentation places `- item` at the *same column* as the key name:
+  ```yaml
+  files:
+  - file1.txt       ← column 0, same as 'files'
+  ```
+  The conventional "professional" rendering indents the sequence items two spaces under the mapping key:
+  ```yaml
+  files:
+    - file1.txt     ← column 2, visually subordinate
+  ```
+  PyYAML supports this via a custom `Dumper` with `increase_indent(flow=False, indentless=False)` override, but the current code does not use it.
+
+- **`TemplateLock.to_yaml` always serialises all fields, including empty lists.** `models.py:397–406` builds the config dict unconditionally. This means a minimal lock (e.g., created by `rhiza sync` on a repo with no `include`, `exclude`, or `templates` configured) still emits six lines of empty-list boilerplate. Compare `RhizaTemplate.to_yaml` (`models.py:281–322`) which omits empty/default fields entirely — the inconsistency between the two sibling methods is confusing.
+
+- **`_read_lock` in `sync.py` does not delegate to `TemplateLock.from_yaml`.** Two independent YAML-to-SHA extraction paths exist: `_read_lock` (`sync.py:53–76`, direct `yaml.safe_load` + dict key access) and `TemplateLock.from_yaml` (`models.py:349–387`). Any format change (e.g., renaming `sha` to `commit`) requires updating both paths independently. The `_read_lock` function should call `TemplateLock.from_yaml(...).sha` to eliminate the duplication.
+
+- **No tests assert on the raw string format.** All existing format tests (`test_write_lock_yaml_format`, `test_to_yaml_writes_all_fields`) parse the written YAML with `yaml.safe_load` before asserting. `yaml.safe_load` discards comments and normalises indentation, so adding a `---` header, a comment line, or fixing list indentation would leave all existing tests green even if the change were reverted. A single snapshot / `assert lock_path.read_text() == expected_text` test is needed to lock in the exact serialised form.
+
+---
+
+### Risks / Technical Debt
+
+- **Branch still has no code changes.** `git log --oneline` shows two commits: `d847bc9 Initial plan` (HEAD) and `1a7800b` (grafted main). The work described by the branch name has not been started. The prior entry identified the same situation under the branch name `copilot/enhance-template-lock-file`; the branch has been renamed but remains empty.
+
+- **Fixing list indentation requires a custom PyYAML Dumper subclass.** PyYAML's `Dumper.increase_indent` signature is `(flow=False, indentless=True)` — the `indentless=True` default is what causes `- item` to appear at the parent key's column. Overriding this correctly requires:
+  ```python
+  class _IndentedDumper(yaml.Dumper):
+      def increase_indent(self, flow=False, indentless=False):
+          return super().increase_indent(flow=flow, indentless=indentless)
+  ```
+  and passing `Dumper=_IndentedDumper` to `yaml.dump`. This is a non-obvious, underdocumented PyYAML pattern. If done incorrectly it can produce invalid YAML (e.g., extra blank lines for nested mappings). Any implementation must be verified against the round-trip test.
+
+- **`from_yaml` uses `_normalize_to_list` for the `files` field.** `models.py:386` passes the `files` list through `_normalize_to_list`, which handles legacy newline-delimited string values. If the format change results in a block scalar being emitted for `files` (e.g., a `|` literal block), `_normalize_to_list` will split it correctly. However, if `files` is emitted in a format that `yaml.safe_load` returns as a plain Python list, the `isinstance(value, list)` branch short-circuits and `_normalize_to_list` is a no-op. Both cases work correctly; there is no risk here, but the defensive normalisation is slightly misleading for a field that is always written as a list.
+
+- **`to_yaml` writes `files` as an unsorted list when called from `materialize.py:605–616`.** In `materialize.py:612` the files list is `sorted(...)` before being passed to `TemplateLock(files=...)`, but in `sync.py:602` the same is done: `files=sorted(str(f) for f in materialized)`. Sorting is applied at the call site rather than inside `TemplateLock.to_yaml`. A future call site that forgets to sort will produce non-deterministic diffs on every sync. Sorting should be enforced inside `to_yaml` or the `TemplateLock.__post_init__`.
+
+- **Comment header would be silently dropped on a round-trip through `from_yaml → to_yaml`.** YAML comments are not parsed by `yaml.safe_load`. If any code reads a `template.lock`, modifies a field, and writes it back via `to_yaml`, the comment header will be lost. This is inherent to using PyYAML and not a defect, but it is worth documenting so consumers do not rely on the comment surviving edits.
+
+---
+
+### Score
+
+**6 / 10** — unchanged from the prior entry. The specific YAML serialisation work targeted by this branch is well-scoped and low-risk, but has not been implemented. The underlying structural concerns (duplicated `sync`/`materialize` logic, silent merge degradation advancing the lock, `cruft` private-API dependency) remain unaddressed.
