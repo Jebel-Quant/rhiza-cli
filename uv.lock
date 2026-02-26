@@ -673,7 +673,7 @@ wheels = [
 
 [[package]]
 name = "rhiza"
-version = "0.11.4rc5"
+version = "0.11.4rc6"
 source = { editable = "." }
 dependencies = [
     { name = "jinja2" },
