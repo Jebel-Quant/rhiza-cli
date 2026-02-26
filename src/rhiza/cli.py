@@ -141,7 +141,7 @@ def init(
       rhiza init /path/to/project
       rhiza init .. --language go
     """
-    init_cmd(
+    if not init_cmd(
         target,
         project_name=project_name,
         package_name=package_name,
@@ -150,7 +150,8 @@ def init(
         language=language,
         template_repository=template_repository,
         template_branch=template_branch,
-    )
+    ):
+        raise typer.Exit(code=1)
 
 
 @app.command(deprecated=True)

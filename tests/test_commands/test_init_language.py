@@ -1,5 +1,7 @@
 """Tests for language-specific init functionality."""
 
+from unittest.mock import patch
+
 import yaml
 
 from rhiza.commands.init import init
@@ -56,7 +58,8 @@ class TestInitWithLanguage:
         assert (tmp_path / "pyproject.toml").exists()
         assert (tmp_path / "src").is_dir()
 
-    def test_init_go_with_custom_template_repository(self, tmp_path):
+    @patch("rhiza.commands.init._check_template_repository_reachable", return_value=True)
+    def test_init_go_with_custom_template_repository(self, mock_check, tmp_path):
         """Test that custom template repository works with Go language."""
         init(
             tmp_path,

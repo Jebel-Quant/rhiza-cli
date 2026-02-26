@@ -4,14 +4,16 @@ This module verifies that `init` creates/validates `.rhiza/template.yml` and
 that the Typer CLI entry `rhiza init` works as expected.
 """
 
+import subprocess
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
 from typer.testing import CliRunner
 
 from rhiza import cli
-from rhiza.commands.init import init
+from rhiza.commands.init import _check_template_repository_reachable, init
 
 
 class TestInitCommand:
@@ -136,6 +138,7 @@ class TestInitCommand:
         """Test the CLI init command via Typer runner."""
         runner = CliRunner()
         with runner.isolated_filesystem():
+            subprocess.run(["git", "init"], capture_output=True)  # nosec B603 B607
             result = runner.invoke(cli.app, ["init"])
             assert result.exit_code == 0
             assert Path(".rhiza/template.yml").exists()
@@ -368,7 +371,8 @@ class TestInitCommand:
         # Verify prompt was called twice (once for invalid, once for valid)
         assert prompt_mock.call_count == 2
 
-    def test_init_with_custom_template_repository(self, tmp_path):
+    @patch("rhiza.commands.init._check_template_repository_reachable", return_value=True)
+    def test_init_with_custom_template_repository(self, mock_check, tmp_path):
         """Test init with custom template repository."""
         init(tmp_path, git_host="github", template_repository="myorg/my-templates")
 
@@ -384,7 +388,8 @@ class TestInitCommand:
         # Branch should default to main
         assert config["ref"] == "main"
 
-    def test_init_with_custom_template_repository_and_branch(self, tmp_path):
+    @patch("rhiza.commands.init._check_template_repository_reachable", return_value=True)
+    def test_init_with_custom_template_repository_and_branch(self, mock_check, tmp_path):
         """Test init with custom template repository and branch."""
         init(
             tmp_path,
@@ -452,3 +457,68 @@ class TestInitCommand:
             config = yaml.safe_load(f)
 
         assert "templates" in config
+
+
+class TestCheckTemplateRepositoryReachable:
+    """Tests for the _check_template_repository_reachable function."""
+
+    @patch("rhiza.commands.init.subprocess.run")
+    @patch("rhiza.commands.init.get_git_executable", return_value="/usr/bin/git")
+    def test_reachable_repository_returns_true(self, mock_git_exec, mock_run):
+        """Test that a reachable repository returns True."""
+        mock_run.return_value = MagicMock(returncode=0)
+        result = _check_template_repository_reachable("myorg/my-templates", "github")
+        assert result is True
+        mock_run.assert_called_once()
+        args = mock_run.call_args[0][0]
+        assert "https://github.com/myorg/my-templates" in args
+
+    @patch("rhiza.commands.init.subprocess.run")
+    @patch("rhiza.commands.init.get_git_executable", return_value="/usr/bin/git")
+    def test_unreachable_repository_returns_false(self, mock_git_exec, mock_run):
+        """Test that an unreachable repository returns False."""
+        mock_run.return_value = MagicMock(returncode=128)
+        result = _check_template_repository_reachable("typo/nonexistent", "github")
+        assert result is False
+
+    @patch("rhiza.commands.init.subprocess.run")
+    @patch("rhiza.commands.init.get_git_executable", return_value="/usr/bin/git")
+    def test_gitlab_host_uses_gitlab_url(self, mock_git_exec, mock_run):
+        """Test that gitlab host uses gitlab.com URL."""
+        mock_run.return_value = MagicMock(returncode=0)
+        _check_template_repository_reachable("myorg/my-templates", "gitlab")
+        args = mock_run.call_args[0][0]
+        assert "https://gitlab.com/myorg/my-templates" in args
+
+    @patch("rhiza.commands.init.subprocess.run")
+    @patch("rhiza.commands.init.get_git_executable", return_value="/usr/bin/git")
+    def test_timeout_returns_false(self, mock_git_exec, mock_run):
+        """Test that a timeout returns False."""
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=30)
+        result = _check_template_repository_reachable("myorg/my-templates", "github")
+        assert result is False
+
+    @patch("rhiza.commands.init.get_git_executable")
+    def test_git_not_found_returns_true(self, mock_git_exec):
+        """Test that missing git executable returns True (don't block init)."""
+        mock_git_exec.side_effect = RuntimeError("git not found")
+        result = _check_template_repository_reachable("myorg/my-templates", "github")
+        assert result is True
+
+    @patch("rhiza.commands.init._check_template_repository_reachable", return_value=False)
+    def test_init_returns_false_when_repository_unreachable(self, mock_check, tmp_path):
+        """Test that init returns False when template repository is unreachable."""
+        result = init(tmp_path, git_host="github", template_repository="typo/nonexistent")
+        assert result is False
+        # Template file should not be created
+        template_file = tmp_path / ".rhiza" / "template.yml"
+        assert not template_file.exists()
+
+    @patch("rhiza.commands.init._check_template_repository_reachable", return_value=False)
+    def test_cli_init_exits_with_error_when_repository_unreachable(self, mock_check, tmp_path):
+        """Test that CLI exits with non-zero code when template repository is unreachable."""
+        runner = CliRunner()
+        result = runner.invoke(
+            cli.app, ["init", str(tmp_path), "--git-host", "github", "--template-repository", "typo/nonexistent"]
+        )
+        assert result.exit_code != 0

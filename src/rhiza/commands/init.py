@@ -8,6 +8,7 @@ and what paths are governed by Rhiza.
 import importlib.resources
 import keyword
 import re
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from loguru import logger
 
 from rhiza.commands.validate import validate
 from rhiza.models import RhizaTemplate
+from rhiza.subprocess_utils import get_git_executable
 
 
 def _normalize_package_name(name: str) -> str:
@@ -54,6 +56,47 @@ def _validate_git_host(git_host: str | None) -> str | None:
             logger.error(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")
             raise ValueError(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")  # noqa: TRY003
     return git_host
+
+
+def _check_template_repository_reachable(template_repository: str, git_host: str = "github") -> bool:
+    """Check if the template repository is reachable via git ls-remote.
+
+    Args:
+        template_repository: Repository in 'owner/repo' format.
+        git_host: Git hosting platform ('github' or 'gitlab'). Defaults to 'github'.
+
+    Returns:
+        True if the repository is reachable, False otherwise.
+    """
+    host_urls = {
+        "github": "https://github.com",
+        "gitlab": "https://gitlab.com",
+    }
+    base_url = host_urls.get(git_host, "https://github.com")
+    repo_url = f"{base_url}/{template_repository}"
+
+    logger.debug(f"Checking reachability of template repository: {repo_url}")
+    try:
+        git = get_git_executable()
+        result = subprocess.run(  # nosec B603  # noqa: S603
+            [git, "ls-remote", "--exit-code", repo_url],
+            capture_output=True,
+            timeout=30,
+        )
+        if result.returncode == 0:
+            logger.success(f"Template repository is reachable: {template_repository}")
+            return True
+        else:
+            logger.error(f"Template repository '{template_repository}' is not accessible at {repo_url}")
+            logger.error("Please check that the repository exists and you have access to it.")
+            return False
+    except subprocess.TimeoutExpired:
+        logger.error(f"Timed out while checking repository reachability: {repo_url}")
+        logger.error("Please check your network connection and try again.")
+        return False
+    except RuntimeError as e:
+        logger.warning(f"Could not verify template repository reachability: {e}")
+        return True  # Don't block init if git is unavailable
 
 
 def _prompt_git_host() -> str:
@@ -324,6 +367,10 @@ def init(
     # Determine git host
     if git_host is None:
         git_host = _prompt_git_host()
+
+    # Validate template repository reachability early if a custom one is specified
+    if template_repository is not None and not _check_template_repository_reachable(template_repository, git_host):
+        return False
 
     # Create template file with language
     _create_template_file(target, git_host, language, template_repository, template_branch)
