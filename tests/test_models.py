@@ -126,8 +126,8 @@ class TestRhizaTemplate:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        assert config["repository"] == "jebel-quant/rhiza"
-        assert config["ref"] == "main"
+        assert config["template-repository"] == "jebel-quant/rhiza"
+        assert config["template-branch"] == "main"
         assert config["include"] == [".github", "Makefile"]
         assert "exclude" not in config  # Should not be present when empty
 
@@ -146,8 +146,8 @@ class TestRhizaTemplate:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        assert config["repository"] == "custom/repo"
-        assert config["ref"] == "dev"
+        assert config["template-repository"] == "custom/repo"
+        assert config["template-branch"] == "dev"
         assert config["include"] == [".github", "Makefile"]
         assert config["exclude"] == [".github/workflows/docker.yml"]
 
@@ -169,6 +169,25 @@ class TestRhizaTemplate:
         assert loaded.template_branch == original.template_branch
         assert loaded.include == original.include
         assert loaded.exclude == original.exclude
+
+    def test_rhiza_template_round_trip_preserves_canonical_key_names(self, tmp_path):
+        """Test that to_yaml writes canonical key names (template-repository, template-branch)."""
+        template = RhizaTemplate(
+            template_repository="jebel-quant/rhiza",
+            template_branch="main",
+            include=[".github"],
+        )
+
+        template_file = tmp_path / "template.yml"
+        template.to_yaml(template_file)
+
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+
+        assert "template-repository" in config
+        assert "template-branch" in config
+        assert "repository" not in config
+        assert "ref" not in config
 
     def test_rhiza_template_creates_parent_directory(self, tmp_path):
         """Test that to_yaml creates parent directories if they don't exist."""
@@ -370,9 +389,9 @@ exclude: |
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        # repository should not be present when None
-        assert "repository" not in config
-        assert config["ref"] == "main"
+        # template-repository should not be present when None
+        assert "template-repository" not in config
+        assert config["template-branch"] == "main"
 
     def test_rhiza_template_with_templates(self, tmp_path):
         """Test loading template.yml with templates field."""
@@ -407,8 +426,8 @@ exclude: |
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        assert config["repository"] == "jebel-quant/rhiza"
-        assert config["ref"] == "main"
+        assert config["template-repository"] == "jebel-quant/rhiza"
+        assert config["template-branch"] == "main"
         assert config["templates"] == ["core", "tests", "docs"]
         assert "include" not in config
 
