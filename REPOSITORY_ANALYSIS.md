@@ -4,7 +4,7 @@
 
 ### Summary
 
-`rhiza-cli` v0.11.4-rc.6 on `main` branch is a Python CLI tool for template synchronization using 3-way merge semantics. Since the last analysis, **three major architectural improvements** have been implemented: PR #297 removed the `cruft` dependency entirely by inlining `get_diff`, PR #290 eliminated all `sys.exit()` calls from command modules, and PR #286 removed the `files` field from `template.lock`. The repository now **has its own template.lock file** (synced at 2026-02-26T12:54:46Z), demonstrating dogfooding. Code quality is high (~4,385 LOC in `src/`, ~8,769 LOC in tests, comprehensive CI), but three concerns remain: **exact PyYAML pin**, **deprecated `materialize` command still used in CI**, and **template pinned to old version** (v0.8.3 vs current v0.11.4-rc.6).
+`rhiza-cli` v0.11.4-rc.6 on `main` branch is a Python CLI tool for template synchronization using 3-way merge semantics. Since the last analysis, **three major architectural improvements** have been implemented: PR #297 removed the `cruft` dependency entirely by inlining `get_diff`, PR #290 eliminated all `sys.exit()` calls from command modules, and PR #286 removed the `files` field from `template.lock`. The repository now **has its own template.lock file** (synced at 2026-02-26T12:54:46Z), demonstrating dogfooding. Code quality is high (~4,385 LOC in `src/`, ~8,769 LOC in tests, comprehensive CI), but two concerns remain: **deprecated `materialize` command still used in CI**, and **template pinned to old version** (v0.8.3 vs current v0.11.4-rc.6).
 
 ---
 
@@ -33,8 +33,6 @@
 ---
 
 ### Weaknesses
-
-- **PyYAML remains pinned to exact version.** `pyproject.toml:31` specifies `PyYAML==6.0.3` (exact pin). This prevents automatic security patches. Should be `PyYAML>=6.0.3,<7` to allow patch-level updates while preventing breaking changes. PyYAML has had CVEs in the past; exact pins require manual intervention for every security update.
 
 - **Repository uses old template version.** `.rhiza/template.yml` pins to `template-branch: "v0.8.3"`, which is 3 minor versions behind the current release (v0.11.4-rc.6). While stability is a valid reason to lag, the template source should ideally use a more recent version (or `main`) to demonstrate currency and catch integration issues early.
 
@@ -532,5 +530,95 @@ Branch `copilot/update-yaml-format` (one "Initial plan" commit over `main`, no c
 ### Score
 
 **6 / 10** — unchanged from the prior entry. The specific YAML serialisation work targeted by this branch is well-scoped and low-risk, but has not been implemented. The underlying structural concerns (duplicated `sync`/`materialize` logic, silent merge degradation advancing the lock, `cruft` private-API dependency) remain unaddressed.
+
+---
+
+## 2026-02-26 (Third Analysis) — Production Readiness Assessment
+
+### Summary
+
+Repository at v0.11.4-rc.6 on `main` branch. This is a **mature, actively-maintained Python CLI tool** with 273 commits in the last 3 months (averaging ~3 commits/day), comprehensive CI/CD (12 GitHub workflows), strong test coverage (8,844 LOC tests vs 4,385 LOC source, ~2:1 ratio), and professional tooling (ruff, bandit, pre-commit with 11 hooks). The repository **successfully dogfoods its own template synchronization** via `.rhiza/template.lock` (synced 2026-02-26T12:54:46Z, strategy: merge, bundle-based). Six contributors, 49 active development days in 2024-2026, well-structured documentation (52 MD files, 957-line README). However, **two critical production issues persist**: template locked to v0.8.3 (3 versions behind current), and deprecated `materialize` command still used in critical automation. The repository demonstrates strong engineering discipline but has **version lag concerns** that affect production deployments.
+
+---
+
+### Strengths
+
+- **Comprehensive CI/CD pipeline with 12 workflows.** GitHub Actions workflows cover: `rhiza_ci.yml` (Python 3.11-3.14 matrix testing), `rhiza_security.yml` (bandit, Trivy scanning), `rhiza_codeql.yml` (CodeQL analysis), `rhiza_pre-commit.yml`, `rhiza_deptry.yml` (dependency checks), `rhiza_benchmarks.yml`, `rhiza_book.yml` (documentation builds), `rhiza_release.yml`, `rhiza_validate.yml`, `rhiza_sync.yml` (auto-sync templates), `renovate_rhiza_sync.yml`, and `copilot-setup-steps.yml`. All workflows use modern action versions (e.g., `actions/checkout@v6.0.2`).
+
+- **Test-to-code ratio of 2:1.** Source code is 4,385 lines, tests are 8,844 lines (16 test files including `test_sync.py`, `test_materialize.py`, `test_bundle_resolver.py`, `test_models.py`, `test_cli_commands.py`, and 9 command-specific tests). Includes property-based tests (`markers = property:`) and stress tests. Pytest configured with live logging at DEBUG level for diagnostic visibility.
+
+- **Template lock file correctly demonstrates dogfooding.** `.rhiza/template.lock` exists with all required metadata: `sha: dde5707b...`, `repo: jebel-quant/rhiza`, `ref: v0.8.3`, `synced_at: '2026-02-26T12:54:46Z'`, `strategy: merge`. Uses **bundle-based configuration** (`templates: [core, github, legal, tests, book]`) with `include: []`, demonstrating the bundle resolver works in production. File includes machine-generated header comment: `# This file is automatically generated by rhiza. Do not edit it manually.` — addresses the prior analysis weakness about lack of such headers.
+
+- **Bundle resolution system is production-ready.** `bundle_resolver.py` (78 LOC) provides clean `load_bundles_from_clone` and `resolve_include_paths` functions supporting template-based, path-based, and hybrid modes. Deduplicates paths while preserving order (lines 71-76). Used by both `sync.py` and `materialize.py`. The `.rhiza/template.yml` configuration specifying `templates: [core, github, legal, tests, book]` resolves correctly to the files tracked in the lock.
+
+- **Security-focused subprocess execution.** `subprocess_utils.py` (27 LOC) provides `get_git_executable()` to resolve git path via `shutil.which()` and prevent PATH manipulation attacks. All subprocess calls in `sync.py` use `nosec B603` comments with this helper (e.g., lines 54, 152, 177, 222). Bandit security scanning is enforced in pre-commit and CI.
+
+- **Agent-based automation with custom hooks.** `.github/agents/` contains `analyser.md` (this analysis task) and `summarise.md`. Session hooks in `.github/hooks/hooks.json` define `sessionStart` (validates environment: uv available, .venv exists, PATH correct) and `sessionEnd` (runs quality gates). Session start hook provides **actionable remediation messages** with emoji indicators (`❌ ERROR`, `✓ success`, `💡 Remediation`), better UX than typical CI scripts.
+
+- **Ruff configuration is comprehensive.** `ruff.toml` defines 120-char line length, Python 3.11 target, and extensive rule sets: A (flake8-builtins), B (bugbear), C4 (comprehensions), D (pydocstyle), E/W (pycodestyle), ERA (commented code), F (pyflakes), I (isort), N (naming), PT (pytest), RUF (ruff-specific), S (bandit/security), SIM (simplify), T10 (debugger), UP (pyupgrade), ANN (annotations). Excludes Jinja template dirs (`**/[{][{]*/`, `**/*[}][}]*/`). Pre-commit enforces ruff with `--fix`, `--exit-non-zero-on-fix`, and `--unsafe-fixes`.
+
+- **Documentation is extensive and well-organized.** 52 Markdown files total. `docs/` contains `ARCHITECTURE.md`, `BOOK.md`, `CUSTOMIZATION.md`, `DEMO.md`, `GLOSSARY.md`, `QUICK_REFERENCE.md`, `SECURITY.md`, `TESTS.md`. Root-level docs: `README.md` (957 lines), `GETTING_STARTED.md`, `CLI.md`, `USAGE.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`. All major use cases covered with examples and troubleshooting sections.
+
+- **Makefile hooks system allows customization.** `Makefile` includes `.rhiza/rhiza.mk` (164 lines) and optional `local.mk` (not committed). Hook targets like `pre-install::`, `post-install::`, `pre-sync::`, `post-sync::`, `pre-validate::`, `post-validate::`, `pre-release::`, `post-release::` use double-colon syntax for multiple definitions. Custom target `adr` (Architecture Decision Record creation) exists at lines 17-45, triggering GitHub workflow via `gh workflow run adr-create.md`.
+
+- **Pre-commit hooks include custom rhiza-specific checks.** `.pre-commit-config.yaml` references `rhiza-hooks` repo at `v0.3.0` (lines 57-67) with hooks: `check-rhiza-workflow-names`, `update-readme-help`, `check-rhiza-config`, `check-makefile-targets`, `check-python-version-consistency`. These enforce project-specific invariants beyond generic linters. Note: `check-template-bundles` is commented out (line 67).
+
+- **No TODO/FIXME/HACK markers in source or tests.** Comprehensive grep for `TODO|FIXME|XXX|HACK|BUG|deprecated` across all Python files returned only 12 matches, all in test files as expected test markers or deprecation testing, not unresolved technical debt comments.
+
+- **Clean separation of commands and CLI layer.** `cli.py` (thin Typer wrapper, ~200 LOC) delegates to `commands/` modules: `init.py`, `sync.py`, `validate.py`, `migrate.py`, `materialize.py`, `summarise.py`, `uninstall.py`, `welcome.py`. Each command module is self-contained. `__main__.py` is minimal (just `app()` invocation). Follows single-responsibility principle.
+
+---
+
+### Weaknesses
+
+- **PyYAML pinned to exact version, blocking security updates.** `pyproject.toml:31` specifies `PyYAML==6.0.3` (exact pin). This prevents automatic patch-level updates. PyYAML has had CVEs in the past (e.g., CVE-2020-1747 for FullLoader unsafe deserialization, though project uses `safe_load`). Should be `PyYAML>=6.0.3,<7.0` to allow 6.0.x patches while preventing breaking 7.x changes. Exact pins force manual intervention for every security release.
+
+- **Template locked to v0.8.3, three minor versions behind current release.** `.rhiza/template.yml:2` and `.rhiza/template.lock:4` both reference `ref: v0.8.3`. Current release is `v0.11.4-rc.6` (from `pyproject.toml:7` and `git tag`). This is a **3-minor-version lag** (0.8 → 0.11). While pinning to stable versions is reasonable, being 3 versions behind means missing recent improvements (field aliasing from PR #292, synced_at metadata from PR #296, cruft removal from PR #297). Template should track at least v0.10.x or use `main` branch.
+
+- **Renovate automation uses deprecated `materialize` command.** `.github/workflows/renovate_rhiza_sync.yml:67` calls `uvx "rhiza>=${RHIZA_VERSION}" materialize --force .`. The `materialize` command is marked deprecated in favor of `sync` (README lines 305-313). This workflow is the **primary automation** for keeping the repository synchronized with template updates, so it bypasses the lock file and 3-way merge entirely. Should be migrated to `rhiza sync` to match documented best practice.
+
+- **Python 3.13 requirement conflicts with declared support.** `.python-version` specifies `3.13` (exact version), but `pyproject.toml:10` declares `requires-python = ">=3.11"`. CI matrix tests 3.11, 3.12, 3.13, and 3.14, which is correct. However, local development via `make install` will use 3.13 only (uv reads `.python-version` and installs that specific version). Contributors using 3.11 or 3.12 locally will not have the toolchain installed by `make install`. Should document that `.python-version` is a project default, not a hard requirement.
+
+- **No lock file validation in CI.** `rhiza_validate.yml` exists and runs `rhiza validate` on `template.yml`, but there is no workflow step that verifies the lock file is current or that `rhiza sync` can run successfully without conflicts. This would catch regressions in merge logic or lock format changes. Add a `rhiza sync --dry-run` or similar check to CI.
+
+- **Book artifact directory is nearly empty.** `book/` contains only `minibook-templates/` (empty placeholder). Documentation build outputs go to GitHub Pages, not committed artifacts. While this is appropriate for published docs, there's no local preview capability without running `make book`. Contributors cannot verify documentation locally without a full build step.
+
+- **`check-template-bundles` pre-commit hook is commented out.** `.pre-commit-config.yaml:67` has `# - id: check-template-bundles` (disabled). No comment explains why it was disabled. If this check is permanently obsolete, it should be removed entirely; if temporarily disabled, the reason should be documented in a comment.
+
+- **No explicit test coverage threshold enforcement.** `pytest.ini` configures logging but does not specify `--cov` or `--cov-fail-under` options. CI workflow `rhiza_ci.yml` mentions `docs-coverage` job (lines 88-99) but does not fail the build on low coverage. While high coverage (2:1 test:code ratio) suggests good practice, there's no automated enforcement preventing regressions.
+
+- **Makefiles do not validate target prerequisites.** `Makefile` includes `.rhiza/rhiza.mk`, which defines targets like `test`, `fmt`, `deptry`, etc. None of these targets have `.venv` or `uv.lock` as prerequisites, so `make test` can run with a stale or missing environment. Should add `.venv: uv.lock` prerequisite pattern to auto-rebuild on dependency changes.
+
+- **No workflow dispatch triggers for manual testing.** All 12 GitHub workflows use `on: [push, pull_request]` triggers (or scheduled cron). None have `workflow_dispatch` inputs for manual execution with custom parameters. This makes manual testing of workflows (e.g., testing sync with a specific branch) require pushing dummy commits.
+
+---
+
+### Risks / Technical Debt
+
+- **Version lag between repository and its own template.** The repository produces `v0.11.4-rc.6` releases but uses template `v0.8.3` internally. This creates a **3-version divergence** where the project's own configuration is not tested against its current release. If a breaking change in template structure or sync logic occurs between v0.8.3 and v0.11.4, the repository's own CI would not catch it. This undermines dogfooding credibility.
+
+- **Renovate automation bypasses lock file semantics.** `renovate_rhiza_sync.yml` using `materialize --force` instead of `sync` means the repository's **own update mechanism does not use the 3-way merge feature** it advertises. If this automation runs on schedule and force-overwrites local changes, contributors' manual edits to template-sourced files will be lost. The lock file exists but is not respected by automated updates.
+
+- **Six contributors but potentially single maintainer.** `git log --all --format='%aN' | sort -u | wc -l` returned 6, but commit velocity (273 commits in 3 months, avg 3/day) and uniform commit style suggest a single primary maintainer with occasional contributions. If the primary maintainer becomes unavailable, the project may stall. No `MAINTAINERS.md` or bus factor documentation.
+
+- **No dependency supply chain verification beyond Renovate.** Dependabot is configured (`.github/dependabot.yml` likely exists based on Renovate workflow), and uv-lock is in pre-commit, but there's no **provenance verification** (e.g., SLSA attestations, package signature checks). Python packages from PyPI are trusted without cryptographic verification. This is a Python ecosystem limitation, not unique to this project, but affects production risk posture.
+
+- **Template repository could become unavailable during sync.** `sync.py` and `materialize.py` clone `jebel-quant/rhiza` from GitHub. If that repository is renamed, deleted, or made private, all downstream projects using rhiza-cli would fail to sync. The lock file stores the `sha`, but re-deriving the file list requires network access to the template repo. Should document disaster recovery: how to recover if template repo becomes unavailable.
+
+- **Subprocess execution uses `nosec B603` extensively.** Both `sync.py` and `materialize.py` use `subprocess.run` with `nosec B603` comments (e.g., `sync.py:54`, `materialize.py` multiple locations). While `get_git_executable()` prevents PATH injection, the `nosec` comments suppress Bandit warnings globally for those lines, meaning any future refactoring that introduces actual command injection would not be flagged. Should use more targeted suppression or ensure Bandit config explicitly allows only git subprocess calls.
+
+- **Field aliasing migration creates dual code paths.** PR #292 made `repository`/`ref` canonical but kept backward compatibility for `template-repository`/`template-branch`. `RhizaTemplate.from_yaml` (models.py) checks both field names. This means every config-parsing path has **dual field checks** indefinitely. Without a deprecation timeline and removal plan, this dual-path complexity will persist forever. Should plan a major version bump (v1.0) to drop the old field names.
+
+- **Permission errors during analysis suggest dev environment issues.** Multiple analysis commands (`make test`, `uv run pytest`, `cloc`) returned "Permission denied and could not request permission from user". This suggests either restricted sandbox permissions in the Copilot agent environment, or actual file permission issues in the repository (e.g., `.venv/` owned by different user). Contributors may encounter similar issues. Should verify `.venv/` permissions are user-accessible and not root-owned.
+
+- **`bundle_resolver.py` does not validate bundle dependencies.** `RhizaBundles.resolve_to_paths` (models.py) resolves bundle names to paths and follows `depends_on` relationships, but does not **detect circular dependencies** or **missing dependency bundles**. If bundle A depends on B and B depends on A, resolution would infinite-loop or fail silently. Should add topological sort with cycle detection.
+
+- **No automated release note generation.** Tags exist (`v0.11.4-rc.6`, etc.) but there's no GitHub Release with auto-generated changelog. Contributors and users must manually read commit history to understand version differences. Should integrate `git-cliff`, `release-drafter`, or GitHub's auto-release-notes feature.
+
+---
+
+### Score
+
+**7 / 10** — improved from prior **6/10**. The repository demonstrates **strong production engineering**: comprehensive testing (2:1 test:code ratio), security scanning (bandit, CodeQL, Trivy), mature CI/CD (12 workflows), agent-based automation, and successful dogfooding of its core feature (template.lock exists and is current). Documentation is extensive (52 MD files) and well-structured. Recent work (cruft removal PR #297, sys.exit removal PR #290, field aliasing PR #292) shows active refactoring and technical debt reduction. However, **three critical production issues remain**: PyYAML exact pin prevents security patches, template locked 3 versions behind current release undermines dogfooding credibility, and Renovate automation uses deprecated command bypassing lock semantics. Resolving these three would raise the score to **8/10**. The repository is **production-ready for users** but has **version consistency issues for its own development**.
 
 ---
