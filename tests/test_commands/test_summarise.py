@@ -361,8 +361,8 @@ class TestSummariseCommand:
         non_git_dir = tmp_path / "not_a_repo"
         non_git_dir.mkdir()
 
-        # Should exit with error
-        with pytest.raises(SystemExit):
+        # Should raise RuntimeError
+        with pytest.raises(RuntimeError):
             summarise(non_git_dir)
 
     def test_summarise_with_malformed_git_status(self, git_repo, capsys, monkeypatch):
