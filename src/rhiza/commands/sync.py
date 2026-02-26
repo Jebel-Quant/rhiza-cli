@@ -1,8 +1,8 @@
 """Command for syncing Rhiza template files using diff/merge.
 
-This module implements the ``sync`` command. Unlike ``materialize --force``
-which overwrites files, ``sync`` uses cruft's diff/patch approach so that
-local customisations are preserved and upstream changes are applied safely.
+This module implements the ``sync`` command. It uses cruft's diff/patch
+approach so that local customisations are preserved and upstream changes
+are applied safely.
 
 The approach:
 1. Read the last-synced commit SHA from ``.rhiza/template.lock``.
@@ -15,7 +15,7 @@ The approach:
 5. Update the lock file.
 
 When no lock file exists (first sync), the command falls back to a simple
-copy (equivalent to ``materialize --force``) and records the commit SHA.
+copy and records the commit SHA.
 """
 
 import os
@@ -355,32 +355,6 @@ def _sync_diff(target: Path, upstream_snapshot: Path) -> None:
         logger.success("No differences found")
 
 
-def _sync_overwrite(
-    target: Path,
-    upstream_snapshot: Path,
-    upstream_sha: str,
-    materialized: list[Path],
-    rhiza_repo: str,
-    rhiza_branch: str,
-) -> None:
-    """Execute the overwrite strategy (same as materialize --force).
-
-    Args:
-        target: Path to the target repository.
-        upstream_snapshot: Path to the upstream snapshot directory.
-        upstream_sha: HEAD SHA of the upstream template.
-        materialized: List of relative file paths.
-        rhiza_repo: Template repository name.
-        rhiza_branch: Template branch name.
-    """
-    _copy_files_to_target(upstream_snapshot, target, materialized)
-    _warn_about_workflow_files(materialized)
-    _clean_orphaned_files(target, materialized)
-    _write_history_file(target, materialized, rhiza_repo, rhiza_branch)
-    _write_lock(target, upstream_sha)
-    logger.success("Sync complete (overwrite strategy)")
-
-
 def _sync_merge(
     target: Path,
     upstream_snapshot: Path,
@@ -551,7 +525,7 @@ def sync(
     target_branch: str | None,
     strategy: str,
 ) -> None:
-    """Sync Rhiza templates using cruft-style diff/merge instead of overwrite.
+    """Sync Rhiza templates using cruft-style diff/merge.
 
     Uses ``cruft``'s diff utilities to compute the diff between the base
     (last-synced) and upstream (latest) template snapshots, then applies
@@ -562,8 +536,7 @@ def sync(
         branch: The Rhiza template branch to use.
         target_branch: Optional branch name to create/checkout in the target.
         strategy: Sync strategy — ``"merge"`` for 3-way merge,
-            ``"overwrite"`` for traditional overwrite (same as materialize --force),
-            ``"diff"`` for dry-run showing what would change.
+            or ``"diff"`` for dry-run showing what would change.
     """
     target = target.resolve()
     logger.info(f"Target repository: {target}")
@@ -605,8 +578,6 @@ def sync(
 
             if strategy == "diff":
                 _sync_diff(target, upstream_snapshot)
-            elif strategy == "overwrite":
-                _sync_overwrite(target, upstream_snapshot, upstream_sha, materialized, rhiza_repo, rhiza_branch)
             else:
                 _sync_merge(
                     target,
