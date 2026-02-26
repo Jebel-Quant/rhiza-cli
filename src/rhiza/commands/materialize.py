@@ -6,10 +6,10 @@ into the target Git repository, and records managed files in
 `.rhiza/template.lock`. Use this to take a one-shot snapshot of template files.
 """
 
+import datetime
 import os
 import shutil
 import subprocess  # nosec B404
-import sys
 import tempfile
 from pathlib import Path
 
@@ -88,7 +88,7 @@ def _handle_target_branch(
         logger.error(f"Failed to create/checkout branch '{target_branch}'")
         _log_git_stderr_errors(e.stderr)
         logger.error("Please ensure you have no uncommitted changes or conflicts")
-        sys.exit(1)
+        raise
 
 
 def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplate, str, str, list[str], list[str]]:
@@ -106,7 +106,7 @@ def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplat
     if not valid:
         logger.error(f"Rhiza template is invalid in: {target}")
         logger.error("Please fix validation errors and try again")
-        sys.exit(1)
+        raise RuntimeError("Rhiza template validation failed")  # noqa: TRY003
 
     # Load the template configuration
     template_file = target / ".rhiza" / "template.yml"
@@ -203,7 +203,7 @@ def _update_sparse_checkout(
     except subprocess.CalledProcessError as e:
         logger.error("Failed to update sparse checkout paths")
         _log_git_stderr_errors(e.stderr)
-        sys.exit(1)
+        raise
 
 
 def _clone_template_repository(
@@ -253,7 +253,7 @@ def _clone_template_repository(
         logger.error("  - The repository exists and is accessible")
         logger.error(f"  - Branch '{rhiza_branch}' exists in the repository")
         logger.error("  - You have network access to the git hosting service")
-        sys.exit(1)
+        raise
 
     # Initialize sparse checkout in cone mode
     try:
@@ -270,7 +270,7 @@ def _clone_template_repository(
     except subprocess.CalledProcessError as e:
         logger.error("Failed to initialize sparse checkout")
         _log_git_stderr_errors(e.stderr)
-        sys.exit(1)
+        raise
 
     # Set sparse checkout paths
     try:
@@ -287,7 +287,7 @@ def _clone_template_repository(
     except subprocess.CalledProcessError as e:
         logger.error("Failed to configure sparse checkout paths")
         _log_git_stderr_errors(e.stderr)
-        sys.exit(1)
+        raise
 
 
 def _copy_files_to_target(
@@ -590,7 +590,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                 include_paths = resolved_paths
             except ValueError as e:
                 logger.error(f"Failed to resolve templates: {e}")
-                sys.exit(1)
+                raise
 
         sha = _get_head_sha_from_clone(tmp_dir, git_executable, git_env)
         materialized_files = _copy_files_to_target(tmp_dir, target, include_paths, excluded_paths, force)
@@ -610,6 +610,8 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
         include=template.include,
         exclude=excluded_paths,
         templates=template.templates,
+        synced_at=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        strategy="materialize",
     )
     lock_path = target / ".rhiza" / "template.lock"
     lock.to_yaml(lock_path)

@@ -5,7 +5,6 @@ structured PR descriptions for rhiza sync operations.
 """
 
 import subprocess  # nosec B404
-import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -399,7 +398,7 @@ def summarise(target: Path, output: Path | None = None) -> None:
     if not (target / ".git").is_dir():
         logger.error(f"Target directory is not a git repository: {target}")
         logger.error("Initialize a git repository with 'git init' first")
-        sys.exit(1)
+        raise RuntimeError(f"Target directory is not a git repository: {target}")  # noqa: TRY003
 
     # Generate the PR description
     description = generate_pr_description(target)

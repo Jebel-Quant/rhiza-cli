@@ -47,8 +47,8 @@ class TestInitCommand:
         with open(template_file, "w") as f:
             yaml.dump(
                 {
-                    "template-repository": "custom/repo",
-                    "template-branch": "dev",
+                    "repository": "custom/repo",
+                    "ref": "dev",
                     "include": [".github", "Makefile"],
                 },
                 f,
@@ -61,8 +61,8 @@ class TestInitCommand:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        assert config["template-repository"] == "custom/repo"
-        assert config["template-branch"] == "dev"
+        assert config["repository"] == "custom/repo"
+        assert config["ref"] == "dev"
 
     def test_init_warns_on_missing_template_repository(self, tmp_path):
         """Test that init warns when template-repository is missing."""

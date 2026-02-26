@@ -715,7 +715,7 @@ class TestCloneAtShaErrorPaths:
 
     @patch("rhiza.commands.sync.subprocess.run")
     def test_clone_failure_exits(self, mock_run, tmp_path, git_setup):
-        """Clone failure triggers sys.exit(1) (lines 141-144)."""
+        """Clone failure raises CalledProcessError."""
         import subprocess as _sp
 
         git_executable, git_env = git_setup
@@ -725,12 +725,12 @@ class TestCloneAtShaErrorPaths:
 
         dest = tmp_path / "dest"
         dest.mkdir()
-        with pytest.raises(SystemExit):
+        with pytest.raises(_sp.CalledProcessError):
             _clone_at_sha("https://example.com/repo.git", "abc123", dest, ["README.md"], git_executable, git_env)
 
     @patch("rhiza.commands.sync.subprocess.run")
     def test_sparse_checkout_failure_exits(self, mock_run, tmp_path, git_setup):
-        """Sparse-checkout failure triggers sys.exit(1) (lines 164-167)."""
+        """Sparse-checkout failure raises CalledProcessError."""
         import subprocess as _sp
         from unittest.mock import MagicMock
 
@@ -743,12 +743,12 @@ class TestCloneAtShaErrorPaths:
 
         dest = tmp_path / "dest"
         dest.mkdir()
-        with pytest.raises(SystemExit):
+        with pytest.raises(_sp.CalledProcessError):
             _clone_at_sha("https://example.com/repo.git", "abc123", dest, ["README.md"], git_executable, git_env)
 
     @patch("rhiza.commands.sync.subprocess.run")
     def test_checkout_failure_exits(self, mock_run, tmp_path, git_setup):
-        """Checkout failure triggers sys.exit(1) (lines 179-182)."""
+        """Checkout failure raises CalledProcessError."""
         import subprocess as _sp
         from unittest.mock import MagicMock
 
@@ -761,7 +761,7 @@ class TestCloneAtShaErrorPaths:
 
         dest = tmp_path / "dest"
         dest.mkdir()
-        with pytest.raises(SystemExit):
+        with pytest.raises(_sp.CalledProcessError):
             _clone_at_sha("https://example.com/repo.git", "abc123", dest, ["README.md"], git_executable, git_env)
 
 
