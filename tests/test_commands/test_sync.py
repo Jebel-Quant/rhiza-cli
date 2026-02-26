@@ -88,6 +88,22 @@ class TestLockFile:
         lock_path.write_text("abc123def456\n", encoding="utf-8")
         assert _read_lock(tmp_path) == "abc123def456"
 
+    def test_write_lock_no_tmp_file_left(self, tmp_path):
+        """After _write_lock completes, no .tmp or .fd file should remain."""
+        _write_lock(tmp_path, TemplateLock(sha="deadbeef12345678"))
+        rhiza_dir = tmp_path / ".rhiza"
+        assert not list(rhiza_dir.glob("template.lock.tmp"))
+        assert not list(rhiza_dir.glob("template.lock.fd"))
+
+    def test_write_lock_atomic_replace(self, tmp_path):
+        """_write_lock uses an atomic rename so the lock is never partially written."""
+        sha_first = "aaa111bbb222ccc3"
+        sha_second = "ddd444eee555fff6"
+        _write_lock(tmp_path, TemplateLock(sha=sha_first))
+        _write_lock(tmp_path, TemplateLock(sha=sha_second))
+        # The final lock must contain exactly the second SHA.
+        assert _read_lock(tmp_path) == sha_second
+
 
 class TestExpandPaths:
     """Tests for path expansion."""
