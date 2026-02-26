@@ -380,6 +380,71 @@ def _warn_about_workflow_files(materialized_files: list[Path]) -> None:
         logger.info(f"Workflow files affected: {len(workflow_files)}")
 
 
+def _read_previously_tracked_files(target: Path) -> set[Path]:
+    """Return the set of files tracked by the last sync.
+
+    Prefers ``template.lock.files`` and falls back to legacy ``.rhiza/history``
+    and ``.rhiza.history`` files for backward compatibility.
+
+    Args:
+        target: Target repository path.
+
+    Returns:
+        Set of previously tracked file paths (relative to target), or an empty
+        set when no tracking information is found.
+    """
+    lock_file = target / ".rhiza" / "template.lock"
+    if lock_file.exists():
+        try:
+            lock = TemplateLock.from_yaml(lock_file)
+            if lock.files:
+                files = {Path(f) for f in lock.files}
+                logger.debug(f"Reading previous file list from template.lock ({len(files)} files)")
+                return files
+        except Exception as e:
+            logger.debug(f"Could not read template.lock for orphan cleanup: {e}")
+
+    # Fall back to legacy history files for backward compatibility
+    new_history_file = target / ".rhiza" / "history"
+    old_history_file = target / ".rhiza.history"
+
+    if new_history_file.exists():
+        history_file = new_history_file
+        logger.debug(f"Reading existing history file from new location: {history_file.relative_to(target)}")
+    elif old_history_file.exists():
+        history_file = old_history_file
+        logger.debug(f"Reading existing history file from old location: {history_file.relative_to(target)}")
+    else:
+        logger.debug("No previous file tracking found")
+        return set()
+
+    files = set()
+    with history_file.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                files.add(Path(line))
+    return files
+
+
+def _delete_orphaned_file(target: Path, file_path: Path) -> None:
+    """Delete a single orphaned file from the target repository.
+
+    Args:
+        target: Target repository path.
+        file_path: Relative path of the orphaned file to delete.
+    """
+    full_path = target / file_path
+    if full_path.exists():
+        try:
+            full_path.unlink()
+            logger.success(f"[DEL] {file_path}")
+        except Exception as e:
+            logger.warning(f"Failed to delete {file_path}: {e}")
+    else:
+        logger.debug(f"Skipping {file_path} (already deleted)")
+
+
 def _clean_orphaned_files(target: Path, materialized_files: list[Path]) -> None:
     """Clean up files that are no longer maintained by template.
 
@@ -387,68 +452,28 @@ def _clean_orphaned_files(target: Path, materialized_files: list[Path]) -> None:
         target: Target repository path.
         materialized_files: List of currently materialized files.
     """
-    previously_tracked_files: set[Path] = set()
-
-    # Prefer template.lock.files as the canonical source
-    lock_file = target / ".rhiza" / "template.lock"
-    if lock_file.exists():
-        try:
-            lock = TemplateLock.from_yaml(lock_file)
-            if lock.files:
-                previously_tracked_files = {Path(f) for f in lock.files}
-                logger.debug(f"Reading previous file list from template.lock ({len(previously_tracked_files)} files)")
-        except Exception as e:
-            logger.debug(f"Could not read template.lock for orphan cleanup: {e}")
-
-    # Fall back to legacy history files for backward compatibility
+    previously_tracked_files = _read_previously_tracked_files(target)
     if not previously_tracked_files:
-        new_history_file = target / ".rhiza" / "history"
-        old_history_file = target / ".rhiza.history"
-
-        if new_history_file.exists():
-            history_file = new_history_file
-            logger.debug(f"Reading existing history file from new location: {history_file.relative_to(target)}")
-        elif old_history_file.exists():
-            history_file = old_history_file
-            logger.debug(f"Reading existing history file from old location: {history_file.relative_to(target)}")
-        else:
-            logger.debug("No previous file tracking found")
-            return
-
-        with history_file.open("r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#"):
-                    previously_tracked_files.add(Path(line))
+        return
 
     logger.debug(f"Found {len(previously_tracked_files)} file(s) in previous tracking")
 
-    # Find orphaned files
-    currently_materialized_files = set(materialized_files)
-    orphaned_files = previously_tracked_files - currently_materialized_files
+    orphaned_files = previously_tracked_files - set(materialized_files)
 
     # Protected files that should never be deleted automatically
     # even if they are orphaned (e.g. user chose to stop tracking them)
     protected_files = {Path(".rhiza/template.yml")}
 
-    if orphaned_files:
-        logger.info(f"Found {len(orphaned_files)} orphaned file(s) no longer maintained by template")
-        for file_path in sorted(orphaned_files):
-            if file_path in protected_files:
-                logger.info(f"Skipping protected file: {file_path}")
-                continue
-
-            full_path = target / file_path
-            if full_path.exists():
-                try:
-                    full_path.unlink()
-                    logger.success(f"[DEL] {file_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to delete {file_path}: {e}")
-            else:
-                logger.debug(f"Skipping {file_path} (already deleted)")
-    else:
+    if not orphaned_files:
         logger.debug("No orphaned files to clean up")
+        return
+
+    logger.info(f"Found {len(orphaned_files)} orphaned file(s) no longer maintained by template")
+    for file_path in sorted(orphaned_files):
+        if file_path in protected_files:
+            logger.info(f"Skipping protected file: {file_path}")
+            continue
+        _delete_orphaned_file(target, file_path)
 
 
 def __expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
