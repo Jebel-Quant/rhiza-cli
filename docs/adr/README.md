@@ -20,6 +20,7 @@ Each ADR follows this structure:
 |-----|-------|--------|
 | [ADR-0001](0001-inline-get-diff-instead-of-cruft.md) | Inline `get_diff` instead of depending on `cruft` | Accepted |
 | [ADR-0002](0002-repository-ref-as-canonical-keys.md) | Make `repository`/`ref` canonical keys in `template.yml` | Accepted |
+| [ADR-0003](0003-lock-file-concurrency.md) | Concurrency-safe lock file I/O with fcntl and atomic rename | Accepted |
 
 ## Creating a New ADR
 
