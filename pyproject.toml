@@ -41,14 +41,6 @@ Issues = "https://github.com/jebel-quant/rhiza/issues-cli"
 [project.optional-dependencies]
 tools = ["rhiza-tools>=0.1.2"]
 
-[dependency-groups]
-dev = [
-    "numpy>=2.4",
-    "marimo>=0.18.0",
-    "pandas>=2.3",
-    "plotly>=6.5",
-]
-
 [tool.hatch.build.targets.wheel]
 # Use src-layout: package code is under src/config
 packages = ["src/rhiza"]
@@ -59,13 +51,6 @@ loguru = "loguru"
 typer = "typer"
 jinja2 = "jinja2"
 rhiza-tools = "rhiza_tools"
-numpy = "numpy"
-marimo = "marimo"
-pandas = "pandas"
-plotly = "plotly"
-
-[tool.marimo.runtime]
-pythonpath = ["src"]
 
 [project.scripts]
 rhiza = "rhiza.__main__:app"
