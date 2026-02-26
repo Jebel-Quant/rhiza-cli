@@ -25,6 +25,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+import yaml
 from cruft._commands.utils.diff import get_diff
 from loguru import logger
 
@@ -38,8 +39,8 @@ from rhiza.commands.materialize import (
     _update_sparse_checkout,
     _validate_and_load_template,
     _warn_about_workflow_files,
-    _write_history_file,
 )
+from rhiza.models import TemplateLock
 from rhiza.subprocess_utils import get_git_executable
 
 # ---------------------------------------------------------------------------
@@ -52,6 +53,8 @@ LOCK_FILE = ".rhiza/template.lock"
 def _read_lock(target: Path) -> str | None:
     """Read the last-synced commit SHA from the lock file.
 
+    Handles both the structured YAML format and the legacy plain-SHA format.
+
     Args:
         target: Path to the target repository.
 
@@ -61,20 +64,28 @@ def _read_lock(target: Path) -> str | None:
     lock_path = target / LOCK_FILE
     if not lock_path.exists():
         return None
-    return lock_path.read_text(encoding="utf-8").strip()
+    content = lock_path.read_text(encoding="utf-8").strip()
+    # Try structured YAML format first
+    try:
+        data = yaml.safe_load(content)
+        if isinstance(data, dict) and "sha" in data:
+            return data["sha"]
+    except yaml.YAMLError:
+        pass
+    # Legacy plain-SHA format
+    return content
 
 
-def _write_lock(target: Path, sha: str) -> None:
-    """Persist the synced commit SHA to the lock file.
+def _write_lock(target: Path, lock: TemplateLock) -> None:
+    """Persist the lock data to the YAML lock file.
 
     Args:
         target: Path to the target repository.
-        sha: The commit SHA to record.
+        lock: The :class:`~rhiza.models.TemplateLock` to record.
     """
     lock_path = target / LOCK_FILE
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    lock_path.write_text(sha + "\n", encoding="utf-8")
-    logger.info(f"Updated {LOCK_FILE} → {sha[:12]}")
+    lock.to_yaml(lock_path)
+    logger.info(f"Updated {LOCK_FILE} → {lock.sha[:12]}")
 
 
 # ---------------------------------------------------------------------------
@@ -368,6 +379,7 @@ def _sync_merge(
     git_env: dict[str, str],
     rhiza_repo: str,
     rhiza_branch: str,
+    lock: TemplateLock,
 ) -> None:
     """Execute the merge strategy (cruft-style 3-way merge).
 
@@ -388,6 +400,7 @@ def _sync_merge(
         git_env: Environment variables for git commands.
         rhiza_repo: Template repository name.
         rhiza_branch: Template branch name.
+        lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
     """
     base_snapshot = Path(tempfile.mkdtemp())
     try:
@@ -403,6 +416,7 @@ def _sync_merge(
                 git_url,
                 git_executable,
                 git_env,
+                lock,
             )
         else:
             logger.info("First sync — copying all template files")
@@ -410,8 +424,7 @@ def _sync_merge(
 
         _warn_about_workflow_files(materialized)
         _clean_orphaned_files(target, materialized)
-        _write_history_file(target, materialized, rhiza_repo, rhiza_branch)
-        _write_lock(target, upstream_sha)
+        _write_lock(target, lock)
         logger.success(f"Sync complete — {len(materialized)} file(s) processed")
     finally:
         if base_snapshot.exists():
@@ -429,6 +442,7 @@ def _merge_with_base(
     git_url: str,
     git_executable: str,
     git_env: dict[str, str],
+    lock: TemplateLock,
 ) -> None:
     """Compute and apply the diff between base and upstream snapshots.
 
@@ -443,6 +457,7 @@ def _merge_with_base(
         git_url: Remote URL of the template repository.
         git_executable: Absolute path to git.
         git_env: Environment variables for git commands.
+        lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
     """
     logger.info(f"Cloning base snapshot at {base_sha[:12]}")
     base_clone = Path(tempfile.mkdtemp())
@@ -459,7 +474,7 @@ def _merge_with_base(
 
     if not diff.strip():
         logger.success("Template unchanged since last sync — nothing to apply")
-        _write_lock(target, upstream_sha)
+        _write_lock(target, lock)
         return
 
     logger.info("Applying template changes via 3-way merge (cruft)...")
@@ -576,6 +591,17 @@ def sync(
             materialized = _prepare_snapshot(upstream_dir, include_paths, excludes, upstream_snapshot)
             logger.info(f"Upstream: {len(materialized)} file(s) to consider")
 
+            lock = TemplateLock(
+                sha=upstream_sha,
+                repo=rhiza_repo,
+                host=rhiza_host,
+                ref=rhiza_branch,
+                include=include_paths,
+                exclude=excluded_paths,
+                templates=template.templates,
+                files=sorted(str(f) for f in materialized),
+            )
+
             if strategy == "diff":
                 _sync_diff(target, upstream_snapshot)
             else:
@@ -592,6 +618,7 @@ def sync(
                     git_env,
                     rhiza_repo,
                     rhiza_branch,
+                    lock,
                 )
         finally:
             if upstream_snapshot.exists():

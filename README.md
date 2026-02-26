@@ -248,6 +248,26 @@ Keeps your project in sync with the template repository:
 - **First run (no lock file):** copies all template files and writes `.rhiza/template.lock`
 - **Subsequent runs:** computes diff (base → upstream) and applies it via `git apply -3` — local edits are preserved
 
+`.rhiza/template.lock` is a YAML file that records the full state of the last sync:
+
+```yaml
+sha: abc123def456789abcdef0123456789abcdef0123
+repo: jebel-quant/rhiza
+host: github
+ref: main
+include:
+- .github/
+- .rhiza/
+exclude: []
+templates: []
+files:
+- .github/workflows/ci.yml
+- .rhiza/template.yml
+- Makefile
+```
+
+> Commit `.rhiza/template.lock` to version control — it is the anchor for incremental 3-way merges.
+
 **Examples:**
 
 ```bash

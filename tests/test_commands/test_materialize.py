@@ -387,7 +387,7 @@ class TestInjectCommand:
     def test_materialize_creates_rhiza_history_file(
         self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
-        """Test that materialize creates a .rhiza/history file listing all template files."""
+        """Test that materialize creates a .rhiza/template.lock file listing all template files."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
@@ -420,25 +420,26 @@ class TestInjectCommand:
         file2.write_text("content2")
         mock_mkdtemp.return_value = str(temp_dir)
 
-        # Mock subprocess to succeed
-        mock_subprocess.return_value = Mock(returncode=0)
+        # Mock subprocess to succeed (with proper stdout for rev-parse HEAD)
+        mock_subprocess.return_value = Mock(returncode=0, stdout="abc123def456\n")
 
         # Run materialize
         materialize(tmp_path, "main", None, False)
 
-        # Verify .rhiza/history was created
+        # Verify .rhiza/template.lock was created
         rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        history_file = rhiza_dir / "history"
-        assert history_file.exists()
+        lock_file = rhiza_dir / "template.lock"
+        assert lock_file.exists()
 
-        # Verify content
-        history_content = history_file.read_text()
-        assert "# Rhiza Template History" in history_content
-        assert "# Template repository: jebel-quant/rhiza" in history_content
-        assert "# Template branch: main" in history_content
-        assert "file1.txt" in history_content
-        assert "file2.txt" in history_content
+        # Verify content via TemplateLock
+        from rhiza.models import TemplateLock
+
+        lock_content = TemplateLock.from_yaml(lock_file)
+        assert lock_content.sha == "abc123def456"
+        assert lock_content.repo == "jebel-quant/rhiza"
+        assert lock_content.ref == "main"
+        assert "file1.txt" in lock_content.files
+        assert "file2.txt" in lock_content.files
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -447,7 +448,7 @@ class TestInjectCommand:
     def test_materialize_history_includes_skipped_files(
         self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
-        """Test that .rhiza/history includes files that already exist (were skipped)."""
+        """Test that .rhiza/template.lock includes files that already exist (were skipped)."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
@@ -482,19 +483,21 @@ class TestInjectCommand:
         src_file.write_text("new content")
         mock_mkdtemp.return_value = str(temp_dir)
 
-        # Mock subprocess to succeed
-        mock_subprocess.return_value = Mock(returncode=0)
+        # Mock subprocess to succeed (with proper stdout for rev-parse HEAD)
+        mock_subprocess.return_value = Mock(returncode=0, stdout="def456abc123\n")
 
         # Run materialize without force (should skip existing file)
         materialize(tmp_path, "main", None, False)
 
-        # Verify .rhiza/history includes the skipped file
+        # Verify .rhiza/template.lock includes the skipped file
         rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        history_file = rhiza_dir / "history"
-        assert history_file.exists()
-        history_content = history_file.read_text()
-        assert "existing.txt" in history_content
+        lock_file = rhiza_dir / "template.lock"
+        assert lock_file.exists()
+
+        from rhiza.models import TemplateLock
+
+        lock_content = TemplateLock.from_yaml(lock_file)
+        assert "existing.txt" in lock_content.files
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -1113,7 +1116,7 @@ class TestInjectCommand:
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
     def test_materialize_deletes_orphaned_files(self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path):
-        """Test that materialize deletes files in old .rhiza/history but not in new materialization."""
+        """Test that materialize deletes files in old template.lock but not in new materialization."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
@@ -1122,20 +1125,17 @@ class TestInjectCommand:
         pyproject_file = tmp_path / "pyproject.toml"
         pyproject_file.write_text('[project]\nname = "test"\n')
 
-        # Create an old .rhiza/history file with files that will become orphaned
+        # Create an old .rhiza/template.lock with files that will become orphaned
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True, exist_ok=True)
-        old_history = rhiza_dir / "history"
-        old_history.write_text(
-            "# Rhiza Template History\n"
-            "# Template repository: jebel-quant/rhiza\n"
-            "# Template branch: main\n"
-            "#\n"
-            "# Files under template control:\n"
-            "file1.txt\n"
-            "orphaned.txt\n"
-            "dir/nested_orphaned.txt\n"
+
+        from rhiza.models import TemplateLock
+
+        old_lock = TemplateLock(
+            sha="old_sha",
+            files=["file1.txt", "orphaned.txt", "dir/nested_orphaned.txt"],
         )
+        old_lock.to_yaml(rhiza_dir / "template.lock")
 
         # Create the orphaned files that should be deleted
         orphaned_file = tmp_path / "orphaned.txt"
@@ -1167,8 +1167,8 @@ class TestInjectCommand:
         file1.write_text("content1")
         mock_mkdtemp.return_value = str(temp_dir)
 
-        # Mock subprocess to succeed
-        mock_subprocess.return_value = Mock(returncode=0)
+        # Mock subprocess to succeed (with proper stdout for rev-parse HEAD)
+        mock_subprocess.return_value = Mock(returncode=0, stdout="new_sha_123\n")
 
         # Run materialize
         materialize(tmp_path, "main", None, False)
@@ -1177,11 +1177,11 @@ class TestInjectCommand:
         assert not orphaned_file.exists(), "orphaned.txt should have been deleted"
         assert not nested_orphaned.exists(), "dir/nested_orphaned.txt should have been deleted"
 
-        # Verify .rhiza/history was updated and only contains file1.txt
-        history_content = old_history.read_text()
-        assert "file1.txt" in history_content
-        assert "orphaned.txt" not in history_content
-        assert "nested_orphaned.txt" not in history_content
+        # Verify .rhiza/template.lock was updated and only contains file1.txt
+        lock = TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock")
+        assert "file1.txt" in lock.files
+        assert "orphaned.txt" not in lock.files
+        assert "dir/nested_orphaned.txt" not in lock.files
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -1199,19 +1199,17 @@ class TestInjectCommand:
         pyproject_file = tmp_path / "pyproject.toml"
         pyproject_file.write_text('[project]\nname = "test"\n')
 
-        # Create an old .rhiza/history file with a file that doesn't exist
+        # Create an old .rhiza/template.lock with a file that doesn't exist
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True, exist_ok=True)
-        old_history = rhiza_dir / "history"
-        old_history.write_text(
-            "# Rhiza Template History\n"
-            "# Template repository: jebel-quant/rhiza\n"
-            "# Template branch: main\n"
-            "#\n"
-            "# Files under template control:\n"
-            "file1.txt\n"
-            "nonexistent.txt\n"
+
+        from rhiza.models import TemplateLock
+
+        old_lock = TemplateLock(
+            sha="old_sha",
+            files=["file1.txt", "nonexistent.txt"],
         )
+        old_lock.to_yaml(rhiza_dir / "template.lock")
 
         # Don't create nonexistent.txt
 
@@ -1237,25 +1235,25 @@ class TestInjectCommand:
         file1.write_text("content1")
         mock_mkdtemp.return_value = str(temp_dir)
 
-        # Mock subprocess to succeed
-        mock_subprocess.return_value = Mock(returncode=0)
+        # Mock subprocess to succeed (with proper stdout for rev-parse HEAD)
+        mock_subprocess.return_value = Mock(returncode=0, stdout="new_sha_456\n")
 
         # Run materialize - should not fail even though nonexistent.txt doesn't exist
         materialize(tmp_path, "main", None, False)
 
-        # Verify .rhiza/history was updated
-        history_content = old_history.read_text()
-        assert "file1.txt" in history_content
-        assert "nonexistent.txt" not in history_content
+        # Verify .rhiza/template.lock was updated
+        lock = TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock")
+        assert "file1.txt" in lock.files
+        assert "nonexistent.txt" not in lock.files
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
     @patch("rhiza.commands.materialize.shutil.copy2")
     @patch("rhiza.commands.materialize.tempfile.mkdtemp")
-    def test_materialize_no_cleanup_when_no_history(
+    def test_materialize_no_cleanup_when_no_lock(
         self, mock_mkdtemp, mock_copy2, mock_rmtree, mock_subprocess, tmp_path
     ):
-        """Test that materialize works correctly when no .rhiza/history exists yet."""
+        """Test that materialize works correctly when no .rhiza/template.lock exists yet."""
         # Setup git repo
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
@@ -1264,7 +1262,7 @@ class TestInjectCommand:
         pyproject_file = tmp_path / "pyproject.toml"
         pyproject_file.write_text('[project]\nname = "test"\n')
 
-        # No old .rhiza/history file
+        # No old .rhiza/template.lock file
 
         # Create template.yml
         rhiza_dir = tmp_path / ".rhiza"
@@ -1288,19 +1286,21 @@ class TestInjectCommand:
         file1.write_text("content1")
         mock_mkdtemp.return_value = str(temp_dir)
 
-        # Mock subprocess to succeed
-        mock_subprocess.return_value = Mock(returncode=0)
+        # Mock subprocess to succeed (with proper stdout for rev-parse HEAD)
+        mock_subprocess.return_value = Mock(returncode=0, stdout="fresh_sha_789\n")
 
-        # Run materialize - should work fine without old history
+        # Run materialize - should work fine without existing lock
         materialize(tmp_path, "main", None, False)
 
-        # Verify .rhiza/history was created
+        # Verify .rhiza/template.lock was created
         rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        history_file = rhiza_dir / "history"
-        assert history_file.exists()
-        history_content = history_file.read_text()
-        assert "file1.txt" in history_content
+        lock_file = rhiza_dir / "template.lock"
+        assert lock_file.exists()
+
+        from rhiza.models import TemplateLock
+
+        lock_content = TemplateLock.from_yaml(lock_file)
+        assert "file1.txt" in lock_content.files
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -1416,9 +1416,9 @@ class TestInjectCommand:
         # Verify old file was deleted (it was in old history but not in new template)
         assert not old_file.exists()
 
-        # Verify new history file was created in new location
-        new_history_file = tmp_path / ".rhiza" / "history"
-        assert new_history_file.exists()
+        # Verify new template.lock was created
+        new_lock_file = tmp_path / ".rhiza" / "template.lock"
+        assert new_lock_file.exists()
 
     @patch("rhiza.commands.materialize.subprocess.run")
     @patch("rhiza.commands.materialize.shutil.rmtree")
@@ -1471,10 +1471,15 @@ class TestInjectCommand:
         # Run materialize
         materialize(tmp_path, "main", None, False)
 
-        # Verify old history file was removed
-        assert not old_history_file.exists()
+        # Verify old history file was NOT removed — materialize no longer migrates it;
+        # the legacy .rhiza.history is still read during orphan cleanup (backward compat) but never deleted
+        assert old_history_file.exists()
 
-        # Verify new history file still exists
+        # Verify template.lock was written
+        lock_file = rhiza_dir / "template.lock"
+        assert lock_file.exists()
+
+        # Verify new history file still exists (unchanged)
         assert new_history_file.exists()
 
     @patch("rhiza.commands.materialize.subprocess.run")
@@ -1845,11 +1850,11 @@ template-branch: main
 include: ["other.txt"]
 """)
 
-        # Mock history says template.yml was tracked
-        history_file = rhiza_dir / "history"
-        history_file.write_text("""# History
-.rhiza/template.yml
-""")
+        # Mock lock says template.yml was tracked
+        from rhiza.models import TemplateLock
+
+        old_lock = TemplateLock(sha="old_sha", files=[".rhiza/template.yml"])
+        old_lock.to_yaml(rhiza_dir / "template.lock")
 
         # Mock tempfile
         temp_dir = tmp_path / "temp"

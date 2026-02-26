@@ -3,7 +3,7 @@
 This module implements the `materialize` command. It performs a sparse
 checkout of the configured template repository, copies the selected files
 into the target Git repository, and records managed files in
-`.rhiza/history`. Use this to take a one-shot snapshot of template files.
+`.rhiza/template.lock`. Use this to take a one-shot snapshot of template files.
 """
 
 import os
@@ -17,7 +17,7 @@ from loguru import logger
 
 from rhiza.bundle_resolver import load_bundles_from_clone, resolve_include_paths
 from rhiza.commands.validate import validate
-from rhiza.models import RhizaTemplate
+from rhiza.models import RhizaTemplate, TemplateLock
 from rhiza.subprocess_utils import get_git_executable
 
 
@@ -380,18 +380,34 @@ def _warn_about_workflow_files(materialized_files: list[Path]) -> None:
         logger.info(f"Workflow files affected: {len(workflow_files)}")
 
 
-def _clean_orphaned_files(target: Path, materialized_files: list[Path]) -> None:
-    """Clean up files that are no longer maintained by template.
+def _read_previously_tracked_files(target: Path) -> set[Path]:
+    """Return the set of files tracked by the last sync.
+
+    Prefers ``template.lock.files`` and falls back to legacy ``.rhiza/history``
+    and ``.rhiza.history`` files for backward compatibility.
 
     Args:
         target: Target repository path.
-        materialized_files: List of currently materialized files.
+
+    Returns:
+        Set of previously tracked file paths (relative to target), or an empty
+        set when no tracking information is found.
     """
-    # Read old history file
+    lock_file = target / ".rhiza" / "template.lock"
+    if lock_file.exists():
+        try:
+            lock = TemplateLock.from_yaml(lock_file)
+            if lock.files:
+                files = {Path(f) for f in lock.files}
+                logger.debug(f"Reading previous file list from template.lock ({len(files)} files)")
+                return files
+        except Exception as e:
+            logger.debug(f"Could not read template.lock for orphan cleanup: {e}")
+
+    # Fall back to legacy history files for backward compatibility
     new_history_file = target / ".rhiza" / "history"
     old_history_file = target / ".rhiza.history"
 
-    # Prefer new location, check old for migration
     if new_history_file.exists():
         history_file = new_history_file
         logger.debug(f"Reading existing history file from new location: {history_file.relative_to(target)}")
@@ -399,80 +415,65 @@ def _clean_orphaned_files(target: Path, materialized_files: list[Path]) -> None:
         history_file = old_history_file
         logger.debug(f"Reading existing history file from old location: {history_file.relative_to(target)}")
     else:
-        logger.debug("No existing history file found")
-        return
+        logger.debug("No previous file tracking found")
+        return set()
 
-    previously_tracked_files: set[Path] = set()
+    files = set()
     with history_file.open("r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line and not line.startswith("#"):
-                previously_tracked_files.add(Path(line))
+                files.add(Path(line))
+    return files
 
-    logger.debug(f"Found {len(previously_tracked_files)} file(s) in previous history")
 
-    # Find orphaned files
-    currently_materialized_files = set(materialized_files)
-    orphaned_files = previously_tracked_files - currently_materialized_files
+def _delete_orphaned_file(target: Path, file_path: Path) -> None:
+    """Delete a single orphaned file from the target repository.
+
+    Args:
+        target: Target repository path.
+        file_path: Relative path of the orphaned file to delete.
+    """
+    full_path = target / file_path
+    if full_path.exists():
+        try:
+            full_path.unlink()
+            logger.success(f"[DEL] {file_path}")
+        except Exception as e:
+            logger.warning(f"Failed to delete {file_path}: {e}")
+    else:
+        logger.debug(f"Skipping {file_path} (already deleted)")
+
+
+def _clean_orphaned_files(target: Path, materialized_files: list[Path]) -> None:
+    """Clean up files that are no longer maintained by template.
+
+    Args:
+        target: Target repository path.
+        materialized_files: List of currently materialized files.
+    """
+    previously_tracked_files = _read_previously_tracked_files(target)
+    if not previously_tracked_files:
+        return
+
+    logger.debug(f"Found {len(previously_tracked_files)} file(s) in previous tracking")
+
+    orphaned_files = previously_tracked_files - set(materialized_files)
 
     # Protected files that should never be deleted automatically
     # even if they are orphaned (e.g. user chose to stop tracking them)
     protected_files = {Path(".rhiza/template.yml")}
 
-    if orphaned_files:
-        logger.info(f"Found {len(orphaned_files)} orphaned file(s) no longer maintained by template")
-        for file_path in sorted(orphaned_files):
-            if file_path in protected_files:
-                logger.info(f"Skipping protected file: {file_path}")
-                continue
-
-            full_path = target / file_path
-            if full_path.exists():
-                try:
-                    full_path.unlink()
-                    logger.success(f"[DEL] {file_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to delete {file_path}: {e}")
-            else:
-                logger.debug(f"Skipping {file_path} (already deleted)")
-    else:
+    if not orphaned_files:
         logger.debug("No orphaned files to clean up")
+        return
 
-
-def _write_history_file(target: Path, materialized_files: list[Path], rhiza_repo: str, rhiza_branch: str) -> None:
-    """Write history file tracking materialized files.
-
-    Args:
-        target: Target repository path.
-        materialized_files: List of materialized files.
-        rhiza_repo: Template repository name.
-        rhiza_branch: Template branch name.
-    """
-    # Always write to new location
-    history_file = target / ".rhiza" / "history"
-    history_file.parent.mkdir(parents=True, exist_ok=True)
-
-    logger.debug(f"Writing history file: {history_file.relative_to(target)}")
-    with history_file.open("w", encoding="utf-8") as f:
-        f.write("# Rhiza Template History\n")
-        f.write("# This file lists all files managed by the Rhiza template.\n")
-        f.write(f"# Template repository: {rhiza_repo}\n")
-        f.write(f"# Template branch: {rhiza_branch}\n")
-        f.write("#\n")
-        f.write("# Files under template control:\n")
-        for file_path in sorted(materialized_files):
-            f.write(f"{file_path}\n")
-
-    logger.info(f"Updated {history_file.relative_to(target)} with {len(materialized_files)} file(s)")
-
-    # Clean up old history file if it exists (migration)
-    old_history_file = target / ".rhiza.history"
-    if old_history_file.exists() and old_history_file != history_file:
-        try:
-            old_history_file.unlink()
-            logger.debug(f"Removed old history file: {old_history_file.relative_to(target)}")
-        except Exception as e:
-            logger.warning(f"Could not remove old history file: {e}")
+    logger.info(f"Found {len(orphaned_files)} orphaned file(s) no longer maintained by template")
+    for file_path in sorted(orphaned_files):
+        if file_path in protected_files:
+            logger.info(f"Skipping protected file: {file_path}")
+            continue
+        _delete_orphaned_file(target, file_path)
 
 
 def __expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
@@ -505,12 +506,38 @@ def __expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
     return all_files
 
 
+def _get_head_sha_from_clone(tmp_dir: Path, git_executable: str, git_env: dict[str, str]) -> str:
+    """Return the HEAD commit SHA of a cloned repository.
+
+    Args:
+        tmp_dir: Directory of the cloned repository.
+        git_executable: Absolute path to git.
+        git_env: Environment variables for git commands.
+
+    Returns:
+        The full HEAD SHA, or empty string on failure.
+    """
+    try:
+        result = subprocess.run(  # nosec B603  # noqa: S603
+            [git_executable, "rev-parse", "HEAD"],
+            cwd=tmp_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=git_env,
+        )
+        sha = result.stdout.strip()
+        return sha if isinstance(sha, str) else ""
+    except subprocess.CalledProcessError:
+        return ""
+
+
 def materialize(target: Path, branch: str, target_branch: str | None, force: bool) -> None:
     """Materialize Rhiza templates into the target repository.
 
     This performs a sparse checkout of the template repository and copies the
     selected files into the target repository, recording all files under
-    template control in `.rhiza/history`.
+    template control in `.rhiza/template.lock`.
 
     Args:
         target (Path): Path to the target repository.
@@ -544,6 +571,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     logger.info(f"Cloning {rhiza_repo}@{rhiza_branch} from {rhiza_host} into temporary directory")
     logger.debug(f"Temporary directory: {tmp_dir}")
 
+    sha = ""
     try:
         # Clone with initial minimal checkout to load template-bundles.yml if needed
         initial_paths = [".rhiza"] if template.templates else include_paths
@@ -564,6 +592,7 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
                 logger.error(f"Failed to resolve templates: {e}")
                 sys.exit(1)
 
+        sha = _get_head_sha_from_clone(tmp_dir, git_executable, git_env)
         materialized_files = _copy_files_to_target(tmp_dir, target, include_paths, excluded_paths, force)
     finally:
         logger.debug(f"Cleaning up temporary directory: {tmp_dir}")
@@ -572,7 +601,20 @@ def materialize(target: Path, branch: str, target_branch: str | None, force: boo
     # Post-processing
     _warn_about_workflow_files(materialized_files)
     _clean_orphaned_files(target, materialized_files)
-    _write_history_file(target, materialized_files, rhiza_repo, rhiza_branch)
+
+    lock = TemplateLock(
+        sha=sha,
+        repo=rhiza_repo,
+        host=rhiza_host,
+        ref=rhiza_branch,
+        include=include_paths,
+        exclude=excluded_paths,
+        templates=template.templates,
+        files=sorted(str(f) for f in materialized_files),
+    )
+    lock_path = target / ".rhiza" / "template.lock"
+    lock.to_yaml(lock_path)
+    logger.info(f"Updated .rhiza/template.lock with {len(materialized_files)} file(s)")
 
     logger.success("Rhiza templates materialized successfully")
     logger.info(

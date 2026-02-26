@@ -35,6 +35,7 @@ from rhiza.commands.sync import (
     _write_lock,
     sync,
 )
+from rhiza.models import TemplateLock
 
 
 class TestLockFile:
@@ -47,15 +48,46 @@ class TestLockFile:
     def test_write_and_read_lock(self, tmp_path):
         """Round-trip write/read of a lock file."""
         sha = "abc123def456"
-        _write_lock(tmp_path, sha)
+        _write_lock(tmp_path, TemplateLock(sha=sha))
         assert _read_lock(tmp_path) == sha
 
     def test_write_lock_creates_parent_directory(self, tmp_path):
         """Lock file creation should create .rhiza/ if needed."""
         target = tmp_path / "project"
         target.mkdir()
-        _write_lock(target, "deadbeef")
+        _write_lock(target, TemplateLock(sha="deadbeef"))
         assert (target / ".rhiza" / "template.lock").exists()
+
+    def test_write_lock_yaml_format(self, tmp_path):
+        """Lock file is written as YAML with all required fields."""
+        lock = TemplateLock(
+            sha="abc123def456",
+            repo="jebel-quant/rhiza",
+            host="github",
+            ref="main",
+            include=[".github/", ".rhiza/"],
+            exclude=[],
+            templates=[],
+            files=[".github/workflows/ci.yml", ".rhiza/template.yml"],
+        )
+        _write_lock(tmp_path, lock)
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+        data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+        assert data["sha"] == "abc123def456"
+        assert data["repo"] == "jebel-quant/rhiza"
+        assert data["host"] == "github"
+        assert data["ref"] == "main"
+        assert data["include"] == [".github/", ".rhiza/"]
+        assert data["exclude"] == []
+        assert data["templates"] == []
+        assert data["files"] == [".github/workflows/ci.yml", ".rhiza/template.yml"]
+
+    def test_read_lock_legacy_plain_sha(self, tmp_path):
+        """Legacy plain-SHA lock files are still readable."""
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+        lock_path.parent.mkdir(parents=True)
+        lock_path.write_text("abc123def456\n", encoding="utf-8")
+        assert _read_lock(tmp_path) == "abc123def456"
 
 
 class TestExpandPaths:
@@ -256,7 +288,7 @@ class TestSyncCommand:
         self._setup_project(tmp_path)
 
         # Write lock matching upstream
-        _write_lock(tmp_path, "abc123")
+        _write_lock(tmp_path, TemplateLock(sha="abc123"))
         mock_sha.return_value = "abc123"
 
         # Mock temp dir (only upstream_dir is needed before early exit)
@@ -398,10 +430,10 @@ class TestSyncOrphanedFiles:
         # old.txt should be deleted as it is no longer in the template
         assert not (tmp_path / "old.txt").exists()
 
-        # History file should only contain new.txt (old.txt removed)
-        history_content = (tmp_path / ".rhiza" / "history").read_text()
-        assert "new.txt" in history_content
-        assert "old.txt" not in history_content
+        # template.lock should be written with only new.txt
+        lock_content = TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock")
+        assert "new.txt" in lock_content.files
+        assert "old.txt" not in lock_content.files
 
 
 class TestSyncCLI:
@@ -591,7 +623,7 @@ class TestSyncMergeWithBase:
         self._setup_project(tmp_path)
 
         # Write a lock so base_sha will be "oldsha" ≠ upstream
-        _write_lock(tmp_path, "oldsha1234567890")
+        _write_lock(tmp_path, TemplateLock(sha="oldsha1234567890"))
         mock_sha.return_value = "newsha1234567890"
 
         clone_dir = tmp_path / "upstream_clone"
@@ -790,6 +822,7 @@ class TestMergeWithBasePaths:
             "https://example.com/repo.git",
             git_executable,
             git_env,
+            TemplateLock(sha="newsha"),
         )
 
     @patch("rhiza.commands.sync.get_diff")
@@ -819,6 +852,7 @@ class TestMergeWithBasePaths:
             "https://example.com/repo.git",
             git_executable,
             git_env,
+            TemplateLock(sha="newsha"),
         )
 
         # Lock should be updated with upstream SHA
@@ -854,6 +888,7 @@ class TestMergeWithBasePaths:
             "https://example.com/repo.git",
             git_executable,
             git_env,
+            TemplateLock(sha="newsha"),
         )
 
         mock_apply.assert_called_once()
@@ -1176,6 +1211,7 @@ class TestThreeWayMergeWithBase:
             "https://example.com/repo.git",
             git_executable,
             git_env,
+            TemplateLock(sha="newsha"),
         )
 
         pyproject = (git_project / "pyproject.toml").read_text()
@@ -1216,6 +1252,7 @@ class TestThreeWayMergeWithBase:
             "https://example.com/repo.git",
             git_executable,
             git_env,
+            TemplateLock(sha="upstream_sha_abc"),
         )
 
         # File must be unchanged
@@ -1255,6 +1292,7 @@ class TestThreeWayMergeWithBase:
             "https://example.com/repo.git",
             git_executable,
             git_env,
+            TemplateLock(sha="newsha"),
         )
 
         assert (git_project / "new_workflow.yml").exists()
@@ -1295,6 +1333,7 @@ class TestThreeWayMergeWithBase:
             "https://example.com/repo.git",
             git_executable,
             git_env,
+            TemplateLock(sha="newsha"),
         )
 
         assert not (git_project / "legacy.cfg").exists(), "legacy.cfg should be deleted"
@@ -1354,12 +1393,10 @@ class TestThreeWayMergeSyncMergeStrategy:
         return project
 
     @patch("rhiza.commands.sync._clone_at_sha")
-    @patch("rhiza.commands.sync._write_history_file")
     @patch("rhiza.commands.sync._warn_about_workflow_files")
     def test_sync_merge_subsequent_applies_diff(
         self,
         mock_warn,
-        mock_history,
         mock_clone,
         tmp_path,
         project_with_template,
@@ -1382,7 +1419,7 @@ class TestThreeWayMergeSyncMergeStrategy:
         )
 
         # Write a lock indicating we last synced at "base_sha"
-        _write_lock(target, "base_sha_123")
+        _write_lock(target, TemplateLock(sha="base_sha_123"))
 
         # Create fake upstream snapshot (what the template looks like now)
         upstream_snapshot = tmp_path / "upstream_snapshot"
@@ -1414,6 +1451,7 @@ class TestThreeWayMergeSyncMergeStrategy:
             git_env=git_env,
             rhiza_repo="jebel-quant/rhiza",
             rhiza_branch="main",
+            lock=TemplateLock(sha="upstream_sha_456"),
         )
 
         content = (target / "Makefile").read_text()
@@ -1423,12 +1461,10 @@ class TestThreeWayMergeSyncMergeStrategy:
         assert _read_lock(target) == "upstream_sha_456"
 
     @patch("rhiza.commands.sync._clone_at_sha")
-    @patch("rhiza.commands.sync._write_history_file")
     @patch("rhiza.commands.sync._warn_about_workflow_files")
     def test_sync_merge_first_run_copies_without_merge(
         self,
         mock_warn,
-        mock_history,
         mock_clone,
         tmp_path,
         project_with_template,
@@ -1458,6 +1494,7 @@ class TestThreeWayMergeSyncMergeStrategy:
             git_env=git_env,
             rhiza_repo="jebel-quant/rhiza",
             rhiza_branch="main",
+            lock=TemplateLock(sha="first_sha_abc"),
         )
 
         assert (target / "Makefile").exists()

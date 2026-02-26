@@ -7,7 +7,7 @@ and handles .rhiza/template.yml configuration.
 import pytest
 import yaml
 
-from rhiza.models import RhizaBundles, RhizaTemplate
+from rhiza.models import RhizaBundles, RhizaTemplate, TemplateLock
 
 
 class TestRhizaTemplate:
@@ -631,3 +631,126 @@ class TestRhizaBundles:
 
         with pytest.raises(TypeError, match="Bundle 'core' must be a dictionary"):
             RhizaBundles.from_yaml(bundles_file)
+
+
+class TestTemplateLock:
+    """Tests for the TemplateLock dataclass."""
+
+    def test_template_lock_defaults(self):
+        """Test that TemplateLock has sensible defaults."""
+        lock = TemplateLock(sha="abc123")
+        assert lock.sha == "abc123"
+        assert lock.repo == ""
+        assert lock.host == "github"
+        assert lock.ref == "main"
+        assert lock.include == []
+        assert lock.exclude == []
+        assert lock.templates == []
+        assert lock.files == []
+
+    def test_to_yaml_writes_all_fields(self, tmp_path):
+        """to_yaml writes all fields in the expected YAML format."""
+        lock = TemplateLock(
+            sha="abc123def456",
+            repo="jebel-quant/rhiza",
+            host="github",
+            ref="main",
+            include=[".github/", ".rhiza/"],
+            exclude=[],
+            templates=[],
+            files=[".github/workflows/ci.yml", ".rhiza/template.yml"],
+        )
+        lock_path = tmp_path / "template.lock"
+        lock.to_yaml(lock_path)
+
+        data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+        assert data["sha"] == "abc123def456"
+        assert data["repo"] == "jebel-quant/rhiza"
+        assert data["host"] == "github"
+        assert data["ref"] == "main"
+        assert data["include"] == [".github/", ".rhiza/"]
+        assert data["exclude"] == []
+        assert data["templates"] == []
+        assert data["files"] == [".github/workflows/ci.yml", ".rhiza/template.yml"]
+
+    def test_to_yaml_creates_parent_directory(self, tmp_path):
+        """to_yaml creates parent directories if they don't exist."""
+        lock = TemplateLock(sha="abc123")
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+        lock.to_yaml(lock_path)
+        assert lock_path.exists()
+
+    def test_from_yaml_structured_format(self, tmp_path):
+        """from_yaml loads the structured YAML format correctly."""
+        lock_path = tmp_path / "template.lock"
+        lock_path.write_text(
+            "sha: abc123def456\n"
+            "repo: jebel-quant/rhiza\n"
+            "host: github\n"
+            "ref: main\n"
+            "include:\n- .github/\n- .rhiza/\n"
+            "exclude: []\n"
+            "templates: []\n"
+            "files:\n- .github/workflows/ci.yml\n",
+            encoding="utf-8",
+        )
+        lock = TemplateLock.from_yaml(lock_path)
+        assert lock.sha == "abc123def456"
+        assert lock.repo == "jebel-quant/rhiza"
+        assert lock.host == "github"
+        assert lock.ref == "main"
+        assert lock.include == [".github/", ".rhiza/"]
+        assert lock.exclude == []
+        assert lock.templates == []
+        assert lock.files == [".github/workflows/ci.yml"]
+
+    def test_from_yaml_legacy_plain_sha(self, tmp_path):
+        """from_yaml handles the legacy plain-SHA format."""
+        lock_path = tmp_path / "template.lock"
+        lock_path.write_text("abc123def456\n", encoding="utf-8")
+        lock = TemplateLock.from_yaml(lock_path)
+        assert lock.sha == "abc123def456"
+        assert lock.repo == ""
+        assert lock.files == []
+
+    def test_round_trip(self, tmp_path):
+        """to_yaml then from_yaml preserves all fields."""
+        original = TemplateLock(
+            sha="abc123def456",
+            repo="jebel-quant/rhiza",
+            host="gitlab",
+            ref="develop",
+            include=[".github/", ".rhiza/"],
+            exclude=["README.md"],
+            templates=["core"],
+            files=[".github/workflows/ci.yml"],
+        )
+        lock_path = tmp_path / "template.lock"
+        original.to_yaml(lock_path)
+        loaded = TemplateLock.from_yaml(lock_path)
+
+        assert loaded.sha == original.sha
+        assert loaded.repo == original.repo
+        assert loaded.host == original.host
+        assert loaded.ref == original.ref
+        assert loaded.include == original.include
+        assert loaded.exclude == original.exclude
+        assert loaded.templates == original.templates
+        assert loaded.files == original.files
+
+    def test_from_yaml_missing_optional_fields(self, tmp_path):
+        """from_yaml uses defaults for missing optional fields."""
+        lock_path = tmp_path / "template.lock"
+        lock_path.write_text("sha: abc123\n", encoding="utf-8")
+        lock = TemplateLock.from_yaml(lock_path)
+        assert lock.sha == "abc123"
+        assert lock.host == "github"
+        assert lock.ref == "main"
+        assert lock.files == []
+
+    def test_from_yaml_invalid_format(self, tmp_path):
+        """from_yaml raises ValueError for unrecognised formats."""
+        lock_path = tmp_path / "template.lock"
+        lock_path.write_text("- item1\n- item2\n", encoding="utf-8")
+        with pytest.raises(TypeError, match=r"Invalid template\.lock format"):
+            TemplateLock.from_yaml(lock_path)

@@ -187,6 +187,55 @@ rhiza validate ..                 # Validate parent directory
 
 ## Generated Files
 
+### .rhiza/template.lock
+
+After running `rhiza sync`, a `.rhiza/template.lock` file is created (or updated) in the `.rhiza/` directory.
+It records the full state of the last successful sync as a YAML file, enabling incremental 3-way merges on subsequent runs.
+
+**Fields:**
+
+| Field | Description |
+|-------|-------------|
+| `sha` | Commit SHA of the last-synced template snapshot |
+| `repo` | Template repository (e.g., `jebel-quant/rhiza`) |
+| `host` | Git hosting platform (`github` or `gitlab`) |
+| `ref` | Branch or ref that was synced (e.g., `main`) |
+| `include` | Paths included from the template repository |
+| `exclude` | Paths excluded from the template repository |
+| `templates` | Bundle names used (empty when using path-based mode) |
+| `files` | Sorted list of every file materialized in this sync |
+
+**Example:**
+```yaml
+sha: abc123def456789abcdef0123456789abcdef0123
+repo: jebel-quant/rhiza
+host: github
+ref: main
+include:
+- .github/
+- .rhiza/
+exclude: []
+templates: []
+files:
+- .github/workflows/ci.yml
+- .rhiza/template.yml
+- Makefile
+```
+
+**Usage:**
+```bash
+# View the current lock state
+cat .rhiza/template.lock
+
+# Check which SHA was last synced
+grep "^sha:" .rhiza/template.lock
+```
+
+> **Note:** Commit this file to version control alongside `.rhiza/history`.
+> It is the anchor used by the 3-way merge — without it the next `rhiza sync` treats the project as a first-time sync and copies all template files.
+
+---
+
 ### .rhiza/history
 
 After running `rhiza sync`, a `.rhiza/history` file is created in the `.rhiza/` directory. This file:
