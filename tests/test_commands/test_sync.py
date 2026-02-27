@@ -27,7 +27,9 @@ from rhiza._sync_helpers import (
     _expand_paths,
     _get_diff,
     _get_head_sha,
+    _merge_file_fallback,
     _merge_with_base,
+    _parse_diff_filenames,
     _prepare_snapshot,
     _read_lock,
     _sync_diff,
@@ -1135,6 +1137,350 @@ class TestThreeWayMergeApplyDiff:
         assert not (git_project / "gone.yml").exists()
         assert (git_project / "new.yml").exists()
         assert "feature: true" in (git_project / "new.yml").read_text()
+
+
+class TestMergeFileFallback:
+    """Tests for _parse_diff_filenames and _merge_file_fallback / _apply_diff merge-file path.
+
+    These tests verify the fallback path that activates when ``git apply -3``
+    reports "lacks the necessary blob" — i.e. the template's blob objects are
+    absent from the target repo's object store.  The fallback uses
+    ``git merge-file`` on the on-disk snapshot files, which requires no shared
+    git history.
+
+    Scenarios covered:
+    - _parse_diff_filenames extracts (path, is_new, is_deleted) correctly
+    - Non-overlapping diverged changes merge cleanly (no conflict)
+    - Overlapping changes produce conflict markers and return False
+    - New-file entries are copied from upstream
+    - Deleted-file entries are removed from target
+    - _apply_diff routes to merge-file when snapshots are provided and blob is absent
+    """
+
+    @pytest.fixture
+    def git_setup(self):
+        """Return git executable and env."""
+        git = shutil.which("git")
+        if git is None:
+            pytest.skip("git not available")
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        return git, env
+
+    @pytest.fixture
+    def git_project(self, tmp_path, git_setup):
+        """Create a committed git project directory."""
+        git_executable, git_env = git_setup
+        project = tmp_path / "project"
+        project.mkdir()
+        for cmd in [
+            [git_executable, "init"],
+            [git_executable, "config", "user.email", "dev@test.com"],
+            [git_executable, "config", "user.name", "Dev"],
+        ]:
+            subprocess.run(cmd, cwd=project, check=True, capture_output=True, env=git_env)
+        return project
+
+    def _commit_all(self, project, git_executable, git_env, message="add files"):
+        subprocess.run([git_executable, "add", "."], cwd=project, check=True, capture_output=True, env=git_env)
+        subprocess.run(
+            [git_executable, "commit", "-m", message],
+            cwd=project,
+            check=True,
+            capture_output=True,
+            env=git_env,
+        )
+
+    # ------------------------------------------------------------------
+    # _parse_diff_filenames unit tests
+    # ------------------------------------------------------------------
+
+    def test_parse_diff_filenames_modified(self, tmp_path):
+        """Detects a modified file correctly."""
+        base = tmp_path / "base"
+        base.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (base / "ci.yml").write_text("version: 1\n")
+        (upstream / "ci.yml").write_text("version: 2\n")
+
+        diff = _get_diff(base, upstream)
+        entries = _parse_diff_filenames(diff)
+
+        assert len(entries) == 1
+        rel_path, is_new, is_deleted = entries[0]
+        assert rel_path == "ci.yml"
+        assert not is_new
+        assert not is_deleted
+
+    def test_parse_diff_filenames_new_file(self, tmp_path):
+        """Detects a file added by upstream."""
+        base = tmp_path / "base"
+        base.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (upstream / "added.yml").write_text("new: true\n")
+
+        diff = _get_diff(base, upstream)
+        entries = _parse_diff_filenames(diff)
+
+        assert len(entries) == 1
+        rel_path, is_new, is_deleted = entries[0]
+        assert rel_path == "added.yml"
+        assert is_new
+        assert not is_deleted
+
+    def test_parse_diff_filenames_deleted_file(self, tmp_path):
+        """Detects a file removed by upstream."""
+        base = tmp_path / "base"
+        base.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (base / "gone.yml").write_text("old: true\n")
+
+        diff = _get_diff(base, upstream)
+        entries = _parse_diff_filenames(diff)
+
+        assert len(entries) == 1
+        rel_path, is_new, is_deleted = entries[0]
+        assert rel_path == "gone.yml"
+        assert not is_new
+        assert is_deleted
+
+    def test_parse_diff_filenames_mixed(self, tmp_path):
+        """Handles a diff with add, modify, and delete in one pass."""
+        base = tmp_path / "base"
+        base.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (base / "keep.yml").write_text("v: 1\n")
+        (base / "drop.yml").write_text("old: yes\n")
+        (upstream / "keep.yml").write_text("v: 2\n")
+        (upstream / "new.yml").write_text("fresh: yes\n")
+
+        diff = _get_diff(base, upstream)
+        entries = _parse_diff_filenames(diff)
+
+        paths = {e[0]: e for e in entries}
+        assert paths["keep.yml"] == ("keep.yml", False, False)
+        assert paths["drop.yml"] == ("drop.yml", False, True)
+        assert paths["new.yml"] == ("new.yml", True, False)
+
+    # ------------------------------------------------------------------
+    # _merge_file_fallback integration tests
+    # ------------------------------------------------------------------
+
+    def test_non_overlapping_divergence_merges_cleanly(self, tmp_path, git_project, git_setup):
+        """Non-overlapping local and template changes both survive the merge.
+
+        Simulates the real-world case where Renovate bumped tool versions
+        locally while the template also changed an unrelated distant line —
+        the scenario that was causing the CI failure with 'lacks blob' errors.
+
+        The file must be large enough that the two changed sections are in
+        separate diff hunks; otherwise git merge-file treats them as a conflict.
+        """
+        git_executable, git_env = git_setup
+
+        # A realistic workflow file — local changes are in the install step
+        # (near the top) while the template change is in the upload step
+        # (near the bottom), separated by many context lines.
+        base_content = (
+            "name: CI\n"
+            "on:\n"
+            "  push:\n"
+            "    branches: [main]\n"
+            "jobs:\n"
+            "  build:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - uses: actions/checkout@v4\n"
+            "      - name: Install uv\n"
+            "        uses: astral-sh/setup-uv@v7\n"
+            "        with:\n"
+            "          version: '0.10'\n"
+            "      - name: Build\n"
+            "        run: make build\n"
+            "      - name: Test\n"
+            "        run: make test\n"
+            "      - name: Lint\n"
+            "        run: make lint\n"
+            "      - name: Type-check\n"
+            "        run: make typecheck\n"
+            "      - name: Upload\n"
+            "        uses: actions/upload-artifact@v3\n"
+            "        with:\n"
+            "          name: dist\n"
+            "          path: dist\n"
+        )
+        # Local: Renovate bumped setup-uv (near top of file)
+        local_content = base_content.replace("setup-uv@v7", "setup-uv@v8").replace("'0.10'", "'0.12'")
+        # Template: bumped upload-artifact (near bottom of file — different hunk)
+        upstream_content = base_content.replace("upload-artifact@v3", "upload-artifact@v4")
+
+        (git_project / "ci.yml").write_text(base_content)
+        self._commit_all(git_project, git_executable, git_env)
+
+        # Diverge the local file (Renovate bump, not committed)
+        (git_project / "ci.yml").write_text(local_content)
+
+        base = tmp_path / "base"
+        base.mkdir()
+        (base / "ci.yml").write_text(base_content)
+
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (upstream / "ci.yml").write_text(upstream_content)
+
+        diff = _get_diff(base, upstream)
+        result = _merge_file_fallback(diff, git_project, base, upstream, git_executable, git_env)
+
+        assert result is True
+        content = (git_project / "ci.yml").read_text()
+        # Local Renovate bumps are preserved
+        assert "setup-uv@v8" in content
+        assert "'0.12'" in content
+        # Template's upload-artifact bump is applied
+        assert "upload-artifact@v4" in content
+
+    def test_overlapping_changes_leave_conflict_markers(self, tmp_path, git_project, git_setup):
+        """Overlapping edits produce conflict markers and return False."""
+        git_executable, git_env = git_setup
+
+        (git_project / "settings.cfg").write_text("timeout = 30\n")
+        self._commit_all(git_project, git_executable, git_env)
+
+        # Local changed timeout to 99; template changes it to 60
+        (git_project / "settings.cfg").write_text("timeout = 99\n")
+
+        base = tmp_path / "base"
+        base.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (base / "settings.cfg").write_text("timeout = 30\n")
+        (upstream / "settings.cfg").write_text("timeout = 60\n")
+
+        diff = _get_diff(base, upstream)
+        result = _merge_file_fallback(diff, git_project, base, upstream, git_executable, git_env)
+
+        assert result is False
+        content = (git_project / "settings.cfg").read_text()
+        assert "<<<<<<<" in content
+        assert "timeout = 99" in content
+        assert "timeout = 60" in content
+
+    def test_new_file_is_copied_from_upstream(self, tmp_path, git_project, git_setup):
+        """Files added by the template are created in the target."""
+        git_executable, git_env = git_setup
+
+        (git_project / "README.md").write_text("# hi\n")
+        self._commit_all(git_project, git_executable, git_env)
+
+        base = tmp_path / "base"
+        base.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (upstream / "new_workflow.yml").write_text("name: deploy\n")
+
+        diff = _get_diff(base, upstream)
+        result = _merge_file_fallback(diff, git_project, base, upstream, git_executable, git_env)
+
+        assert result is True
+        assert (git_project / "new_workflow.yml").exists()
+        assert "deploy" in (git_project / "new_workflow.yml").read_text()
+
+    def test_deleted_file_is_removed_from_target(self, tmp_path, git_project, git_setup):
+        """Files removed from the template are deleted in the target."""
+        git_executable, git_env = git_setup
+
+        (git_project / "legacy.cfg").write_text("old: setting\n")
+        self._commit_all(git_project, git_executable, git_env)
+
+        base = tmp_path / "base"
+        base.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (base / "legacy.cfg").write_text("old: setting\n")
+
+        diff = _get_diff(base, upstream)
+        result = _merge_file_fallback(diff, git_project, base, upstream, git_executable, git_env)
+
+        assert result is True
+        assert not (git_project / "legacy.cfg").exists()
+
+    # ------------------------------------------------------------------
+    # _apply_diff routing test
+    # ------------------------------------------------------------------
+
+    def test_apply_diff_routes_to_merge_file_when_blob_absent(self, tmp_path, git_project, git_setup):
+        """_apply_diff uses git merge-file when git apply -3 reports 'lacks blob'.
+
+        ``git apply -3`` produces "lacks the necessary blob" when the patch's
+        index blob hash is absent from the target repo — which is always the
+        case for diffs produced by ``_get_diff`` (temp-dir blobs).  If the
+        context also doesn't match (because the file diverged), git cannot
+        apply the patch at all.  With snapshots provided, ``_apply_diff`` must
+        route to ``_merge_file_fallback`` instead of ``--reject``.
+
+        We commit the diverged content so that the working tree matches the
+        index and git apply -3 actually reaches the blob lookup stage.
+        """
+        git_executable, git_env = git_setup
+
+        base_content = (
+            "name: CI\n"
+            "on:\n"
+            "  push:\n"
+            "    branches: [main]\n"
+            "jobs:\n"
+            "  build:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - uses: actions/checkout@v4\n"
+            "      - name: Install uv\n"
+            "        uses: astral-sh/setup-uv@v7\n"
+            "        with:\n"
+            "          version: '0.10'\n"
+            "      - name: Build\n"
+            "        run: make build\n"
+            "      - name: Test\n"
+            "        run: make test\n"
+            "      - name: Lint\n"
+            "        run: make lint\n"
+            "      - name: Type-check\n"
+            "        run: make typecheck\n"
+            "      - name: Upload\n"
+            "        uses: actions/upload-artifact@v3\n"
+            "        with:\n"
+            "          name: dist\n"
+            "          path: dist\n"
+        )
+        # Local (committed): Renovate bumped setup-uv (near top)
+        local_content = base_content.replace("setup-uv@v7", "setup-uv@v8").replace("'0.10'", "'0.12'")
+        # Template: bumped upload-artifact (near bottom — separate hunk)
+        upstream_content = base_content.replace("upload-artifact@v3", "upload-artifact@v4")
+
+        # Commit the DIVERGED local content so git apply -3 can reach the blob lookup
+        (git_project / "ci.yml").write_text(local_content)
+        self._commit_all(git_project, git_executable, git_env)
+
+        base = tmp_path / "base"
+        base.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (base / "ci.yml").write_text(base_content)
+        (upstream / "ci.yml").write_text(upstream_content)
+
+        diff = _get_diff(base, upstream)
+        result = _apply_diff(diff, git_project, git_executable, git_env, base_snapshot=base, upstream_snapshot=upstream)
+
+        assert result is True
+        content = (git_project / "ci.yml").read_text()
+        # Local Renovate bumps are preserved by merge-file
+        assert "setup-uv@v8" in content
+        assert "'0.12'" in content
+        # Template's upload-artifact bump is applied
+        assert "upload-artifact@v4" in content
 
 
 class TestThreeWayMergeWithBase:
