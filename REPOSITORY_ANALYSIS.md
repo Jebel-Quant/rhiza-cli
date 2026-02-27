@@ -867,3 +867,111 @@ All architectural and structural concerns identified in earlier analyses have be
 - ⚠️ Add benchmark baseline tracking
 
 This is an **exemplary production-grade project** with excellent engineering discipline, comprehensive testing, and strong security posture. The identified issues are refinements, not defects.
+
+## 2026-02-27 — Fifth Analysis (Stability Assessment)
+
+### Summary
+
+`rhiza-cli` v0.11.4-rc.6 remains in a stable maintenance phase. No code changes since the last analysis (634cb31, 2026-02-27). The project demonstrates production-grade quality with 13 CI workflows, comprehensive test coverage, and clean architectural separation (CLI → Commands → Helpers). All 8 major architectural weaknesses identified across prior analyses have been resolved. The repository showcases exemplary engineering discipline: zero TODO markers, strong type safety, concurrency-safe lock I/O, and extensive documentation (957-line README, 12 docs files, 4 ADRs). The primary concern remains the **v0.8.3 template pin**, which creates a multi-version gap between the project and its own template source. Additional operational weaknesses include lack of benchmark baselines, uncommitted book artifacts, and 184-line Copilot instructions file approaching token limits.
+
+---
+
+### Strengths
+
+- **Comprehensive CI/CD pipeline with 13 workflows.** `.github/workflows/` contains: `rhiza_ci.yml` (matrix testing across Python 3.11–3.14), `rhiza_codeql.yml` (SAST), `rhiza_security.yml`, `rhiza_benchmarks.yml`, `rhiza_book.yml` (documentation), `rhiza_deptry.yml` (dependency validation), `rhiza_pre-commit.yml`, `rhiza_release.yml`, `rhiza_smoke.yml` (end-to-end sync testing), `rhiza_sync.yml` (template updates), `rhiza_validate.yml`, `copilot-setup-steps.yml`, and `renovate_rhiza_sync.yml`. This is industry-leading automation coverage.
+
+- **Clean source code metrics.** 4,347 LOC across 19 source files in `src/rhiza/`. Largest file is `_sync_helpers.py` at 958 LOC (42% of total), which is justified given it encapsulates the entire 3-way merge, diff computation, and lock file I/O logic. Models are well-structured: `models.py` (433 LOC) defines `RhizaTemplate`, `RhizaBundles`, `BundleDefinition`, and `TemplateLock` dataclasses with YAML serialization.
+
+- **Test infrastructure is robust.** 18 test files covering all commands, property-based tests (`test_makefile_properties.py`), benchmarks (`tests/benchmarks/` at 212 LOC), and bundle resolution tests. Pytest configuration enables live logging, custom markers (`stress`, `property`), and detailed failure reporting.
+
+- **Zero technical debt markers in source.** `grep -r "TODO|FIXME|XXX|HACK" src/` returns 0 results (verified twice). All issues are tracked in GitHub rather than inline comments, preventing codebase clutter and ensuring actionable tracking.
+
+- **Dependency hygiene is excellent.** Only 4 direct dependencies in `pyproject.toml`: `loguru>=0.7.3`, `typer>=0.20.0`, `PyYAML>=6.0.3,<7` (loosened from exact pin in PR #303), and `jinja2>=3.1.0`. No bloat. `deptry` runs in CI (`rhiza_deptry.yml`) to catch unused/missing dependencies.
+
+- **Lock file I/O is concurrency-safe with atomic writes.** `_sync_helpers.py` lines 17–22 use `fcntl.flock()` with shared read locks and exclusive write locks, plus atomic `os.replace()` for writes (PR #315). This prevents corruption when multiple `rhiza sync` invocations run concurrently in CI matrix builds or shared dev containers. ADR-0003 documents the decision and tradeoffs.
+
+- **Type safety is comprehensive with no suppressions.** `grep -r "type: ignore" src/` returns 0 results. `mypy` configured in `pyproject.toml` with explicit overrides for third-party libraries (`loguru`, `typer`, `jinja2`) that lack type stubs. All type annotations are explicit and comprehensive.
+
+- **Security tooling is layered and comprehensive.** CodeQL workflow runs on schedule and PRs, Bandit SAST in pre-commit, secret scanning enabled, Dependabot + Renovate for dependency updates, and 21 justified `nosec` suppressions (all subprocess calls using `get_git_executable()` for secure PATH resolution).
+
+- **Documentation is extensive and well-organized.** `README.md` (957 lines), `GETTING_STARTED.md` (beginner-friendly intro), `CLI.md` (quick reference), `USAGE.md` (tutorials), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, plus `docs/` with `ARCHITECTURE.md`, `TESTS.md`, `BOOK.md`, `CUSTOMIZATION.md`, `GLOSSARY.md`, `QUICK_REFERENCE.md`, and `adr/` (4 files documenting major decisions).
+
+- **Pre-commit hooks enforce project-specific invariants.** 11 hooks including Ruff (linting/formatting), Markdownlint, JSON schema validation, actionlint, Bandit, and 3 custom `rhiza-hooks` (v0.3.0): `check-rhiza-workflow-names` (enforces `(RHIZA)` prefix), `check-makefile-targets` (validates help text), `check-python-version-consistency` (aligns `.python-version` with CI matrix).
+
+- **Makefile separation of concerns is exemplary.** Root `Makefile` (50 lines) includes `.rhiza/rhiza.mk` (template-managed) for standard targets (`install`, `test`, `fmt`, `book`), while custom targets (`adr`) stay in the root. This prevents template updates from clobbering local customizations.
+
+- **Command modules follow consistent error patterns.** All commands in `src/rhiza/commands/*.py` raise exceptions (`RuntimeError`, `ValueError`) that propagate to the Typer CLI boundary (`cli.py`). No `sys.exit()` calls in command modules (PR #290). This enables programmatic usage and testing without subprocess overhead.
+
+- **Project actively dogfoods its own template system.** `.rhiza/template.lock` shows `synced_at: 2026-02-26T12:54:46Z`, `strategy: merge`, and `templates: [core, github, legal, tests, book]`. The bundle-based configuration mode is in production use, validating the feature's correctness.
+
+- **Architectural Decision Records document major design choices.** `docs/adr/` contains 4 files: `README.md` (index), `0001-inline-get-diff-instead-of-cruft.md` (PR #297 rationale), `0002-repository-ref-as-canonical-keys.md` (lock file structure), and `0003-lock-file-concurrency.md` (fcntl design). Each ADR records context, decision, consequences, and status.
+
+---
+
+### Weaknesses
+
+- **Template source pinned to v0.8.3 (multi-version gap).** `.rhiza/template.yml` specifies `template-branch: "v0.8.3"` for `jebel-quant/rhiza` (the template repository). Current project version is `0.11.4-rc.6` — a 3 minor version difference. While these are separate repositories with independent version schemes, a multi-version gap suggests the project is not testing against recent template changes, undermining dogfooding credibility.
+
+- **No benchmark baseline storage or regression detection.** `tests/benchmarks/test_benchmarks.py` (212 LOC) runs benchmarks via `rhiza_benchmarks.yml` workflow, but no historical data is stored. Benchmarks without baseline comparison are measurements without meaning. Integrate `pytest-benchmark` JSON storage or CodSpeed for automated regression tracking.
+
+- **Built book artifacts not committed to repository.** `make book` and `rhiza_book.yml` generate documentation and publish to GitHub Pages, but no artifacts exist in `book/` (only `minibook-templates/` source). Local documentation verification requires running the full build pipeline. Consider committing `book/dist/` or providing a `make book-local` target for offline docs.
+
+- **Issues URL in pyproject.toml is malformed.** Line 38 shows `Issues = "https://github.com/jebel-quant/rhiza/issues-cli"` — the suffix `-cli` is appended to `issues` rather than the repository name. The correct URL should be `https://github.com/jebel-quant/rhiza-cli/issues`. This breaks the PyPI project page link and directs users to a 404 endpoint.
+
+- **Copilot instructions file at 184 lines risks token truncation.** `.github/copilot-instructions.md` (184 lines) documents environment setup, development workflow, command execution policy, and GitHub Agentic Workflows. In long Copilot sessions, large instruction files may be truncated or deprioritized. Consider splitting into modular sections (`setup.md`, `workflow.md`, `testing.md`) or linking to external docs.
+
+- **GitHub Agentic Workflows infrastructure documented but unused.** `docs/GH_AW.md` and custom instructions reference `make gh-aw-compile`, `gh aw run`, and starter workflows (`daily-repo-status`, `ci-doctor`, `issue-triage`), but no `.lock.yml` files exist in `.github/workflows/`. The `Makefile` defines `gh-aw-*` targets. Either deploy workflows or remove documentation to avoid misleading users.
+
+- **No coverage metrics tracked in repository.** `.coverage` file and HTML reports are gitignored. README coverage badge points to GitHub Pages (`https://jebel-quant.github.io/rhiza-cli/tests/coverage-badge.json`), but no historical `coverage.json` is committed for trend tracking. Consider storing coverage reports in `docs/coverage/` or using Codecov/Coveralls.
+
+- **Template repository authentication not documented.** README FAQ states "Yes, as long as you have Git credentials configured" for private repositories, but provides no guidance on GitHub PATs, SSH keys, GitLab tokens, or HTTPS credential helpers. Users attempting private templates will encounter cryptic `git clone` failures without actionable error messages.
+
+---
+
+### Risks / Technical Debt
+
+- **Project stuck in release candidate phase since 2026-02-19.** Version `0.11.4-rc.6` has persisted for 8+ days across 6 RC tags (rc.1 through rc.6). No visible exit criteria for promoting to stable `0.11.4`. Extended RC phases signal either lack of release discipline or undiscovered stability issues. Define concrete criteria (test coverage threshold, integration suite passing, user acceptance) or promote to stable.
+
+- **Renovate workflow version indirection is opaque.** `.github/workflows/renovate_rhiza_sync.yml` reads `.rhiza/.rhiza-version` file to determine which rhiza version to run. The file content is not visible in repository listings, making it unclear which version executes in CI. Simplify to `uvx rhiza` (always latest PyPI) or pin explicitly in workflow YAML for transparency.
+
+- **_sync_helpers.py at 958 LOC is 42% of codebase and potential maintenance bottleneck.** While the extraction (PR #319) improved modularity, a single 958-line file concentrates critical logic. Consider further decomposition into focused modules: `_diff.py` (diff computation), `_merge.py` (3-way merge), `_lock_io.py` (lock file I/O with fcntl), `_snapshot.py` (template snapshot prep).
+
+- **No smoke test for Go language mode.** `rhiza init --language go` is supported (visible in CLI help text and `language_validators.py`), but `rhiza_smoke.yml` only tests Python projects. Go template initialization could silently regress. Add second job to smoke test workflow for Go projects.
+
+- **Pre-commit hooks depend on external rhiza-hooks package.** `.pre-commit-config.yaml` references `rhiza-hooks>=0.3.0` (separate PyPI package). If unmaintained or breaking, all pre-commit runs fail. Consider vendoring critical hooks into `.rhiza/hooks/` or documenting external dependency risk in CONTRIBUTING.md.
+
+- **Python version mismatch: .python-version = 3.13, pyproject.toml requires-python = ">=3.11".** This creates ambiguity. Is 3.13 the development baseline and 3.11 the compatibility floor? Or should `.python-version` align with the minimum? Document the policy explicitly in CONTRIBUTING.md.
+
+- **Multiple copilot/ branches likely stale (unverified in this analysis).** Prior analysis noted 16 stale branches. Without access to `git branch -a` output, current count is unknown, but risk of accumulated branch noise remains. Implement `make clean-branches` target or automate pruning in CI.
+
+---
+
+### Score
+
+**9.5 / 10**
+
+Unchanged from prior analysis. All architectural weaknesses identified across 4 previous journal entries have been resolved through disciplined PRs: cruft dependency removed (PR #297), `sys.exit()` eliminated (PR #290), PyYAML pin loosened (PR #303), materialize command retired from CI (PR #305), template validation at init (PR #307), lock concurrency (PR #315), `rhiza status` command (PR #317), smoke test workflow (PR #321), ADR documentation (PR #309, #323), and sync helpers extracted (PR #319).
+
+The remaining weaknesses are **operational, not structural**: template pin staleness, benchmark baselines, uncommitted docs, malformed PyPI URL, and Copilot instructions file size. None of these affect correctness or security. The **v0.8.3 template pin** is the most impactful: it creates a multi-version testing gap and undermines the project's credibility as a template synchronization tool that dogfoods its own system.
+
+**Resolved since first analysis:**
+- ✅ Cruft dependency removed (PR #297)
+- ✅ `sys.exit()` calls eliminated (PR #290)
+- ✅ PyYAML pin loosened (PR #303)
+- ✅ Materialize command retired from CI (PR #305)
+- ✅ Template validation at init (PR #307)
+- ✅ Lock file concurrency (PR #315)
+- ✅ `rhiza status` command (PR #317)
+- ✅ Smoke test workflow (PR #321)
+- ✅ ADR documentation (PR #309, #323)
+- ✅ Sync helpers extracted (PR #319)
+
+**Remaining for 10/10:**
+- ⚠️ Update template pin from v0.8.3 to latest stable tag of `jebel-quant/rhiza`
+- ⚠️ Fix PyPI issues URL (change `/issues-cli` to `-cli/issues`)
+- ⚠️ Add benchmark baseline tracking (pytest-benchmark JSON or CodSpeed)
+- ⚠️ Deploy agentic workflows or remove documentation
+- ⚠️ Document private repository authentication (PATs, SSH keys)
+
+This is an **exemplary, production-grade project** with outstanding engineering discipline, comprehensive automation, and professional documentation. The identified issues are polish items, not defects.
+
