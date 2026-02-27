@@ -47,6 +47,7 @@ For more detailed information, see:
 - **[Getting Started Guide](GETTING_STARTED.md)** - Beginner-friendly introduction and walkthrough
 - **[CLI Quick Reference](CLI.md)** - Command syntax and quick examples
 - **[Usage Guide](USAGE.md)** - Practical tutorials and workflows
+- **[Authentication Guide](docs/AUTHENTICATION.md)** - Configuring credentials for private template repositories (GitHub PATs, SSH keys, GitLab tokens)
 - **[Contributing Guidelines](CONTRIBUTING.md)** - How to contribute to the project
 - **[Code of Conduct](CODE_OF_CONDUCT.md)** - Community guidelines
 
@@ -896,7 +897,7 @@ Ensure:
 1. The template repository exists and is accessible
 2. The specified branch exists
 3. You have network connectivity to GitHub or GitLab
-4. The repository is public (or you have appropriate credentials configured)
+4. The repository is public (or you have appropriate credentials configured — see the [Authentication Guide](docs/AUTHENTICATION.md))
 5. The `template-host` field matches your repository's hosting platform (defaults to "github")
 
 ### Files not being copied
@@ -910,7 +911,7 @@ Check:
 
 **Q: Can I use Rhiza with private template repositories?**
 
-A: Yes, as long as you have Git credentials configured that allow access to the repository.
+A: Yes. Rhiza fetches templates by running `git clone`, so any credentials that allow Git to access the repository will work. See the **[Authentication Guide](docs/AUTHENTICATION.md)** for step-by-step instructions on configuring GitHub Personal Access Tokens (PATs), SSH keys, and GitLab tokens — for both local development and CI/CD environments.
 
 **Q: Does Rhiza support template repositories hosted outside GitHub?**
 
