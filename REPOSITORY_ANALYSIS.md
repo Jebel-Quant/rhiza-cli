@@ -867,3 +867,223 @@ All architectural and structural concerns identified in earlier analyses have be
 - ⚠️ Add benchmark baseline tracking
 
 This is an **exemplary production-grade project** with excellent engineering discipline, comprehensive testing, and strong security posture. The identified issues are refinements, not defects.
+
+---
+
+## 2026-02-27 — Analysis Entry: `_sync_helpers.py` Deep Dive & Branch Audit
+
+### Summary
+
+This entry provides a focused, in-depth analysis of the sync subsystem — specifically `src/rhiza/commands/sync.py`, `src/rhiza/_sync_helpers.py`, and `tests/test_commands/test_sync.py` — as it exists on branch `copilot/finalize-sync-helpers`. The branch contains exactly one commit (`c8f842c "Initial plan"`) over a grafted `origin/main`, meaning **all implementation already lives in `main`**; the branch was created by the Copilot agent but carries no code changes relative to `main`. The sync subsystem is complete, production-ready, and all 74 tests pass cleanly in 1.62 s.
+
+---
+
+### Directory Structure (relevant excerpt)
+
+```
+src/rhiza/
+├── __init__.py            (minimal re-exports)
+├── __main__.py            (entry point shim)
+├── _sync_helpers.py       (958 LOC — sync internals)
+├── _templates/            (jinja2 init templates)
+├── bundle_resolver.py     (bundle-to-path resolution)
+├── cli.py                 (468 LOC — Typer CLI wiring)
+├── commands/
+│   ├── sync.py            (138 LOC — thin orchestrator)
+│   ├── init.py            (403 LOC)
+│   ├── validate.py        (458 LOC)
+│   └── ...                (8 other command modules)
+├── language_validators.py
+├── models.py              (432 LOC — RhizaTemplate, TemplateLock)
+└── subprocess_utils.py
+
+tests/test_commands/
+└── test_sync.py           (1932 LOC — 74 tests, 23 test classes)
+```
+
+---
+
+### `sync.py` — Role and Content
+
+`src/rhiza/commands/sync.py` (138 LOC) is a **pure orchestrator**: it imports 9 helpers from `_sync_helpers.py`, accepts 4 arguments (`target`, `branch`, `target_branch`, `strategy`), and sequences them in a linear try/finally pipeline:
+
+1. `_handle_target_branch()` — optional git branch checkout/creation
+2. `_validate_and_load_template()` — YAML config parse + validation
+3. `_construct_git_url()` — map host name to clone URL
+4. `_clone_and_resolve_upstream()` — sparse clone + bundle resolution → returns `(upstream_dir, upstream_sha, include_paths)`
+5. `_read_lock()` — read previous SHA; early-exit if already up to date
+6. `_excluded_set()` + `_prepare_snapshot()` — build filtered upstream snapshot
+7. Strategy dispatch: `_sync_diff()` or `_sync_merge()` based on `strategy` arg
+8. Cleanup in `finally` — `shutil.rmtree(upstream_dir)` and `shutil.rmtree(upstream_snapshot)`
+
+No business logic lives in `sync.py` itself; every function is a direct delegation to `_sync_helpers.py`. The `__all__` export list (`["LOCK_FILE", "sync"]`) is minimal and correct.
+
+---
+
+### `_sync_helpers.py` — All 23 Functions
+
+| # | Function | LOC (approx.) | Purpose |
+|---|----------|---------------|---------|
+| 1 | `_get_diff` | 31 | `git diff --no-index --binary` between two directories; strips temp path prefixes |
+| 2 | `_log_git_stderr_errors` | 10 | Filters git stderr to only `fatal:` / `error:` prefixed lines |
+| 3 | `_handle_target_branch` | 49 | `git rev-parse --verify` + `git checkout [-b]` for optional branch management |
+| 4 | `_validate_and_load_template` | 50 | Calls `validate()`, loads `template.yml` via `RhizaTemplate.from_yaml`, returns 5-tuple |
+| 5 | `_construct_git_url` | 24 | Maps `"github"`/`"gitlab"` host enum to HTTPS clone URL |
+| 6 | `_update_sparse_checkout` | 29 | `git sparse-checkout set --skip-checks` on an already-cloned repo |
+| 7 | `_clone_template_repository` | 79 | Full sparse clone: `git clone --depth 1 --filter=blob:none --sparse` + `init --cone` + `set` |
+| 8 | `_warn_about_workflow_files` | 14 | Logs warning if `.github/workflows/` files are in materialized set |
+| 9 | `_read_previously_tracked_files` | 44 | Reads `template.lock.files`, falls back to `.rhiza/history`, then `.rhiza.history` |
+| 10 | `_delete_orphaned_file` | 16 | Deletes single file; logs `[DEL]` on success |
+| 11 | `_clean_orphaned_files` | 27 | Computes diff of previous vs. current tracked files; deletes orphans; skips `.rhiza/template.yml` |
+| 12 | `_read_lock` | 32 | Reads YAML or legacy plain-SHA lock file; uses `fcntl.LOCK_EX` when available |
+| 13 | `_write_lock` | 32 | Atomic write: `lock.to_yaml(tmp)` → `os.replace(tmp, lock_path)`; uses separate `.fd` file for flock |
+| 14 | `_get_head_sha` | 19 | `git rev-parse HEAD` on a cloned repo directory |
+| 15 | `_clone_at_sha` | 77 | Clone without depth, sparse init, checkout specific SHA (used for base snapshot) |
+| 16 | `_expand_paths` | 20 | Recursively expands file/directory paths to flat file list |
+| 17 | `_excluded_set` | 18 | Builds `set[str]` of relative paths to exclude; always adds `template.yml` + `history` |
+| 18 | `_prepare_snapshot` | 27 | Copies included/non-excluded files from clone dir to snapshot dir |
+| 19 | `_apply_diff` | 50 | `git apply -3` with fallback to `git apply --reject`; returns `bool` (clean=True) |
+| 20 | `_copy_files_to_target` | 14 | `shutil.copy2` for all materialized files; logs `[COPY]` |
+| 21 | `_sync_diff` | 15 | Dry-run: `_get_diff(target, upstream_snapshot)` and reports count |
+| 22 | `_sync_merge` | 63 | Dispatches to `_merge_with_base` or `_copy_files_to_target`; calls `_clean_orphaned_files` + `_write_lock` |
+| 23 | `_clone_and_resolve_upstream` | 35 | Full upstream clone; conditionally resolves bundles via `load_bundles_from_clone` + `resolve_include_paths` |
+
+**No WIP markers exist** (`grep "TODO\|FIXME\|WIP\|HACK" src/rhiza/_sync_helpers.py` → 0 results). The module is complete.
+
+---
+
+### `test_sync.py` — Test Structure
+
+1932 LOC, 23 test classes, 74 tests — all green (1.62 s runtime). Classes map cleanly to production functions:
+
+| Test Class | Covers | Test Count |
+|-----------|--------|-----------|
+| `TestLockFile` | `_read_lock`, `_write_lock` | 7 |
+| `TestExpandPaths` | `_expand_paths` | 3 |
+| `TestExcludedSet` | `_excluded_set` | 2 |
+| `TestPrepareSnapshot` | `_prepare_snapshot` | 3 |
+| `TestApplyDiff` | `_apply_diff` (happy paths) | 2 |
+| `TestSyncCommand` | `sync()` integration (mocked) | 3 |
+| `TestSyncOrphanedFiles` | `_clean_orphaned_files` via `sync()` | 1 |
+| `TestSyncCLI` | CLI entry point (`cli.app`) | 3 |
+| `TestGetHeadSha` | `_get_head_sha` | 1 |
+| `TestCloneAtSha` | `_clone_at_sha` (mock) | 1 |
+| `TestApplyDiffConflict` | `_apply_diff` conflict fallback | 1 |
+| `TestSyncDiffNoChanges` | `_sync_diff` no-diff branch | 1 |
+| `TestSyncMergeWithBase` | `_sync_merge` with existing lock | 1 |
+| `TestCloneAndResolveUpstreamWithTemplates` | bundle resolution path | 1 |
+| `TestCloneAtShaErrorPaths` | 3 error branches of `_clone_at_sha` | 3 |
+| `TestMergeWithBasePaths` | exception handling, empty diff, clean apply in `_merge_with_base` | 3 |
+| `TestThreeWayMergeApplyDiff` | Real git diff/apply integration: modify, add, delete, multi-file, append, conflict | 7 |
+| `TestThreeWayMergeWithBase` | Real `_merge_with_base` scenarios with actual git repos | 4 |
+| `TestThreeWayMergeSyncMergeStrategy` | `_sync_merge` subsequent vs. first-run paths | 2 |
+| `TestConstructGitUrl` | `_construct_git_url` (github, gitlab, invalid) | 3 |
+| `TestHandleTargetBranch` | `_handle_target_branch` (noop, new, existing, failure) | 4 |
+| `TestValidateAndLoadTemplate` | `_validate_and_load_template` (valid, missing repo, no paths, fail) | 4 |
+| `TestWarnAboutWorkflowFiles` | `_warn_about_workflow_files` | 2 |
+| `TestCloneTemplateRepository` | Clone and sparse-checkout failure paths | 2 |
+| `TestLogGitStderrErrors` | `_log_git_stderr_errors` (fatal, error, None, irrelevant) | 4 |
+| `TestCleanOrphanedFiles` | `_clean_orphaned_files`, `_read_previously_tracked_files` (no lock, orphan deletion, protected file, legacy history, old history) | 5 |
+| `TestUpdateSparseCheckout` | `_update_sparse_checkout` failure | 1 |
+
+Notable: `TestThreeWayMergeApplyDiff` and `TestThreeWayMergeWithBase` use **real git repositories** (no mocking of subprocess) to exercise the full `git apply -3` → `--reject` pipeline, including conflict detection. This is integration-level coverage at unit-test speed — a strong design choice.
+
+---
+
+### How `sync.py` and `_sync_helpers.py` Interact
+
+The interaction is strictly one-directional: `sync.py` imports from `_sync_helpers.py`; no reverse dependency exists.
+
+```
+cli.py  ──(invoke)──►  sync.py:sync()
+                            │
+                            ├──► _handle_target_branch()
+                            ├──► _validate_and_load_template()
+                            ├──► _construct_git_url()
+                            ├──► _clone_and_resolve_upstream()  ──► _clone_template_repository()
+                            │                                    ──► load_bundles_from_clone()
+                            │                                    ──► resolve_include_paths()
+                            │                                    ──► _update_sparse_checkout()
+                            │                                    ──► _get_head_sha()
+                            ├──► _read_lock()
+                            ├──► _excluded_set()  ──► _expand_paths()
+                            ├──► _prepare_snapshot()
+                            └──► _sync_diff()  OR  _sync_merge()
+                                                        │
+                                                        ├──► _merge_with_base()  ──► _clone_at_sha()
+                                                        │                        ──► _prepare_snapshot()
+                                                        │                        ──► _get_diff()
+                                                        │                        ──► _apply_diff()
+                                                        ├──► _copy_files_to_target()  [first sync]
+                                                        ├──► _warn_about_workflow_files()
+                                                        ├──► _clean_orphaned_files()  ──► _read_previously_tracked_files()
+                                                        └──► _write_lock()
+```
+
+Temp directory lifecycle management: `sync.py` owns the `upstream_dir` and `upstream_snapshot` lifetime (created before, cleaned in `finally`). `_sync_merge` owns `base_snapshot` lifetime internally. `_merge_with_base` owns `base_clone` lifetime internally. Each level manages its own resources.
+
+---
+
+### Branch State Assessment
+
+- **Branch**: `copilot/finalize-sync-helpers`
+- **Commits above main**: 1 (`c8f842c "Initial plan"` — no file changes)
+- **Status**: The branch was created with just a plan commit. All implementation (`_sync_helpers.py`, `test_sync.py`) already exists in `main` as part of the grafted history. The branch contains **zero implementation commits** and is effectively a no-op overlay on `main`.
+- **Action needed**: If this branch is intended to add further work on top of the existing sync helpers, it needs actual commits. If the work is considered done (it is complete and all tests pass), the branch should be deleted or the PR closed.
+- **PR reference**: `pr-description.md` describes a template sync PR updating CI workflows, not a sync-helper implementation PR. The PR description references `jebel-quant/rhiza@main` as the template and lists 18 file changes (CI workflows, `.rhiza/` config, tests). This is a template infrastructure update, not related to `_sync_helpers.py`.
+
+---
+
+### Strengths
+
+- **Complete, clean module extraction.** `_sync_helpers.py` achieves the intended separation: 23 functions, all testable in isolation, none leaking side effects into `sync.py`. The `__all__` in `sync.py` correctly re-exports only `LOCK_FILE` and `sync`.
+
+- **Lock file I/O is production-grade.** `_write_lock` uses a separate `.fd` sentinel file for `fcntl.LOCK_EX` so the lock survives `os.replace()` rename. Atomic write prevents half-written YAML files. Graceful Windows fallback via `_FCNTL_AVAILABLE` flag. The `.tmp` and `.fd` cleanup in `finally` prevents filesystem litter.
+
+- **`_clone_at_sha` handles the tricky base-snapshot case correctly.** Using `--filter=blob:none --sparse --no-checkout` allows fetching an arbitrary historical SHA without a shallow clone, which would fail if the SHA is not reachable from `--depth=1`. This is a non-obvious design decision that handles real-world template drift correctly.
+
+- **`_apply_diff` graceful degradation.** Falls back from `git apply -3` to `git apply --reject` on conflict. Returns `bool` rather than raising, allowing `_merge_with_base` to log a warning without aborting the sync. `.rej` files give the user actionable conflict information.
+
+- **Test quality is exceptional.** `TestThreeWayMergeApplyDiff` and `TestThreeWayMergeWithBase` use real git repos and real diffs. 7 scenario tests in `TestThreeWayMergeApplyDiff` cover modify, add, delete, multi-file, append, and conflict — the full operational envelope of `git apply -3`. No mocks at this level ensures actual git behavior is exercised.
+
+- **Orphaned file cleanup handles 3 legacy formats.** `_read_previously_tracked_files` checks `template.lock.files` first, then `.rhiza/history`, then `.rhiza.history`. Backward compatibility is maintained without branching in callers.
+
+- **Zero TODO/FIXME/WIP markers in source.** The implementation is considered complete by the authors, not a placeholder.
+
+---
+
+### Weaknesses
+
+- **`_sync_helpers.py` at 958 LOC is now a monolith.** It contains lock I/O, git cloning, diff/merge logic, orphan cleanup, snapshot management, and URL construction — conceptually distinct concerns. The file will continue to grow as the sync feature evolves. No immediate decomposition is needed (all functions are well-named and documented), but a `_lock_io.py` / `_diff_merge.py` / `_clone_helpers.py` split would improve navigability above ~1200 LOC.
+
+- **`_get_diff` does path substitution with regex/string replace that is brittle.** Lines 70–75 use `sub("/[a-z]:", "", repo)` (Windows drive letter removal) and two `str.replace()` calls to normalize temp path prefixes in the diff output. This string manipulation is fragile: if `tempfile.mkdtemp()` returns a path containing the prefix strings (e.g., a system that happens to have `upstream-template-old` in its temp path), the substitution would corrupt the diff. Should use a stable, deterministic temp directory root or post-process via `pathlib.Path.relative_to()`.
+
+- **`_merge_with_base` silently swallows all exceptions from `_clone_at_sha`.** Lines 896–898 catch a bare `except Exception` and log a warning, then continue with an empty `base_snapshot`. This means a transient network failure during base clone is indistinguishable from "this SHA no longer exists in the remote" — both are handled identically by treating all files as new. A network error should ideally retry or abort rather than silently promote to a first-sync behavior.
+
+- **`_validate_and_load_template` has a circular import.** Line 158: `from rhiza.commands.validate import validate` is a deferred import inside the function body to avoid circular dependencies. This implies `_sync_helpers.py` (a private module) depends on `commands/validate.py` (a public command module), which is an inversion of the expected dependency direction. `validate.py` should be a pure utility module importable at module level, or the logic should move to `models.py`.
+
+- **`_excluded_set` always hardcodes `.rhiza/template.yml` and `.rhiza/history` as protected.** These two paths are added unconditionally (lines 667–668) regardless of the user's `exclude` list. While this is the correct behavior, it means there is **no documented or tested escape hatch** if a template legitimately needs to sync `template.yml` updates. A comment explaining the design decision would prevent future "bug" reports.
+
+- **The `_sync_diff` strategy does not update the lock file.** After a `--strategy diff` dry run, the lock file is not updated. This is correct behavior (it's a dry run), but `sync.py` constructs a `TemplateLock` object (lines 103–113) regardless of strategy, builds it before the strategy dispatch, and then discards it in the diff path. This is a minor computational waste and a potential source of confusion for future maintainers reading `sync.py:103–132`.
+
+- **No rate-limit handling or retry logic for `git clone` operations.** `_clone_template_repository` and `_clone_at_sha` both call `git clone` and surface `CalledProcessError` on failure. GitHub API rate limits or transient network failures produce identical error paths. No exponential backoff or retry wrapper exists. For CI environments that run many parallel sync jobs, this is a real-world failure mode.
+
+---
+
+### Risks / Technical Debt
+
+- **Branch `copilot/finalize-sync-helpers` is a phantom.** The entire implementation already exists in `main`. This branch contributes nothing new. If a PR is opened from it, it will show 0 code changes and be confusing. Should be deleted or used as a base for actual incremental work (e.g., the module decomposition weakness noted above).
+
+- **`_apply_diff` modifies the working tree of a git repository but does not stage changes.** After `git apply -3`, modified files are in the working tree but unstaged. `sync.py` does not `git add` or `git commit` after the sync. Downstream workflows that expect the working tree to be clean after `rhiza sync` will see unstaged changes. The command's documentation should explicitly state this behavior; currently the docstring says nothing about post-apply git index state.
+
+- **`_get_diff` uses `--binary` flag but `_apply_diff` does not pass `--binary` to `git apply`.** Binary file patches from `--binary` in `git diff` require `git apply --binary` (or no flag, since `git apply` detects binary patches). This is implicitly correct in recent git versions but is an undocumented assumption. If the git version on the CI runner changes behavior, binary file syncing could silently fail. Should add an explicit comment.
+
+- **Temp directory cleanup is not guaranteed if `_prepare_snapshot` raises mid-copy.** In `sync.py:98–135`, `upstream_snapshot` is created with `Path(tempfile.mkdtemp())` and cleaned in the outer `finally`. If `_prepare_snapshot` raises after copying some files, the partial snapshot is cleaned up. However, if a `KeyboardInterrupt` arrives between `upstream_snapshot = Path(tempfile.mkdtemp())` and entering the `try` block, the directory leaks. This is a standard Python resource management issue (use `tempfile.TemporaryDirectory()` context manager to eliminate the gap).
+
+- **Lock file `files` field serialization is intentionally excluded** (test `test_write_lock_yaml_format` asserts `"files" not in data`). This means the lock file does not persist the file list across sync invocations — orphan detection relies on `.rhiza/history` instead. This is an architectural choice but means the orphan cleanup code path (checking `lock.files` at line 372) will never find files in a lock written by `_write_lock`. The fallback to `history` file is always the active path. Either the `files` field should be populated in `_write_lock`, or `TemplateLock.files` should be removed to avoid the dead code path.
+
+---
+
+### Score
+
+**9 / 10** — The sync subsystem itself is exemplary: clean extraction, production-grade lock I/O, comprehensive test coverage with real git integration, and zero WIP markers. The deductions are for the phantom branch state (implementation already merged, branch has no code), the `_merge_with_base` silent exception swallowing, the circular import via deferred `from rhiza.commands.validate import validate`, and the `TemplateLock.files` dead code path (test explicitly asserts `files` is excluded from the lock file, but `_read_previously_tracked_files` checks `lock.files` first). These are refinements to an otherwise solid implementation. The test-to-code ratio for the sync module alone is approximately **2:1** (1932 test LOC : 958 + 138 source LOC), consistent with the project's overall discipline.
