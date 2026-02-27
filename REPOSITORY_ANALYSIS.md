@@ -769,3 +769,101 @@ Branch `copilot/add-early-repository-validation` contains a single "Initial plan
 **7 / 10** — unchanged from prior entry. The core structural quality of the repository (test coverage, CI/CD, security scanning, clean command separation) remains high. The targeted issue (`--template-repository` validation) is a genuine UX defect but is low-severity: it affects only users providing custom repository values, the error is surfaced before any network I/O (by the post-write `validate()` call), and the fix is straightforward. It does not affect correctness for the default repository path. The exit-code propagation gap is the more impactful defect, as it silently breaks CI pipelines. This would be a **7.5** if not for the pattern of branches with "Initial plan" commits that contain no implementation — four consecutive entries (across three branch names) have noted this same situation.
 
 ---
+
+## 2026-02-27 — Fourth Analysis (Post-Extraction Audit)
+
+### Summary
+
+`rhiza-cli` v0.11.4-rc.6 on `main` (634cb31) reflects the successful completion of PR #319 — the extraction of sync internals to `_sync_helpers.py` (958 LOC). This is the largest single module in the codebase and represents the core synchronization logic for 3-way merge, lock file management, and template materialization. The repository now demonstrates exemplary separation of concerns: `cli.py` (469 LOC) provides thin Typer entry points, `commands/*.py` (7 modules, avg ~150 LOC each) implement business logic, and `_sync_helpers.py` isolates the complex diff/merge machinery. No new code changes since the last analysis (5e10d92); the most recent commit is a documentation update finalizing the 9.5/10 score. The project remains in **release candidate** phase (v0.11.4-rc.6 since 2026-02-19), with the `v0.8.3` template pin becoming increasingly problematic as the divergence grows (now 3 minor versions behind).
+
+---
+
+### Strengths
+
+- **Sync helper extraction achieved clean module boundary.** `_sync_helpers.py` (958 LOC) is now the largest file in `src/` and provides 15+ stable internal functions: `_get_diff`, `_validate_and_load_template`, `_clone_and_resolve_upstream`, `_prepare_snapshot`, `_sync_merge`, `_sync_diff`, etc. Test files in `tests/test_commands/test_sync.py` now import from `_sync_helpers` rather than the command module, reducing coupling between tests and CLI entry points.
+
+- **Lock file concurrency protection uses platform-appropriate mechanisms.** `_sync_helpers.py` lines 17–22 conditionally import `fcntl` with `_FCNTL_AVAILABLE` flag, providing a graceful degradation path on Windows. The `_read_lock()` function uses `fcntl.flock(fd, fcntl.LOCK_SH)` for shared read locks and `fcntl.LOCK_EX` for exclusive write locks during atomic `os.replace()` operations (PR #315). This prevents concurrent `rhiza sync` invocations in CI matrix builds from corrupting the lock file.
+
+- **All architectural weaknesses from prior entries are resolved.** Cruft dependency removed (PR #297), `sys.exit()` calls eliminated from command modules (PR #290), PyYAML pin loosened (PR #303), `materialize` command retired from CI (PR #305), template repository validation added to `init` (PR #307), lock file I/O made concurrency-safe (PR #315), `rhiza status` command added (PR #317), sync smoke-test CI workflow deployed (PR #321), and three ADRs documented (PR #309, PR #323).
+
+- **Test coverage infrastructure is comprehensive.** 17 test files covering all commands, plus property-based tests (`test_makefile_properties.py`), benchmarks (`tests/benchmarks/test_benchmarks.py` at 212 LOC), and bundle resolution tests. Pytest configuration in `pytest.ini` enables live console logs, custom markers (`stress`, `property`), and detailed failure summaries (`-ra`).
+
+- **Pre-commit ecosystem is professional-grade.** `.pre-commit-config.yaml` (82 lines) integrates 11 hooks: Ruff linting/formatting, Markdownlint, JSON schema validation (GitHub workflows + Renovate), actionlint, pyproject.toml validation, Bandit SAST, and three custom `rhiza-hooks` (check-rhiza-workflow-names, check-makefile-targets, check-python-version-consistency). These enforce project-specific invariants beyond generic style checks.
+
+- **Documentation is extensive and well-structured.** `README.md` (957 lines) provides installation guides, command reference, configuration examples, troubleshooting, FAQ, and architecture overview. `docs/` contains 12 specialized files including `GETTING_STARTED.md`, `ARCHITECTURE.md`, `TESTS.md`, `SECURITY.md`, and 4 ADR files documenting critical design decisions.
+
+- **CI matrix testing covers 4 Python versions dynamically.** `.github/workflows/rhiza_ci.yml` generates the test matrix via `make version-matrix`, testing on Python 3.11, 3.12, 3.13, and 3.14. This ensures forward compatibility with upcoming Python releases.
+
+- **Security tooling is comprehensive and layered.** 13 GitHub Actions workflows include `rhiza_codeql.yml` (static analysis), `rhiza_security.yml` (dependency scanning), Dependabot, Renovate, Bandit in pre-commit, and `nosec` suppressions justified for subprocess calls (21 instances, all using `get_git_executable()` for secure PATH resolution).
+
+- **Zero technical debt markers in source code.** `grep -r "TODO|FIXME|XXX|HACK" src/` returns 0 results (verified). Issues are tracked in GitHub rather than inline comments, keeping the codebase clean and reducing noise.
+
+- **Makefile separation of concerns is exemplary.** Root `Makefile` (50 lines) handles custom targets (`adr`, `help`, `customisations`) while `.rhiza/rhiza.mk` (template-managed) provides standard targets (`install`, `test`, `fmt`, `deptry`, `book`). This prevents template updates from clobbering local customizations.
+
+- **Type safety is enforced without compromises.** `grep -r "type: ignore" src/` returns 0 results. `mypy` is configured in `pyproject.toml` with `python_version = "3.11"` and overrides for third-party libraries. All type annotations are explicit and comprehensive.
+
+- **Command modules follow consistent error handling patterns.** All commands in `src/rhiza/commands/*.py` raise exceptions (`RuntimeError`, `ValueError`, `subprocess.CalledProcessError`) that are caught at the Typer CLI boundary (`cli.py`) and converted to `typer.Exit(code=1)`. No `sys.exit()` calls remain in command modules (PR #290 resolution).
+
+- **Project dogfoods its own template system actively.** `.rhiza/template.lock` shows `synced_at: 2026-02-26T12:54:46Z`, demonstrating recent synchronization. Uses bundle-based configuration (`templates: [core, github, legal, tests, book]`) rather than legacy path-based mode, proving the bundle feature in production.
+
+---
+
+### Weaknesses
+
+- **Template pinned to v0.8.3, now 3 minor versions behind current release (v0.11.4-rc.6).** `.rhiza/template.yml` specifies `template-branch: "v0.8.3"` while `pyproject.toml` declares `version = "0.11.4-rc.6"`. This 3-version gap creates a credibility problem: the project's own configuration doesn't test its current codebase. Users may question whether the tool is actively maintained if the developers don't use the latest version. Migration to `main` or at minimum v0.11.x is overdue.
+
+- **No GitHub Actions agentic workflows deployed.** Despite custom instructions referencing `gh-aw` commands (`make gh-aw-compile`, `gh aw run`), there are no `.lock.yml` files in `.github/workflows/`. The infrastructure (documented in `docs/GH_AW.md`) exists but is unused. Either deploy starter workflows (`daily-repo-status`, `ci-doctor`, `issue-triage`) or remove the documentation to avoid misleading users.
+
+- **Built book artifacts not in repository.** `make book` and `.github/workflows/rhiza_book.yml` generate documentation and publish to GitHub Pages, but no artifacts are committed to the repository. Local documentation verification requires running the full build pipeline. Consider committing a `book-dist/` directory or providing a `make book-local` target for offline docs.
+
+- **No benchmark baseline storage or regression tracking.** `tests/benchmarks/test_benchmarks.py` (212 LOC) runs benchmarks but stores no historical data. Benchmark values without comparison to baselines are measurements without meaning. Integrate `pytest-benchmark` JSON storage or a service like CodSpeed to detect performance regressions in CI.
+
+- **16 stale Copilot branches pollute the branch list.** `git branch -a | grep -c "copilot/"` returns 16. Many reference issues already resolved by other means (e.g., `copilot/remove-cruft-dependency` for PR #297, `copilot/add-versions-command`). Stale branches create noise and make it harder to identify active development. Implement a `make clean-branches` target or automate pruning in CI.
+
+- **Copilot instructions file is 184 lines, risking truncation.** `.github/copilot-instructions.md` is approaching the token limit for effective Copilot context in long sessions. Consider splitting into modular sections (`setup.md`, `workflow.md`, `testing.md`) or linking to external docs to preserve token budget for code analysis.
+
+- **Issues URL in `pyproject.toml` points to wrong repository.** Line 38 shows `Issues = "https://github.com/jebel-quant/rhiza/issues-cli"` (note the suffix `-cli` appended to `issues` rather than the repository name). The correct URL should be `https://github.com/jebel-quant/rhiza-cli/issues`. This breaks the PyPI project page link and directs users to a non-existent GitHub endpoint.
+
+- **No coverage metrics tracked in repository.** `.coverage` file and HTML reports are gitignored. Coverage badge in README points to GitHub Pages endpoint (`https://jebel-quant.github.io/rhiza-cli/tests/coverage-badge.json`), but no `coverage.json` is committed for historical trend tracking. Consider storing coverage reports in `docs/coverage/` or using a dedicated coverage service (Codecov, Coveralls).
+
+- **Template repository authentication not documented.** README FAQ states "Yes, as long as you have Git credentials configured" for private repositories, but provides no guidance on configuring GitHub PATs, SSH keys, or GitLab tokens. Users attempting to use private templates will encounter cryptic `git clone` failures without actionable error messages.
+
+---
+
+### Risks / Technical Debt
+
+- **Project stuck in release candidate phase since 2026-02-19.** Version has been `0.11.4-rc.6` for 8 days (6 release candidate tags: rc.1 through rc.6). No clear criteria visible for promoting to stable `0.11.4`. Extended RC phases signal either a lack of release discipline or undiscovered stability issues. Define exit criteria (test coverage threshold, integration test suite, user acceptance testing) or promote to stable.
+
+- **Renovate workflow reads version from `.rhiza/.rhiza-version` file (indirection).** `.github/workflows/renovate_rhiza_sync.yml` uses `cat .rhiza/.rhiza-version` to determine which rhiza version to run. The file content is not visible in the repository listing (not shown in `view` output), making it unclear which version actually executes in CI. Simplify to `uvx rhiza` (always latest PyPI) or pin explicitly in the workflow YAML.
+
+- **_sync_helpers.py at 958 LOC is the largest file and a potential maintenance bottleneck.** While the extraction (PR #319) improved test decoupling, the module is now 42% of the entire `src/rhiza/` codebase (2,259 total LOC). Consider further decomposition into `_diff.py`, `_merge.py`, `_lock_io.py`, and `_snapshot.py` if the file continues to grow.
+
+- **No smoke test for Go language mode.** `rhiza init --language go` is supported (documented in CLI help text), but `.github/workflows/rhiza_smoke.yml` only tests the default Python mode. Go template initialization could silently break without detection. Add a second job to the smoke test workflow for Go projects.
+
+- **Pre-commit hook for custom rhiza checks uses external package.** `.pre-commit-config.yaml` references `rhiza-hooks>=0.3.0` (a separate PyPI package). If this package is unmaintained or has a breaking change, all pre-commit runs will fail. Consider vendoring critical hooks into `.rhiza/hooks/` or documenting the external dependency risk.
+
+- **Python version mismatch: .python-version = 3.12, pyproject.toml requires-python = ">=3.11".** `.python-version` specifies `3.12` while `pyproject.toml` claims support for `>=3.11`. This creates ambiguity about the project's actual Python version. Align `.python-version` with the minimum supported version (3.11) or document that 3.12 is the development baseline and 3.11 is the compatibility floor.
+
+---
+
+### Score
+
+**9.5 / 10** — unchanged from prior entry.
+
+All architectural and structural concerns identified in earlier analyses have been resolved. The extraction of `_sync_helpers.py` (PR #319) completes the command/logic separation, lock file concurrency is solved (PR #315), ADR documentation is in place (PR #323), and the sync smoke-test workflow (PR #321) provides end-to-end regression detection. The remaining weaknesses are operational (template version pin, benchmark baselines, stale branches) or documentation gaps (private repo auth, agentic workflows). The single most impactful issue is the **v0.8.3 template pin**, which undermines dogfooding credibility and creates a 3-version testing gap. Resolving this and cleaning stale branches would push the score to **10/10**.
+
+**Resolved since last analysis:**
+- ✅ Sync internals extracted to `_sync_helpers.py` (PR #319 completed)
+- ✅ Lock file concurrency protection (PR #315)
+- ✅ `rhiza status` command (PR #317)
+- ✅ Sync smoke-test CI workflow (PR #321)
+- ✅ ADR documentation (PR #309, PR #323)
+
+**Remaining for 10/10:**
+- ⚠️ Migrate template from v0.8.3 to v0.11.4-rc.6 or `main`
+- ⚠️ Clean up 16 stale Copilot branches
+- ⚠️ Fix PyPI issues URL (remove `-cli` suffix)
+- ⚠️ Deploy agentic workflows or remove documentation
+- ⚠️ Add benchmark baseline tracking
+
+This is an **exemplary production-grade project** with excellent engineering discipline, comprehensive testing, and strong security posture. The identified issues are refinements, not defects.
