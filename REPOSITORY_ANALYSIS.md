@@ -1,5 +1,75 @@
 # Repository Analysis Journal
 
+## 2026-02-27 (Fourth Analysis) — Book Build Pipeline & Artifact Production
+
+### Summary
+
+Examined from branch `copilot/make-book-artifact` (single "Initial plan" commit on top of `main` at `a8e216e`). This analysis focuses specifically on the book build subsystem — `.rhiza/make.d/book.mk`, `.github/workflows/rhiza_book.yml`, `.rhiza/templates/minibook/`, and the associated integration tests — in response to the task of making the book build correctly produce and publish a deployable artifact. No production source changes are present on this branch yet; the evaluation is of the existing infrastructure as inherited from `main`.
+
+The book build pipeline is **architecturally sound but has two critical defects** preventing it from running in CI: (1) `actions/checkout@v6.0.2` does not exist (latest stable is v4), causing every workflow in the repository to fail at runner resolution; (2) the `rhiza_book.yml` workflow is missing the `actions/configure-pages` step, which GitHub Pages deployment requires before `upload-pages-artifact`. All other mechanics — artifact assembly in `book.mk`, graceful fallback for missing sections, `.nojekyll` placement, conditional deployment for forks, minibook invocation, and the Jinja2 template — are correctly implemented.
+
+---
+
+### Strengths
+
+- **`book` target is resilient by design.** `.rhiza/make.d/book.mk` defines double-colon no-op fallback rules for `test`, `benchmark`, `stress`, `hypothesis-test`, and `docs`. Each section is only copied into `_book/` if its source `index.html` actually exists (`if [ -f "$$src_index" ]`). This means `make book` succeeds even in a clean repo with no built artifacts — it will produce a valid `_book/index.html` with an empty links grid rather than failing.
+
+- **`BOOK_SECTIONS` declarative table is clean and maintainable.** The eight-section pipe-delimited format (`name|src_index|book_index|src_dir|book_dir`) in `book.mk:48–56` maps each artifact type to its expected path. Adding a new section requires one line. This is substantially better than ad-hoc copy commands scattered throughout the recipe.
+
+- **Minibook template is fully self-contained.** `.rhiza/templates/minibook/custom.html.jinja2` (209 lines) is a Tailwind CSS dark/light mode HTML file with gradient branding, a GitHub link, theme toggle, and responsive grid. All dependencies are CDN-loaded (Tailwind, Google Fonts). The `BOOK_TEMPLATE` variable in `.rhiza/.env` correctly references this path.
+
+- **GitHub Pages permissions and environment block are correctly configured.** `rhiza_book.yml` declares `environment: github-pages`, `permissions: { pages: write, id-token: write, contents: read }`. These three fields together are the exact requirement for OIDC-based Pages deployment. The comment even labels the `environment` block as "the critical missing piece," indicating prior debugging.
+
+- **Deployment is correctly gated for forks.** The `deploy-pages` step includes `if: ${{ !github.event.repository.fork && (...) }}` with a `continue-on-error: true` guard. Fork PRs will not attempt to publish to the parent's Pages endpoint.
+
+- **Integration tests use `make -n` dry-run for isolation.** `test_book_targets.py` avoids executing any actual build commands; all assertions are on target existence and Makefile content. The `git_repo` fixture (from `conftest.py` not shown but implied) creates an isolated temp directory, preventing test pollution.
+
+- **`.nojekyll` sentinel is created.** `book.mk:130` places `_book/.nojekyll` unconditionally after the minibook invocation. Without this, GitHub Pages silently excludes directories prefixed with `_` (such as `_pdoc/`, `_tests/`) from serving.
+
+---
+
+### Weaknesses
+
+- **`actions/checkout@v6.0.2` does not exist.** All 13+ workflows in `.github/workflows/` reference this version. As of 2024, `actions/checkout` is at v4.x; v6 is not a published release. Every workflow in this repository will fail at the runner's action-resolution step. This is a template-level defect propagated through `rhiza sync` and will affect every downstream repository using this template. The correct reference is `actions/checkout@v4.2.2` (latest stable) or pinned SHA.
+
+- **`rhiza_book.yml` is missing the `actions/configure-pages` step.** The official GitHub Pages deployment pattern requires three steps in sequence: `configure-pages` → `upload-pages-artifact` → `deploy-pages`. The workflow skips `configure-pages`, meaning the `upload-pages-artifact` step runs without the Pages configuration context. This will fail at deployment time even if the build succeeds.
+
+- **`book/` directory has no content committed.** The repository has no `book/marimo/`, `book/pdoc-templates/`, or `book/minibook-templates/` committed. The `docs/BOOK.md` documentation describes these directories as expected locations for customization, but they don't exist. First-time contributors following `docs/BOOK.md` will encounter a discrepancy.
+
+- **`test_notebook_execution.py` imports `dotenv` which is not a declared dependency.** Line 7 of `.rhiza/tests/integration/test_notebook_execution.py` does `from dotenv import dotenv_values`. The `python-dotenv` package does not appear in `pyproject.toml` or `.rhiza/requirements/tests.txt`. This causes an `ImportError` at test collection time if `python-dotenv` is not installed, silently skipping notebook execution tests.
+
+- **CodeFactor live HTTP probe runs during every `make book`.** `book.mk:96` executes `curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$CF_URL"` to check if the CodeFactor page is accessible before adding it to `links.json`. This introduces an external network call in the build pipeline with a 5-second timeout. In air-gapped environments, slow networks, or CodeFactor outages, this adds latency and introduces nondeterminism to an otherwise offline build.
+
+- **`conftest.py` lists Makefile fragments that don't exist.** `.rhiza/tests/api/conftest.py:SPLIT_MAKEFILES` references `marimo.mk`, `presentation.mk`, `docker.mk`, and `custom-task.mk` — none of which exist in `.rhiza/make.d/`. The copy loop silently skips missing files, so the test environment is missing these Makefile fragments. Any test that exercises a target defined in those files will fail with "no rule to make target" rather than a meaningful assertion failure.
+
+- **`minibook` invocation has no version pin.** `book.mk:123` runs `"$(UVX_BIN)" minibook` with no version constraint. `uvx minibook` resolves the latest published version at build time. A breaking change in `minibook` (a third-party PyPI package by `jqr`) would silently break all book builds across all downstream repositories. This should be pinned: `uvx "minibook>=x.y,<x+1"`.
+
+---
+
+### Risks / Technical Debt
+
+- **`actions/checkout@v6.0.2` is a systemic risk across the entire template ecosystem.** Since this version tag is managed by the rhiza template (`.rhiza/rhiza.mk` and the `.rhiza/make.d/*.mk` sync chain), every project that has run `rhiza sync` recently will inherit this broken reference. The fix must be made in the upstream `jebel-quant/rhiza` template repository and then propagated via a forced sync. Until fixed, no CI workflow in any downstream project will succeed.
+
+- **The workflow's `upload-pages-artifact` path assumes `_book/` always exists.** If `make book` fails partway through (e.g., `minibook` returns non-zero), the `_book/` directory may be partially populated or empty. `upload-pages-artifact` with `path: _book/` will then either upload garbage or fail silently with an empty artifact. Adding `if: success()` or a validation step (`test -f _book/index.html`) before upload would prevent deploying corrupt artifacts.
+
+- **Template version still pinned to `v0.8.3`.** `.rhiza/template.lock` shows `ref: v0.8.3` for `jebel-quant/rhiza`. As noted in prior analyses, this remains 3+ minor versions behind the CLI itself (`v0.11.4-rc.6`). The dogfooding gap means the template features being built here (book, agentic workflows, docs.mk) may differ from what the published template ships.
+
+- **`BOOK_TITLE` and `BOOK_SUBTITLE` default to generic strings.** `.rhiza/.env` sets `BOOK_TITLE=Project Documentation` and `BOOK_SUBTITLE=Generated by minibook`. These defaults will propagate to all downstream projects unless overridden in `local.mk` or the project `Makefile`. Users who don't customize these will publish books with identical generic titles.
+
+---
+
+### Score
+
+**9 / 10** — down from 9.5 due to the critical `actions/checkout@v6.0.2` defect discovered in this analysis, which renders all CI workflows non-functional. The book build pipeline itself is well-architected with correct resilience patterns, appropriate artifact assembly, and sound GitHub Pages configuration (minus the missing `configure-pages` step). The score recovers to **9.5** once the action version issue is resolved and `configure-pages` is added.
+
+**New issues identified in this analysis:**
+- 🔴 `actions/checkout@v6.0.2` does not exist — all CI broken (systemic, template-level)
+- 🔴 `rhiza_book.yml` missing `actions/configure-pages` step — Pages deployment will fail
+- 🟡 `minibook` invoked without version pin — nondeterministic builds
+- 🟡 `python-dotenv` undeclared test dependency in `test_notebook_execution.py`
+- 🟡 Live CodeFactor HTTP probe in build pipeline — nondeterminism, network dependency
+- 🟡 `SPLIT_MAKEFILES` in conftest references non-existent `.mk` files
+
 ## 2026-02-27 (Third Analysis) — Post-PR #323 Concurrency, Status & ADRs
 
 ### Summary
