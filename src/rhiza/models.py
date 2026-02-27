@@ -410,6 +410,8 @@ class TemplateLock:
             "templates": self.templates,
         }
 
+        if self.files:
+            config["files"] = self.files
         if self.synced_at:
             config["synced_at"] = self.synced_at
         if self.strategy:

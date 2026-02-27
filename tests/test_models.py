@@ -778,7 +778,7 @@ class TestTemplateLock:
         assert lock.files == []
 
     def test_round_trip(self, tmp_path):
-        """to_yaml then from_yaml preserves all fields except files (which is not written)."""
+        """to_yaml then from_yaml preserves all fields including files when non-empty."""
         original = TemplateLock(
             sha="abc123def456",
             repo="jebel-quant/rhiza",
@@ -804,10 +804,7 @@ class TestTemplateLock:
         assert loaded.templates == original.templates
         assert loaded.synced_at == original.synced_at
         assert loaded.strategy == original.strategy
-        # files is not written to the lock file, so it will be empty after round-trip.
-        # Backward compatibility reading (old locks WITH files section) is tested
-        # in test_from_yaml_structured_format.
-        assert loaded.files == []
+        assert loaded.files == original.files
 
     def test_from_yaml_missing_optional_fields(self, tmp_path):
         """from_yaml uses defaults for missing optional fields."""

@@ -893,7 +893,7 @@ def _merge_with_base(
     try:
         _clone_at_sha(git_url, base_sha, base_clone, include_paths, git_executable, git_env)
         _prepare_snapshot(base_clone, include_paths, excludes, base_snapshot)
-    except Exception:
+    except subprocess.CalledProcessError:
         logger.warning("Could not checkout base commit — treating all files as new")
     finally:
         if base_clone.exists():

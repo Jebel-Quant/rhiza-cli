@@ -59,7 +59,7 @@ class TestLockFile:
         assert (target / ".rhiza" / "template.lock").exists()
 
     def test_write_lock_yaml_format(self, tmp_path):
-        """Lock file is written as YAML with all required fields (files is excluded)."""
+        """Lock file is written as YAML with all required fields (files omitted when empty)."""
         lock = TemplateLock(
             sha="abc123def456",
             repo="jebel-quant/rhiza",
@@ -445,9 +445,9 @@ class TestSyncOrphanedFiles:
         # old.txt should be deleted as it is no longer in the template
         assert not (tmp_path / "old.txt").exists()
 
-        # template.lock should not contain files section
+        # template.lock should contain files section
         lock_content = TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock")
-        assert lock_content.files == []
+        assert lock_content.files == ["new.txt"]
 
 
 class TestSyncCLI:
@@ -810,9 +810,9 @@ class TestMergeWithBasePaths:
 
     @patch("rhiza._sync_helpers._clone_at_sha")
     def test_merge_with_base_handles_clone_exception(self, mock_clone_at_sha, tmp_path, git_setup):
-        """Exception in _clone_at_sha is caught and logged (lines 478-479)."""
+        """subprocess.CalledProcessError in _clone_at_sha is caught and logged (lines 478-479)."""
         git_executable, git_env = git_setup
-        mock_clone_at_sha.side_effect = RuntimeError("network error")
+        mock_clone_at_sha.side_effect = subprocess.CalledProcessError(128, ["git", "checkout"])
 
         upstream_snapshot = tmp_path / "upstream"
         upstream_snapshot.mkdir()
