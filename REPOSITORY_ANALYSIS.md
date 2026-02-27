@@ -48,7 +48,7 @@
 
 ### Weaknesses
 
-- **Template pinned to old version (v0.8.3 vs current v0.11.4-rc.6).** `.rhiza/template.yml` specifies `template-branch: "v0.8.3"`, three minor versions behind the current release. This creates a version divergence where the project's own configuration is not tested against its current release. Consider migrating to `main` or at least v0.10.x.
+- **Template source pinned to `v0.8.3`.** `.rhiza/template.yml` specifies `template-branch: "v0.8.3"` for the `jebel-quant/rhiza` template source repo (a separate project from this `jebel-quant/rhiza-cli` repo — the two version numbers are not comparable). Whether this ref is current depends on `jebel-quant/rhiza`'s own release history. Consider tracking `main` or a recent tag of that repo.
 
 - **No benchmark regression tracking infrastructure.** `tests/benchmarks/` and `rhiza_benchmarks.yml` exist, but there is no historical baseline storage or automated regression detection. Benchmarks without comparison to baselines are measurements without meaning. Consider integrating `pytest-benchmark` with JSON storage or CodSpeed for continuous regression tracking.
 
@@ -125,7 +125,7 @@ Continued improvement from **9/10** (PR #307 snapshot). The three items that wou
 
 ### Weaknesses
 
-- **Repository uses old template version.** `.rhiza/template.yml` pins to `template-branch: "v0.8.3"`, which is 3 minor versions behind the current release (v0.11.4-rc.6). While stability is a valid reason to lag, the template source should ideally use a more recent version (or `main`) to demonstrate currency and catch integration issues early.
+- **Template source pinned to `v0.8.3`.** `.rhiza/template.yml` pins `jebel-quant/rhiza` (the template source repo) to `template-branch: "v0.8.3"`. Note: `jebel-quant/rhiza` and `jebel-quant/rhiza-cli` are separate repos with independent version schemes — comparing `v0.8.3` to `rhiza-cli`'s `v0.11.4-rc.6` is not meaningful. Whether `v0.8.3` is stale depends on `jebel-quant/rhiza`'s own release history.
 
 - **CI automation now uses `rhiza sync`.** `.github/workflows/rhiza_sync.yml` was migrated from the deprecated `uvx "rhiza>=${RHIZA_VERSION}" materialize --force .` to `uvx "rhiza>=${RHIZA_VERSION}" sync`. The `renovate_rhiza_sync.yml` was already using `sync`. Both automation workflows now use the current API with lock-file tracking and 3-way merge.
 
@@ -206,7 +206,7 @@ Substantial improvement from the previous **7/10** and the earlier **6/10**. The
 
 - **Both CI sync workflows now use `rhiza sync`.** `rhiza_sync.yml` was migrated from `rhiza materialize --force .` to `rhiza sync`, and `renovate_rhiza_sync.yml` already uses `sync`. This means both automation workflows now use the lock file and 3-way merge, validating that the dogfooding workflow functions correctly.
 
-- **`template.yml` in this repo pins to a specific old version (`v0.8.3`).** `.rhiza/template.yml` specifies `template-branch: "v0.8.3"`, meaning the repo is 3 minor versions behind its own current release (v0.11.4-rc.6). While this is a valid use case (stability), it raises the question: why isn't the template source eating its own dogfood and using `main` or at least a more recent version?
+- **`template.yml` pins `jebel-quant/rhiza` at `v0.8.3`.** `.rhiza/template.yml` specifies `template-branch: "v0.8.3"` for the `jebel-quant/rhiza` template source repo. This is a separate project from `jebel-quant/rhiza-cli`; their version numbers are independent and not comparable. The relevant question is whether `v0.8.3` is the latest stable tag of `jebel-quant/rhiza`, not how it relates to this repo's version.
 
 - **`book/` directory is nearly empty.** `ls -la book/` shows only a `minibook-templates/` subdirectory with no actual built book. The README mentions `make book` for documentation generation, and there's a `rhiza_book.yml` CI workflow, but the artifact is not checked into the repo (likely published to GitHub Pages). This is fine for CI, but makes local verification harder.
 
@@ -686,7 +686,7 @@ Repository at v0.11.4-rc.6 on `main` branch. This is a **mature, actively-mainta
 
 ### Risks / Technical Debt
 
-- **Version lag between repository and its own template.** The repository produces `v0.11.4-rc.6` releases but uses template `v0.8.3` internally. This creates a **3-version divergence** where the project's own configuration is not tested against its current release. If a breaking change in template structure or sync logic occurs between v0.8.3 and v0.11.4, the repository's own CI would not catch it. This undermines dogfooding credibility.
+- **Template source pin currency unknown.** `.rhiza/template.lock` pins `jebel-quant/rhiza` at `v0.8.3`. Note: `jebel-quant/rhiza` is a separate repo from `jebel-quant/rhiza-cli` with its own independent version scheme — the `v0.8.3` tag cannot be compared to `rhiza-cli`'s `v0.11.4-rc.6`. The real question is whether `v0.8.3` is the latest stable release of `jebel-quant/rhiza`, which was not verified during this analysis.
 
 - **Renovate automation bypasses lock file semantics.** `renovate_rhiza_sync.yml` using `materialize --force` instead of `sync` means the repository's **own update mechanism does not use the 3-way merge feature** it advertises. If this automation runs on schedule and force-overwrites local changes, contributors' manual edits to template-sourced files will be lost. The lock file exists but is not respected by automated updates.
 
@@ -810,7 +810,7 @@ Branch `copilot/add-early-repository-validation` contains a single "Initial plan
 
 ### Weaknesses
 
-- **Template pinned to v0.8.3, now 3 minor versions behind current release (v0.11.4-rc.6).** `.rhiza/template.yml` specifies `template-branch: "v0.8.3"` while `pyproject.toml` declares `version = "0.11.4-rc.6"`. This 3-version gap creates a credibility problem: the project's own configuration doesn't test its current codebase. Users may question whether the tool is actively maintained if the developers don't use the latest version. Migration to `main` or at minimum v0.11.x is overdue.
+- **Template source pinned to `v0.8.3` (currency unverified).** `.rhiza/template.yml` specifies `template-branch: "v0.8.3"` for `jebel-quant/rhiza`. This is a separate repo from `jebel-quant/rhiza-cli` with an independent version scheme; the two version numbers are not comparable. Whether `v0.8.3` is stale relative to `jebel-quant/rhiza`'s own releases was not verified during this analysis.
 
 - **No GitHub Actions agentic workflows deployed.** Despite custom instructions referencing `gh-aw` commands (`make gh-aw-compile`, `gh aw run`), there are no `.lock.yml` files in `.github/workflows/`. The infrastructure (documented in `docs/GH_AW.md`) exists but is unused. Either deploy starter workflows (`daily-repo-status`, `ci-doctor`, `issue-triage`) or remove the documentation to avoid misleading users.
 
@@ -860,7 +860,7 @@ All architectural and structural concerns identified in earlier analyses have be
 - ✅ ADR documentation (PR #309, PR #323)
 
 **Remaining for 10/10:**
-- ⚠️ Migrate template from v0.8.3 to v0.11.4-rc.6 or `main`
+- ⚠️ Verify whether `jebel-quant/rhiza@v0.8.3` is current; update pin if newer stable tags exist
 - ⚠️ Clean up 16 stale Copilot branches
 - ⚠️ Fix PyPI issues URL (remove `-cli` suffix)
 - ⚠️ Deploy agentic workflows or remove documentation
