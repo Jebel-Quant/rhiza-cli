@@ -10,12 +10,14 @@ import keyword
 import re
 import subprocess  # nosec B404
 import sys
+import urllib.error
 from pathlib import Path
 
 import typer
 from jinja2 import Template
 from loguru import logger
 
+from rhiza.commands.list_repos import _DESC_WIDTH, _fetch_repos
 from rhiza.commands.validate import validate
 from rhiza.models import RhizaTemplate
 from rhiza.subprocess_utils import get_git_executable
@@ -125,6 +127,59 @@ def _prompt_git_host() -> str:
         logger.debug("Non-interactive mode detected, defaulting to github")
 
     return str(git_host)
+
+
+def _prompt_template_repository() -> str | None:
+    """Prompt the user to select a template repository from a list of rhiza-tagged repos.
+
+    Fetches repositories tagged with 'rhiza' from the GitHub API and presents
+    them as a numbered list. In non-interactive or offline scenarios the function
+    returns None so the caller falls back to the language default.
+
+    Returns:
+        The selected repository in 'owner/repo' format, or None if the user
+        accepts the default or selection is not possible.
+    """
+    if not sys.stdin.isatty():
+        logger.debug("Non-interactive mode detected, skipping template repository selection")
+        return None
+
+    try:
+        repos = _fetch_repos()
+    except urllib.error.URLError as exc:
+        logger.debug(f"Could not fetch repository list: {exc}")
+        return None
+
+    if not repos:
+        return None
+
+    # Display a compact numbered list
+    typer.echo("\nAvailable template repositories:")
+    for i, repo in enumerate(repos, start=1):
+        desc = repo.description[:_DESC_WIDTH] if repo.description else ""
+        typer.echo(f"  {i:>2}  {repo.full_name:<30}  {desc}")
+
+    typer.echo("")
+    selection = typer.prompt(
+        "Select a template repository by number, or press Enter to use the default",
+        default="",
+    ).strip()
+
+    if not selection:
+        return None
+
+    try:
+        idx = int(selection)
+        if 1 <= idx <= len(repos):
+            chosen = repos[idx - 1].full_name
+            logger.info(f"Selected template repository: {chosen}")
+            return chosen
+        else:
+            logger.warning(f"Invalid selection '{idx}', using default repository")
+            return None
+    except ValueError:
+        logger.warning(f"Invalid input '{selection}', using default repository")
+        return None
 
 
 def _get_default_templates_for_host(git_host: str) -> list[str]:
@@ -343,6 +398,12 @@ def init(
     # Determine git host
     if git_host is None:
         git_host = _prompt_git_host()
+
+    # When no template repository is specified and no config file exists yet,
+    # offer the user an interactive selection from discovered rhiza repos.
+    template_yml = target / ".rhiza" / "template.yml"
+    if template_repository is None and not template_yml.exists():
+        template_repository = _prompt_template_repository()
 
     # Validate template repository reachability early if a custom one is specified
     if template_repository is not None and not _check_template_repository_reachable(template_repository, git_host):

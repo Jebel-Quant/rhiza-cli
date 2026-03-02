@@ -13,6 +13,7 @@ import typer
 from rhiza import __version__
 from rhiza.commands import init as init_cmd
 from rhiza.commands import validate as validate_cmd
+from rhiza.commands.list_repos import list_repos as list_repos_cmd
 from rhiza.commands.migrate import migrate as migrate_cmd
 from rhiza.commands.status import status as status_cmd
 from rhiza.commands.summarise import summarise as summarise_cmd
@@ -370,6 +371,31 @@ def welcome() -> None:
         rhiza welcome
     """
     welcome_cmd()
+
+
+@app.command(name="list")
+def list_repos(
+    topic: str = typer.Option(
+        "rhiza",
+        "--topic",
+        "-t",
+        help="GitHub topic to search for (default: 'rhiza')",
+    ),
+) -> None:
+    r"""List GitHub repositories tagged with a given topic.
+
+    Queries the GitHub Search API for repositories tagged with the
+    specified topic and displays them in a formatted table with the
+    repository name, description, and last-updated date.
+
+    Set the ``GITHUB_TOKEN`` environment variable to avoid API rate limits.
+
+    Examples:
+        rhiza list
+        rhiza list --topic rhiza-go
+    """
+    if not list_repos_cmd(topic):
+        raise typer.Exit(code=1)
 
 
 @app.command()
