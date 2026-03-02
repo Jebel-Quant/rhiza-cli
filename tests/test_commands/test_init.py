@@ -522,3 +522,130 @@ class TestCheckTemplateRepositoryReachable:
             cli.app, ["init", str(tmp_path), "--git-host", "github", "--template-repository", "typo/nonexistent"]
         )
         assert result.exit_code != 0
+
+
+class TestPromptTemplateRepository:
+    """Tests for the _prompt_template_repository function."""
+
+    def test_returns_none_when_not_tty(self, monkeypatch):
+        """Return None immediately in non-interactive (non-TTY) mode."""
+        from rhiza.commands.init import _prompt_template_repository
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        assert _prompt_template_repository() is None
+
+    def test_returns_none_on_network_error(self, monkeypatch):
+        """Return None gracefully when the GitHub API is unreachable."""
+        import urllib.error
+
+        from rhiza.commands.init import _prompt_template_repository
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        with patch(
+            "rhiza.commands.init._fetch_repos",
+            side_effect=urllib.error.URLError("network error"),
+        ):
+            assert _prompt_template_repository() is None
+
+    def test_returns_none_when_no_repos(self, monkeypatch):
+        """Return None when the API returns an empty list."""
+        from rhiza.commands.init import _prompt_template_repository
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        with patch("rhiza.commands.init._fetch_repos", return_value=[]):
+            assert _prompt_template_repository() is None
+
+    def test_returns_none_on_empty_input(self, monkeypatch):
+        """Return None when the user presses Enter without entering a number."""
+        from rhiza.commands.init import _prompt_template_repository
+        from rhiza.commands.list_repos import _RepoInfo
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("typer.prompt", lambda *a, **kw: "")
+        with patch(
+            "rhiza.commands.init._fetch_repos",
+            return_value=[_RepoInfo("org/repo", "desc", "2026-01-01")],
+        ):
+            assert _prompt_template_repository() is None
+
+    def test_returns_selected_repo_on_valid_number(self, monkeypatch):
+        """Return the full_name of the repo at the selected index."""
+        from rhiza.commands.init import _prompt_template_repository
+        from rhiza.commands.list_repos import _RepoInfo
+
+        repos = [
+            _RepoInfo("org/repo-a", "desc A", "2026-01-01"),
+            _RepoInfo("org/repo-b", "desc B", "2026-02-01"),
+        ]
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("typer.prompt", lambda *a, **kw: "2")
+        with patch("rhiza.commands.init._fetch_repos", return_value=repos):
+            assert _prompt_template_repository() == "org/repo-b"
+
+    def test_returns_none_on_out_of_range_number(self, monkeypatch):
+        """Return None when the number is out of range."""
+        from rhiza.commands.init import _prompt_template_repository
+        from rhiza.commands.list_repos import _RepoInfo
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("typer.prompt", lambda *a, **kw: "99")
+        with patch(
+            "rhiza.commands.init._fetch_repos",
+            return_value=[_RepoInfo("org/repo", "desc", "2026-01-01")],
+        ):
+            assert _prompt_template_repository() is None
+
+    def test_returns_none_on_non_numeric_input(self, monkeypatch):
+        """Return None when the user enters a non-numeric value."""
+        from rhiza.commands.init import _prompt_template_repository
+        from rhiza.commands.list_repos import _RepoInfo
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("typer.prompt", lambda *a, **kw: "abc")
+        with patch(
+            "rhiza.commands.init._fetch_repos",
+            return_value=[_RepoInfo("org/repo", "desc", "2026-01-01")],
+        ):
+            assert _prompt_template_repository() is None
+
+    def test_init_calls_prompt_when_no_template_repo_specified(self, tmp_path):
+        """init() should call _prompt_template_repository() when no repo is provided and no yml exists."""
+        prompt_mock = MagicMock(return_value=None)
+        with patch("rhiza.commands.init._prompt_template_repository", prompt_mock):
+            init(tmp_path, git_host="github")
+        prompt_mock.assert_called_once()
+
+    def test_init_skips_prompt_when_template_repo_specified(self, tmp_path):
+        """init() should skip the prompt when --template-repository is provided."""
+        prompt_mock = MagicMock(return_value=None)
+        with (
+            patch("rhiza.commands.init._prompt_template_repository", prompt_mock),
+            patch("rhiza.commands.init._check_template_repository_reachable", return_value=True),
+        ):
+            init(tmp_path, git_host="github", template_repository="org/custom")
+        prompt_mock.assert_not_called()
+
+    def test_init_skips_prompt_when_template_yml_exists(self, tmp_path):
+        """init() should skip the prompt when .rhiza/template.yml already exists."""
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        template_file = rhiza_dir / "template.yml"
+        template_file.write_text("repository: org/existing\nref: main\ninclude:\n  - .github\n")
+        prompt_mock = MagicMock(return_value=None)
+        with patch("rhiza.commands.init._prompt_template_repository", prompt_mock):
+            init(tmp_path, git_host="github")
+        prompt_mock.assert_not_called()
+
+    def test_init_uses_selected_repo_from_prompt(self, tmp_path):
+        """init() should use the repository returned by _prompt_template_repository()."""
+        with (
+            patch("rhiza.commands.init._prompt_template_repository", return_value="org/selected-repo"),
+            patch("rhiza.commands.init._check_template_repository_reachable", return_value=True),
+        ):
+            init(tmp_path, git_host="github")
+
+        template_file = tmp_path / ".rhiza" / "template.yml"
+        assert template_file.exists()
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+        assert config["repository"] == "org/selected-repo"
