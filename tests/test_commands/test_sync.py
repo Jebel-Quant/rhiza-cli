@@ -21,8 +21,11 @@ from typer.testing import CliRunner
 from rhiza import cli
 from rhiza._sync_helpers import (
     _apply_diff,
+    _clean_orphaned_files,
     _clone_and_resolve_upstream,
     _clone_at_sha,
+    _clone_template_repository,
+    _delete_orphaned_file,
     _excluded_set,
     _expand_paths,
     _get_diff,
@@ -32,8 +35,11 @@ from rhiza._sync_helpers import (
     _parse_diff_filenames,
     _prepare_snapshot,
     _read_lock,
+    _read_previously_tracked_files,
     _sync_diff,
     _sync_merge,
+    _update_sparse_checkout,
+    _validate_and_load_template,
     _write_lock,
 )
 from rhiza.commands.sync import sync
@@ -481,7 +487,7 @@ class TestSyncCLI:
 
 
 class TestGetHeadSha:
-    """Tests for _get_head_sha helper (lines 96-104)."""
+    """Tests for _get_head_sha helper."""
 
     @pytest.fixture
     def git_setup(self):
@@ -519,7 +525,7 @@ class TestGetHeadSha:
 
 
 class TestCloneAtSha:
-    """Tests for _clone_at_sha helper (lines 125-182)."""
+    """Tests for _clone_at_sha helper."""
 
     @pytest.fixture
     def git_setup(self):
@@ -548,7 +554,7 @@ class TestCloneAtSha:
 
 
 class TestApplyDiffConflict:
-    """Tests for conflict-handling branch in _apply_diff (lines 293-314)."""
+    """Tests for conflict-handling branch in _apply_diff."""
 
     @pytest.fixture
     def git_setup(self):
@@ -592,7 +598,7 @@ class TestApplyDiffConflict:
 
 
 class TestSyncDiffNoChanges:
-    """Tests for _sync_diff when there are no differences (line 355)."""
+    """Tests for _sync_diff when there are no differences."""
 
     def test_sync_diff_no_changes(self, tmp_path):
         """_sync_diff logs success when there are no differences."""
@@ -610,7 +616,7 @@ class TestSyncDiffNoChanges:
 
 
 class TestSyncMergeWithBase:
-    """Tests for merge strategy with an existing base SHA (lines 421, 473-497)."""
+    """Tests for merge strategy with an existing base SHA."""
 
     def _setup_project(self, tmp_path, include=None):
         (tmp_path / ".git").mkdir()
@@ -635,7 +641,7 @@ class TestSyncMergeWithBase:
     def test_sync_merge_with_existing_base_sha(
         self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_rmtree, tmp_path
     ):
-        """Merge strategy calls _merge_with_base when a base SHA exists (line 421)."""
+        """Merge strategy calls _merge_with_base when a base SHA exists."""
         self._setup_project(tmp_path)
 
         # Write a lock so base_sha will be "oldsha" ≠ upstream
@@ -665,7 +671,7 @@ class TestSyncMergeWithBase:
 
 
 class TestCloneAndResolveUpstreamWithTemplates:
-    """Tests for template bundle resolution path in _clone_and_resolve_upstream (lines 532-535)."""
+    """Tests for template bundle resolution path in _clone_and_resolve_upstream."""
 
     @patch("rhiza._sync_helpers._get_head_sha")
     @patch("rhiza._sync_helpers.resolve_include_paths")
@@ -719,7 +725,7 @@ class TestCloneAndResolveUpstreamWithTemplates:
 
 
 class TestCloneAtShaErrorPaths:
-    """Tests for error-handling branches in _clone_at_sha (lines 141-144, 164-167, 179-182)."""
+    """Tests for error-handling branches in _clone_at_sha."""
 
     @pytest.fixture
     def git_setup(self):
@@ -784,7 +790,7 @@ class TestCloneAtShaErrorPaths:
 
 
 class TestMergeWithBasePaths:
-    """Tests for _merge_with_base helper (lines 478-479, 487-489, 495)."""
+    """Tests for _merge_with_base helper."""
 
     @pytest.fixture
     def git_setup(self):
@@ -812,7 +818,7 @@ class TestMergeWithBasePaths:
 
     @patch("rhiza._sync_helpers._clone_at_sha")
     def test_merge_with_base_handles_clone_exception(self, mock_clone_at_sha, tmp_path, git_setup):
-        """Exception in _clone_at_sha is caught and logged (lines 478-479)."""
+        """Exception in _clone_at_sha is caught and logged."""
         git_executable, git_env = git_setup
         mock_clone_at_sha.side_effect = RuntimeError("network error")
 
@@ -845,7 +851,7 @@ class TestMergeWithBasePaths:
     @patch("rhiza._sync_helpers._clone_at_sha")
     @patch("rhiza._sync_helpers._prepare_snapshot")
     def test_merge_with_base_no_diff(self, mock_prepare, mock_clone, mock_get_diff, tmp_path, git_setup):
-        """When diff is empty, lock is updated and function returns early (lines 487-489)."""
+        """When diff is empty, lock is updated and function returns early."""
         git_executable, git_env = git_setup
         mock_get_diff.return_value = ""  # empty diff → no changes
 
@@ -881,7 +887,7 @@ class TestMergeWithBasePaths:
     def test_merge_with_base_clean_apply(
         self, mock_prepare, mock_clone, mock_get_diff, mock_apply, tmp_path, git_project, git_setup
     ):
-        """When diff applies cleanly, success is logged (line 495)."""
+        """When diff applies cleanly, success is logged."""
         git_executable, git_env = git_setup
         mock_get_diff.return_value = (
             "diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new\n"
@@ -1869,14 +1875,9 @@ class TestThreeWayMergeSyncMergeStrategy:
 # ---------------------------------------------------------------------------
 
 from rhiza._sync_helpers import (  # noqa: E402
-    _clean_orphaned_files,
-    _clone_template_repository,
     _construct_git_url,
     _handle_target_branch,
     _log_git_stderr_errors,
-    _read_previously_tracked_files,
-    _update_sparse_checkout,
-    _validate_and_load_template,
     _warn_about_workflow_files,
 )
 
@@ -2276,3 +2277,438 @@ class TestUpdateSparseCheckout:
             mock_run.side_effect = subprocess.CalledProcessError(128, ["git"], stderr="error: failed")
             with pytest.raises(subprocess.CalledProcessError):
                 _update_sparse_checkout(tmp_path, [".github"], git_executable, git_env)
+
+    def test_success_logs_debug(self, tmp_path, git_setup):
+        """Success path logs debug message."""
+        git_executable, git_env = git_setup
+        from unittest.mock import MagicMock
+
+        with patch("rhiza._sync_helpers.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+            # Should not raise
+            _update_sparse_checkout(tmp_path, [".github"], git_executable, git_env)
+        mock_run.assert_called_once()
+
+
+class TestCloneTemplateRepositorySuccessAndSetFailure:
+    """Tests for success and exception paths in _clone_template_repository."""
+
+    @pytest.fixture
+    def git_setup(self):
+        """Return git executable and env."""
+        git = shutil.which("git")
+        if git is None:
+            pytest.skip("git not available")
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        return git, env
+
+    def test_success_path_logs_initialized(self, tmp_path, git_setup):
+        """All three subprocess calls succeed; lines 315 and 331 are executed."""
+        git_executable, git_env = git_setup
+        from unittest.mock import MagicMock
+
+        ok = MagicMock(returncode=0, stdout="", stderr="")
+        with patch("rhiza._sync_helpers.subprocess.run", return_value=ok):
+            _clone_template_repository(
+                tmp_path,
+                "https://github.com/example/repo.git",
+                "main",
+                [".github"],
+                git_executable,
+                git_env,
+            )
+
+    def test_sparse_checkout_set_failure_reraises(self, tmp_path, git_setup):
+        """Third subprocess call (sparse-checkout set) failure re-raises."""
+        git_executable, git_env = git_setup
+        from unittest.mock import MagicMock
+
+        ok = MagicMock(returncode=0, stdout="", stderr="")
+        err = subprocess.CalledProcessError(1, ["git", "sparse-checkout", "set"])
+        err.stderr = "error: sparse-checkout failed"
+        # clone OK, init OK, set FAILS
+        with (
+            patch("rhiza._sync_helpers.subprocess.run", side_effect=[ok, ok, err]),
+            pytest.raises(subprocess.CalledProcessError),
+        ):
+            _clone_template_repository(
+                tmp_path,
+                "https://github.com/example/repo.git",
+                "main",
+                [".github"],
+                git_executable,
+                git_env,
+            )
+
+
+class TestReadPreviouslyTrackedFilesFromLock:
+    """Tests for _read_previously_tracked_files reading from template.lock."""
+
+    def test_returns_files_from_template_lock(self, tmp_path):
+        """Files listed in template.lock are returned."""
+        from pathlib import Path
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        lock_file = rhiza_dir / "template.lock"
+        lock_file.write_text("sha: abc123\nrepo: owner/repo\nfiles:\n  - Makefile\n  - .github/workflows/ci.yml\n")
+
+        files = _read_previously_tracked_files(tmp_path)
+
+        assert Path("Makefile") in files
+        assert Path(".github/workflows/ci.yml") in files
+        assert len(files) == 2
+
+
+class TestDeleteOrphanedFileException:
+    """Tests for exception path in _delete_orphaned_file."""
+
+    def test_deletion_exception_is_caught(self, tmp_path):
+        """Exception during unlink is caught and logged."""
+        from pathlib import Path
+        from unittest.mock import patch
+
+        file_path = Path("orphan.txt")
+        full_path = tmp_path / file_path
+        full_path.write_text("content")
+
+        with patch.object(Path, "unlink", side_effect=PermissionError("cannot delete")):
+            # Should not raise - exception is caught
+            _delete_orphaned_file(tmp_path, file_path)
+
+
+class TestCleanOrphanedFilesNoOrphans:
+    """Tests for _clean_orphaned_files when there are no orphans."""
+
+    def test_no_orphaned_files_returns_early(self, tmp_path):
+        """When all tracked files are still materialized, no deletions happen."""
+        from pathlib import Path
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        history_file = rhiza_dir / "history"
+        history_file.write_text("file_a.txt\nfile_b.txt\n")
+
+        # All tracked files are also in materialized_files → no orphans
+        materialized = [Path("file_a.txt"), Path("file_b.txt")]
+
+        # Should not raise or delete anything
+        _clean_orphaned_files(tmp_path, materialized)
+
+
+class TestLockFileWithoutFcntl:
+    """Tests for fcntl-unavailable paths in _read_lock and _write_lock."""
+
+    def test_read_lock_without_fcntl(self, tmp_path):
+        """_read_lock logs debug when fcntl is not available."""
+        _write_lock(tmp_path, TemplateLock(sha="deadbeef12345678"))
+
+        with patch("rhiza._sync_helpers._FCNTL_AVAILABLE", False):
+            sha = _read_lock(tmp_path)
+
+        assert sha == "deadbeef12345678"
+
+    def test_write_lock_without_fcntl(self, tmp_path):
+        """_write_lock logs debug when fcntl is not available."""
+        with patch("rhiza._sync_helpers._FCNTL_AVAILABLE", False):
+            _write_lock(tmp_path, TemplateLock(sha="cafebabe12345678"))
+
+        assert _read_lock(tmp_path) == "cafebabe12345678"
+
+
+class TestReadLockYAMLError:
+    """Tests for YAML parse error handling in _read_lock."""
+
+    def test_read_lock_falls_back_on_yaml_error(self, tmp_path):
+        """When yaml.safe_load raises YAMLError, _read_lock falls back to plain-SHA."""
+        import yaml
+
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+        lock_path.parent.mkdir(parents=True)
+        lock_path.write_text("abc123plainsha\n")
+
+        with patch("rhiza._sync_helpers.yaml.safe_load", side_effect=yaml.YAMLError("parse error")):
+            result = _read_lock(tmp_path)
+
+        assert result == "abc123plainsha"
+
+
+class TestValidateAndLoadTemplatePaths:
+    """Tests for additional log paths in _validate_and_load_template."""
+
+    @patch("rhiza.commands.validate.validate")
+    def test_logs_templates_when_set(self, mock_validate, tmp_path):
+        """Templates list is logged when template.templates is non-empty."""
+        mock_validate.return_value = True
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        (rhiza_dir / "template.yml").write_text("template-repository: owner/repo\ntemplates:\n  - core\n  - tests\n")
+
+        template, _repo, _branch, _include, _excluded = _validate_and_load_template(tmp_path, "main")
+
+        assert template.templates == ["core", "tests"]
+
+    @patch("rhiza.commands.validate.validate")
+    def test_logs_excluded_paths_when_set(self, mock_validate, tmp_path):
+        """Excluded paths are logged when non-empty."""
+        mock_validate.return_value = True
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        (rhiza_dir / "template.yml").write_text(
+            "template-repository: owner/repo\ninclude:\n  - .github/\nexclude:\n  - .github/workflows/ci.yml\n"
+        )
+
+        _template, _repo, _branch, _include, excluded = _validate_and_load_template(tmp_path, "main")
+
+        assert excluded == [".github/workflows/ci.yml"]
+
+
+class TestMergeFileFallbackEdgeCases:
+    """Tests for edge cases in _merge_file_fallback."""
+
+    @pytest.fixture
+    def git_setup(self):
+        """Return git executable and env."""
+        git = shutil.which("git")
+        if git is None:
+            pytest.skip("git not available")
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        return git, env
+
+    def _make_diff(self, filename: str) -> str:
+        """Make a minimal 'modified file' diff string for the given filename."""
+        return (
+            f"diff --git upstream-template-old/{filename} upstream-template-new/{filename}\n"
+            f"--- upstream-template-old/{filename}\n"
+            f"+++ upstream-template-new/{filename}\n"
+            "@@ -1 +1 @@\n"
+            "-old\n"
+            "+new\n"
+        )
+
+    def test_missing_target_file_copied_from_upstream(self, tmp_path, git_setup):
+        """Modified file missing from target is copied from upstream."""
+        git_executable, git_env = git_setup
+        diff = self._make_diff("file.txt")
+
+        base = tmp_path / "base"
+        base.mkdir()
+        (base / "file.txt").write_text("old\n")
+
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (upstream / "file.txt").write_text("new\n")
+
+        target = tmp_path / "target"
+        target.mkdir()
+        # file.txt does NOT exist in target
+
+        result = _merge_file_fallback(diff, target, base, upstream, git_executable, git_env)
+
+        assert result is True
+        assert (target / "file.txt").read_text() == "new\n"
+
+    def test_missing_base_file_overwrites_with_upstream(self, tmp_path, git_setup):
+        """When base file is missing, target is overwritten with upstream."""
+        git_executable, git_env = git_setup
+        diff = self._make_diff("file.txt")
+
+        base = tmp_path / "base"
+        base.mkdir()
+        # base/file.txt does NOT exist
+
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (upstream / "file.txt").write_text("new\n")
+
+        target = tmp_path / "target"
+        target.mkdir()
+        (target / "file.txt").write_text("local\n")
+
+        result = _merge_file_fallback(diff, target, base, upstream, git_executable, git_env)
+
+        assert result is True
+        assert (target / "file.txt").read_text() == "new\n"
+
+    def test_negative_returncode_from_merge_file(self, tmp_path, git_setup):
+        """Negative returncode from git merge-file marks result as unclean."""
+        from unittest.mock import MagicMock
+
+        git_executable, git_env = git_setup
+        diff = self._make_diff("file.txt")
+
+        base = tmp_path / "base"
+        base.mkdir()
+        (base / "file.txt").write_text("old\n")
+
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (upstream / "file.txt").write_text("new\n")
+
+        target = tmp_path / "target"
+        target.mkdir()
+        (target / "file.txt").write_text("local\n")
+
+        mock_result = MagicMock()
+        mock_result.returncode = -9  # killed by signal
+        mock_result.stderr = b"process killed"
+
+        with patch("rhiza._sync_helpers.subprocess.run", return_value=mock_result):
+            result = _merge_file_fallback(diff, target, base, upstream, git_executable, git_env)
+
+        assert result is False
+
+
+class TestApplyDiffBlobFallback:
+    """Tests for the blob-fallback path in _apply_diff."""
+
+    @pytest.fixture
+    def git_setup(self):
+        """Return git executable and env."""
+        git = shutil.which("git")
+        if git is None:
+            pytest.skip("git not available")
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        return git, env
+
+    @pytest.fixture
+    def git_project(self, tmp_path, git_setup):
+        """Create a minimal git-initialised project directory."""
+        git_executable, git_env = git_setup
+        project = tmp_path / "project"
+        project.mkdir()
+        for cmd in [
+            [git_executable, "init"],
+            [git_executable, "config", "user.email", "t@t.com"],
+            [git_executable, "config", "user.name", "T"],
+        ]:
+            subprocess.run(cmd, cwd=project, check=True, capture_output=True, env=git_env)
+        return project
+
+    @patch("rhiza._sync_helpers._merge_file_fallback")
+    def test_blob_fallback_triggered(self, mock_fallback, git_project, git_setup):
+        """When git apply -3 fails with 'lacks the necessary blob', _merge_file_fallback is used (909-910)."""
+        git_executable, git_env = git_setup
+        mock_fallback.return_value = True
+
+        diff = "diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new\n"
+
+        err = subprocess.CalledProcessError(1, ["git", "apply", "-3"])
+        err.stderr = b"error: sha1 information is lacking or useless (file.txt). lacks the necessary blob"
+
+        with patch("rhiza._sync_helpers.subprocess.run", side_effect=err):
+            base_snapshot = git_project / "base"
+            base_snapshot.mkdir()
+            upstream_snapshot = git_project / "upstream"
+            upstream_snapshot.mkdir()
+
+            result = _apply_diff(
+                diff,
+                git_project,
+                git_executable,
+                git_env,
+                base_snapshot=base_snapshot,
+                upstream_snapshot=upstream_snapshot,
+            )
+
+        mock_fallback.assert_called_once()
+        assert result is True
+
+
+class TestDeleteOrphanedFileAlreadyDeleted:
+    """Tests for the 'already deleted' path in _delete_orphaned_file."""
+
+    def test_skips_nonexistent_file(self, tmp_path):
+        """When file does not exist, a debug message is logged and nothing raises."""
+        from pathlib import Path
+
+        # file_path points to a file that does NOT exist in target
+        _delete_orphaned_file(tmp_path, Path("nonexistent_file.txt"))
+        # No exception means success
+
+
+class TestReadPreviouslyTrackedFilesLockException:
+    """Tests for exception path in _read_previously_tracked_files."""
+
+    def test_falls_back_to_history_when_lock_raises(self, tmp_path):
+        """When template.lock is unreadable, falls back to history file."""
+        from pathlib import Path
+        from unittest.mock import patch
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+
+        # Write a lock file so lock_file.exists() is True
+        lock_file = rhiza_dir / "template.lock"
+        lock_file.write_text("sha: abc\n")
+
+        # Write a history file as fallback
+        history_file = rhiza_dir / "history"
+        history_file.write_text("Makefile\n")
+
+        # Force TemplateLock.from_yaml to raise
+        with patch("rhiza._sync_helpers.TemplateLock.from_yaml", side_effect=Exception("corrupt lock")):
+            files = _read_previously_tracked_files(tmp_path)
+
+        assert Path("Makefile") in files
+
+
+class TestCloneTemplateRepositoryFailurePaths:
+    """Tests for clone and sparse-checkout-init failure paths."""
+
+    @pytest.fixture
+    def git_setup(self):
+        """Return git executable and env."""
+        git = shutil.which("git")
+        if git is None:
+            pytest.skip("git not available")
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        return git, env
+
+    def test_clone_failure_reraises(self, tmp_path, git_setup):
+        """Clone failure logs error and re-raises CalledProcessError."""
+        git_executable, git_env = git_setup
+        err = subprocess.CalledProcessError(128, ["git", "clone"])
+        err.stderr = "fatal: repository not found"
+
+        with (
+            patch("rhiza._sync_helpers.subprocess.run", side_effect=err),
+            pytest.raises(subprocess.CalledProcessError),
+        ):
+            _clone_template_repository(
+                tmp_path,
+                "https://github.com/nonexistent/repo.git",
+                "main",
+                [".github"],
+                git_executable,
+                git_env,
+            )
+
+    def test_sparse_checkout_init_failure_reraises(self, tmp_path, git_setup):
+        """sparse-checkout init failure logs error and re-raises."""
+        git_executable, git_env = git_setup
+        from unittest.mock import MagicMock
+
+        ok = MagicMock(returncode=0, stdout="", stderr="")
+        err = subprocess.CalledProcessError(1, ["git", "sparse-checkout", "init"])
+        err.stderr = "error: sparse-checkout init failed"
+
+        # clone succeeds, sparse-checkout init FAILS
+        with (
+            patch("rhiza._sync_helpers.subprocess.run", side_effect=[ok, err]),
+            pytest.raises(subprocess.CalledProcessError),
+        ):
+            _clone_template_repository(
+                tmp_path,
+                "https://github.com/example/repo.git",
+                "main",
+                [".github"],
+                git_executable,
+                git_env,
+            )
