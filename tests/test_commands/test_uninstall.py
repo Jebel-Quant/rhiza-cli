@@ -402,6 +402,46 @@ class TestUninstallCLI:
         assert not history_file.exists()
 
 
+class TestUninstallTemplateLock:
+    """Tests for template.lock reading in the uninstall command."""
+
+    def test_uninstall_reads_files_from_template_lock(self, tmp_path):
+        """Test that uninstall reads file list from template.lock when it exists."""
+        file1 = tmp_path / "managed.txt"
+        file1.write_text("content")
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+
+        # Write a template.lock with files listed
+        lock_file = rhiza_dir / "template.lock"
+        lock_file.write_text("sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - managed.txt\n")
+
+        uninstall(tmp_path, force=True)
+
+        assert not file1.exists()
+
+    def test_uninstall_handles_invalid_template_lock(self, tmp_path):
+        """Test that uninstall falls back to history when template.lock is unreadable."""
+        file1 = tmp_path / "managed.txt"
+        file1.write_text("content")
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+
+        # Write an invalid template.lock that will raise an exception when parsed
+        lock_file = rhiza_dir / "template.lock"
+        lock_file.write_text("not: valid: yaml: [\n")
+
+        # Also provide a history file as fallback
+        history_file = rhiza_dir / "history"
+        history_file.write_text("managed.txt\n")
+
+        uninstall(tmp_path, force=True)
+
+        assert not file1.exists()
+
+
 class TestUninstallEdgeCases:
     """Tests for edge cases in uninstall functionality."""
 

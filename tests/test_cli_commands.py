@@ -9,12 +9,14 @@ This module tests:
 import shutil
 import subprocess
 import sys
+from unittest.mock import patch
 
 import pytest
 import typer
+from typer.testing import CliRunner
 
 from rhiza import __version__
-from rhiza.cli import version_callback
+from rhiza.cli import app, version_callback
 
 
 class TestCliApp:
@@ -254,3 +256,33 @@ class TestSummariseCommand:
         assert "test/repo" in result.stdout
         assert "custom-branch" in result.stdout
         assert "files added" in result.stdout
+
+
+class TestCLIExceptionHandling:
+    """Tests for exception-handling branches in CLI command wrappers."""
+
+    runner = CliRunner()
+
+    def test_materialize_exits_with_code_1_on_runtime_error(self, tmp_path):
+        """Materialize command exits with code 1 when RuntimeError is raised."""
+        with patch("rhiza.cli.sync_cmd", side_effect=RuntimeError("sync failed")):
+            result = self.runner.invoke(app, ["materialize", str(tmp_path)])
+        assert result.exit_code == 1
+
+    def test_status_exits_with_code_1_on_exception(self, tmp_path):
+        """Status command exits with code 1 when any Exception is raised."""
+        with patch("rhiza.cli.status_cmd", side_effect=RuntimeError("status failed")):
+            result = self.runner.invoke(app, ["status", str(tmp_path)])
+        assert result.exit_code == 1
+
+    def test_uninstall_exits_with_code_1_on_runtime_error(self, tmp_path):
+        """Uninstall command exits with code 1 when RuntimeError is raised."""
+        with patch("rhiza.cli.uninstall_cmd", side_effect=RuntimeError("uninstall failed")):
+            result = self.runner.invoke(app, ["uninstall", str(tmp_path), "--force"])
+        assert result.exit_code == 1
+
+    def test_summarise_exits_with_code_1_on_runtime_error(self, tmp_path):
+        """Summarise command exits with code 1 when RuntimeError is raised."""
+        with patch("rhiza.cli.summarise_cmd", side_effect=RuntimeError("summarise failed")):
+            result = self.runner.invoke(app, ["summarise", str(tmp_path)])
+        assert result.exit_code == 1
