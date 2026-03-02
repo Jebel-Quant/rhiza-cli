@@ -143,46 +143,6 @@ def _get_default_templates_for_host(git_host: str) -> list[str]:
         return [*common, "github"]
 
 
-# def _get_include_paths_for_host(git_host: str) -> list[str]:
-#     """Get include paths based on git hosting platform (legacy, path-based).
-#
-#     Args:
-#         git_host: Git hosting platform.
-#
-#     Returns:
-#         List of include paths.
-#     """
-#     if git_host == "gitlab":
-#         return [
-#             ".rhiza",
-#             ".gitlab",
-#             ".gitlab-ci.yml",
-#             ".editorconfig",
-#             ".gitignore",
-#             ".pre-commit-config.yaml",
-#             "ruff.toml",
-#             "Makefile",
-#             "pytest.ini",
-#             "book",
-#             "presentation",
-#             "tests",
-#         ]
-#     else:
-#         return [
-#             ".rhiza",
-#             ".github",
-#             ".editorconfig",
-#             ".gitignore",
-#             ".pre-commit-config.yaml",
-#             "ruff.toml",
-#             "Makefile",
-#             "pytest.ini",
-#             "book",
-#             "presentation",
-#             "tests",
-#         ]
-
-
 def _create_template_file(
     target: Path,
     git_host: str,
@@ -239,7 +199,7 @@ def _create_template_file(
     logger.info("""
 Next steps:
   1. Review and customize .rhiza/template.yml to match your project needs
-  2. Run 'rhiza sync' to inject templates into your repository
+  2. Run 'uvx rhiza sync' to inject templates into your repository
 """)
 
 
@@ -252,11 +212,16 @@ def _create_python_package(target: Path, project_name: str, package_name: str) -
         package_name: Package name.
     """
     src_folder = target / "src" / package_name
+    test_folder = target / "tests"
+
     if (target / "src").exists():
         return
 
     logger.info(f"Creating Python package structure: {src_folder}")
     src_folder.mkdir(parents=True)
+
+    logger.info(f"Creating test folder: {test_folder}")
+    test_folder.mkdir(parents=True)
 
     # Create __init__.py
     init_file = src_folder / "__init__.py"
@@ -278,6 +243,17 @@ def _create_python_package(target: Path, project_name: str, package_name: str) -
     code = template.render(project_name=project_name)
     main_file.write_text(code)
     logger.success(f"Created Python package structure in {src_folder}")
+
+    # Create main.py
+    test_file = test_folder / "test_main.py"
+    logger.debug(f"Creating {test_file} with example code")
+    test_file.touch()
+
+    template_content = importlib.resources.files("rhiza").joinpath("_templates/basic/test_main.py.jinja2").read_text()
+    template = Template(template_content)
+    code = template.render(project_name=project_name)
+    test_file.write_text(code)
+    # logger.success(f"Created Python package structure in {src_folder}")
 
 
 def _create_pyproject_toml(target: Path, project_name: str, package_name: str, with_dev_dependencies: bool) -> None:
