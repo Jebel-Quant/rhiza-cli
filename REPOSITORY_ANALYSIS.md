@@ -1066,3 +1066,76 @@ Consistent with the prior entry. The template update to v0.8.5 demonstrates cont
 - ⚠️ Fix PyPI issues URL (`/issues-cli` → `-cli/issues`)
 
 This is an **exemplary, production-grade, well-maintained project**. The identified issues are polish items and operational decisions, not defects. The engineering discipline is outstanding: zero TODO markers, comprehensive test suite (1.7:1 test-to-source ratio), 13 active workflows, 4 ADRs, session lifecycle hooks for AI agents, and continuous dogfooding of the core product. Any team would benefit from adopting this project's practices.
+
+
+## 2026-03-02 — Analysis Entry (Feature Branch: `copilot/list-github-repos-rhiza`)
+
+### Summary
+
+`rhiza-cli` v0.11.7 is currently on the `copilot/list-github-repos-rhiza` feature branch. The branch has one commit above `main` ("Initial plan") that touches only `REPOSITORY_ANALYSIS.md`. The stated objective is to implement a `rhiza list` command that fetches GitHub repositories tagged with the `rhiza` topic, which is intended to populate the `--template-repository` option for `rhiza init`. The codebase at this point is **functionally identical to `main`** — no implementation of the feature exists yet.
+
+Core metrics at baseline:
+- `src/` total: **4,502 LOC** across 18 Python modules
+- `tests/` total: **8,465 LOC** across 20 test modules (1.88:1 test-to-source ratio — up from 1.73:1 in prior analysis)
+- Largest module: `_sync_helpers.py` at 1,137 LOC
+- CLI surface: 9 registered commands (`init`, `sync`, `materialize` [deprecated], `validate`, `status`, `migrate`, `welcome`, `uninstall`, `summarise`)
+
+---
+
+### Strengths
+
+- **Clean command registration pattern.** `cli.py` follows a consistent convention: thin Typer wrappers in `cli.py` delegate to implementations in `commands/<name>.py`. The `list` command can be added by creating `commands/list_repos.py` and registering `@app.command()` in `cli.py` without modifying any existing file except `cli.py`. No god-module anti-pattern to work around.
+
+- **`--template-repository` integration point is already designed.** `rhiza init` accepts `--template-repository owner/repo` as an explicit option. The future `list` command only needs to surface the `owner/repo` slug for the user to pass directly. There is no internal API coupling required — the two commands are decoupled by design.
+
+- **`subprocess_utils.py` establishes the security pattern for external calls.** The existing `get_git_executable()` helper resolves full executable paths to prevent PATH injection. Any GitHub API calls via `urllib.request` (no new dependency needed) or via the `gh` CLI should follow the same defensive pattern — validate inputs before constructing URLs, do not shell-interpolate user data.
+
+- **Test structure is file-per-command in `tests/test_commands/`.** The pattern is established: each `commands/<name>.py` has a corresponding `tests/test_commands/test_<name>.py`. A new `test_list_repos.py` can be added without disrupting the existing layout. The `test_init.py` (524 LOC) and `test_sync.py` (2,714 LOC) files demonstrate expected test depth and mocking patterns.
+
+- **No external HTTP client is in the dependency tree, but none is needed.** The GitHub REST API endpoint `https://api.github.com/search/repositories?q=topic:rhiza` is accessible via Python's stdlib `urllib.request`. Adding `requests` or `httpx` would introduce a new dependency for what is a single read-only API call. Using stdlib keeps the dependency footprint minimal and consistent with the project's philosophy (only 4 runtime deps: loguru, typer, PyYAML, jinja2).
+
+- **Test isolation is well-established.** Existing tests use `tmp_path`, `monkeypatch`, `unittest.mock.patch`, and `MagicMock` heavily. For the `list` command, the GitHub API call should be patched in unit tests using `unittest.mock.patch("urllib.request.urlopen")` — the pattern is directly supported by the existing test infrastructure.
+
+- **Typer's `CliRunner` is used consistently for CLI-level tests.** `test_cli_commands.py` and several `test_commands/*.py` files invoke `CliRunner().invoke(app, [...])` to test CLI exit codes and output. The same pattern applies for testing `rhiza list` output formatting.
+
+---
+
+### Weaknesses
+
+- **No GitHub API client or abstraction exists in the codebase.** The feature requires a new module (e.g., `src/rhiza/github_client.py`) responsible for HTTP requests to the GitHub Search API. Without this, the `list` command will either inline HTTP logic in the command module (violating the project's established single-responsibility pattern) or call out to the `gh` CLI as a subprocess (fragile — not guaranteed to be installed). A dedicated, mockable client module is the architecturally correct choice.
+
+- **The `commands/__init__.py` docstring and `__all__` are not updated alongside new commands.** The `__init__.py` still documents `init`, `materialize`, `sync`, `validate` as the only commands, while `status`, `summarise`, `migrate`, `uninstall`, `welcome` are all implemented but not re-exported. A new `list` command would extend this inconsistency unless addressed. The `__all__` list (`["init", "materialize", "sync", "validate"]`) is stale by 5 commands.
+
+- **Authentication for the GitHub API is unhandled.** The GitHub Search API has a public rate limit of 10 unauthenticated requests/minute. For a CLI tool used in CI/CD pipelines, this will be exhausted quickly. The `GITHUB_TOKEN` environment variable is the standard mechanism, but there is no token-reading utility in the codebase. This is a required design decision before implementation: does `rhiza list` silently degrade on rate-limit errors, warn, or fail?
+
+- **`_sync_helpers.py` continues to grow (1,137 LOC).** While it was previously justified as a "sync module extraction," it now contains logic for git URL construction, snapshot preparation, diff application, merge strategies, lock I/O, and template validation — seven distinct concerns in one file. It is the single most complex module in the project. This is not a blocker for the feature, but it poses a refactoring risk for any future work that touches sync internals.
+
+---
+
+### Risks / Technical Debt
+
+- **Rate-limiting and API error handling must be designed before implementation.** The GitHub Search API returns `403 Forbidden` (not `429`) on rate-limit exhaustion for unauthenticated requests. `urllib.request` will raise `urllib.error.HTTPError`. If this is not caught and surfaced with a helpful message (e.g., "Set `GITHUB_TOKEN` to increase rate limits"), the command will produce a confusing stack trace for users. This is the primary correctness risk for the `list` feature.
+
+- **The `rhiza` GitHub topic may return many results (pagination required).** A search for `topic:rhiza` on GitHub currently returns a variable number of repositories. If results exceed 30 (the default page size), the command must either paginate or cap results with a `--limit` option. Returning a truncated silent list without user indication is a UX defect.
+
+- **`commands/__init__.py` re-export hygiene is overdue.** `__all__` = `["init", "materialize", "sync", "validate"]` — 5 other implemented commands are absent. The `list` command will be the 6th unlisted command. While Python does not strictly enforce `__all__` in non-`*`-import scenarios, this represents a documentation/API contract gap that could mislead contributors.
+
+- **`__init__.py` module-level docstring references `materialize` (deprecated) as a key command.** The package docstring still promotes `materialize` instead of `sync` in the "Quick start" example. This is a stale documentation issue that the `list` feature adds to rather than resolves.
+
+- **No integration or smoke test for the `list` command is planned in the feature branch.** The "Initial plan" commit does not modify any test or CI files. The `rhiza_smoke.yml` workflow validates `rhiza sync .` idempotency but has no equivalent for `rhiza list`. A new smoke test that validates the API call (or at minimum, that the command exits 0 and prints output) should be part of the implementation.
+
+---
+
+### Score
+
+**8 / 10** (at feature branch baseline — before implementation)
+
+The deduction from the prior score of 9.5 reflects the feature branch being at "plan but no code" state with several pre-implementation design decisions unresolved (auth strategy, pagination, error handling). The underlying main-branch codebase remains exemplary. Once the `list` command is implemented with:
+
+1. A dedicated, mockable `github_client.py` module using `urllib.request`
+2. `GITHUB_TOKEN` environment variable support with graceful degradation
+3. Pagination or a `--limit` option with user notification
+4. Tests in `tests/test_commands/test_list_repos.py` following existing patterns
+5. Updated `commands/__init__.py` `__all__` and docstring
+
+...the score should return to 9.5+. The structural foundation for the feature is excellent; the implementation risks are all solvable design decisions.
