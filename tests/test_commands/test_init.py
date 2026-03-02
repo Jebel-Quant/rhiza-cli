@@ -184,15 +184,15 @@ class TestInitCommand:
         assert '"""My Project."""' in init_file.read_text()
 
     def test_init_with_dev_dependencies(self, tmp_path):
-        """Test init with dev dependencies enabled."""
+        """Test init creates a pyproject.toml with a [dependency-groups] dev block."""
         init(tmp_path, with_dev_dependencies=True)
 
         pyproject_file = tmp_path / "pyproject.toml"
         content = pyproject_file.read_text()
 
-        assert "[project.optional-dependencies]" in content
+        assert "[dependency-groups]" in content
         assert "dev = [" in content
-        assert '"pytest==9.0.2",' in content
+        assert "marimo" in content
         assert "[tool.deptry]" in content
 
     def test_init_generates_valid_toml(self, tmp_path):

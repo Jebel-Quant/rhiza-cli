@@ -35,3 +35,16 @@ jobs:
 
       - name: Run rhiza sync (idempotency check — must say "Already up to date")
         run: rhiza sync . 2>&1 | tee /tmp/sync_out.txt && grep -q "Already up to date" /tmp/sync_out.txt
+
+      - name: Smoke-test rhiza init in a fresh git repo
+        run: |
+          INIT_DIR=$(mktemp -d)
+          git -C "$INIT_DIR" init
+          git -C "$INIT_DIR" config user.email "ci@smoke.local"
+          git -C "$INIT_DIR" config user.name "Smoke CI"
+          rhiza init "$INIT_DIR" --git-host github --project-name smokeapp
+          test -f "$INIT_DIR/.rhiza/template.yml"
+          test -f "$INIT_DIR/src/smokeapp/main.py"
+          test -f "$INIT_DIR/tests/test_main.py"
+          test -f "$INIT_DIR/pyproject.toml"
+          PYTHONPATH="$INIT_DIR/src" python -m pytest "$INIT_DIR/tests" -q
