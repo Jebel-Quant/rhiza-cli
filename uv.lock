@@ -699,7 +699,7 @@ provides-extras = ["tools"]
 
 [[package]]
 name = "rhiza-tools"
-version = "0.3.4"
+version = "0.3.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bump-my-version" },
@@ -711,9 +711,9 @@ dependencies = [
     { name = "tomlkit" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/85/3b/891a9ff8429beada7b397c7ceab574dd448427556d69165832aa09cb038b/rhiza_tools-0.3.4.tar.gz", hash = "sha256:cf90b1321cb1923f250573a6979dc80d855392c8f895d524db585162d9be117c", size = 245684, upload-time = "2026-02-17T21:22:18.715Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b7/f3/56acede0cc9a0146761035e5514e333cb9643401e4fb2f58e91e2449a0e3/rhiza_tools-0.3.6.tar.gz", hash = "sha256:cb2c167a9176009b42d8e6695c44925fb1689a4beadb4e7ee7ed262d6c552b5c", size = 267867, upload-time = "2026-02-24T08:10:02.252Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6c/ff/8405e2d2bcf9255c589d66d40cfb7ebda814ee93d84ab00abb8ff67ba120/rhiza_tools-0.3.4-py3-none-any.whl", hash = "sha256:cc91cb8e1465dbbcc9e08c3761957ef7e76a86b93733c1c573aed69b8b20a588", size = 42390, upload-time = "2026-02-17T21:22:17.023Z" },
+    { url = "https://files.pythonhosted.org/packages/88/0a/76a6b310d677ae0b85d61e43267acd419a0b153bc17f03075d069bef69d9/rhiza_tools-0.3.6-py3-none-any.whl", hash = "sha256:85f8222db02ad88d308706e860ee2f51ce00098e5de245b1468cb1bf9dfda3ec", size = 42796, upload-time = "2026-02-24T08:10:00.717Z" },
 ]
 
 [[package]]
