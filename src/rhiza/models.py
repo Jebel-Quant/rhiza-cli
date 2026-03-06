@@ -408,6 +408,7 @@ class TemplateLock:
             "include": self.include,
             "exclude": self.exclude,
             "templates": self.templates,
+            "files": self.files,
         }
 
         if self.synced_at:
