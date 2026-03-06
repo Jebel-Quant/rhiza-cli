@@ -670,7 +670,7 @@ class TestTemplateLock:
         assert lock.strategy == ""
 
     def test_to_yaml_writes_all_fields(self, tmp_path):
-        """to_yaml writes all fields in the expected YAML format (files is excluded)."""
+        """to_yaml writes all fields in the expected YAML format."""
         lock = TemplateLock(
             sha="abc123def456",
             repo="jebel-quant/rhiza",
@@ -679,6 +679,7 @@ class TestTemplateLock:
             include=[".github/", ".rhiza/"],
             exclude=[],
             templates=[],
+            files=["Makefile", ".github/workflows/ci.yml"],
             synced_at="2026-02-26T12:00:00Z",
             strategy="merge",
         )
@@ -693,9 +694,9 @@ class TestTemplateLock:
         assert data["include"] == [".github/", ".rhiza/"]
         assert data["exclude"] == []
         assert data["templates"] == []
+        assert data["files"] == ["Makefile", ".github/workflows/ci.yml"]
         assert data["synced_at"] == "2026-02-26T12:00:00Z"
         assert data["strategy"] == "merge"
-        assert "files" not in data
 
     def test_to_yaml_omits_empty_synced_at_and_strategy(self, tmp_path):
         """to_yaml omits synced_at and strategy when they are empty strings."""
@@ -778,7 +779,7 @@ class TestTemplateLock:
         assert lock.files == []
 
     def test_round_trip(self, tmp_path):
-        """to_yaml then from_yaml preserves all fields except files (which is not written)."""
+        """to_yaml then from_yaml preserves all fields including files."""
         original = TemplateLock(
             sha="abc123def456",
             repo="jebel-quant/rhiza",
@@ -802,12 +803,9 @@ class TestTemplateLock:
         assert loaded.include == original.include
         assert loaded.exclude == original.exclude
         assert loaded.templates == original.templates
+        assert loaded.files == original.files
         assert loaded.synced_at == original.synced_at
         assert loaded.strategy == original.strategy
-        # files is not written to the lock file, so it will be empty after round-trip.
-        # Backward compatibility reading (old locks WITH files section) is tested
-        # in test_from_yaml_structured_format.
-        assert loaded.files == []
 
     def test_from_yaml_missing_optional_fields(self, tmp_path):
         """from_yaml uses defaults for missing optional fields."""

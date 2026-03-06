@@ -108,6 +108,7 @@ def sync(
                 include=template.include,
                 exclude=excluded_paths,
                 templates=template.templates,
+                files=[str(p) for p in materialized],
                 synced_at=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 strategy=strategy,
             )
