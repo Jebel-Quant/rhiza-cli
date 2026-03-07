@@ -2,8 +2,8 @@
 
 This module exposes the private implementation functions used by
 :mod:`rhiza.commands.sync`.  Placing them here gives tests a stable import
-path (``from rhiza._sync_helpers import ...``) without coupling them to the
-command module's public API.
+path (``from rhiza.commands._sync_helpers import ...``) without coupling them
+to the command module's public API.
 """
 
 import contextlib
