@@ -5,7 +5,7 @@ Covers the five fundamental scenarios:
 2. First merge sync — files copied, lock written
 3. Diff strategy    — no files modified, no lock written
 4. Subsequent merge — lock SHA updated to new upstream SHA
-5. template.yml changed with same upstream SHA — re-sync triggered, files copied
+5. template.yml changed with same upstream SHA — normal merge path taken (no forced copy)
 """
 
 from pathlib import Path
@@ -161,10 +161,10 @@ class TestSyncCore:
     @patch("rhiza.commands._sync_helpers._clone_template_repository")
     @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
     @patch("rhiza.commands._sync_helpers._get_head_sha")
-    def test_template_yml_changed_same_sha_triggers_resync(
+    def test_template_yml_changed_same_sha_runs_normal_merge(
         self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path
     ):
-        """When template.yml include list changed but upstream SHA is the same, sync still runs."""
+        """When template.yml changes but upstream SHA is unchanged, the normal merge path is taken."""
         # Project previously synced with include: ["old.txt"]
         _setup_project(tmp_path, include=["test.txt"])
         _write_lock(
@@ -184,14 +184,16 @@ class TestSyncCore:
         clone_dir = _make_clone_dir(tmp_path, "upstream_clone", {"test.txt": "new content\n"})
         snapshot_dir = _make_clone_dir(tmp_path, "upstream_snapshot", {})
         base_snapshot_dir = _make_clone_dir(tmp_path, "base_snapshot", {})
+        # Empty base_clone_dir simulates first-time merge of newly included file.
+        base_clone_dir = _make_clone_dir(tmp_path, "base_clone", {})
 
-        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir)]
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir), str(base_clone_dir)]
 
         sync(tmp_path, "main", None, "merge")
 
-        # File from updated include list must have been copied.
+        # File from updated include list is merged (not copied) into target.
         assert (tmp_path / "test.txt").read_text() == "new content\n"
-        # Lock must be updated with the new upstream SHA.
+        # Lock must be updated with the upstream SHA.
         assert _read_lock(tmp_path) == "abc123"
 
     @patch("rhiza.commands._sync_helpers.shutil.rmtree")

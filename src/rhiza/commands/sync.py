@@ -31,7 +31,6 @@ from rhiza.commands._sync_helpers import (
     _construct_git_url,
     _excluded_set,
     _handle_target_branch,
-    _is_template_config_changed,
     _prepare_snapshot,
     _read_lock,
     _sync_diff,
@@ -90,14 +89,6 @@ def sync(
 
     try:
         base_sha = _read_lock(target)
-        if base_sha == upstream_sha and _is_template_config_changed(
-            target, template, rhiza_repo, rhiza_host, rhiza_branch
-        ):
-            # template.yml has changed even though the upstream commit is the same.
-            # Force a full re-sync from the current template.yml so that newly-added
-            # include paths are materialised and removed paths are cleaned up.
-            logger.info("template.yml has changed — re-syncing to apply new configuration")
-            base_sha = None
 
         excludes = _excluded_set(upstream_dir, excluded_paths)
 
