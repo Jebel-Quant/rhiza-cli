@@ -354,8 +354,8 @@ def _warn_about_workflow_files(materialized_files: list[Path]) -> None:
 def _read_previously_tracked_files(target: Path) -> set[Path]:
     """Return the set of files tracked by the last sync.
 
-    Prefers ``template.lock.files`` and falls back to legacy ``.rhiza/history``
-    and ``.rhiza.history`` files for backward compatibility.
+    Prefers ``template.lock.files`` and falls back to the legacy
+    ``.rhiza/history`` file for backward compatibility.
 
     Args:
         target: Target repository path.
@@ -375,15 +375,10 @@ def _read_previously_tracked_files(target: Path) -> set[Path]:
         except Exception as e:
             logger.debug(f"Could not read template.lock for orphan cleanup: {e}")
 
-    new_history_file = target / ".rhiza" / "history"
-    old_history_file = target / ".rhiza.history"
+    history_file = target / ".rhiza" / "history"
 
-    if new_history_file.exists():
-        history_file = new_history_file
-        logger.debug(f"Reading existing history file from new location: {history_file.relative_to(target)}")
-    elif old_history_file.exists():
-        history_file = old_history_file
-        logger.debug(f"Reading existing history file from old location: {history_file.relative_to(target)}")
+    if history_file.exists():
+        logger.debug(f"Reading existing history file: {history_file.relative_to(target)}")
     else:
         logger.debug("No previous file tracking found")
         return set()
