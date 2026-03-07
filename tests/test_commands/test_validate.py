@@ -1051,3 +1051,88 @@ class TestValidateHelperFunctions:
         """_validate_language_field warns when language is not a string (lines 339-340)."""
         # Should not raise — just logs a warning
         _validate_language_field({"language": 42})
+
+    def test_validate_go_project_succeeds(self, tmp_path):
+        """Test validation succeeds for Go project."""
+        # Setup git repository
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create go.mod
+        go_mod_file = tmp_path / "go.mod"
+        go_mod_file.write_text("module example.com/myproject\n\ngo 1.20\n")
+
+        # Create template.yml with go language
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir()
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump({"template-repository": "owner/repo", "language": "go", "include": [".github"]}, f)
+
+        from rhiza.commands.validate import validate
+
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_go_project_fails_without_go_mod(self, tmp_path):
+        """Test validation fails for Go project without go.mod."""
+        # Setup git repository
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml with go language but no go.mod
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir()
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump({"template-repository": "owner/repo", "language": "go", "include": [".github"]}, f)
+
+        from rhiza.commands.validate import validate
+
+        result = validate(tmp_path)
+        assert result is False
+
+    def test_validate_python_project_with_explicit_language(self, tmp_path):
+        """Test validation succeeds for Python project with explicit language."""
+        # Setup git repository
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create pyproject.toml
+        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template.yml with explicit python language
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir()
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump({"template-repository": "owner/repo", "language": "python", "include": [".github"]}, f)
+
+        from rhiza.commands.validate import validate
+
+        result = validate(tmp_path)
+        assert result is True
+
+    def test_validate_with_unknown_language_succeeds(self, tmp_path):
+        """Test validation with unknown language shows warning but doesn't fail."""
+        # Setup git repository
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+
+        # Create template.yml with unknown language
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir()
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump({"template-repository": "owner/repo", "language": "rust", "include": [".github"]}, f)
+
+        # Should succeed but with warnings
+        from rhiza.commands.validate import validate
+
+        result = validate(tmp_path)
+        assert result is True
