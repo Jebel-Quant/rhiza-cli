@@ -2868,3 +2868,229 @@ class TestCloneTemplateRepositoryFailurePaths:
                 git_executable,
                 git_env,
             )
+
+
+class TestEndToEndSyncOrphanAndExclude:
+    """End-to-end lifecycle test for ``_sync_merge``.
+
+    Covers orphan cleanup, excluded-file preservation, and local-change
+    protection in a single sync run.
+
+    Scenario — the project has already had one sync (v1 of the template).
+    Between that sync and this one, the developer:
+
+    * Updated ``template.yml`` to add ``local.cfg`` to the ``exclude:`` list.
+      (In v1, ``local.cfg`` *was* tracked by the template; the developer
+      has since taken ownership of it and moved it to ``exclude:``.)
+    * Left ``Makefile`` with a local addition (a ``clean:`` target at the bottom).
+
+    Simultaneously the upstream template moved from v1 to v2:
+
+    * ``Makefile``:   ``pip install -e .`` → ``uv sync``  (upstream change).
+    * ``ci.yml``:     no upstream change.
+    * ``orphan.txt``: **removed** from the template entirely.
+    * ``local.cfg``:  not present in the upstream (it is in ``exclude:``).
+
+    After ``_sync_merge`` the test verifies all five outcomes:
+
+    1. ``orphan.txt``  is **deleted**  (orphan cleanup).
+    2. ``local.cfg``   is **preserved** (excluded from template → hands-off).
+    3. ``Makefile``    keeps the developer's local ``clean:`` target **and** gets
+       the upstream ``pip install -e . → uv sync`` change applied (3-way merge,
+       no conflict markers, no overwrite of local changes).
+    4. ``ci.yml``      is unchanged (no local or upstream diff).
+    5. ``template.lock`` is updated to the new upstream SHA.
+
+    Only ``_clone_at_sha`` is mocked (avoids network access); all git
+    operations run against real temporary repositories.
+    """
+
+    @pytest.fixture
+    def git_setup(self):
+        """Return git executable and environment."""
+        git = shutil.which("git")
+        if git is None:
+            pytest.skip("git not available")
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        return git, env
+
+    @pytest.fixture
+    def project(self, tmp_path, git_setup):
+        """Initialised target project with template.yml committed."""
+        git_executable, git_env = git_setup
+        project = tmp_path / "project"
+        project.mkdir()
+        for cmd in [
+            [git_executable, "init"],
+            [git_executable, "config", "user.email", "dev@test.com"],
+            [git_executable, "config", "user.name", "Dev"],
+        ]:
+            subprocess.run(cmd, cwd=project, check=True, capture_output=True, env=git_env)
+
+        (project / "pyproject.toml").write_text('[project]\nname = "myapp"\n')
+
+        rhiza = project / ".rhiza"
+        rhiza.mkdir()
+        with open(rhiza / "template.yml", "w") as f:
+            yaml.dump(
+                {
+                    "template-repository": "jebel-quant/rhiza",
+                    "template-branch": "main",
+                    "include": ["Makefile", "ci.yml"],
+                    "exclude": ["local.cfg"],
+                },
+                f,
+            )
+
+        subprocess.run([git_executable, "add", "."], cwd=project, check=True, capture_output=True, env=git_env)
+        subprocess.run(
+            [git_executable, "commit", "-m", "init project"],
+            cwd=project,
+            check=True,
+            capture_output=True,
+            env=git_env,
+        )
+        return project
+
+    @patch("rhiza._sync_helpers._clone_at_sha")
+    @patch("rhiza._sync_helpers._warn_about_workflow_files")
+    def test_sync_merge_lifecycle(self, mock_warn, mock_clone, tmp_path, project, git_setup):
+        """Full sync lifecycle: orphan deleted, excluded kept, local edits not lost."""
+        from pathlib import Path
+
+        git_executable, git_env = git_setup
+        target = project
+
+        # ------------------------------------------------------------------
+        # v1 template content (what the project looked like after last sync)
+        # ------------------------------------------------------------------
+        # Use a multi-section Makefile so local and upstream changes land on
+        # non-overlapping lines (avoids a spurious 3-way merge conflict).
+        makefile_base = ".PHONY: install test\n\ninstall:\n\tpip install -e .\n\ntest:\n\tpytest\n"
+        ci_yml_base = "on: [push, pull_request]\njobs:\n  test:\n    runs-on: ubuntu-latest\n"
+
+        # Developer added a 'clean' target at the *bottom* of Makefile.
+        # The upstream will later change only the 'install' recipe (pip→uv),
+        # which is in the *middle* — the two changes do not overlap.
+        makefile_local = makefile_base + "\nclean:\n\trm -rf .venv __pycache__\n"
+
+        (target / "Makefile").write_text(makefile_local)
+        (target / "ci.yml").write_text(ci_yml_base)
+        (target / "orphan.txt").write_text("orphaned content\n")
+        (target / "local.cfg").write_text("host = localhost\nport = 5432\n")
+
+        subprocess.run([git_executable, "add", "."], cwd=target, check=True, capture_output=True, env=git_env)
+        subprocess.run(
+            [git_executable, "commit", "-m", "local state before sync"],
+            cwd=target,
+            check=True,
+            capture_output=True,
+            env=git_env,
+        )
+
+        # Write the *previous* lock — records all four files as tracked by v1.
+        # At the time of v1, local.cfg was part of the template (exclude was
+        # empty).  The developer later added it to exclude: in template.yml,
+        # which is what this sync run sees.
+        _write_lock(
+            target,
+            TemplateLock(
+                sha="base_sha_v1",
+                repo="jebel-quant/rhiza",
+                host="github",
+                ref="main",
+                include=["Makefile", "ci.yml", "local.cfg"],
+                exclude=[],  # local.cfg was not yet excluded in v1
+                templates=[],
+                files=["Makefile", "ci.yml", "orphan.txt", "local.cfg"],
+            ),
+        )
+
+        # ------------------------------------------------------------------
+        # v2 upstream snapshot (what the template looks like after the bump)
+        # ------------------------------------------------------------------
+        # Makefile: pip install -e . → uv sync  (only the install recipe).
+        # ci.yml:   unchanged.
+        # orphan.txt is gone from the template.
+        # local.cfg is not included (it is in exclude:).
+        makefile_upstream = ".PHONY: install test\n\ninstall:\n\tuv sync\n\ntest:\n\tpytest\n"
+        upstream_snapshot = tmp_path / "upstream_snapshot"
+        upstream_snapshot.mkdir()
+        (upstream_snapshot / "Makefile").write_text(makefile_upstream)
+        (upstream_snapshot / "ci.yml").write_text(ci_yml_base)
+
+        # ------------------------------------------------------------------
+        # Mock _clone_at_sha to populate the *base* snapshot directory with
+        # the v1 template content (no network access needed).
+        # ------------------------------------------------------------------
+        def populate_base_clone(git_url, sha, dest, include_paths, git_exe, git_env_):
+            (dest / "Makefile").write_text(makefile_base)
+            (dest / "ci.yml").write_text(ci_yml_base)
+
+        mock_clone.side_effect = populate_base_clone
+
+        # The new lock that _sync_merge will write at the end.
+        new_lock = TemplateLock(
+            sha="upstream_sha_v2",
+            repo="jebel-quant/rhiza",
+            host="github",
+            ref="main",
+            include=["Makefile", "ci.yml"],
+            exclude=["local.cfg"],
+            templates=[],
+            files=["Makefile", "ci.yml"],
+        )
+
+        # ------------------------------------------------------------------
+        # Run the merge strategy
+        # ------------------------------------------------------------------
+        _sync_merge(
+            target=target,
+            upstream_snapshot=upstream_snapshot,
+            upstream_sha="upstream_sha_v2",
+            base_sha="base_sha_v1",
+            materialized=[Path("Makefile"), Path("ci.yml")],
+            include_paths=["Makefile", "ci.yml"],
+            excludes=set(),  # upstream clone does not contain local.cfg
+            git_url="https://example.com/repo.git",
+            git_executable=git_executable,
+            git_env=git_env,
+            rhiza_repo="jebel-quant/rhiza",
+            rhiza_branch="main",
+            lock=new_lock,
+        )
+
+        # ------------------------------------------------------------------
+        # Assertions
+        # ------------------------------------------------------------------
+
+        # 1. orphan.txt must be deleted — it was tracked in v1 but is no
+        #    longer part of the template and is not excluded.
+        assert not (target / "orphan.txt").exists(), (
+            "orphan.txt must be deleted: it was tracked in v1 but removed from the template"
+        )
+
+        # 2. local.cfg must NOT be deleted — it is now listed in exclude:.
+        #    The developer manages this file; rhiza must leave it alone.
+        local_cfg = target / "local.cfg"
+        assert local_cfg.exists(), "local.cfg must not be deleted: it is in the exclude list"
+        assert local_cfg.read_text() == "host = localhost\nport = 5432\n", "local.cfg content must be unchanged"
+
+        # 3. Makefile: the 3-way merge must preserve the developer's 'clean'
+        #    target (added at the bottom) AND apply the upstream pip→uv change
+        #    (made in the middle).  The two edits are on non-overlapping lines
+        #    so the merge should be conflict-free.
+        makefile_content = (target / "Makefile").read_text()
+        assert "<<<<<<" not in makefile_content, "Makefile must have no conflict markers after merge"
+        assert "clean:" in makefile_content, "Makefile must retain the developer's 'clean' target after merge"
+        assert "uv sync" in makefile_content, "Makefile must have the upstream pip→uv change applied"
+        assert "pip install" not in makefile_content, "old 'pip install' line must be replaced by the upstream change"
+
+        # 4. ci.yml must be completely unchanged (no local or upstream diff).
+        assert (target / "ci.yml").read_text() == ci_yml_base, (
+            "ci.yml must be untouched: no local or upstream change was made"
+        )
+
+        # 5. Lock file must be updated to the new upstream SHA.
+        assert _read_lock(target) == "upstream_sha_v2", "template.lock must be updated to the new upstream SHA"
