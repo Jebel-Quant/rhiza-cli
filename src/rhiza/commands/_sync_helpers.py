@@ -95,6 +95,35 @@ def _log_git_stderr_errors(stderr: str | None) -> None:
                 logger.error(line)
 
 
+def _assert_git_status_clean(target: Path, git_executable: str, git_env: dict[str, str]) -> None:
+    """Raise RuntimeError if the target repository has uncommitted changes.
+
+    Runs ``git status --porcelain`` and raises if the output is non-empty,
+    preventing a sync from running on a dirty working tree.
+
+    Args:
+        target: Path to the target repository.
+        git_executable: Path to git executable.
+        git_env: Environment variables for git commands.
+
+    Raises:
+        RuntimeError: If the working tree has uncommitted changes.
+    """
+    result = subprocess.run(  # nosec B603  # noqa: S603
+        [git_executable, "status", "--porcelain"],
+        cwd=target,
+        capture_output=True,
+        text=True,
+        env=git_env,
+    )
+    if result.stdout.strip():
+        logger.error("Working tree is not clean. Please commit or stash your changes before syncing.")
+        logger.error("Uncommitted changes:")
+        for line in result.stdout.strip().splitlines():
+            logger.error(f"  {line}")
+        raise RuntimeError("Working tree is not clean. Please commit or stash your changes before syncing.")  # noqa: TRY003
+
+
 def _handle_target_branch(
     target: Path, target_branch: str | None, git_executable: str, git_env: dict[str, str]
 ) -> None:
