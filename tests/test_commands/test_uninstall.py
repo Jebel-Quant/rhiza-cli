@@ -1,226 +1,167 @@
-"""Tests for the `uninstall` command.
-
-This module tests the uninstall command functionality, including:
-- Reading .rhiza/template.lock file
-- Removing files listed in .rhiza/template.lock
-- Handling empty directories
-- Confirmation prompts
-- CLI integration
-"""
+"""Tests for the `uninstall` command."""
 
 import subprocess
 import sys
+from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from typer.testing import CliRunner
 
 from rhiza.cli import app
 from rhiza.commands.uninstall import uninstall
 
-LOCK_CONTENT_THREE_FILES = (
-    "sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\n"
-    "files:\n  - file1.txt\n  - subdir/file2.txt\n  - another/deep/file3.txt\n"
-)
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+_LOCK_HEADER = "sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\n"
+
+
+def _make_lock(tmp_path: Path, files: list[str]) -> Path:
+    """Write .rhiza/template.lock listing *files* and return its path."""
+    rhiza_dir = tmp_path / ".rhiza"
+    rhiza_dir.mkdir(parents=True, exist_ok=True)
+    lock_file = rhiza_dir / "template.lock"
+    file_list = "".join(f"  - {f}\n" for f in files)
+    lock_file.write_text(_LOCK_HEADER + "files:\n" + file_list)
+    return lock_file
+
+
+# ---------------------------------------------------------------------------
+# Core command tests
+# ---------------------------------------------------------------------------
 
 
 class TestUninstallCommand:
     """Tests for the uninstall command implementation."""
 
-    def test_uninstall_removes_files_listed_in_template_lock(self, tmp_path):
-        """Test that uninstall removes all files listed in .rhiza/template.lock."""
-        # Create some files
-        file1 = tmp_path / "file1.txt"
-        file2 = tmp_path / "subdir" / "file2.txt"
-        file3 = tmp_path / "another" / "deep" / "file3.txt"
+    def test_removes_files_listed_in_template_lock(self, tmp_path):
+        """Uninstall removes every file listed in .rhiza/template.lock."""
+        files = ["file1.txt", "subdir/file2.txt", "another/deep/file3.txt"]
+        for rel in files:
+            p = tmp_path / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("content")
+        lock_file = _make_lock(tmp_path, files)
 
-        file1.parent.mkdir(parents=True, exist_ok=True)
-        file2.parent.mkdir(parents=True, exist_ok=True)
-        file3.parent.mkdir(parents=True, exist_ok=True)
-
-        file1.write_text("content1")
-        file2.write_text("content2")
-        file3.write_text("content3")
-
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text(LOCK_CONTENT_THREE_FILES)
-
-        # Run uninstall with force=True to skip confirmation
         uninstall(tmp_path, force=True)
 
-        # Verify files are removed
-        assert not file1.exists()
-        assert not file2.exists()
-        assert not file3.exists()
+        for rel in files:
+            assert not (tmp_path / rel).exists()
         assert not lock_file.exists()
 
-    def test_uninstall_removes_empty_directories(self, tmp_path):
-        """Test that uninstall removes empty directories after deleting files."""
-        # Create nested directory structure
+    def test_removes_empty_directories(self, tmp_path):
+        """Empty parent directories are pruned after file removal."""
         file1 = tmp_path / "dir1" / "dir2" / "file.txt"
         file1.parent.mkdir(parents=True, exist_ok=True)
         file1.write_text("content")
+        lock_file = _make_lock(tmp_path, ["dir1/dir2/file.txt"])
 
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text(
-            "sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - dir1/dir2/file.txt\n"
-        )
-
-        # Run uninstall
         uninstall(tmp_path, force=True)
 
-        # Verify file and empty directories are removed
         assert not file1.exists()
-        assert not (tmp_path / "dir1" / "dir2").exists()
         assert not (tmp_path / "dir1").exists()
         assert not lock_file.exists()
 
-    def test_uninstall_preserves_non_empty_directories(self, tmp_path):
-        """Test that uninstall preserves directories that still contain files."""
-        # Create files, some managed by Rhiza, some not
-        managed_file = tmp_path / "shared" / "managed.txt"
-        unmanaged_file = tmp_path / "shared" / "unmanaged.txt"
+    def test_preserves_non_empty_directories(self, tmp_path):
+        """Directories that still contain non-managed files are kept."""
+        managed = tmp_path / "shared" / "managed.txt"
+        unmanaged = tmp_path / "shared" / "unmanaged.txt"
+        managed.parent.mkdir(parents=True, exist_ok=True)
+        managed.write_text("managed")
+        unmanaged.write_text("unmanaged")
+        lock_file = _make_lock(tmp_path, ["shared/managed.txt"])
 
-        managed_file.parent.mkdir(parents=True, exist_ok=True)
-        managed_file.write_text("managed")
-        unmanaged_file.write_text("unmanaged")
-
-        # Create .rhiza/template.lock with only one file
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text(
-            "sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - shared/managed.txt\n"
-        )
-
-        # Run uninstall
         uninstall(tmp_path, force=True)
 
-        # Verify managed file is removed but directory and unmanaged file remain
-        assert not managed_file.exists()
-        assert unmanaged_file.exists()
+        assert not managed.exists()
+        assert unmanaged.exists()
         assert (tmp_path / "shared").exists()
         assert not lock_file.exists()
 
-    def test_uninstall_handles_missing_lock_file(self, tmp_path):
-        """Test that uninstall handles gracefully when .rhiza/template.lock doesn't exist."""
-        # Don't create .rhiza/template.lock
+    def test_handles_missing_lock_file(self, tmp_path):
+        """No lock file → uninstall returns without error."""
+        uninstall(tmp_path, force=True)  # must not raise
 
-        # Run uninstall - should not raise an exception
+    def test_handles_already_deleted_files(self, tmp_path):
+        """Files listed in the lock that no longer exist are skipped gracefully."""
+        lock_file = _make_lock(tmp_path, ["nonexistent1.txt", "nonexistent2.txt"])
+
         uninstall(tmp_path, force=True)
 
-        # Should complete without error
-        assert True
-
-    def test_uninstall_handles_already_deleted_files(self, tmp_path):
-        """Test that uninstall handles files that are already deleted."""
-        # Create .rhiza/template.lock with files that don't exist
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text(
-            "sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\n"
-            "files:\n  - nonexistent1.txt\n  - nonexistent2.txt\n"
-        )
-
-        # Run uninstall - should not raise an exception
-        uninstall(tmp_path, force=True)
-
-        # Lock file should still be deleted
         assert not lock_file.exists()
 
-    def test_uninstall_skips_confirmation_with_force(self, tmp_path):
-        """Test that uninstall skips confirmation when force=True."""
-        # Create a file
+    def test_handles_invalid_template_lock(self, tmp_path):
+        """Unparseable lock file → returns early, no files are touched."""
+        file1 = tmp_path / "managed.txt"
+        file1.write_text("content")
+        lock_file = _make_lock(tmp_path, [])
+        lock_file.write_text("not: valid: yaml: [\n")
+
+        uninstall(tmp_path, force=True)
+
+        assert file1.exists()
+
+    def test_skips_confirmation_with_force(self, tmp_path):
+        """force=True must not call input()."""
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
+        _make_lock(tmp_path, ["file.txt"])
 
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text("sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - file.txt\n")
-
-        # Run uninstall with force=True (should not prompt)
         with patch("builtins.input") as mock_input:
             uninstall(tmp_path, force=True)
-            # Verify input was never called
             mock_input.assert_not_called()
 
-        # File should be removed
         assert not file1.exists()
 
-    def test_uninstall_prompts_for_confirmation_without_force(self, tmp_path):
-        """Test that uninstall prompts for confirmation when force=False."""
-        # Create a file
+    def test_prompts_for_confirmation_without_force(self, tmp_path):
+        """force=False prompts the user; confirming with 'y' proceeds."""
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
+        lock_file = _make_lock(tmp_path, ["file.txt"])
 
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text("sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - file.txt\n")
-
-        # Mock user input to confirm
         with patch("builtins.input", return_value="y"):
             uninstall(tmp_path, force=False)
 
-        # File should be removed
         assert not file1.exists()
         assert not lock_file.exists()
 
-    def test_uninstall_cancels_on_no_confirmation(self, tmp_path):
-        """Test that uninstall cancels when user declines confirmation."""
-        # Create a file
+    def test_cancels_on_no_answer(self, tmp_path):
+        """Answering 'n' leaves files untouched."""
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
+        lock_file = _make_lock(tmp_path, ["file.txt"])
 
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text("sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - file.txt\n")
-
-        # Mock user input to decline
         with patch("builtins.input", return_value="n"):
             uninstall(tmp_path, force=False)
 
-        # Files should NOT be removed
         assert file1.exists()
         assert lock_file.exists()
 
-    def test_uninstall_cancels_on_keyboard_interrupt(self, tmp_path):
-        """Test that uninstall handles KeyboardInterrupt gracefully."""
-        # Create a file
+    def test_cancels_on_keyboard_interrupt(self, tmp_path):
+        """Ctrl-C during the prompt leaves files untouched."""
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
+        lock_file = _make_lock(tmp_path, ["file.txt"])
 
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text("sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - file.txt\n")
-
-        # Mock user pressing Ctrl+C
         with patch("builtins.input", side_effect=KeyboardInterrupt):
             uninstall(tmp_path, force=False)
 
-        # Files should NOT be removed
         assert file1.exists()
         assert lock_file.exists()
+
+
+# ---------------------------------------------------------------------------
+# CLI tests
+# ---------------------------------------------------------------------------
 
 
 class TestUninstallCLI:
     """Tests for the uninstall CLI command."""
 
-    def test_uninstall_cli_help(self):
-        """Test that uninstall command has help text."""
+    def test_help(self):
+        """Uninstall --help exits 0 and mentions the command name."""
         result = subprocess.run(
             [sys.executable, "-m", "rhiza", "uninstall", "--help"],
             capture_output=True,
@@ -230,324 +171,128 @@ class TestUninstallCLI:
         assert "uninstall" in result.stdout.lower()
         assert "Remove all Rhiza-managed files" in result.stdout
 
-    def test_uninstall_cli_with_force_flag(self, tmp_path):
-        """Test uninstall CLI with --force flag."""
-        # Create a file
+    @pytest.mark.parametrize("flag", ["--force", "-y"])
+    def test_force_flags(self, tmp_path, flag):
+        """Both --force and -y skip the confirmation prompt."""
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
+        lock_file = _make_lock(tmp_path, ["file.txt"])
 
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text("sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - file.txt\n")
+        result = CliRunner().invoke(app, ["uninstall", str(tmp_path), flag])
 
-        # Run CLI command with --force
-        runner = CliRunner()
-        result = runner.invoke(app, ["uninstall", str(tmp_path), "--force"])
-
-        # Should succeed
         assert result.exit_code == 0
         assert not file1.exists()
         assert not lock_file.exists()
 
-    def test_uninstall_cli_with_short_force_flag(self, tmp_path):
-        """Test uninstall CLI with -y flag."""
-        # Create a file
-        file1 = tmp_path / "file.txt"
-        file1.write_text("content")
-
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text("sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - file.txt\n")
-
-        # Run CLI command with -y
-        runner = CliRunner()
-        result = runner.invoke(app, ["uninstall", str(tmp_path), "-y"])
-
-        # Should succeed
-        assert result.exit_code == 0
-        assert not file1.exists()
-        assert not lock_file.exists()
-
-    def test_uninstall_cli_defaults_to_current_directory(self, tmp_path, monkeypatch):
-        """Test that uninstall defaults to current directory."""
-        # Change to tmp_path
+    def test_defaults_to_current_directory(self, tmp_path, monkeypatch):
+        """Without a target argument, the current directory is used."""
         monkeypatch.chdir(tmp_path)
-
-        # Create a file
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
+        lock_file = _make_lock(tmp_path, ["file.txt"])
 
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text("sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - file.txt\n")
+        result = CliRunner().invoke(app, ["uninstall", "--force"])
 
-        # Run CLI command without target argument
-        runner = CliRunner()
-        result = runner.invoke(app, ["uninstall", "--force"])
-
-        # Should succeed
         assert result.exit_code == 0
         assert not file1.exists()
         assert not lock_file.exists()
 
-    def test_uninstall_cli_with_confirmation_yes(self, tmp_path):
-        """Test uninstall CLI with interactive confirmation (yes)."""
-        # Create a file
+    @pytest.mark.parametrize(
+        ("user_input", "removed"),
+        [("y\n", True), ("n\n", False)],
+    )
+    def test_interactive_confirmation(self, tmp_path, user_input, removed):
+        """Typing y removes files; typing n keeps them."""
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
+        lock_file = _make_lock(tmp_path, ["file.txt"])
 
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text("sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - file.txt\n")
+        result = CliRunner().invoke(app, ["uninstall", str(tmp_path)], input=user_input)
 
-        # Run CLI command and simulate 'y' input
-        runner = CliRunner()
-        result = runner.invoke(app, ["uninstall", str(tmp_path)], input="y\n")
-
-        # Should succeed
         assert result.exit_code == 0
-        assert not file1.exists()
-        assert not lock_file.exists()
+        assert file1.exists() is not removed
+        assert lock_file.exists() is not removed
 
-    def test_uninstall_cli_with_confirmation_no(self, tmp_path):
-        """Test uninstall CLI with interactive confirmation (no)."""
-        # Create a file
+    def test_subprocess_integration(self, tmp_path):
+        """Uninstall works end-to-end when invoked as a subprocess."""
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
+        lock_file = _make_lock(tmp_path, ["file.txt"])
 
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text("sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - file.txt\n")
-
-        # Run CLI command and simulate 'n' input
-        runner = CliRunner()
-        result = runner.invoke(app, ["uninstall", str(tmp_path)], input="n\n")
-
-        # Should succeed (but files not removed)
-        assert result.exit_code == 0
-        assert file1.exists()
-        assert lock_file.exists()
-
-    def test_uninstall_cli_integration_with_subprocess(self, tmp_path):
-        """Test uninstall command via subprocess."""
-        # Create a file
-        file1 = tmp_path / "file.txt"
-        file1.write_text("content")
-
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text("sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - file.txt\n")
-
-        # Run via subprocess with --force
         result = subprocess.run(
             [sys.executable, "-m", "rhiza", "uninstall", str(tmp_path), "--force"],
             capture_output=True,
             text=True,
         )
 
-        # Should succeed
         assert result.returncode == 0
         assert not file1.exists()
         assert not lock_file.exists()
 
 
-class TestUninstallTemplateLock:
-    """Tests for template.lock reading in the uninstall command."""
-
-    def test_uninstall_reads_files_from_template_lock(self, tmp_path):
-        """Test that uninstall reads file list from template.lock when it exists."""
-        file1 = tmp_path / "managed.txt"
-        file1.write_text("content")
-
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-
-        # Write a template.lock with files listed
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text("sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - managed.txt\n")
-
-        uninstall(tmp_path, force=True)
-
-        assert not file1.exists()
-
-    def test_uninstall_handles_invalid_template_lock(self, tmp_path):
-        """Test that uninstall returns with an error when template.lock is unreadable."""
-        file1 = tmp_path / "managed.txt"
-        file1.write_text("content")
-
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-
-        # Write an invalid template.lock that will raise an exception when parsed
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text("not: valid: yaml: [\n")
-
-        # Should return early without removing any files
-        uninstall(tmp_path, force=True)
-
-        assert file1.exists()
-
-    def test_uninstall_handles_missing_template_lock(self, tmp_path):
-        """Test that uninstall returns with a warning when template.lock is missing."""
-        file1 = tmp_path / "managed.txt"
-        file1.write_text("content")
-
-        # No .rhiza/template.lock created
-
-        # Should return early without removing any files
-        uninstall(tmp_path, force=True)
-
-        assert file1.exists()
+# ---------------------------------------------------------------------------
+# Edge-case tests
+# ---------------------------------------------------------------------------
 
 
 class TestUninstallEdgeCases:
     """Tests for edge cases in uninstall functionality."""
 
-    def test_uninstall_with_special_characters_in_filename(self, tmp_path):
-        """Test uninstall with files that have special characters."""
-        # Create files with special characters
-        file1 = tmp_path / "file with spaces.txt"
-        file2 = tmp_path / "file-with-dashes.txt"
-        file3 = tmp_path / "file_with_underscores.txt"
+    def test_special_characters_in_filename(self, tmp_path):
+        """Files with spaces, dashes and underscores are removed correctly."""
+        files = ["file with spaces.txt", "file-with-dashes.txt", "file_with_underscores.txt"]
+        for name in files:
+            (tmp_path / name).write_text("content")
+        lock_file = _make_lock(tmp_path, files)
 
-        file1.write_text("content1")
-        file2.write_text("content2")
-        file3.write_text("content3")
-
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text(
-            "sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\n"
-            "files:\n  - file with spaces.txt\n  - file-with-dashes.txt\n  - file_with_underscores.txt\n"
-        )
-
-        # Run uninstall
         uninstall(tmp_path, force=True)
 
-        # Verify all files are removed
-        assert not file1.exists()
-        assert not file2.exists()
-        assert not file3.exists()
+        for name in files:
+            assert not (tmp_path / name).exists()
         assert not lock_file.exists()
 
-    def test_uninstall_with_deeply_nested_paths(self, tmp_path):
-        """Test uninstall with deeply nested directory structures."""
-        # Create deeply nested file
+    def test_deeply_nested_paths(self, tmp_path):
+        """All empty ancestor directories are pruned after a deeply nested file is deleted."""
         deep_file = tmp_path / "a" / "b" / "c" / "d" / "e" / "file.txt"
         deep_file.parent.mkdir(parents=True, exist_ok=True)
         deep_file.write_text("content")
+        lock_file = _make_lock(tmp_path, ["a/b/c/d/e/file.txt"])
 
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text(
-            "sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - a/b/c/d/e/file.txt\n"
-        )
-
-        # Run uninstall
         uninstall(tmp_path, force=True)
 
-        # Verify file and all empty parent directories are removed
         assert not deep_file.exists()
         assert not (tmp_path / "a").exists()
         assert not lock_file.exists()
 
-    def test_uninstall_preserves_dot_files(self, tmp_path):
-        """Test that uninstall correctly handles dot files."""
-        # Create dot files
+    def test_dot_files(self, tmp_path):
+        """Hidden dot-files listed in the lock are deleted."""
         dotfile = tmp_path / ".hidden"
         dotfile.write_text("hidden content")
+        lock_file = _make_lock(tmp_path, [".hidden"])
 
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text("sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - .hidden\n")
-
-        # Run uninstall
         uninstall(tmp_path, force=True)
 
-        # Verify dotfile is removed
         assert not dotfile.exists()
         assert not lock_file.exists()
 
-    def test_uninstall_with_read_only_file(self, tmp_path):
-        """Test uninstall behavior with read-only files.
-
-        Note: On Unix, file permissions don't prevent deletion if you have
-        write permission on the parent directory. This test verifies that
-        read-only files are successfully deleted, which is the expected behavior.
-        """
-        # Create a file and make it read-only
+    def test_read_only_file(self, tmp_path):
+        """Read-only files can be deleted when the parent dir is writable."""
         file1 = tmp_path / "readonly.txt"
         file1.write_text("content")
-        file1.chmod(0o444)  # Read-only
+        file1.chmod(0o444)
+        lock_file = _make_lock(tmp_path, ["readonly.txt"])
 
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text("sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - readonly.txt\n")
-
-        # Run uninstall - should succeed even with read-only file
         uninstall(tmp_path, force=True)
 
-        # Verify files are deleted (Unix allows deleting read-only files
-        # if you have write permission on the directory)
         assert not file1.exists()
         assert not lock_file.exists()
 
-    def test_uninstall_shows_missing_files_in_warning(self, tmp_path):
-        """Test that uninstall shows debug message for missing files in warning phase."""
-        # Create .rhiza/template.lock with files that don't exist
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text(
-            "sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\n"
-            "files:\n  - nonexistent1.txt\n  - nonexistent2.txt\n"
-        )
-
-        # Run uninstall without force to trigger warning phase
-        # Mock user input to decline
-        with patch("builtins.input", return_value="n"):
-            uninstall(tmp_path, force=False)
-
-        # Lock file should still exist since user declined
-        assert lock_file.exists()
-
-    def test_uninstall_handles_file_deletion_error(self, tmp_path):
-        """Test that uninstall handles file deletion errors gracefully."""
-        from pathlib import Path
-
-        import pytest
-
-        # Create a file
+    def test_handles_file_deletion_error(self, tmp_path):
+        """A PermissionError during file deletion is surfaced as RuntimeError."""
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
+        _make_lock(tmp_path, ["file.txt"])
 
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text("sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - file.txt\n")
-
-        # Mock Path.unlink to raise an exception for the file (but not lock)
         original_unlink = Path.unlink
 
         def mock_unlink(self):
@@ -558,23 +303,12 @@ class TestUninstallEdgeCases:
         with patch.object(Path, "unlink", mock_unlink), pytest.raises(RuntimeError):
             uninstall(tmp_path, force=True)
 
-    def test_uninstall_handles_lock_file_deletion_error(self, tmp_path):
-        """Test that uninstall handles .rhiza/template.lock deletion error."""
-        from pathlib import Path
-
-        import pytest
-
-        # Create a file
+    def test_handles_lock_file_deletion_error(self, tmp_path):
+        """A PermissionError deleting template.lock is surfaced as RuntimeError."""
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
+        _make_lock(tmp_path, ["file.txt"])
 
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text("sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - file.txt\n")
-
-        # Mock Path.unlink to raise exception only for template.lock
         original_unlink = Path.unlink
 
         def mock_unlink(self):
@@ -585,24 +319,13 @@ class TestUninstallEdgeCases:
         with patch.object(Path, "unlink", mock_unlink), pytest.raises(RuntimeError):
             uninstall(tmp_path, force=True)
 
-    def test_uninstall_handles_directory_removal_error(self, tmp_path):
-        """Test that uninstall handles directory removal errors gracefully."""
-        from pathlib import Path
-
-        # Create nested directory with a file
+    def test_handles_directory_removal_error(self, tmp_path):
+        """Directory removal errors are silently swallowed."""
         file1 = tmp_path / "dir1" / "file.txt"
         file1.parent.mkdir(parents=True, exist_ok=True)
         file1.write_text("content")
+        lock_file = _make_lock(tmp_path, ["dir1/file.txt"])
 
-        # Create .rhiza/template.lock
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True, exist_ok=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text(
-            "sha: abc123def456\nrepo: owner/repo\nhost: github\nref: main\nfiles:\n  - dir1/file.txt\n"
-        )
-
-        # Mock Path.rmdir to raise exception
         original_rmdir = Path.rmdir
 
         def mock_rmdir(self):
@@ -611,11 +334,7 @@ class TestUninstallEdgeCases:
             return original_rmdir(self)
 
         with patch.object(Path, "rmdir", mock_rmdir):
-            # Run uninstall - should complete without crashing
-            # (directory removal errors are caught and ignored)
             uninstall(tmp_path, force=True)
 
-        # File should be deleted, lock should be deleted
-        # Directory might remain due to mock error
         assert not file1.exists()
         assert not lock_file.exists()
