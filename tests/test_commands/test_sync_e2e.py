@@ -151,7 +151,7 @@ def _advance_upstream(
 
 
 @pytest.fixture
-def upstream_bare_repo(tmp_path: Path, git_setup: tuple[str, dict]) -> tuple[Path, str]:
+def upstream_bare_repo(tmp_path: Path, git_setup: tuple[str, dict[str, str]]) -> tuple[Path, str]:
     """Create a bare upstream git repository containing initial template files.
 
     Initialises a working clone, adds ``Makefile``, ``.editorconfig``, and
@@ -203,7 +203,7 @@ def upstream_bare_repo(tmp_path: Path, git_setup: tuple[str, dict]) -> tuple[Pat
 @pytest.fixture
 def target_project(
     tmp_path: Path,
-    git_setup: tuple[str, dict],
+    git_setup: tuple[str, dict[str, str]],
     upstream_bare_repo: tuple[Path, str],
 ) -> Path:
     """Create a minimal target project with a valid ``.rhiza/template.yml``.
@@ -286,7 +286,7 @@ class TestSyncE2EFirstSync:
 
     def test_first_sync_merge_copies_all_template_files(
         self,
-        git_setup: tuple[str, dict],
+        git_setup: tuple[str, dict[str, str]],
         upstream_bare_repo: tuple[Path, str],
         target_project: Path,
     ) -> None:
@@ -371,7 +371,7 @@ class TestSyncE2ESubsequentSync:
 
     def test_subsequent_sync_applies_upstream_changes(
         self,
-        git_setup: tuple[str, dict],
+        git_setup: tuple[str, dict[str, str]],
         upstream_bare_repo: tuple[Path, str],
         target_project: Path,
     ) -> None:
@@ -406,7 +406,7 @@ class TestSyncE2ESubsequentSync:
 
     def test_subsequent_sync_preserves_local_modifications(
         self,
-        git_setup: tuple[str, dict],
+        git_setup: tuple[str, dict[str, str]],
         upstream_bare_repo: tuple[Path, str],
         target_project: Path,
     ) -> None:
@@ -450,7 +450,7 @@ class TestSyncE2ESubsequentSync:
 
     def test_subsequent_sync_diff_reports_changes_without_modifying(
         self,
-        git_setup: tuple[str, dict],
+        git_setup: tuple[str, dict[str, str]],
         upstream_bare_repo: tuple[Path, str],
         target_project: Path,
     ) -> None:
@@ -527,7 +527,7 @@ class TestSyncE2ETargetBranch:
 
     def test_target_branch_creates_new_branch(
         self,
-        git_setup: tuple[str, dict],
+        git_setup: tuple[str, dict[str, str]],
         upstream_bare_repo: tuple[Path, str],
         target_project: Path,
     ) -> None:
@@ -554,7 +554,7 @@ class TestSyncE2ETargetBranch:
 
     def test_target_branch_checks_out_existing_branch(
         self,
-        git_setup: tuple[str, dict],
+        git_setup: tuple[str, dict[str, str]],
         upstream_bare_repo: tuple[Path, str],
         target_project: Path,
     ) -> None:
@@ -602,7 +602,7 @@ class TestSyncE2ECLIErrors:
     def test_missing_template_yml_exits_nonzero(
         self,
         tmp_path: Path,
-        git_setup: tuple[str, dict],
+        git_setup: tuple[str, dict[str, str]],
     ) -> None:
         """Target directory with no ``.rhiza/template.yml`` causes a non-zero exit.
 
