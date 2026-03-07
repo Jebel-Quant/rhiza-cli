@@ -1,4 +1,12 @@
-"""Shared fixtures for test_commands tests."""
+"""Shared fixtures for test_commands tests.
+
+Security Notes:
+- S101 (assert usage): Asserts are the standard way to validate test conditions in pytest.
+- S603 (subprocess without shell=True): Subprocess calls use explicit argument lists without
+  shell=True, which is the safe pattern for invoking git in tests.
+- S607 (partial executable path): git is resolved via shutil.which() before use, ensuring the
+  full path is available at runtime.
+"""
 
 import os
 import shutil
