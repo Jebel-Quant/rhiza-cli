@@ -10,6 +10,7 @@ Tests cover:
 """
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
@@ -79,6 +80,16 @@ def _commit_all(project, git_executable, git_env, message="add files"):
         capture_output=True,
         env=git_env,
     )
+
+
+def _write_history(tmp_path, files):
+    """Write a history file listing tracked files."""
+    history_file = tmp_path / ".rhiza" / "history"
+    history_file.parent.mkdir(parents=True, exist_ok=True)
+    with history_file.open("w") as f:
+        f.write("# Rhiza Template History\n")
+        for name in files:
+            f.write(f"{name}\n")
 
 
 class TestLockFile:
@@ -418,15 +429,6 @@ class TestSyncCommand:
 class TestSyncOrphanedFiles:
     """Tests verifying that orphaned files are deleted when template.yml changes during sync."""
 
-    def _write_history(self, tmp_path, files):
-        """Write a history file listing tracked files."""
-        history_file = tmp_path / ".rhiza" / "history"
-        history_file.parent.mkdir(parents=True, exist_ok=True)
-        with history_file.open("w") as f:
-            f.write("# Rhiza Template History\n")
-            for name in files:
-                f.write(f"{name}\n")
-
     @patch("rhiza._sync_helpers.shutil.rmtree")
     @patch("rhiza._sync_helpers._clone_template_repository")
     @patch("rhiza._sync_helpers.tempfile.mkdtemp")
@@ -437,7 +439,7 @@ class TestSyncOrphanedFiles:
         _setup_project(tmp_path, include=["new.txt"])
 
         # History from a previous materialize tracked both files
-        self._write_history(tmp_path, ["old.txt", "new.txt"])
+        _write_history(tmp_path, ["old.txt", "new.txt"])
 
         # Both files exist in the project
         (tmp_path / "old.txt").write_text("old content")
@@ -622,8 +624,6 @@ class TestCloneAndResolveUpstreamWithTemplates:
         tmp_path,
     ):
         """_clone_and_resolve_upstream resolves bundle paths when template.templates is set."""
-        import shutil as _shutil
-
         from rhiza.subprocess_utils import get_git_executable
 
         git_executable = get_git_executable()
@@ -654,49 +654,28 @@ class TestCloneAndResolveUpstreamWithTemplates:
         mock_update_sparse.assert_called_once()
         assert resolved_paths == ["Makefile", ".github"]
         assert upstream_sha == "abc123def456"
-        _shutil.rmtree(upstream_dir, ignore_errors=True)
+        shutil.rmtree(upstream_dir, ignore_errors=True)
 
 
 class TestCloneAtShaErrorPaths:
     """Tests for error-handling branches in _clone_at_sha."""
 
+    @pytest.mark.parametrize(
+        "fail_at",
+        [
+            pytest.param(0, id="clone fails"),
+            pytest.param(1, id="sparse-checkout fails"),
+            pytest.param(3, id="checkout fails"),
+        ],
+    )
     @patch("rhiza._sync_helpers.subprocess.run")
-    def test_clone_failure_exits(self, mock_run, tmp_path, git_setup):
-        """Clone failure raises CalledProcessError."""
-        git_executable, git_env = git_setup
-        err = subprocess.CalledProcessError(1, "git clone")
-        err.stderr = "fatal: not a git repo"
-        mock_run.side_effect = err
-
-        dest = tmp_path / "dest"
-        dest.mkdir()
-        with pytest.raises(subprocess.CalledProcessError):
-            _clone_at_sha("https://example.com/repo.git", "abc123", dest, ["README.md"], git_executable, git_env)
-
-    @patch("rhiza._sync_helpers.subprocess.run")
-    def test_sparse_checkout_failure_exits(self, mock_run, tmp_path, git_setup):
-        """Sparse-checkout failure raises CalledProcessError."""
+    def test_failure_exits(self, mock_run, tmp_path, git_setup, fail_at):
+        """Any subprocess failure in _clone_at_sha raises CalledProcessError."""
         git_executable, git_env = git_setup
         ok = MagicMock(returncode=0, stdout="", stderr="")
-        err = subprocess.CalledProcessError(1, "git sparse-checkout")
-        err.stderr = "error: sparse-checkout failed"
-        # First call (clone) succeeds, second call (sparse-checkout) fails
-        mock_run.side_effect = [ok, err]
-
-        dest = tmp_path / "dest"
-        dest.mkdir()
-        with pytest.raises(subprocess.CalledProcessError):
-            _clone_at_sha("https://example.com/repo.git", "abc123", dest, ["README.md"], git_executable, git_env)
-
-    @patch("rhiza._sync_helpers.subprocess.run")
-    def test_checkout_failure_exits(self, mock_run, tmp_path, git_setup):
-        """Checkout failure raises CalledProcessError."""
-        git_executable, git_env = git_setup
-        ok = MagicMock(returncode=0, stdout="", stderr="")
-        err = subprocess.CalledProcessError(128, "git checkout")
-        err.stderr = "error: pathspec not found"
-        # First three calls (clone, sparse-checkout init, sparse-checkout set) succeed; checkout fails
-        mock_run.side_effect = [ok, ok, ok, err]
+        err = subprocess.CalledProcessError(1, "git")
+        err.stderr = "error"
+        mock_run.side_effect = [ok] * fail_at + [err]
 
         dest = tmp_path / "dest"
         dest.mkdir()
@@ -1502,17 +1481,10 @@ class TestThreeWayMergeSyncMergeStrategy:
     """
 
     @pytest.fixture
-    def project_with_template(self, tmp_path, git_setup):
+    def project_with_template(self, git_project, git_setup):
         """Set up a target project with a valid template.yml."""
         git_executable, git_env = git_setup
-        project = tmp_path / "project"
-        project.mkdir()
-        for cmd in [
-            [git_executable, "init"],
-            [git_executable, "config", "user.email", "dev@test.com"],
-            [git_executable, "config", "user.name", "Dev"],
-        ]:
-            subprocess.run(cmd, cwd=project, check=True, capture_output=True, env=git_env)
+        project = git_project
         (project / "pyproject.toml").write_text('[project]\nname = "myapp"\n')
         rhiza = project / ".rhiza"
         rhiza.mkdir()
@@ -1648,15 +1620,16 @@ class TestThreeWayMergeSyncMergeStrategy:
 class TestConstructGitUrl:
     """Tests for _construct_git_url."""
 
-    def test_github_url(self):
-        """GitHub host produces the correct HTTPS URL."""
-        url = _construct_git_url("owner/repo", "github")
-        assert url == "https://github.com/owner/repo.git"
-
-    def test_gitlab_url(self):
-        """GitLab host produces the correct HTTPS URL."""
-        url = _construct_git_url("mygroup/myproject", "gitlab")
-        assert url == "https://gitlab.com/mygroup/myproject.git"
+    @pytest.mark.parametrize(
+        ("repo", "host", "expected"),
+        [
+            ("owner/repo", "github", "https://github.com/owner/repo.git"),
+            ("mygroup/myproject", "gitlab", "https://gitlab.com/mygroup/myproject.git"),
+        ],
+    )
+    def test_known_hosts(self, repo, host, expected):
+        """GitHub and GitLab hosts produce the correct HTTPS URL."""
+        assert _construct_git_url(repo, host) == expected
 
     def test_invalid_host_raises(self):
         """An unsupported template-host raises ValueError."""
@@ -1882,55 +1855,22 @@ class TestCloneTemplateRepository:
                 git_env,
             )
 
-    def test_sparse_checkout_set_failure_reraises(self, tmp_path, git_setup):
-        """Third subprocess call (sparse-checkout set) failure re-raises."""
+    @pytest.mark.parametrize(
+        "fail_at",
+        [
+            pytest.param(0, id="clone fails"),
+            pytest.param(1, id="sparse-checkout init fails"),
+            pytest.param(2, id="sparse-checkout set fails"),
+        ],
+    )
+    def test_subprocess_failure_reraises(self, tmp_path, git_setup, fail_at):
+        """Any subprocess failure in _clone_template_repository re-raises CalledProcessError."""
         git_executable, git_env = git_setup
         ok = MagicMock(returncode=0, stdout="", stderr="")
-        err = subprocess.CalledProcessError(1, ["git", "sparse-checkout", "set"])
-        err.stderr = "error: sparse-checkout failed"
-        # clone OK, init OK, set FAILS
+        err = subprocess.CalledProcessError(1, ["git"])
+        err.stderr = "error"
         with (
-            patch("rhiza._sync_helpers.subprocess.run", side_effect=[ok, ok, err]),
-            pytest.raises(subprocess.CalledProcessError),
-        ):
-            _clone_template_repository(
-                tmp_path,
-                "https://github.com/example/repo.git",
-                "main",
-                [".github"],
-                git_executable,
-                git_env,
-            )
-
-    def test_clone_failure_reraises(self, tmp_path, git_setup):
-        """Clone failure logs error and re-raises CalledProcessError."""
-        git_executable, git_env = git_setup
-        err = subprocess.CalledProcessError(128, ["git", "clone"])
-        err.stderr = "fatal: repository not found"
-
-        with (
-            patch("rhiza._sync_helpers.subprocess.run", side_effect=err),
-            pytest.raises(subprocess.CalledProcessError),
-        ):
-            _clone_template_repository(
-                tmp_path,
-                "https://github.com/nonexistent/repo.git",
-                "main",
-                [".github"],
-                git_executable,
-                git_env,
-            )
-
-    def test_sparse_checkout_init_failure_reraises(self, tmp_path, git_setup):
-        """sparse-checkout init failure re-raises CalledProcessError."""
-        git_executable, git_env = git_setup
-        ok = MagicMock(returncode=0, stdout="", stderr="")
-        err = subprocess.CalledProcessError(1, ["git", "sparse-checkout", "init"])
-        err.stderr = "error: sparse-checkout init failed"
-
-        # clone succeeds, sparse-checkout init FAILS
-        with (
-            patch("rhiza._sync_helpers.subprocess.run", side_effect=[ok, err]),
+            patch("rhiza._sync_helpers.subprocess.run", side_effect=[ok] * fail_at + [err]),
             pytest.raises(subprocess.CalledProcessError),
         ):
             _clone_template_repository(
@@ -1946,29 +1886,22 @@ class TestCloneTemplateRepository:
 class TestLogGitStderrErrors:
     """Tests for _log_git_stderr_errors."""
 
-    def test_logs_fatal_lines(self):
-        """Lines starting with 'fatal:' are logged as errors."""
+    @pytest.mark.parametrize(
+        ("stderr", "expected_calls"),
+        [
+            ("fatal: repository not found\nHint: some hint", ["fatal: repository not found"]),
+            ("error: pathspec 'bad' did not match", ["error: pathspec 'bad' did not match"]),
+            (None, []),
+            ("Hint: some helpful hint\nremote: counting objects", []),
+        ],
+    )
+    def test_stderr_logging(self, stderr, expected_calls):
+        """Appropriate lines are logged as errors; irrelevant lines and None are ignored."""
         with patch("rhiza._sync_helpers.logger") as mock_logger:
-            _log_git_stderr_errors("fatal: repository not found\nHint: some hint")
-        mock_logger.error.assert_called_once_with("fatal: repository not found")
-
-    def test_logs_error_lines(self):
-        """Lines starting with 'error:' are logged as errors."""
-        with patch("rhiza._sync_helpers.logger") as mock_logger:
-            _log_git_stderr_errors("error: pathspec 'bad' did not match")
-        mock_logger.error.assert_called_once_with("error: pathspec 'bad' did not match")
-
-    def test_none_input_is_noop(self):
-        """None stderr produces no log calls."""
-        with patch("rhiza._sync_helpers.logger") as mock_logger:
-            _log_git_stderr_errors(None)
-        mock_logger.error.assert_not_called()
-
-    def test_irrelevant_lines_skipped(self):
-        """Non-fatal/error lines are not logged."""
-        with patch("rhiza._sync_helpers.logger") as mock_logger:
-            _log_git_stderr_errors("Hint: some helpful hint\nremote: counting objects")
-        mock_logger.error.assert_not_called()
+            _log_git_stderr_errors(stderr)
+        assert mock_logger.error.call_count == len(expected_calls)
+        for expected in expected_calls:
+            mock_logger.error.assert_any_call(expected)
 
 
 class TestCleanOrphanedFiles:
