@@ -18,6 +18,7 @@ from rhiza.commands.migrate import migrate as migrate_cmd
 from rhiza.commands.status import status as status_cmd
 from rhiza.commands.summarise import summarise as summarise_cmd
 from rhiza.commands.sync import sync as sync_cmd
+from rhiza.commands.tree import tree as tree_cmd
 from rhiza.commands.uninstall import uninstall as uninstall_cmd
 from rhiza.commands.welcome import welcome as welcome_cmd
 
@@ -283,6 +284,30 @@ def status(
     """Show the current sync status from template.lock."""
     try:
         status_cmd(target.resolve())
+    except Exception:
+        raise typer.Exit(code=1) from None
+
+
+@app.command()
+def tree(
+    target: Annotated[
+        Path,
+        typer.Argument(
+            help="Path to target repository",
+        ),
+    ] = Path("."),
+) -> None:
+    r"""List files managed by Rhiza in a tree-style view.
+
+    Reads .rhiza/template.lock and displays the files that were synced
+    from the template repository as a directory tree.
+
+    Examples:
+        rhiza tree
+        rhiza tree /path/to/project
+    """
+    try:
+        tree_cmd(target.resolve())
     except Exception:
         raise typer.Exit(code=1) from None
 
