@@ -1127,6 +1127,16 @@ def _sync_merge(
             logger.info("First sync — copying all template files")
             _copy_files_to_target(upstream_snapshot, target, materialized)
 
+        # Restore any template-managed files that are absent from the target.
+        # This can happen when files tracked by the template do not exist in the
+        # downstream repository — for example when the template snapshot was
+        # unchanged since the last sync so no diff was applied, but the files
+        # were never present or were manually deleted.
+        missing_from_target = [p for p in materialized if not (target / p).exists()]
+        if missing_from_target:
+            logger.info(f"Restoring {len(missing_from_target)} template file(s) missing from target")
+            _copy_files_to_target(upstream_snapshot, target, missing_from_target)
+
         _warn_about_workflow_files(materialized)
         _clean_orphaned_files(
             target,
