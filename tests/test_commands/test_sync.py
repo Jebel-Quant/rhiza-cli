@@ -386,7 +386,7 @@ class TestSyncCommand:
 class TestSyncOrphanedFiles:
     """Tests verifying that orphaned files are deleted when template.yml changes during sync."""
 
-    def _setup_project(self, tmp_path, include=None):
+    def _setup_project(self, tmp_path, include=None, exclude=None):
         """Create a minimal project directory with template.yml."""
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
@@ -403,6 +403,8 @@ class TestSyncOrphanedFiles:
             "template-branch": "main",
             "include": include or ["new.txt"],
         }
+        if exclude:
+            config["exclude"] = exclude
         with open(template_file, "w") as f:
             yaml.dump(config, f)
 
@@ -457,6 +459,78 @@ class TestSyncOrphanedFiles:
         # template.lock should record the currently materialized files
         lock_content = TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock")
         assert lock_content.files == ["new.txt"]
+
+    @patch("rhiza._sync_helpers.shutil.rmtree")
+    @patch("rhiza._sync_helpers._clone_template_repository")
+    @patch("rhiza._sync_helpers.tempfile.mkdtemp")
+    @patch("rhiza._sync_helpers._get_head_sha")
+    def test_merge_first_sync_does_not_delete_excluded_files(
+        self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path
+    ):
+        """Merge strategy must not delete a previously tracked file that is now excluded."""
+        # Template includes only new.txt; excluded.txt is in the exclude list
+        self._setup_project(tmp_path, include=["new.txt"], exclude=["excluded.txt"])
+
+        # History tracked both files
+        self._write_history(tmp_path, ["excluded.txt", "new.txt"])
+
+        # Both files exist locally
+        (tmp_path / "excluded.txt").write_text("local customisation")
+        (tmp_path / "new.txt").write_text("existing content")
+
+        mock_sha.return_value = "abc001"
+
+        # Upstream clone provides new.txt only (excluded.txt is excluded)
+        clone_dir = tmp_path / "upstream_clone"
+        clone_dir.mkdir()
+        (clone_dir / "new.txt").write_text("new template content\n")
+
+        snapshot_dir = tmp_path / "upstream_snapshot"
+        snapshot_dir.mkdir()
+
+        base_snapshot_dir = tmp_path / "base_snapshot"
+        base_snapshot_dir.mkdir()
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir)]
+
+        sync(tmp_path, "main", None, "merge")
+
+        # new.txt should still be present
+        assert (tmp_path / "new.txt").exists()
+        # excluded.txt must NOT be deleted — it is now excluded
+        assert (tmp_path / "excluded.txt").exists(), "excluded file must not be deleted during orphan cleanup"
+
+    @patch("rhiza._sync_helpers.shutil.rmtree")
+    @patch("rhiza._sync_helpers._clone_template_repository")
+    @patch("rhiza._sync_helpers.tempfile.mkdtemp")
+    @patch("rhiza._sync_helpers._get_head_sha")
+    def test_diff_strategy_does_not_delete_orphaned_files(
+        self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path
+    ):
+        """Diff (dry-run) strategy must never delete any files, including orphans."""
+        self._setup_project(tmp_path, include=["new.txt"])
+
+        # History tracked an additional file that is no longer in the template
+        self._write_history(tmp_path, ["old.txt", "new.txt"])
+
+        (tmp_path / "old.txt").write_text("old content")
+        (tmp_path / "new.txt").write_text("existing content")
+
+        mock_sha.return_value = "sha001"
+
+        clone_dir = tmp_path / "upstream_clone"
+        clone_dir.mkdir()
+        (clone_dir / "new.txt").write_text("new template content\n")
+
+        snapshot_dir = tmp_path / "upstream_snapshot"
+        snapshot_dir.mkdir()
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir)]
+
+        sync(tmp_path, "main", None, "diff")
+
+        # old.txt must not be touched in diff mode
+        assert (tmp_path / "old.txt").exists(), "diff strategy must not delete any files"
 
 
 class TestSyncCLI:
@@ -2255,6 +2329,87 @@ class TestCleanOrphanedFiles:
 
         files = _read_previously_tracked_files(tmp_path)
         assert Path("Makefile") in files
+
+    def test_excluded_files_not_deleted(self, tmp_path):
+        """Files that are now excluded must not be deleted even if they were previously tracked."""
+        import yaml
+
+        excluded_file = tmp_path / "excluded-file.txt"
+        excluded_file.write_text("local content")
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        lock_data = {
+            "sha": "abc123",
+            "repo": "owner/repo",
+            "host": "github",
+            "ref": "main",
+            "include": [".github"],
+            "exclude": [],
+            "templates": [],
+            "files": ["excluded-file.txt"],
+        }
+        (rhiza_dir / "template.lock").write_text(yaml.dump(lock_data))
+
+        # excluded-file.txt is not in materialized but IS in excludes
+        _clean_orphaned_files(tmp_path, [], excludes={"excluded-file.txt"})
+
+        assert excluded_file.exists(), "excluded file must not be deleted during orphan cleanup"
+
+    def test_non_excluded_orphan_still_deleted(self, tmp_path):
+        """Files that are orphaned and not excluded should still be deleted."""
+        import yaml
+
+        orphan_file = tmp_path / "orphan.txt"
+        orphan_file.write_text("orphan content")
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        lock_data = {
+            "sha": "abc123",
+            "repo": "owner/repo",
+            "host": "github",
+            "ref": "main",
+            "include": [".github"],
+            "exclude": [],
+            "templates": [],
+            "files": ["orphan.txt"],
+        }
+        (rhiza_dir / "template.lock").write_text(yaml.dump(lock_data))
+
+        # orphan.txt is not materialized and not excluded
+        _clean_orphaned_files(tmp_path, [], excludes=set())
+
+        assert not orphan_file.exists(), "non-excluded orphan should be deleted"
+
+    def test_excluded_and_non_excluded_orphan_mixed(self, tmp_path):
+        """Excluded orphans are kept; non-excluded orphans are still deleted."""
+        import yaml
+
+        excluded_file = tmp_path / "excluded.txt"
+        excluded_file.write_text("local content")
+
+        orphan_file = tmp_path / "orphan.txt"
+        orphan_file.write_text("orphan content")
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        lock_data = {
+            "sha": "abc123",
+            "repo": "owner/repo",
+            "host": "github",
+            "ref": "main",
+            "include": [".github"],
+            "exclude": [],
+            "templates": [],
+            "files": ["excluded.txt", "orphan.txt"],
+        }
+        (rhiza_dir / "template.lock").write_text(yaml.dump(lock_data))
+
+        _clean_orphaned_files(tmp_path, [], excludes={"excluded.txt"})
+
+        assert excluded_file.exists(), "excluded file must not be deleted"
+        assert not orphan_file.exists(), "non-excluded orphan should be deleted"
 
 
 class TestUpdateSparseCheckout:

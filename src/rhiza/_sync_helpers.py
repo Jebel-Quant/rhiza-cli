@@ -415,12 +415,21 @@ def _delete_orphaned_file(target: Path, file_path: Path) -> None:
         logger.debug(f"Skipping {file_path} (already deleted)")
 
 
-def _clean_orphaned_files(target: Path, materialized_files: list[Path]) -> None:
+def _clean_orphaned_files(
+    target: Path,
+    materialized_files: list[Path],
+    excludes: set[str] | None = None,
+) -> None:
     """Clean up files that are no longer maintained by template.
 
     Args:
         target: Target repository path.
         materialized_files: List of currently materialized files.
+        excludes: Optional set of relative path strings that are currently
+            excluded by the template configuration.  Each entry may be an
+            individual file path or a directory prefix.  Any orphaned file
+            that matches exactly or whose path is under an excluded directory
+            will be treated as hands-off and will not be deleted.
     """
     previously_tracked_files = _read_previously_tracked_files(target)
     if not previously_tracked_files:
@@ -431,6 +440,7 @@ def _clean_orphaned_files(target: Path, materialized_files: list[Path]) -> None:
     orphaned_files = previously_tracked_files - set(materialized_files)
 
     protected_files = {Path(".rhiza/template.yml")}
+    excluded_paths = {Path(p) for p in excludes} if excludes else set()
 
     if not orphaned_files:
         logger.debug("No orphaned files to clean up")
@@ -440,6 +450,9 @@ def _clean_orphaned_files(target: Path, materialized_files: list[Path]) -> None:
     for file_path in sorted(orphaned_files):
         if file_path in protected_files:
             logger.info(f"Skipping protected file: {file_path}")
+            continue
+        if file_path in excluded_paths or any(p in excluded_paths for p in file_path.parents):
+            logger.debug(f"Skipping excluded file: {file_path}")
             continue
         _delete_orphaned_file(target, file_path)
 
@@ -1029,7 +1042,12 @@ def _sync_merge(
             _copy_files_to_target(upstream_snapshot, target, materialized)
 
         _warn_about_workflow_files(materialized)
-        _clean_orphaned_files(target, materialized)
+        # Build a broader exclusion set for orphan cleanup: the computed 'excludes'
+        # only contains paths that exist in the upstream clone.  The raw patterns
+        # from the template config (lock.exclude) must also be honoured so that
+        # files excluded from the template are never deleted as orphans.
+        orphan_excludes = set(excludes) | set(lock.exclude)
+        _clean_orphaned_files(target, materialized, orphan_excludes)
         _write_lock(target, lock)
         logger.success(f"Sync complete — {len(materialized)} file(s) processed")
     finally:
