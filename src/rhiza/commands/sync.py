@@ -90,10 +90,9 @@ def sync(
 
     try:
         base_sha = _read_lock(target)
-        if base_sha == upstream_sha:
-            if not _is_template_config_changed(target, template, rhiza_repo, rhiza_host, rhiza_branch):
-                logger.success("Already up to date -- nothing to sync")
-                return
+        if base_sha == upstream_sha and _is_template_config_changed(
+            target, template, rhiza_repo, rhiza_host, rhiza_branch
+        ):
             # template.yml has changed even though the upstream commit is the same.
             # Force a full re-sync from the current template.yml so that newly-added
             # include paths are materialised and removed paths are cleaned up.

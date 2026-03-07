@@ -339,10 +339,11 @@ class TestSyncCommand:
     @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
     @patch("rhiza.commands._sync_helpers._get_head_sha")
     def test_sync_already_up_to_date(self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_rmtree, tmp_path):
-        """When lock SHA matches upstream HEAD and template.yml is unchanged, sync exits early."""
+        """When lock SHA matches upstream HEAD and template.yml is unchanged, sync still proceeds."""
         _setup_project(tmp_path)
 
-        # Lock must match template.yml settings so "already up to date" fires.
+        # Write a lock with matching settings; the exact match no longer causes an early exit —
+        # sync always proceeds regardless.
         _write_lock(
             tmp_path,
             TemplateLock(
@@ -355,15 +356,24 @@ class TestSyncCommand:
         )
         mock_sha.return_value = "abc123"
 
-        # Mock temp dir (only upstream_dir is needed before early exit)
         clone_dir = tmp_path / "upstream_clone"
         clone_dir.mkdir()
-        mock_mkdtemp.return_value = str(clone_dir)
+        (clone_dir / "test.txt").write_text("content\n")
+        snapshot_dir = tmp_path / "upstream_snapshot"
+        snapshot_dir.mkdir()
+        base_snapshot_dir = tmp_path / "base_snapshot"
+        base_snapshot_dir.mkdir()
+        # Pre-populate base_clone with same content so the diff is empty.
+        base_clone_dir = tmp_path / "base_clone"
+        base_clone_dir.mkdir()
+        (base_clone_dir / "test.txt").write_text("content\n")
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir), str(base_clone_dir)]
 
         sync(tmp_path, "main", None, "merge")
 
-        # Should not have attempted to clone base (early exit)
-        mock_clone_base.assert_not_called()
+        # Sync must proceed and attempt to clone the base, even though SHA and template.yml are unchanged.
+        mock_clone_base.assert_called_once()
 
     @patch("rhiza.commands._sync_helpers.shutil.rmtree")
     @patch("rhiza.commands._sync_helpers._clone_template_repository")

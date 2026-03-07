@@ -1,10 +1,10 @@
 """Core tests for the sync() function in rhiza.commands.sync.
 
 Covers the five fundamental scenarios:
-1. Already up to date  — early exit when lock SHA matches upstream AND template.yml unchanged
-2. First merge sync    — files copied, lock written
-3. Diff strategy       — no files modified, no lock written
-4. Subsequent merge    — lock SHA updated to new upstream SHA
+1. Always resync    — sync always proceeds even when lock SHA matches upstream AND template.yml unchanged
+2. First merge sync — files copied, lock written
+3. Diff strategy    — no files modified, no lock written
+4. Subsequent merge — lock SHA updated to new upstream SHA
 5. template.yml changed with same upstream SHA — re-sync triggered, files copied
 """
 
@@ -59,12 +59,13 @@ class TestSyncCore:
     @patch("rhiza.commands._sync_helpers._clone_template_repository")
     @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
     @patch("rhiza.commands._sync_helpers._get_head_sha")
-    def test_already_up_to_date_skips_base_clone(
+    def test_unchanged_sha_unchanged_template_yml_still_runs_merge(
         self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_rmtree, tmp_path
     ):
-        """When lock SHA matches upstream HEAD and template.yml is unchanged, no base clone is attempted."""
+        """When lock SHA matches upstream HEAD and template.yml is unchanged, sync still proceeds."""
         _setup_project(tmp_path)
-        # Lock must match template.yml settings exactly so the "already up to date" check fires.
+        # Write a lock with matching settings; the exact match no longer causes an early exit —
+        # sync always proceeds regardless.
         _write_lock(
             tmp_path,
             TemplateLock(
@@ -78,11 +79,17 @@ class TestSyncCore:
         mock_sha.return_value = "abc123"
 
         clone_dir = _make_clone_dir(tmp_path, "upstream_clone", {"test.txt": "content\n"})
-        mock_mkdtemp.return_value = str(clone_dir)
+        snapshot_dir = _make_clone_dir(tmp_path, "upstream_snapshot", {})
+        base_snapshot_dir = _make_clone_dir(tmp_path, "base_snapshot", {})
+        # Pre-populate base_clone with same content so the diff is empty (no changes to apply).
+        base_clone_dir = _make_clone_dir(tmp_path, "base_clone", {"test.txt": "content\n"})
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir), str(base_clone_dir)]
 
         sync(tmp_path, "main", None, "merge")
 
-        mock_clone_base.assert_not_called()
+        # Sync must proceed and attempt to clone the base, even though SHA and template.yml are unchanged.
+        mock_clone_base.assert_called_once()
 
     @patch("rhiza.commands._sync_helpers.shutil.rmtree")
     @patch("rhiza.commands._sync_helpers._clone_template_repository")
@@ -192,10 +199,10 @@ class TestSyncCore:
     @patch("rhiza.commands._sync_helpers._clone_template_repository")
     @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
     @patch("rhiza.commands._sync_helpers._get_head_sha")
-    def test_already_up_to_date_unchanged_template_yml_skips_sync(
+    def test_unchanged_sha_unchanged_template_yml_writes_lock(
         self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_rmtree, tmp_path
     ):
-        """When SHA matches AND template.yml is unchanged, sync exits early without cloning base."""
+        """When SHA matches AND template.yml is unchanged, sync still completes and writes the lock."""
         _setup_project(tmp_path, include=["test.txt"])
         _write_lock(
             tmp_path,
@@ -210,9 +217,14 @@ class TestSyncCore:
         mock_sha.return_value = "abc123"
 
         clone_dir = _make_clone_dir(tmp_path, "upstream_clone", {"test.txt": "content\n"})
-        mock_mkdtemp.return_value = str(clone_dir)
+        snapshot_dir = _make_clone_dir(tmp_path, "upstream_snapshot", {})
+        base_snapshot_dir = _make_clone_dir(tmp_path, "base_snapshot", {})
+        # Pre-populate base_clone with same content so the diff is empty (no changes to apply).
+        base_clone_dir = _make_clone_dir(tmp_path, "base_clone", {"test.txt": "content\n"})
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir), str(base_clone_dir)]
 
         sync(tmp_path, "main", None, "merge")
 
-        # No base clone should be attempted when truly up to date.
-        mock_clone_base.assert_not_called()
+        # Lock must be written even though nothing changed.
+        assert _read_lock(tmp_path) == "abc123"
