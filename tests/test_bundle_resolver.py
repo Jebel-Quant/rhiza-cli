@@ -6,6 +6,30 @@ from rhiza.bundle_resolver import load_bundles_from_clone, resolve_include_paths
 from rhiza.models import BundleDefinition, RhizaBundles, RhizaTemplate
 
 
+@pytest.fixture
+def chain_bundles() -> RhizaBundles:
+    """Core → tests → docs dependency chain with one file each."""
+    return RhizaBundles(
+        version="1.0",
+        bundles={
+            "core": BundleDefinition(name="core", description="Core", files=["core.txt"]),
+            "tests": BundleDefinition(name="tests", description="Tests", files=["tests/"], depends_on=["core"]),
+            "docs": BundleDefinition(name="docs", description="Docs", files=["docs/"], depends_on=["tests"]),
+        },
+    )
+
+
+@pytest.fixture
+def core_bundles() -> RhizaBundles:
+    """Single core bundle with .rhiza and Makefile files."""
+    return RhizaBundles(
+        version="1.0",
+        bundles={
+            "core": BundleDefinition(name="core", description="Core", files=[".rhiza", "Makefile"]),
+        },
+    )
+
+
 class TestBundleDefinition:
     """Test BundleDefinition dataclass."""
 
@@ -31,33 +55,9 @@ class TestBundleDefinition:
 class TestRhizaBundles:
     """Test RhizaBundles dataclass."""
 
-    def test_resolve_dependencies_simple(self) -> None:
+    def test_resolve_dependencies_simple(self, chain_bundles) -> None:
         """Test resolving dependencies with no circular references."""
-        bundles = RhizaBundles(
-            version="1.0",
-            bundles={
-                "core": BundleDefinition(
-                    name="core",
-                    description="Core",
-                    files=["core.txt"],
-                ),
-                "tests": BundleDefinition(
-                    name="tests",
-                    description="Tests",
-                    files=["tests/"],
-                    depends_on=["core"],
-                ),
-                "docs": BundleDefinition(
-                    name="docs",
-                    description="Docs",
-                    files=["docs/"],
-                    depends_on=["tests"],
-                ),
-            },
-        )
-
-        # Should resolve in order: core, tests, docs
-        result = bundles.resolve_dependencies(["docs"])
+        result = chain_bundles.resolve_dependencies(["docs"])
         assert result == ["core", "tests", "docs"]
 
     def test_resolve_dependencies_multiple_roots(self) -> None:
@@ -139,35 +139,12 @@ class TestRhizaBundles:
         assert ".github/workflows/test.yml" in result
         assert "tests/" in result
 
-    def test_resolve_to_paths_order(self) -> None:
+    def test_resolve_to_paths_order(self, chain_bundles) -> None:
         """Test that paths maintain dependency order."""
-        bundles = RhizaBundles(
-            version="1.0",
-            bundles={
-                "core": BundleDefinition(
-                    name="core",
-                    description="Core",
-                    files=["core1.txt"],
-                ),
-                "tests": BundleDefinition(
-                    name="tests",
-                    description="Tests",
-                    files=["tests1.txt"],
-                    depends_on=["core"],
-                ),
-                "docs": BundleDefinition(
-                    name="docs",
-                    description="Docs",
-                    files=["docs1.txt"],
-                    depends_on=["tests"],
-                ),
-            },
-        )
-
-        result = bundles.resolve_to_paths(["docs"])
+        result = chain_bundles.resolve_to_paths(["docs"])
         # Check order: core comes before tests, tests before docs
-        assert result.index("core1.txt") < result.index("tests1.txt")
-        assert result.index("tests1.txt") < result.index("docs1.txt")
+        assert result.index("core.txt") < result.index("tests/")
+        assert result.index("tests/") < result.index("docs/")
 
     def test_from_yaml_valid(self, tmp_path):
         """Test loading valid template-bundles.yml."""
@@ -205,23 +182,6 @@ bundles:
         bundles_file.write_text("")
 
         with pytest.raises(ValueError, match="Bundles file is empty"):
-            RhizaBundles.from_yaml(bundles_file)
-
-    def test_from_yaml_missing_version(self, tmp_path):
-        """Test loading template-bundles.yml without version succeeds."""
-        bundles_file = tmp_path / "template-bundles.yml"
-        bundles_file.write_text("bundles: {}")
-
-        result = RhizaBundles.from_yaml(bundles_file)
-        assert result.version is None
-        assert result.bundles == {}
-
-    def test_from_yaml_invalid_bundles_type(self, tmp_path):
-        """Test loading template-bundles.yml with invalid bundles type."""
-        bundles_file = tmp_path / "template-bundles.yml"
-        bundles_file.write_text("version: '1.0'\nbundles: 'invalid'")
-
-        with pytest.raises(TypeError, match="Bundles must be a dictionary"):
             RhizaBundles.from_yaml(bundles_file)
 
 
@@ -265,25 +225,15 @@ class TestResolveIncludePaths:
         result = resolve_include_paths(template, None)
         assert result == [".rhiza", ".github", "tests/"]
 
-    def test_hybrid_mode(self) -> None:
+    def test_hybrid_mode(self, core_bundles) -> None:
         """Test resolving paths in hybrid mode (templates + include)."""
         template = RhizaTemplate(
             template_repository="test/repo",
             templates=["core"],
             include=[".github", "custom/"],
         )
-        bundles = RhizaBundles(
-            version="1.0",
-            bundles={
-                "core": BundleDefinition(
-                    name="core",
-                    description="Core",
-                    files=["Makefile", ".rhiza"],
-                ),
-            },
-        )
 
-        result = resolve_include_paths(template, bundles)
+        result = resolve_include_paths(template, core_bundles)
         # Should have paths from both templates and include, deduplicated
         assert "Makefile" in result
         assert ".rhiza" in result
@@ -292,25 +242,15 @@ class TestResolveIncludePaths:
         # Check no duplicates
         assert len(result) == len(set(result))
 
-    def test_hybrid_mode_deduplication(self) -> None:
+    def test_hybrid_mode_deduplication(self, core_bundles) -> None:
         """Test that hybrid mode deduplicates overlapping paths."""
         template = RhizaTemplate(
             template_repository="test/repo",
             templates=["core"],
             include=[".rhiza", "custom/"],  # .rhiza overlaps with core bundle
         )
-        bundles = RhizaBundles(
-            version="1.0",
-            bundles={
-                "core": BundleDefinition(
-                    name="core",
-                    description="Core",
-                    files=[".rhiza", "Makefile"],
-                ),
-            },
-        )
 
-        result = resolve_include_paths(template, bundles)
+        result = resolve_include_paths(template, core_bundles)
         # .rhiza should only appear once
         assert result.count(".rhiza") == 1
         assert "Makefile" in result

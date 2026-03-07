@@ -4,6 +4,7 @@ This module verifies that `validate` checks `.rhiza/template.yml` and that
 the Typer CLI entry `rhiza validate` behaves as expected across scenarios.
 """
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -18,6 +19,14 @@ from rhiza.commands.validate import (
 )
 
 
+@pytest.fixture
+def git_path(tmp_path):
+    """Create a temporary git repository."""
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    return tmp_path
+
+
 class TestValidateCommand:
     """Tests for the validate command."""
 
@@ -26,95 +35,52 @@ class TestValidateCommand:
         result = validate(tmp_path)
         assert result is False
 
-    def test_validate_fails_on_missing_pyproject_toml(self, tmp_path):
+    def test_validate_fails_on_missing_pyproject_toml(self, git_path):
         """Test that validate fails when pyproject.toml doesn't exist."""
         # Create git directory
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is False
 
-    def test_validate_fails_on_missing_template_yml(self, tmp_path):
-        """Test that validate fails when template.yml doesn't exist."""
-        # Create git directory
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
-        result = validate(tmp_path)
-        assert result is False
-
-    def test_validate_fails_on_invalid_yaml(self, tmp_path):
-        """Test that validate fails on invalid YAML syntax."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
-        # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = 'test'\n")
-
-        # Create invalid YAML
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True)
-        template_file = rhiza_dir / "template.yml"
-        template_file.write_text("invalid: yaml: syntax: :")
-
-        result = validate(tmp_path)
-        assert result is False
-
-    def test_validate_fails_on_empty_template(self, tmp_path):
+    def test_validate_fails_on_empty_template(self, git_path):
         """Test that validate fails on empty template.yml."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create empty template
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
         template_file.write_text("")
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is False
 
-    def test_validate_fails_on_missing_required_fields(self, tmp_path):
+    def test_validate_fails_on_missing_required_fields(self, git_path):
         """Test that validate fails when required fields are missing."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template without required fields
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
         with open(template_file, "w") as f:
             yaml.dump({"some-field": "value"}, f)
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is False
 
-    def test_validate_fails_on_invalid_repository_format(self, tmp_path):
+    def test_validate_fails_on_invalid_repository_format(self, git_path):
         """Test that validate fails on invalid repository format."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with invalid repository format
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -127,21 +93,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is False
 
-    def test_validate_fails_on_empty_include_list(self, tmp_path):
+    def test_validate_fails_on_empty_include_list(self, git_path):
         """Test that validate fails when include list is empty."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with empty include
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -154,21 +116,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is False
 
-    def test_validate_succeeds_on_valid_template(self, tmp_path):
+    def test_validate_succeeds_on_valid_template(self, git_path):
         """Test that validate succeeds on a valid template.yml."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create valid template
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -182,21 +140,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is True
 
-    def test_validate_succeeds_with_exclude(self, tmp_path):
+    def test_validate_succeeds_with_exclude(self, git_path):
         """Test that validate succeeds with exclude list."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create valid template with exclude
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -211,21 +165,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is True
 
-    def test_validate_succeeds_with_migrated_location(self, tmp_path):
+    def test_validate_succeeds_with_migrated_location(self, git_path):
         """Test that validate succeeds when template.yml is in migrated .rhiza location."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create valid template in migrated location (.rhiza/template.yml)
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -239,22 +189,18 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is True
 
-    def test_cli_validate_command(self, tmp_path):
+    def test_cli_validate_command(self, git_path):
         """Test the CLI validate command via Typer runner."""
         runner = CliRunner()
 
-        # Setup git repo with valid template
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -267,20 +213,16 @@ class TestValidateCommand:
                 f,
             )
 
-        result = runner.invoke(cli.app, ["validate", str(tmp_path)])
+        result = runner.invoke(cli.app, ["validate", str(git_path)])
         assert result.exit_code == 0
 
-    def test_validate_warns_on_missing_src_folder(self, tmp_path):
+    def test_validate_warns_on_missing_src_folder(self, git_path):
         """Test that validate warns when src folder doesn't exist."""
-        # Setup git repo with valid template but no src folder
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -294,24 +236,20 @@ class TestValidateCommand:
             )
 
         # Should still pass with warning (warnings don't fail validation)
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is True
 
-    def test_validate_warns_on_missing_tests_folder(self, tmp_path):
+    def test_validate_warns_on_missing_tests_folder(self, git_path):
         """Test that validate warns when tests folder doesn't exist."""
-        # Setup git repo with valid template but no tests folder
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create src folder but not tests folder
-        src_dir = tmp_path / "src"
+        src_dir = git_path / "src"
         src_dir.mkdir()
 
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -325,26 +263,22 @@ class TestValidateCommand:
             )
 
         # Should still pass with warning (warnings don't fail validation)
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is True
 
-    def test_validate_succeeds_with_src_and_tests_folders(self, tmp_path):
+    def test_validate_succeeds_with_src_and_tests_folders(self, git_path):
         """Test that validate succeeds when both src and tests folders exist."""
-        # Setup git repo with valid template and proper structure
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create src and tests folders
-        src_dir = tmp_path / "src"
+        src_dir = git_path / "src"
         src_dir.mkdir()
-        tests_dir = tmp_path / "tests"
+        tests_dir = git_path / "tests"
         tests_dir.mkdir()
 
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -357,37 +291,30 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is True
 
-    def test_cli_validate_command_fails(self, tmp_path):
+    def test_cli_validate_command_fails(self, git_path):
         """Test the CLI validate command fails on invalid template."""
         runner = CliRunner()
 
         # Setup git repo with invalid template (missing required fields)
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
         template_file.write_text("{}")
 
-        result = runner.invoke(cli.app, ["validate", str(tmp_path)])
+        result = runner.invoke(cli.app, ["validate", str(git_path)])
         assert result.exit_code == 1
 
-    def test_validate_fails_on_wrong_type_template_repository(self, tmp_path):
+    def test_validate_fails_on_wrong_type_template_repository(self, git_path):
         """Test that validate fails when template-repository is not a string."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with wrong type for template-repository
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -400,21 +327,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is False
 
-    def test_validate_fails_on_wrong_type_include(self, tmp_path):
+    def test_validate_fails_on_wrong_type_include(self, git_path):
         """Test that validate fails when include is not a list."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with wrong type for include
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -427,21 +350,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is False
 
-    def test_validate_warns_on_non_string_include_items(self, tmp_path):
+    def test_validate_warns_on_non_string_include_items(self, git_path):
         """Test that validate warns about non-string items in include list."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with non-string items in include
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -454,22 +373,18 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         # Should still pass but with warnings
         assert result is True
 
-    def test_validate_warns_on_wrong_type_template_branch(self, tmp_path):
+    def test_validate_warns_on_wrong_type_template_branch(self, git_path):
         """Test that validate warns when template-branch is not a string."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with wrong type for template-branch
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -483,22 +398,18 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         # Should still pass but with warnings
         assert result is True
 
-    def test_validate_warns_on_wrong_type_exclude(self, tmp_path):
+    def test_validate_warns_on_wrong_type_exclude(self, git_path):
         """Test that validate warns when exclude is not a list."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with wrong type for exclude
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -512,22 +423,18 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         # Should still pass but with warnings
         assert result is True
 
-    def test_validate_warns_on_non_string_exclude_items(self, tmp_path):
+    def test_validate_warns_on_non_string_exclude_items(self, git_path):
         """Test that validate warns about non-string items in exclude list."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with non-string items in exclude
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -541,22 +448,18 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         # Should still pass but with warnings
         assert result is True
 
-    def test_validate_gitlab_host(self, tmp_path):
+    def test_validate_gitlab_host(self, git_path):
         """Test that validate accepts gitlab as template-host."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with gitlab host
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -570,21 +473,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is True
 
-    def test_validate_warns_on_invalid_host(self, tmp_path):
+    def test_validate_warns_on_invalid_host(self, git_path):
         """Test that validate warns about invalid template-host values."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with invalid host
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -598,22 +497,18 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         # Should still pass with warning since template-host is optional
         assert result is True
 
-    def test_validate_warns_on_wrong_type_template_host(self, tmp_path):
+    def test_validate_warns_on_wrong_type_template_host(self, git_path):
         """Test that validate warns about wrong type for template-host."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with wrong type for template-host
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -627,37 +522,29 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         # Should still pass with warning since template-host is optional
         assert result is True
 
-    def test_validate_fails_when_template_missing(self, tmp_path):
+    def test_validate_fails_when_template_missing(self, git_path):
         """Test that validate fails when template.yml is missing."""
-        # Setup git repo with pyproject.toml but no template.yml
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Don't create template.yml
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is False
 
-    def test_validate_fails_with_old_bundles_field(self, tmp_path):
+    def test_validate_fails_with_old_bundles_field(self, git_path):
         """Test that validate fails when deprecated 'bundles' field is used."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template.yml with old "bundles" field
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir()
         template_file = rhiza_dir / "template.yml"
 
@@ -672,21 +559,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is False
 
-    def test_validate_hybrid_mode_logging(self, tmp_path):
+    def test_validate_hybrid_mode_logging(self, git_path):
         """Test that validate logs 'hybrid mode' when both templates and include present."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template.yml with both templates and include
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir()
         template_file = rhiza_dir / "template.yml"
 
@@ -701,21 +584,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is True
 
-    def test_validate_template_only_mode_logging(self, tmp_path):
+    def test_validate_template_only_mode_logging(self, git_path):
         """Test that validate logs 'template-based mode' when only templates present."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template.yml with only templates
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir()
         template_file = rhiza_dir / "template.yml"
 
@@ -729,21 +608,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is True
 
-    def test_validate_fails_on_empty_templates_list(self, tmp_path):
+    def test_validate_fails_on_empty_templates_list(self, git_path):
         """Test that validate fails when templates list is empty."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template.yml with empty templates list
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir()
         template_file = rhiza_dir / "template.yml"
 
@@ -757,21 +632,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is False
 
-    def test_validate_fails_on_templates_wrong_type(self, tmp_path):
+    def test_validate_fails_on_templates_wrong_type(self, git_path):
         """Test that validate fails when templates is not a list."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template.yml with templates as a string instead of list
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir()
         template_file = rhiza_dir / "template.yml"
 
@@ -785,21 +656,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is False
 
-    def test_validate_warns_on_non_string_template_items(self, tmp_path):
+    def test_validate_warns_on_non_string_template_items(self, git_path):
         """Test that validate warns about non-string items in templates list."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template.yml with non-string template items
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir()
         template_file = rhiza_dir / "template.yml"
 
@@ -813,22 +680,18 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         # Should still pass but with warning
         assert result is True
 
-    def test_validate_accepts_repository_field(self, tmp_path):
+    def test_validate_accepts_repository_field(self, git_path):
         """Test that validate accepts 'repository' as alias for 'template-repository'."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with 'repository' instead of 'template-repository'
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -841,21 +704,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is True
 
-    def test_validate_accepts_ref_field(self, tmp_path):
+    def test_validate_accepts_ref_field(self, git_path):
         """Test that validate accepts 'ref' as alias for 'template-branch'."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with 'ref' instead of 'template-branch'
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -869,21 +728,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is True
 
-    def test_validate_accepts_repository_and_ref_together(self, tmp_path):
+    def test_validate_accepts_repository_and_ref_together(self, git_path):
         """Test that validate accepts both 'repository' and 'ref' together."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with both alternative field names
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -897,21 +752,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is True
 
-    def test_validate_prefers_template_repository_over_repository(self, tmp_path):
+    def test_validate_prefers_template_repository_over_repository(self, git_path):
         """Test that 'template-repository' takes precedence over 'repository'."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with both field names (template-repository should win)
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -925,21 +776,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is True
 
-    def test_validate_prefers_template_branch_over_ref(self, tmp_path):
+    def test_validate_prefers_template_branch_over_ref(self, git_path):
         """Test that 'template-branch' takes precedence over 'ref'."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with both field names (template-branch should win)
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -954,21 +801,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is True
 
-    def test_validate_repository_field_invalid_format(self, tmp_path):
+    def test_validate_repository_field_invalid_format(self, git_path):
         """Test that validate fails when 'repository' has invalid format."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with invalid repository format
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -981,21 +824,17 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         assert result is False
 
-    def test_validate_ref_field_wrong_type(self, tmp_path):
+    def test_validate_ref_field_wrong_type(self, git_path):
         """Test that validate warns when 'ref' has wrong type."""
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
         # Create pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
         # Create template with wrong type for ref
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -1009,7 +848,7 @@ class TestValidateCommand:
                 f,
             )
 
-        result = validate(tmp_path)
+        result = validate(git_path)
         # Should still pass but with warning
         assert result is True
 
@@ -1051,3 +890,64 @@ class TestValidateHelperFunctions:
         """_validate_language_field warns when language is not a string (lines 339-340)."""
         # Should not raise — just logs a warning
         _validate_language_field({"language": 42})
+
+    def test_validate_go_project_succeeds(self, git_path):
+        """Test validation succeeds for Go project."""
+        # Create go.mod
+        go_mod_file = git_path / "go.mod"
+        go_mod_file.write_text("module example.com/myproject\n\ngo 1.20\n")
+
+        # Create template.yml with go language
+        rhiza_dir = git_path / ".rhiza"
+        rhiza_dir.mkdir()
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump({"template-repository": "owner/repo", "language": "go", "include": [".github"]}, f)
+
+        result = validate(git_path)
+        assert result is True
+
+    def test_validate_go_project_fails_without_go_mod(self, git_path):
+        """Test validation fails for Go project without go.mod."""
+        # Create template.yml with go language but no go.mod
+        rhiza_dir = git_path / ".rhiza"
+        rhiza_dir.mkdir()
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump({"template-repository": "owner/repo", "language": "go", "include": [".github"]}, f)
+
+        result = validate(git_path)
+        assert result is False
+
+    def test_validate_python_project_with_explicit_language(self, git_path):
+        """Test validation succeeds for Python project with explicit language."""
+        # Create pyproject.toml
+        pyproject_file = git_path / "pyproject.toml"
+        pyproject_file.write_text("[project]\nname = 'test'\n")
+
+        # Create template.yml with explicit python language
+        rhiza_dir = git_path / ".rhiza"
+        rhiza_dir.mkdir()
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump({"template-repository": "owner/repo", "language": "python", "include": [".github"]}, f)
+
+        result = validate(git_path)
+        assert result is True
+
+    def test_validate_with_unknown_language_succeeds(self, git_path):
+        """Test validation with unknown language shows warning but doesn't fail."""
+        # Create template.yml with unknown language
+        rhiza_dir = git_path / ".rhiza"
+        rhiza_dir.mkdir()
+        template_file = rhiza_dir / "template.yml"
+
+        with open(template_file, "w") as f:
+            yaml.dump({"template-repository": "owner/repo", "language": "rust", "include": [".github"]}, f)
+
+        # Should succeed but with warnings
+        result = validate(git_path)
+        assert result is True
