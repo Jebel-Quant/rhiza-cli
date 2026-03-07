@@ -1633,6 +1633,82 @@ class TestThreeWayMergeSyncMergeStrategy:
         # _clone_at_sha should NOT have been called (no base to clone)
         mock_clone.assert_not_called()
 
+    @patch("rhiza.commands._sync_helpers._clone_at_sha")
+    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    def test_sync_merge_restores_files_missing_from_target(
+        self,
+        mock_warn,
+        mock_clone,
+        tmp_path,
+        project_with_template,
+        git_setup,
+    ):
+        """Files in materialized but absent from target are restored after merge.
+
+        This covers the scenario where the template snapshot is unchanged since
+        the last sync (no diff to apply) but some template-managed files do not
+        exist in the target repository.
+        They should be copied from the upstream snapshot, not silently excluded
+        from the lock.
+        """
+        git_executable, git_env = git_setup
+        target = project_with_template
+
+        makefile_content = "install:\n\tpip install .\n"
+        license_content = "MIT License\n"
+
+        # Only Makefile exists in the target; LICENSE is missing.
+        (target / "Makefile").write_text(makefile_content)
+        subprocess.run([git_executable, "add", "."], cwd=target, check=True, capture_output=True, env=git_env)
+        subprocess.run(
+            [git_executable, "commit", "-m", "add Makefile"],
+            cwd=target,
+            check=True,
+            capture_output=True,
+            env=git_env,
+        )
+
+        _write_lock(target, TemplateLock(sha="base_sha_123", files=["Makefile", "LICENSE"]))
+
+        # Upstream snapshot contains both files (template unchanged).
+        upstream_snapshot = tmp_path / "upstream_snapshot"
+        upstream_snapshot.mkdir()
+        (upstream_snapshot / "Makefile").write_text(makefile_content)
+        (upstream_snapshot / "LICENSE").write_text(license_content)
+
+        # The base clone will also contain both files (no diff → nothing to apply).
+        def populate_base(git_url, sha, dest, include_paths, git_exe, git_env_):
+            (dest / "Makefile").write_text(makefile_content)
+            (dest / "LICENSE").write_text(license_content)
+
+        mock_clone.side_effect = populate_base
+
+        _sync_merge(
+            target=target,
+            upstream_snapshot=upstream_snapshot,
+            upstream_sha="upstream_sha_456",
+            base_sha="base_sha_123",
+            materialized=[Path("Makefile"), Path("LICENSE")],
+            include_paths=["Makefile", "LICENSE"],
+            excludes=set(),
+            git_url="https://example.com/repo.git",
+            git_executable=git_executable,
+            git_env=git_env,
+            rhiza_repo="jebel-quant/rhiza",
+            rhiza_branch="main",
+            lock=TemplateLock(sha="upstream_sha_456", files=["Makefile", "LICENSE"]),
+        )
+
+        # LICENSE was missing from the target but should now be restored.
+        assert (target / "LICENSE").exists(), "LICENSE should have been restored from upstream snapshot"
+        assert (target / "LICENSE").read_text() == license_content
+        # Makefile should be untouched.
+        assert (target / "Makefile").read_text() == makefile_content
+        # Lock must record both files.
+        lock_path = target / ".rhiza" / "template.lock"
+        lock_data = yaml.safe_load(lock_path.read_text())
+        assert "LICENSE" in lock_data["files"], "LICENSE must appear in the lock after restore"
+
 
 class TestConstructGitUrl:
     """Tests for _construct_git_url."""
