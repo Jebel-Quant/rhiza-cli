@@ -1,6 +1,6 @@
 """End-to-end tests for the sync command.
 
-These tests exercise the four key behavioural guarantees of ``rhiza sync``:
+These tests exercise the five key behavioural guarantees of ``rhiza sync``:
 
 1. **Typical workflow** – a first sync copies all template files; a subsequent
    sync applies upstream changes while leaving unrelated local files in place.
@@ -11,12 +11,18 @@ These tests exercise the four key behavioural guarantees of ``rhiza sync``:
    modifications are *not* overwritten.
 4. **Excluded files** – files listed under ``exclude:`` in ``template.yml``
    are never removed, even if they were previously tracked by the template.
+5. **Updated template.yml** – when the user edits the ``include:`` list in
+   their local ``template.yml`` (adding or removing entries), the next
+   ``rhiza sync`` picks up the changes correctly: new entries cause the
+   corresponding files to be fetched from the template; removed entries cause
+   previously-synced files to be treated as orphans and deleted.
 
 The tests use real git repositories (``git_project`` / ``git_setup``
 fixtures from ``conftest.py``) and real file-system operations.  Only
-``_clone_at_sha`` is mocked, since that helper would otherwise attempt a
-network clone; the mock simply populates the destination directory from a
-local "template v1" snapshot that the test itself builds.
+``_clone_at_sha`` / ``_clone_and_resolve_upstream`` are mocked, since those
+helpers would otherwise attempt a network clone; the mocks simply populate
+the destination directory from a local "template vN" snapshot that the test
+itself builds.
 
 Security Notes:
 - S101 (assert usage): Asserts are the standard way to validate test
@@ -38,6 +44,7 @@ from rhiza.commands._sync_helpers import (
     _read_lock,
     _sync_merge,
 )
+from rhiza.commands.sync import sync
 from rhiza.models import TemplateLock
 
 # ---------------------------------------------------------------------------
@@ -535,3 +542,177 @@ class TestSyncE2EExcludedFiles:
         assert (project / "file_b.txt").read_text() == "content b\n"
 
         assert _read_lock(project) == "sha_v2"
+
+
+# ---------------------------------------------------------------------------
+# 5. Updated template.yml
+# ---------------------------------------------------------------------------
+
+
+class TestSyncE2EUpdatedTemplateYml:
+    """End-to-end tests for sync behaviour when the local template.yml is edited.
+
+    These tests exercise the full :func:`~rhiza.commands.sync.sync` entry-point
+    (rather than ``_sync_merge`` directly) and mock only the network-touching
+    helper ``_clone_and_resolve_upstream``.  The ``_clone_at_sha`` helper is
+    additionally mocked for the second sync so that the 3-way-merge base
+    snapshot is populated correctly without a real git clone.
+    """
+
+    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    def test_adding_include_entry_syncs_new_file(self, mock_warn, project, git_setup, tmp_path):
+        """Adding a path to include: in template.yml causes the file to appear after the next sync.
+
+        Timeline:
+        - template.yml v1: ``include: [file_a.txt, file_b.txt]``
+        - Sync 1: both files copied into project.
+        - User edits template.yml: ``include: [file_a.txt, file_b.txt, file_c.txt]``
+        - Sync 2: ``file_c.txt`` is fetched from the template and added to the project.
+
+        Expected after sync 2: ``file_c.txt`` exists alongside the existing files.
+        """
+        git_executable, git_env = git_setup
+
+        # ------------------------------------------------------------------
+        # Configure template.yml v1: file_a.txt and file_b.txt
+        # ------------------------------------------------------------------
+        (project / ".rhiza" / "template.yml").write_text(
+            "template-repository: jebel-quant/rhiza\ntemplate-branch: main\ninclude:\n  - file_a.txt\n  - file_b.txt\n"
+        )
+        _git_commit_all(project, git_executable, git_env, "template.yml v1: file_a + file_b")
+
+        # ------------------------------------------------------------------
+        # Sync 1 (first sync — no lock yet)
+        # ------------------------------------------------------------------
+        upstream_dir_v1 = tmp_path / "upstream_v1"
+        upstream_dir_v1.mkdir()
+        (upstream_dir_v1 / "file_a.txt").write_text("content a\n")
+        (upstream_dir_v1 / "file_b.txt").write_text("content b\n")
+
+        def upstream_v1(template, git_url, branch, include_paths, git_exe, git_env_):
+            return upstream_dir_v1, "sha_v1", include_paths
+
+        with patch("rhiza.commands.sync._clone_and_resolve_upstream", side_effect=upstream_v1):
+            sync(target=project, branch="main", target_branch=None, strategy="merge")
+
+        assert (project / "file_a.txt").exists()
+        assert (project / "file_b.txt").exists()
+        assert _read_lock(project) == "sha_v1"
+
+        _git_commit_all(project, git_executable, git_env, "after sync 1")
+
+        # ------------------------------------------------------------------
+        # User adds file_c.txt to the include: list in template.yml
+        # ------------------------------------------------------------------
+        (project / ".rhiza" / "template.yml").write_text(
+            "template-repository: jebel-quant/rhiza\n"
+            "template-branch: main\n"
+            "include:\n  - file_a.txt\n  - file_b.txt\n  - file_c.txt\n"
+        )
+        _git_commit_all(project, git_executable, git_env, "template.yml v2: add file_c.txt")
+
+        # ------------------------------------------------------------------
+        # Sync 2 — template.yml now requests file_c.txt
+        # ------------------------------------------------------------------
+        upstream_dir_v2 = tmp_path / "upstream_v2"
+        upstream_dir_v2.mkdir()
+        (upstream_dir_v2 / "file_a.txt").write_text("content a\n")
+        (upstream_dir_v2 / "file_b.txt").write_text("content b\n")
+        (upstream_dir_v2 / "file_c.txt").write_text("content c\n")
+
+        def upstream_v2(template, git_url, branch, include_paths, git_exe, git_env_):
+            return upstream_dir_v2, "sha_v2", include_paths
+
+        def populate_base(git_url, sha, dest, include_paths, git_exe, git_env_):
+            """Base snapshot contains only the files present at sha_v1."""
+            (dest / "file_a.txt").write_text("content a\n")
+            (dest / "file_b.txt").write_text("content b\n")
+
+        with (
+            patch("rhiza.commands.sync._clone_and_resolve_upstream", side_effect=upstream_v2),
+            patch("rhiza.commands._sync_helpers._clone_at_sha", side_effect=populate_base),
+        ):
+            sync(target=project, branch="main", target_branch=None, strategy="merge")
+
+        assert (project / "file_a.txt").exists()
+        assert (project / "file_b.txt").exists()
+        assert (project / "file_c.txt").exists(), "file_c.txt must be added after it is included in template.yml"
+        assert _read_lock(project) == "sha_v2"
+
+    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    def test_removing_include_entry_removes_orphaned_file(self, mock_warn, project, git_setup, tmp_path):
+        """Removing a path from include: in template.yml causes it to be deleted on the next sync.
+
+        Timeline:
+        - template.yml v1: ``include: [file_a.txt, file_b.txt]``
+        - Sync 1: both files copied into project.
+        - User edits template.yml: ``include: [file_a.txt]``  (``file_b.txt`` removed)
+        - Sync 2: ``file_b.txt`` is no longer in the materialized set; orphan
+          cleanup deletes it from the project.
+
+        Expected after sync 2: ``file_b.txt`` is gone; ``file_a.txt`` remains.
+        """
+        git_executable, git_env = git_setup
+
+        # ------------------------------------------------------------------
+        # Configure template.yml v1: file_a.txt and file_b.txt
+        # ------------------------------------------------------------------
+        (project / ".rhiza" / "template.yml").write_text(
+            "template-repository: jebel-quant/rhiza\ntemplate-branch: main\ninclude:\n  - file_a.txt\n  - file_b.txt\n"
+        )
+        _git_commit_all(project, git_executable, git_env, "template.yml v1: file_a + file_b")
+
+        # ------------------------------------------------------------------
+        # Sync 1 (first sync — no lock yet)
+        # ------------------------------------------------------------------
+        upstream_dir_v1 = tmp_path / "upstream_v1"
+        upstream_dir_v1.mkdir()
+        (upstream_dir_v1 / "file_a.txt").write_text("content a\n")
+        (upstream_dir_v1 / "file_b.txt").write_text("content b\n")
+
+        def upstream_v1(template, git_url, branch, include_paths, git_exe, git_env_):
+            return upstream_dir_v1, "sha_v1", include_paths
+
+        with patch("rhiza.commands.sync._clone_and_resolve_upstream", side_effect=upstream_v1):
+            sync(target=project, branch="main", target_branch=None, strategy="merge")
+
+        assert (project / "file_a.txt").exists()
+        assert (project / "file_b.txt").exists()
+        assert _read_lock(project) == "sha_v1"
+
+        _git_commit_all(project, git_executable, git_env, "after sync 1")
+
+        # ------------------------------------------------------------------
+        # User removes file_b.txt from the include: list in template.yml
+        # ------------------------------------------------------------------
+        (project / ".rhiza" / "template.yml").write_text(
+            "template-repository: jebel-quant/rhiza\ntemplate-branch: main\ninclude:\n  - file_a.txt\n"
+        )
+        _git_commit_all(project, git_executable, git_env, "template.yml v2: remove file_b.txt")
+
+        # ------------------------------------------------------------------
+        # Sync 2 — template.yml no longer requests file_b.txt
+        # ------------------------------------------------------------------
+        upstream_dir_v2 = tmp_path / "upstream_v2"
+        upstream_dir_v2.mkdir()
+        (upstream_dir_v2 / "file_a.txt").write_text("content a\n")
+
+        def upstream_v2(template, git_url, branch, include_paths, git_exe, git_env_):
+            # Only file_a.txt is in the updated include_paths from template.yml.
+            return upstream_dir_v2, "sha_v2", include_paths
+
+        def populate_base(git_url, sha, dest, include_paths, git_exe, git_env_):
+            # Orphan cleanup uses the lock's ``files`` field, not the diff,
+            # so only the currently-included file needs to be in the base.
+            (dest / "file_a.txt").write_text("content a\n")
+
+        with (
+            patch("rhiza.commands.sync._clone_and_resolve_upstream", side_effect=upstream_v2),
+            patch("rhiza.commands._sync_helpers._clone_at_sha", side_effect=populate_base),
+        ):
+            sync(target=project, branch="main", target_branch=None, strategy="merge")
+
+        assert (project / "file_a.txt").exists()
+        assert not (project / "file_b.txt").exists(), (
+            "file_b.txt must be removed after it is dropped from template.yml include:"
+        )

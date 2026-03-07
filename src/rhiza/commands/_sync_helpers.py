@@ -441,6 +441,7 @@ def _clean_orphaned_files(
     materialized_files: list[Path],
     base_snapshot: Path | None = None,
     excludes: set[str] | None = None,
+    previously_tracked_files: set[Path] | None = None,
 ) -> None:
     """Clean up files that are no longer maintained by template.
 
@@ -454,12 +455,18 @@ def _clean_orphaned_files(
         base_snapshot: Optional directory containing the template snapshot at
             the previously-synced SHA.  Passed through to
             :func:`_read_previously_tracked_files` as a fallback when the lock
-            file has no ``files`` entry.
+            file has no ``files`` entry.  Ignored when *previously_tracked_files*
+            is supplied directly.
         excludes: Optional set of relative path strings that are currently
             excluded from the template sync.  Any previously-tracked file
             present in this set is kept (the user explicitly opted it out).
+        previously_tracked_files: Optional pre-read set of files that were
+            tracked by the previous sync.  When supplied this takes precedence
+            over reading from the on-disk lock file, which allows callers to
+            snapshot the old state before the lock is overwritten by the merge.
     """
-    previously_tracked_files = _read_previously_tracked_files(target, base_snapshot=base_snapshot)
+    if previously_tracked_files is None:
+        previously_tracked_files = _read_previously_tracked_files(target, base_snapshot=base_snapshot)
     if not previously_tracked_files:
         return
 
@@ -1096,6 +1103,12 @@ def _sync_merge(
         rhiza_branch: Template branch name.
         lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
     """
+    # Snapshot the currently-tracked files before the merge runs.  The merge
+    # may write a new lock (e.g. on the "template unchanged" early-return path
+    # in _merge_with_base), so we must read the old state first to ensure
+    # orphan cleanup compares against the previous sync, not the new one.
+    old_tracked_files = _read_previously_tracked_files(target)
+
     base_snapshot = Path(tempfile.mkdtemp())
     try:
         if base_sha:
@@ -1117,7 +1130,13 @@ def _sync_merge(
             _copy_files_to_target(upstream_snapshot, target, materialized)
 
         _warn_about_workflow_files(materialized)
-        _clean_orphaned_files(target, materialized, excludes=excludes, base_snapshot=base_snapshot)
+        _clean_orphaned_files(
+            target,
+            materialized,
+            excludes=excludes,
+            base_snapshot=base_snapshot,
+            previously_tracked_files=old_tracked_files if old_tracked_files else None,
+        )
         _write_lock(target, lock)
         logger.success(f"Sync complete — {len(materialized)} file(s) processed")
     finally:
