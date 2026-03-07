@@ -55,7 +55,7 @@ from rhiza.models import TemplateLock
 
 
 def _setup_project(tmp_path, include=None):
-    """Create a minimal mock project directory with .git, pyproject.toml and template.yml for testing."""
+    """Create a minimal mock project directory with .git, pyproject.toml, and .rhiza/template.yml."""
     (tmp_path / ".git").mkdir()
     (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\n')
     rhiza_dir = tmp_path / ".rhiza"
@@ -1868,28 +1868,6 @@ class TestCloneTemplateRepository:
                 tmp_path, "https://github.com/bad/repo.git", "main", [".github"], git_executable, git_env
             )
 
-    def test_sparse_checkout_init_failure_reraises(self, tmp_path, git_setup):
-        """A sparse-checkout init failure re-raises the exception."""
-        git_executable, git_env = git_setup
-
-        call_count = [0]
-
-        def _side_effect(*args, **kwargs):
-            cmd = args[0] if args else kwargs.get("args", [])
-            call_count[0] += 1
-            # First call (clone) succeeds; second call (sparse-checkout init) fails
-            if call_count[0] == 2 and "sparse-checkout" in cmd and "init" in cmd:
-                raise subprocess.CalledProcessError(128, cmd, stderr="error: sparse-checkout failed")
-            return Mock(returncode=0)
-
-        with (
-            patch("rhiza._sync_helpers.subprocess.run", side_effect=_side_effect),
-            pytest.raises(subprocess.CalledProcessError),
-        ):
-            _clone_template_repository(
-                tmp_path, "https://github.com/owner/repo.git", "main", [".github"], git_executable, git_env
-            )
-
     def test_success_path_logs_initialized(self, tmp_path, git_setup):
         """All three subprocess calls succeed; lines 315 and 331 are executed."""
         git_executable, git_env = git_setup
@@ -1943,8 +1921,8 @@ class TestCloneTemplateRepository:
                 git_env,
             )
 
-    def test_sparse_checkout_init_failure_via_mock_sequence(self, tmp_path, git_setup):
-        """sparse-checkout init failure logs error and re-raises (mock-sequence variant)."""
+    def test_sparse_checkout_init_failure_reraises(self, tmp_path, git_setup):
+        """sparse-checkout init failure re-raises CalledProcessError."""
         git_executable, git_env = git_setup
         ok = MagicMock(returncode=0, stdout="", stderr="")
         err = subprocess.CalledProcessError(1, ["git", "sparse-checkout", "init"])
