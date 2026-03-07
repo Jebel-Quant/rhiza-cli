@@ -351,14 +351,33 @@ def _warn_about_workflow_files(materialized_files: list[Path]) -> None:
         logger.info(f"Workflow files affected: {len(workflow_files)}")
 
 
-def _read_previously_tracked_files(target: Path) -> set[Path]:
+def _files_from_snapshot(snapshot_dir: Path) -> set[Path]:
+    """Return all files in *snapshot_dir* as paths relative to that directory.
+
+    Args:
+        snapshot_dir: Root of a snapshot directory tree.
+
+    Returns:
+        Set of relative file paths found under *snapshot_dir*.
+    """
+    return {f.relative_to(snapshot_dir) for f in snapshot_dir.rglob("*") if f.is_file()}
+
+
+def _read_previously_tracked_files(target: Path, base_snapshot: Path | None = None) -> set[Path]:
     """Return the set of files tracked by the last sync.
 
-    Prefers ``template.lock.files`` and falls back to the legacy
-    ``.rhiza/history`` file for backward compatibility.
+    Resolution order:
+    1. ``template.lock.files`` when the field is present and non-empty.
+    2. *base_snapshot* directory listing when provided and non-empty (used as a
+       fallback for lock files that pre-date the ``files`` field).
+    3. Legacy ``.rhiza/history`` file for backward compatibility.
 
     Args:
         target: Target repository path.
+        base_snapshot: Optional directory containing the template snapshot at
+            the previously-synced SHA.  When the lock file has no ``files``
+            entry this snapshot is used to reconstruct the tracked-file list,
+            avoiding an extra network fetch.
 
     Returns:
         Set of previously tracked file paths (relative to target), or an empty
@@ -372,6 +391,13 @@ def _read_previously_tracked_files(target: Path) -> set[Path]:
                 files = {Path(f) for f in lock.files}
                 logger.debug(f"Reading previous file list from template.lock ({len(files)} files)")
                 return files
+            # Lock exists but has no files list - try to reconstruct from the
+            # base snapshot that was already fetched during this sync run.
+            if base_snapshot is not None and base_snapshot.is_dir():
+                snapshot_files = _files_from_snapshot(base_snapshot)
+                if snapshot_files:
+                    logger.debug(f"Reconstructing previous file list from base snapshot ({len(snapshot_files)} files)")
+                    return snapshot_files
         except Exception as e:
             logger.debug(f"Could not read template.lock for orphan cleanup: {e}")
 
@@ -410,14 +436,22 @@ def _delete_orphaned_file(target: Path, file_path: Path) -> None:
         logger.debug(f"Skipping {file_path} (already deleted)")
 
 
-def _clean_orphaned_files(target: Path, materialized_files: list[Path]) -> None:
+def _clean_orphaned_files(
+    target: Path,
+    materialized_files: list[Path],
+    base_snapshot: Path | None = None,
+) -> None:
     """Clean up files that are no longer maintained by template.
 
     Args:
         target: Target repository path.
         materialized_files: List of currently materialized files.
+        base_snapshot: Optional directory containing the template snapshot at
+            the previously-synced SHA.  Passed through to
+            :func:`_read_previously_tracked_files` as a fallback when the lock
+            file has no ``files`` entry.
     """
-    previously_tracked_files = _read_previously_tracked_files(target)
+    previously_tracked_files = _read_previously_tracked_files(target, base_snapshot=base_snapshot)
     if not previously_tracked_files:
         return
 
@@ -1024,7 +1058,7 @@ def _sync_merge(
             _copy_files_to_target(upstream_snapshot, target, materialized)
 
         _warn_about_workflow_files(materialized)
-        _clean_orphaned_files(target, materialized)
+        _clean_orphaned_files(target, materialized, base_snapshot=base_snapshot)
         _write_lock(target, lock)
         logger.success(f"Sync complete — {len(materialized)} file(s) processed")
     finally:

@@ -30,6 +30,7 @@ from rhiza.commands._sync_helpers import (
     _delete_orphaned_file,
     _excluded_set,
     _expand_paths,
+    _files_from_snapshot,
     _get_diff,
     _get_head_sha,
     _handle_target_branch,
@@ -2031,6 +2032,108 @@ class TestCleanOrphanedFiles:
             files = _read_previously_tracked_files(tmp_path)
 
         assert Path("Makefile") in files
+
+
+class TestFilesFromSnapshot:
+    """Tests for _files_from_snapshot."""
+
+    def test_returns_files_relative_to_snapshot(self, tmp_path):
+        """Files are returned relative to the snapshot root."""
+        (tmp_path / "Makefile").write_text("all:")
+        (tmp_path / ".github" / "workflows").mkdir(parents=True)
+        (tmp_path / ".github" / "workflows" / "ci.yml").write_text("on: push")
+
+        files = _files_from_snapshot(tmp_path)
+
+        assert all(isinstance(f, Path) for f in files), "all entries must be Path objects"
+        assert Path("Makefile") in files
+        assert Path(".github/workflows/ci.yml") in files
+        assert len(files) == 2
+
+    def test_empty_snapshot_returns_empty_set(self, tmp_path):
+        """An empty snapshot directory returns an empty set."""
+        files = _files_from_snapshot(tmp_path)
+        assert files == set()
+
+
+class TestReadPreviouslyTrackedFilesWithBaseSnapshot:
+    """Tests for _read_previously_tracked_files with base_snapshot fallback."""
+
+    def test_uses_base_snapshot_when_lock_has_no_files(self, tmp_path):
+        """Falls back to base_snapshot when lock exists but has no files."""
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        # Lock file without files
+        (rhiza_dir / "template.lock").write_text(
+            "sha: abc123\nrepo: owner/repo\nhost: github\nref: main\ninclude: []\nexclude: []\ntemplates: []\n",
+        )
+
+        base_snapshot = tmp_path / "snapshot"
+        base_snapshot.mkdir()
+        (base_snapshot / "Makefile").write_text("all:")
+        (base_snapshot / ".github").mkdir()
+        (base_snapshot / ".github" / "ci.yml").write_text("on: push")
+
+        files = _read_previously_tracked_files(tmp_path, base_snapshot=base_snapshot)
+
+        assert Path("Makefile") in files
+        assert Path(".github/ci.yml") in files
+
+    def test_lock_files_take_priority_over_base_snapshot(self, tmp_path):
+        """Lock files field takes priority over base_snapshot."""
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        (rhiza_dir / "template.lock").write_text(
+            "sha: abc123\nrepo: owner/repo\nfiles:\n  - from-lock.txt\n",
+        )
+
+        base_snapshot = tmp_path / "snapshot"
+        base_snapshot.mkdir()
+        (base_snapshot / "from-snapshot.txt").write_text("ignored")
+
+        files = _read_previously_tracked_files(tmp_path, base_snapshot=base_snapshot)
+
+        assert Path("from-lock.txt") in files
+        assert Path("from-snapshot.txt") not in files
+
+    def test_ignores_empty_base_snapshot(self, tmp_path):
+        """An empty base_snapshot does not override fallback to history."""
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        (rhiza_dir / "template.lock").write_text(
+            "sha: abc123\nrepo: owner/repo\nhost: github\nref: main\n",
+        )
+        (rhiza_dir / "history").write_text("from-history.txt\n")
+
+        empty_snapshot = tmp_path / "empty_snapshot"
+        empty_snapshot.mkdir()
+
+        files = _read_previously_tracked_files(tmp_path, base_snapshot=empty_snapshot)
+
+        assert Path("from-history.txt") in files
+
+    def test_clean_orphaned_files_passes_base_snapshot_through(self, tmp_path):
+        """_clean_orphaned_files passes base_snapshot to _read_previously_tracked_files."""
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        # Lock without files
+        (rhiza_dir / "template.lock").write_text(
+            "sha: abc123\nrepo: owner/repo\nhost: github\nref: main\ninclude: []\nexclude: []\ntemplates: []\n",
+        )
+
+        # Create the "previously tracked" file on disk so orphan deletion can happen
+        old_file = tmp_path / "old-template-file.txt"
+        old_file.write_text("old content")
+
+        # base_snapshot contains the previously tracked file
+        base_snapshot = tmp_path / "snapshot"
+        base_snapshot.mkdir()
+        (base_snapshot / "old-template-file.txt").write_text("old content")
+
+        # Materialize does NOT include old-template-file.txt → it's an orphan
+        _clean_orphaned_files(tmp_path, [Path("Makefile")], base_snapshot=base_snapshot)
+
+        assert not old_file.exists(), "orphaned file should have been deleted via base_snapshot reconstruction"
 
 
 class TestUpdateSparseCheckout:
