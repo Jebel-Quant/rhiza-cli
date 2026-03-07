@@ -55,7 +55,7 @@ from rhiza.models import TemplateLock
 
 
 def _setup_project(tmp_path, include=None):
-    """Create a minimal project directory with template.yml."""
+    """Create a minimal mock project directory with .git, pyproject.toml and template.yml for testing."""
     (tmp_path / ".git").mkdir()
     (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\n')
     rhiza_dir = tmp_path / ".rhiza"
@@ -70,7 +70,7 @@ def _setup_project(tmp_path, include=None):
 
 
 def _commit_all(project, git_executable, git_env, message="add files"):
-    """Stage everything and create a commit."""
+    """Stage all files in *project* and create a commit — test helper for git-based scenarios."""
     subprocess.run([git_executable, "add", "."], cwd=project, check=True, capture_output=True, env=git_env)  # nosec B603
     subprocess.run(  # nosec B603
         [git_executable, "commit", "-m", message],
