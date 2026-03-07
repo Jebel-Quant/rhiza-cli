@@ -184,6 +184,22 @@ bundles:
         with pytest.raises(ValueError, match="Bundles file is empty"):
             RhizaBundles.from_yaml(bundles_file)
 
+    def test_from_yaml_bundles_not_a_dict(self, tmp_path):
+        """Test that a non-dict 'bundles' value raises TypeError."""
+        bundles_file = tmp_path / "template-bundles.yml"
+        bundles_file.write_text("version: '1.0'\nbundles:\n  - item1\n  - item2\n")
+
+        with pytest.raises(TypeError, match="Bundles must be a dictionary"):
+            RhizaBundles.from_yaml(bundles_file)
+
+    def test_from_yaml_bundle_item_not_a_dict(self, tmp_path):
+        """Test that a non-dict bundle item raises TypeError."""
+        bundles_file = tmp_path / "template-bundles.yml"
+        bundles_file.write_text("version: '1.0'\nbundles:\n  core: just_a_string\n")
+
+        with pytest.raises(TypeError, match="Bundle 'core' must be a dictionary"):
+            RhizaBundles.from_yaml(bundles_file)
+
 
 class TestResolveIncludePaths:
     """Test resolve_include_paths function."""

@@ -341,3 +341,11 @@ class TestTemplateLock:
         original.to_yaml(lock_path)
         loaded = TemplateLock.from_yaml(lock_path)
         assert loaded == original
+
+    def test_template_lock_from_yaml_invalid_format(self, tmp_path):
+        """from_yaml raises TypeError when the lock data is neither str nor dict."""
+        lock_path = tmp_path / "template.lock"
+        lock_path.write_text("- item1\n- item2\n", encoding="utf-8")
+
+        with pytest.raises(TypeError, match=r"Invalid template\.lock format"):
+            TemplateLock.from_yaml(lock_path)

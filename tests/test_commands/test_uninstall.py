@@ -151,6 +151,24 @@ class TestUninstallCommand:
         assert file1.exists()
         assert lock_file.exists()
 
+    def test_confirm_prompt_shows_already_deleted_for_missing_files(self, tmp_path):
+        """_confirm_uninstall logs 'already deleted' for files not present on disk."""
+        _make_lock(tmp_path, ["nonexistent.txt"])
+
+        with patch("builtins.input", return_value="n"):
+            uninstall(tmp_path, force=False)
+
+    def test_returns_early_when_no_files_in_lock(self, tmp_path):
+        """If the lock lists no files, uninstall exits early without touching anything."""
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True, exist_ok=True)
+        lock_file = rhiza_dir / "template.lock"
+        lock_file.write_text(_LOCK_HEADER + "files: []\n")
+
+        uninstall(tmp_path, force=True)
+
+        assert lock_file.exists()
+
 
 # ---------------------------------------------------------------------------
 # CLI tests

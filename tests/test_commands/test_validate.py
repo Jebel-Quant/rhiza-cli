@@ -41,6 +41,16 @@ class TestValidateCommand:
         result = validate(git_path)
         assert result is False
 
+    def test_validate_fails_on_invalid_yaml_syntax(self, git_path):
+        """Test that validate fails when template.yml has invalid YAML syntax."""
+        (git_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+        rhiza_dir = git_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        (rhiza_dir / "template.yml").write_text("key: [unclosed bracket\n")
+
+        result = validate(git_path)
+        assert result is False
+
     def test_validate_fails_on_empty_template(self, git_path):
         """Test that validate fails on empty template.yml."""
         # Create pyproject.toml
