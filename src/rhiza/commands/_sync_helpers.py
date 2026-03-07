@@ -7,6 +7,7 @@ to the command module's public API.
 """
 
 import contextlib
+import dataclasses
 import os
 import shutil
 import subprocess  # nosec B404
@@ -571,10 +572,23 @@ def _write_lock(target: Path, lock: TemplateLock) -> None:
     ``fcntl`` is available so that concurrent writers do not corrupt the file.
     Falls back silently on platforms without ``fcntl`` (e.g. Windows).
 
+    Only files that actually exist in *target* are recorded in ``lock.files``.
+    This guarantees that the lock never references paths that are absent from
+    the repository.
+
     Args:
         target: Path to the target repository.
         lock: The :class:`~rhiza.models.TemplateLock` to record.
     """
+    # Filter the files list to only include paths that exist on disk so that
+    # the lock never contains entries for files that are absent from the repo.
+    existing_files = [f for f in lock.files if (target / f).exists()]
+    missing = sorted(set(lock.files) - set(existing_files))
+    if missing:
+        missing_str = ", ".join(missing)
+        logger.warning(f"{len(missing)} file(s) in lock absent from target and excluded: {missing_str}")
+        lock = dataclasses.replace(lock, files=existing_files)
+
     lock_path = target / LOCK_FILE
     tmp_path = Path(str(lock_path) + ".tmp")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
