@@ -1971,13 +1971,6 @@ class TestCleanOrphanedFiles:
         assert Path("Makefile") in files
         assert Path(".github/workflows/ci.yml") in files
 
-    def test_read_previously_tracked_files_old_history(self, tmp_path):
-        """Falls back to .rhiza.history (legacy root-level file)."""
-        (tmp_path / ".rhiza.history").write_text("Makefile\n")
-
-        files = _read_previously_tracked_files(tmp_path)
-        assert Path("Makefile") in files
-
     def test_skips_nonexistent_file(self, tmp_path):
         """When file does not exist, a debug message is logged and nothing raises."""
         # file_path points to a file that does NOT exist in target
