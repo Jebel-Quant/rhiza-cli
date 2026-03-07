@@ -410,12 +410,23 @@ def _delete_orphaned_file(target: Path, file_path: Path) -> None:
         logger.debug(f"Skipping {file_path} (already deleted)")
 
 
-def _clean_orphaned_files(target: Path, materialized_files: list[Path]) -> None:
+def _clean_orphaned_files(
+    target: Path,
+    materialized_files: list[Path],
+    excludes: set[str] | None = None,
+) -> None:
     """Clean up files that are no longer maintained by template.
+
+    Files that are explicitly excluded via the ``exclude:`` setting in
+    ``template.yml`` are never deleted even if they appear in a previous lock
+    but are absent from *materialized_files*.
 
     Args:
         target: Target repository path.
         materialized_files: List of currently materialized files.
+        excludes: Optional set of relative path strings that are currently
+            excluded from the template sync.  Any previously-tracked file
+            present in this set is kept (the user explicitly opted it out).
     """
     previously_tracked_files = _read_previously_tracked_files(target)
     if not previously_tracked_files:
@@ -424,6 +435,12 @@ def _clean_orphaned_files(target: Path, materialized_files: list[Path]) -> None:
     logger.debug(f"Found {len(previously_tracked_files)} file(s) in previous tracking")
 
     orphaned_files = previously_tracked_files - set(materialized_files)
+
+    # Don't delete files that the user has explicitly excluded — they have
+    # opted those files out of template management and want to keep them.
+    if excludes:
+        excluded_as_paths = {Path(e) for e in excludes}
+        orphaned_files = orphaned_files - excluded_as_paths
 
     protected_files = {Path(".rhiza/template.yml")}
 
@@ -1024,7 +1041,7 @@ def _sync_merge(
             _copy_files_to_target(upstream_snapshot, target, materialized)
 
         _warn_about_workflow_files(materialized)
-        _clean_orphaned_files(target, materialized)
+        _clean_orphaned_files(target, materialized, excludes)
         _write_lock(target, lock)
         logger.success(f"Sync complete — {len(materialized)} file(s) processed")
     finally:
