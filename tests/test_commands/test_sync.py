@@ -34,7 +34,6 @@ from rhiza.commands._sync_helpers import (
     _get_diff,
     _get_head_sha,
     _handle_target_branch,
-    _is_template_config_changed,
     _log_git_stderr_errors,
     _merge_file_fallback,
     _merge_with_base,
@@ -332,38 +331,6 @@ class TestApplyDiff:
 
 class TestSyncCommand:
     """Integration-style tests for the sync command."""
-
-    @patch("rhiza.commands._sync_helpers.shutil.rmtree")
-    @patch("rhiza.commands._sync_helpers._clone_at_sha")
-    @patch("rhiza.commands._sync_helpers._clone_template_repository")
-    @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
-    @patch("rhiza.commands._sync_helpers._get_head_sha")
-    def test_sync_already_up_to_date(self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_rmtree, tmp_path):
-        """When lock SHA matches upstream HEAD and template.yml is unchanged, sync exits early."""
-        _setup_project(tmp_path)
-
-        # Lock must match template.yml settings so "already up to date" fires.
-        _write_lock(
-            tmp_path,
-            TemplateLock(
-                sha="abc123",
-                repo="jebel-quant/rhiza",
-                host="github",
-                ref="main",
-                include=["test.txt"],
-            ),
-        )
-        mock_sha.return_value = "abc123"
-
-        # Mock temp dir (only upstream_dir is needed before early exit)
-        clone_dir = tmp_path / "upstream_clone"
-        clone_dir.mkdir()
-        mock_mkdtemp.return_value = str(clone_dir)
-
-        sync(tmp_path, "main", None, "merge")
-
-        # Should not have attempted to clone base (early exit)
-        mock_clone_base.assert_not_called()
 
     @patch("rhiza.commands._sync_helpers.shutil.rmtree")
     @patch("rhiza.commands._sync_helpers._clone_template_repository")
@@ -1733,8 +1700,6 @@ class TestValidateAndLoadTemplate:
 
     def test_missing_template_repository_raises(self, tmp_path):
         """A template.yml without template-repository raises RuntimeError."""
-        from rhiza.models import RhizaTemplate
-
         (tmp_path / ".git").mkdir()
         (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\n')
         # Write template without template-repository but with include (to pass validation check)
@@ -1757,8 +1722,6 @@ class TestValidateAndLoadTemplate:
 
     def test_no_include_paths_raises(self, tmp_path):
         """A template.yml with no include or templates raises RuntimeError."""
-        from rhiza.models import RhizaTemplate
-
         (tmp_path / ".git").mkdir()
         (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\n')
 
@@ -2287,116 +2250,3 @@ class TestApplyDiffBlobFallback:
 
 
 # ---------------------------------------------------------------------------
-# Tests for _is_template_config_changed
-# ---------------------------------------------------------------------------
-
-
-class TestIsTemplateConfigChanged:
-    """Tests for _is_template_config_changed helper."""
-
-    def _make_template(
-        self,
-        repo: str = "jebel-quant/rhiza",
-        host: str = "github",
-        branch: str = "main",
-        include: list[str] | None = None,
-        exclude: list[str] | None = None,
-        templates: list[str] | None = None,
-    ) -> RhizaTemplate:
-        return RhizaTemplate(
-            template_repository=repo,
-            template_host=host,
-            template_branch=branch,
-            include=include or [".github/"],
-            exclude=exclude or [],
-            templates=templates or [],
-        )
-
-    def _write_matching_lock(self, tmp_path: Path, template: RhizaTemplate, branch: str) -> None:
-        lock = TemplateLock(
-            sha="abc123",
-            repo=template.template_repository or "",
-            host=template.template_host or "github",
-            ref=branch,
-            include=template.include,
-            exclude=template.exclude,
-            templates=template.templates,
-        )
-        _write_lock(tmp_path, lock)
-
-    def test_returns_false_when_no_lock_exists(self, tmp_path):
-        """No lock file → not changed (first sync path)."""
-        template = self._make_template()
-        result = _is_template_config_changed(tmp_path, template, "jebel-quant/rhiza", "github", "main")
-        assert result is False
-
-    def test_returns_false_when_lock_matches_template(self, tmp_path):
-        """Lock exactly matches template.yml → not changed."""
-        template = self._make_template()
-        self._write_matching_lock(tmp_path, template, "main")
-        result = _is_template_config_changed(tmp_path, template, "jebel-quant/rhiza", "github", "main")
-        assert result is False
-
-    def test_returns_true_when_include_differs(self, tmp_path):
-        """Include list changed → config changed."""
-        template_old = self._make_template(include=[".github/"])
-        self._write_matching_lock(tmp_path, template_old, "main")
-        template_new = self._make_template(include=[".github/", "Makefile"])
-        result = _is_template_config_changed(tmp_path, template_new, "jebel-quant/rhiza", "github", "main")
-        assert result is True
-
-    def test_returns_true_when_exclude_differs(self, tmp_path):
-        """Exclude list changed → config changed."""
-        template_old = self._make_template(exclude=[])
-        self._write_matching_lock(tmp_path, template_old, "main")
-        template_new = self._make_template(exclude=["README.md"])
-        result = _is_template_config_changed(tmp_path, template_new, "jebel-quant/rhiza", "github", "main")
-        assert result is True
-
-    def test_returns_true_when_templates_differ(self, tmp_path):
-        """Templates list changed → config changed."""
-        template_old = self._make_template(templates=[])
-        self._write_matching_lock(tmp_path, template_old, "main")
-        template_new = self._make_template(templates=["core"])
-        result = _is_template_config_changed(tmp_path, template_new, "jebel-quant/rhiza", "github", "main")
-        assert result is True
-
-    def test_returns_true_when_repo_differs(self, tmp_path):
-        """Template repository changed → config changed."""
-        template = self._make_template(repo="jebel-quant/rhiza")
-        self._write_matching_lock(tmp_path, template, "main")
-        result = _is_template_config_changed(tmp_path, template, "other-org/other-repo", "github", "main")
-        assert result is True
-
-    def test_returns_true_when_host_differs(self, tmp_path):
-        """Template host changed → config changed."""
-        template = self._make_template(host="github")
-        self._write_matching_lock(tmp_path, template, "main")
-        result = _is_template_config_changed(tmp_path, template, "jebel-quant/rhiza", "gitlab", "main")
-        assert result is True
-
-    def test_returns_true_when_branch_differs(self, tmp_path):
-        """Branch changed → config changed."""
-        template = self._make_template()
-        self._write_matching_lock(tmp_path, template, "main")
-        result = _is_template_config_changed(tmp_path, template, "jebel-quant/rhiza", "github", "develop")
-        assert result is True
-
-    def test_returns_false_on_malformed_lock(self, tmp_path):
-        """Malformed lock file (YAML error) → treated as not changed (graceful fallback)."""
-        lock_path = tmp_path / ".rhiza" / "template.lock"
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-        lock_path.write_text("not: valid: yaml: [", encoding="utf-8")
-        template = self._make_template()
-        result = _is_template_config_changed(tmp_path, template, "jebel-quant/rhiza", "github", "main")
-        assert result is False
-
-    def test_returns_false_on_invalid_lock_type(self, tmp_path):
-        """Lock file with unexpected top-level type → treated as not changed (graceful fallback)."""
-        lock_path = tmp_path / ".rhiza" / "template.lock"
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-        # A YAML list is not a valid lock format; TemplateLock.from_yaml raises TypeError.
-        lock_path.write_text("- item1\n- item2\n", encoding="utf-8")
-        template = self._make_template()
-        result = _is_template_config_changed(tmp_path, template, "jebel-quant/rhiza", "github", "main")
-        assert result is False

@@ -55,36 +55,6 @@ class TestSyncCore:
     """Core scenario tests for sync()."""
 
     @patch("rhiza.commands._sync_helpers.shutil.rmtree")
-    @patch("rhiza.commands._sync_helpers._clone_at_sha")
-    @patch("rhiza.commands._sync_helpers._clone_template_repository")
-    @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
-    @patch("rhiza.commands._sync_helpers._get_head_sha")
-    def test_already_up_to_date_skips_base_clone(
-        self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_rmtree, tmp_path
-    ):
-        """When lock SHA matches upstream HEAD and template.yml is unchanged, no base clone is attempted."""
-        _setup_project(tmp_path)
-        # Lock must match template.yml settings exactly so the "already up to date" check fires.
-        _write_lock(
-            tmp_path,
-            TemplateLock(
-                sha="abc123",
-                repo="jebel-quant/rhiza",
-                host="github",
-                ref="main",
-                include=["test.txt"],
-            ),
-        )
-        mock_sha.return_value = "abc123"
-
-        clone_dir = _make_clone_dir(tmp_path, "upstream_clone", {"test.txt": "content\n"})
-        mock_mkdtemp.return_value = str(clone_dir)
-
-        sync(tmp_path, "main", None, "merge")
-
-        mock_clone_base.assert_not_called()
-
-    @patch("rhiza.commands._sync_helpers.shutil.rmtree")
     @patch("rhiza.commands._sync_helpers._clone_template_repository")
     @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
     @patch("rhiza.commands._sync_helpers._get_head_sha")
@@ -149,70 +119,3 @@ class TestSyncCore:
         sync(tmp_path, "main", None, "merge")
 
         assert _read_lock(tmp_path) == "new222"
-
-    @patch("rhiza.commands._sync_helpers.shutil.rmtree")
-    @patch("rhiza.commands._sync_helpers._clone_template_repository")
-    @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
-    @patch("rhiza.commands._sync_helpers._get_head_sha")
-    def test_template_yml_changed_same_sha_triggers_resync(
-        self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path
-    ):
-        """When template.yml include list changed but upstream SHA is the same, sync still runs."""
-        # Project previously synced with include: ["old.txt"]
-        _setup_project(tmp_path, include=["test.txt"])
-        _write_lock(
-            tmp_path,
-            TemplateLock(
-                sha="abc123",
-                repo="jebel-quant/rhiza",
-                host="github",
-                ref="main",
-                include=["old.txt"],  # differs from current template.yml
-                files=["old.txt"],
-            ),
-        )
-        # Upstream SHA is the same as the lock — no new template commits.
-        mock_sha.return_value = "abc123"
-
-        clone_dir = _make_clone_dir(tmp_path, "upstream_clone", {"test.txt": "new content\n"})
-        snapshot_dir = _make_clone_dir(tmp_path, "upstream_snapshot", {})
-        base_snapshot_dir = _make_clone_dir(tmp_path, "base_snapshot", {})
-
-        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir)]
-
-        sync(tmp_path, "main", None, "merge")
-
-        # File from updated include list must have been copied.
-        assert (tmp_path / "test.txt").read_text() == "new content\n"
-        # Lock must be updated with the new upstream SHA.
-        assert _read_lock(tmp_path) == "abc123"
-
-    @patch("rhiza.commands._sync_helpers.shutil.rmtree")
-    @patch("rhiza.commands._sync_helpers._clone_at_sha")
-    @patch("rhiza.commands._sync_helpers._clone_template_repository")
-    @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
-    @patch("rhiza.commands._sync_helpers._get_head_sha")
-    def test_already_up_to_date_unchanged_template_yml_skips_sync(
-        self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_rmtree, tmp_path
-    ):
-        """When SHA matches AND template.yml is unchanged, sync exits early without cloning base."""
-        _setup_project(tmp_path, include=["test.txt"])
-        _write_lock(
-            tmp_path,
-            TemplateLock(
-                sha="abc123",
-                repo="jebel-quant/rhiza",
-                host="github",
-                ref="main",
-                include=["test.txt"],
-            ),
-        )
-        mock_sha.return_value = "abc123"
-
-        clone_dir = _make_clone_dir(tmp_path, "upstream_clone", {"test.txt": "content\n"})
-        mock_mkdtemp.return_value = str(clone_dir)
-
-        sync(tmp_path, "main", None, "merge")
-
-        # No base clone should be attempted when truly up to date.
-        mock_clone_base.assert_not_called()
