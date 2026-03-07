@@ -66,7 +66,7 @@ def _get_diff(repo0: Path, repo1: Path) -> str:
         cwd=repo0_str,
         capture_output=True,
     )
-    diff = result.stdout.decode()
+    diff = result.stdout.decode("utf-8", errors="replace")
     for repo in [repo0_str, repo1_str]:
         repo_nix = sub("/[a-z]:", "", repo)
         diff = diff.replace(f"{_DIFF_SRC_PREFIX}{repo_nix}", _DIFF_SRC_PREFIX).replace(
