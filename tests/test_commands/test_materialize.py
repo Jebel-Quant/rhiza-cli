@@ -13,56 +13,45 @@ import warnings
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from typer.testing import CliRunner
 
 from rhiza import cli
 from rhiza.commands.materialize import materialize
 
 
+@pytest.fixture
+def git_path(tmp_path):
+    """Create a temporary git repository."""
+    (tmp_path / ".git").mkdir()
+    return tmp_path
+
+
 class TestMaterializeCLI:
     """Tests for the deprecated materialize CLI command."""
 
     @patch("rhiza.cli.sync_cmd")
-    def test_cli_materialize_command(self, mock_sync, tmp_path):
-        """Test the CLI materialize command delegates to sync (deprecated)."""
+    def test_cli_delegates_to_sync_with_merge_strategy(self, mock_sync, git_path):
+        """Materialize CLI delegates to sync with strategy='merge' and emits a deprecation warning."""
         runner = CliRunner()
 
-        # Setup git repo
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-
-        # Run CLI command — materialize is deprecated and delegates to sync
-        result = runner.invoke(cli.app, ["materialize", str(tmp_path), "--branch", "main"])
+        # 1. Explicit branch
+        result = runner.invoke(cli.app, ["materialize", str(git_path), "--branch", "main"])
         assert result.exit_code == 0
-        mock_sync.assert_called_once_with(tmp_path.resolve(), "main", None, "merge")
-
-    @patch("rhiza.cli.sync_cmd")
-    def test_cli_materialize_force_uses_merge_strategy(self, mock_sync, tmp_path):
-        """Test that --force maps to merge strategy when delegating to sync."""
-        runner = CliRunner()
-
-        # Setup git repo
-        (tmp_path / ".git").mkdir()
-
-        result = runner.invoke(cli.app, ["materialize", str(tmp_path), "--force"])
-        assert result.exit_code == 0
-        mock_sync.assert_called_once_with(tmp_path.resolve(), "main", None, "merge")
-
-    @patch("rhiza.cli.sync_cmd")
-    def test_cli_materialize_shows_deprecation_warning(self, mock_sync, tmp_path):
-        """Test that the deprecated materialize command shows a deprecation warning."""
-        runner = CliRunner()
-
-        (tmp_path / ".git").mkdir()
-
-        result = runner.invoke(cli.app, ["materialize", str(tmp_path)])
-        assert result.exit_code == 0
-        # The deprecation warning is written to stderr; CliRunner mixes it into output
+        mock_sync.assert_called_once_with(git_path.resolve(), "main", None, "merge")
         assert "deprecated" in result.output.lower()
 
+        mock_sync.reset_mock()
+
+        # 2. --force flag still uses merge strategy (default branch)
+        result = runner.invoke(cli.app, ["materialize", str(git_path), "--force"])
+        assert result.exit_code == 0
+        mock_sync.assert_called_once_with(git_path.resolve(), "main", None, "merge")
+
     @patch("rhiza.commands.materialize.sync")
-    def test_python_materialize_delegates_to_sync(self, mock_sync, tmp_path):
-        """The Python materialize() shim calls sync() with strategy='merge'."""
+    def test_python_shim_delegates_to_sync(self, mock_sync, tmp_path):
+        """materialize() always calls sync() with strategy='merge', ignores force, and emits DeprecationWarning."""
+        # 1. Basic call — emits DeprecationWarning, coerces path, passes strategy
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             materialize(tmp_path, "main", None, False)
@@ -70,11 +59,19 @@ class TestMaterializeCLI:
         mock_sync.assert_called_once_with(Path(tmp_path), "main", None, "merge")
         assert any(issubclass(w.category, DeprecationWarning) for w in caught)
 
-    @patch("rhiza.commands.materialize.sync")
-    def test_python_materialize_ignores_force(self, mock_sync, tmp_path):
-        """The force flag is ignored — sync is always called with 'merge'."""
+        mock_sync.reset_mock()
+
+        # 2. force=True and non-default branch/target are forwarded; strategy is still 'merge'
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
             materialize(tmp_path, "develop", "feature/branch", True)
 
         mock_sync.assert_called_once_with(Path(tmp_path), "develop", "feature/branch", "merge")
+
+        # 3. String path is coerced to Path
+        mock_sync.reset_mock()
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            materialize(str(tmp_path), "main", None, False)
+
+        mock_sync.assert_called_once_with(Path(str(tmp_path)), "main", None, "merge")
