@@ -20,7 +20,7 @@ import yaml
 from typer.testing import CliRunner
 
 from rhiza import cli
-from rhiza._sync_helpers import (
+from rhiza.commands._sync_helpers import (
     _apply_diff,
     _clean_orphaned_files,
     _clone_and_resolve_upstream,
@@ -163,14 +163,14 @@ class TestLockFile:
         """_read_lock logs debug when fcntl is not available."""
         _write_lock(tmp_path, TemplateLock(sha="deadbeef12345678"))
 
-        with patch("rhiza._sync_helpers._FCNTL_AVAILABLE", False):
+        with patch("rhiza.commands._sync_helpers._FCNTL_AVAILABLE", False):
             sha = _read_lock(tmp_path)
 
         assert sha == "deadbeef12345678"
 
     def test_write_lock_without_fcntl(self, tmp_path):
         """_write_lock logs debug when fcntl is not available."""
-        with patch("rhiza._sync_helpers._FCNTL_AVAILABLE", False):
+        with patch("rhiza.commands._sync_helpers._FCNTL_AVAILABLE", False):
             _write_lock(tmp_path, TemplateLock(sha="cafebabe12345678"))
 
         assert _read_lock(tmp_path) == "cafebabe12345678"
@@ -181,7 +181,7 @@ class TestLockFile:
         lock_path.parent.mkdir(parents=True)
         lock_path.write_text("abc123plainsha\n")
 
-        with patch("rhiza._sync_helpers.yaml.safe_load", side_effect=yaml.YAMLError("parse error")):
+        with patch("rhiza.commands._sync_helpers.yaml.safe_load", side_effect=yaml.YAMLError("parse error")):
             result = _read_lock(tmp_path)
 
         assert result == "abc123plainsha"
@@ -331,11 +331,11 @@ class TestApplyDiff:
 class TestSyncCommand:
     """Integration-style tests for the sync command."""
 
-    @patch("rhiza._sync_helpers.shutil.rmtree")
-    @patch("rhiza._sync_helpers._clone_at_sha")
-    @patch("rhiza._sync_helpers._clone_template_repository")
-    @patch("rhiza._sync_helpers.tempfile.mkdtemp")
-    @patch("rhiza._sync_helpers._get_head_sha")
+    @patch("rhiza.commands._sync_helpers.shutil.rmtree")
+    @patch("rhiza.commands._sync_helpers._clone_at_sha")
+    @patch("rhiza.commands._sync_helpers._clone_template_repository")
+    @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
+    @patch("rhiza.commands._sync_helpers._get_head_sha")
     def test_sync_already_up_to_date(self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_rmtree, tmp_path):
         """When lock SHA matches upstream HEAD, sync exits early."""
         _setup_project(tmp_path)
@@ -354,10 +354,10 @@ class TestSyncCommand:
         # Should not have attempted to clone base (early exit)
         mock_clone_base.assert_not_called()
 
-    @patch("rhiza._sync_helpers.shutil.rmtree")
-    @patch("rhiza._sync_helpers._clone_template_repository")
-    @patch("rhiza._sync_helpers.tempfile.mkdtemp")
-    @patch("rhiza._sync_helpers._get_head_sha")
+    @patch("rhiza.commands._sync_helpers.shutil.rmtree")
+    @patch("rhiza.commands._sync_helpers._clone_template_repository")
+    @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
+    @patch("rhiza.commands._sync_helpers._get_head_sha")
     def test_sync_diff_does_not_modify_files(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
         """Diff strategy shows changes but does not modify files."""
         _setup_project(tmp_path)
@@ -383,10 +383,10 @@ class TestSyncCommand:
         # Lock should NOT be updated in diff mode
         assert _read_lock(tmp_path) is None
 
-    @patch("rhiza._sync_helpers.shutil.rmtree")
-    @patch("rhiza._sync_helpers._clone_template_repository")
-    @patch("rhiza._sync_helpers.tempfile.mkdtemp")
-    @patch("rhiza._sync_helpers._get_head_sha")
+    @patch("rhiza.commands._sync_helpers.shutil.rmtree")
+    @patch("rhiza.commands._sync_helpers._clone_template_repository")
+    @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
+    @patch("rhiza.commands._sync_helpers._get_head_sha")
     def test_sync_merge_first_sync_copies_files(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
         """On first sync (no lock), merge copies new files."""
         _setup_project(tmp_path)
@@ -429,10 +429,10 @@ class TestSyncCommand:
 class TestSyncOrphanedFiles:
     """Tests verifying that orphaned files are deleted when template.yml changes during sync."""
 
-    @patch("rhiza._sync_helpers.shutil.rmtree")
-    @patch("rhiza._sync_helpers._clone_template_repository")
-    @patch("rhiza._sync_helpers.tempfile.mkdtemp")
-    @patch("rhiza._sync_helpers._get_head_sha")
+    @patch("rhiza.commands._sync_helpers.shutil.rmtree")
+    @patch("rhiza.commands._sync_helpers._clone_template_repository")
+    @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
+    @patch("rhiza.commands._sync_helpers._get_head_sha")
     def test_merge_first_sync_deletes_orphaned_files(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
         """Merge strategy (first sync) removes files no longer present in the updated template."""
         # Template now only includes new.txt (old.txt was removed from template.yml)
@@ -532,7 +532,7 @@ class TestGetHeadSha:
 class TestCloneAtSha:
     """Tests for _clone_at_sha helper."""
 
-    @patch("rhiza._sync_helpers.subprocess.run")
+    @patch("rhiza.commands._sync_helpers.subprocess.run")
     def test_clone_at_sha_calls_subprocess(self, mock_run, tmp_path, git_setup):
         """_clone_at_sha invokes the expected git commands."""
         git_executable, git_env = git_setup
@@ -569,11 +569,11 @@ class TestApplyDiffConflict:
 class TestSyncMergeWithBase:
     """Tests for merge strategy with an existing base SHA."""
 
-    @patch("rhiza._sync_helpers.shutil.rmtree")
-    @patch("rhiza._sync_helpers._clone_at_sha")
-    @patch("rhiza._sync_helpers._clone_template_repository")
-    @patch("rhiza._sync_helpers.tempfile.mkdtemp")
-    @patch("rhiza._sync_helpers._get_head_sha")
+    @patch("rhiza.commands._sync_helpers.shutil.rmtree")
+    @patch("rhiza.commands._sync_helpers._clone_at_sha")
+    @patch("rhiza.commands._sync_helpers._clone_template_repository")
+    @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
+    @patch("rhiza.commands._sync_helpers._get_head_sha")
     def test_sync_merge_with_existing_base_sha(
         self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_rmtree, tmp_path
     ):
@@ -609,11 +609,11 @@ class TestSyncMergeWithBase:
 class TestCloneAndResolveUpstreamWithTemplates:
     """Tests for template bundle resolution path in _clone_and_resolve_upstream."""
 
-    @patch("rhiza._sync_helpers._get_head_sha")
-    @patch("rhiza._sync_helpers.resolve_include_paths")
-    @patch("rhiza._sync_helpers.load_bundles_from_clone")
-    @patch("rhiza._sync_helpers._update_sparse_checkout")
-    @patch("rhiza._sync_helpers._clone_template_repository")
+    @patch("rhiza.commands._sync_helpers._get_head_sha")
+    @patch("rhiza.commands._sync_helpers.resolve_include_paths")
+    @patch("rhiza.commands._sync_helpers.load_bundles_from_clone")
+    @patch("rhiza.commands._sync_helpers._update_sparse_checkout")
+    @patch("rhiza.commands._sync_helpers._clone_template_repository")
     def test_bundle_resolution_path(
         self,
         mock_clone,
@@ -668,7 +668,7 @@ class TestCloneAtShaErrorPaths:
             pytest.param(3, id="checkout fails"),
         ],
     )
-    @patch("rhiza._sync_helpers.subprocess.run")
+    @patch("rhiza.commands._sync_helpers.subprocess.run")
     def test_failure_exits(self, mock_run, tmp_path, git_setup, fail_at):
         """Any subprocess failure in _clone_at_sha raises CalledProcessError."""
         git_executable, git_env = git_setup
@@ -686,7 +686,7 @@ class TestCloneAtShaErrorPaths:
 class TestMergeWithBasePaths:
     """Tests for _merge_with_base helper."""
 
-    @patch("rhiza._sync_helpers._clone_at_sha")
+    @patch("rhiza.commands._sync_helpers._clone_at_sha")
     def test_merge_with_base_handles_clone_exception(self, mock_clone_at_sha, tmp_path, git_setup):
         """Exception in _clone_at_sha is caught and logged."""
         git_executable, git_env = git_setup
@@ -717,9 +717,9 @@ class TestMergeWithBasePaths:
             TemplateLock(sha="newsha"),
         )
 
-    @patch("rhiza._sync_helpers._get_diff")
-    @patch("rhiza._sync_helpers._clone_at_sha")
-    @patch("rhiza._sync_helpers._prepare_snapshot")
+    @patch("rhiza.commands._sync_helpers._get_diff")
+    @patch("rhiza.commands._sync_helpers._clone_at_sha")
+    @patch("rhiza.commands._sync_helpers._prepare_snapshot")
     def test_merge_with_base_no_diff(self, mock_prepare, mock_clone, mock_get_diff, tmp_path, git_setup):
         """When diff is empty, lock is updated and function returns early."""
         git_executable, git_env = git_setup
@@ -750,10 +750,10 @@ class TestMergeWithBasePaths:
         # Lock should be updated with upstream SHA
         assert _read_lock(target) == "newsha"
 
-    @patch("rhiza._sync_helpers._apply_diff")
-    @patch("rhiza._sync_helpers._get_diff")
-    @patch("rhiza._sync_helpers._clone_at_sha")
-    @patch("rhiza._sync_helpers._prepare_snapshot")
+    @patch("rhiza.commands._sync_helpers._apply_diff")
+    @patch("rhiza.commands._sync_helpers._get_diff")
+    @patch("rhiza.commands._sync_helpers._clone_at_sha")
+    @patch("rhiza.commands._sync_helpers._prepare_snapshot")
     def test_merge_with_base_clean_apply(
         self, mock_prepare, mock_clone, mock_get_diff, mock_apply, tmp_path, git_project, git_setup
     ):
@@ -1303,7 +1303,7 @@ class TestThreeWayMergeWithBase:
         """Helper to prepare a base snapshot without a real git clone."""
         _prepare_snapshot(base_clone, include_paths, excludes, base_snapshot)
 
-    @patch("rhiza._sync_helpers._clone_at_sha")
+    @patch("rhiza.commands._sync_helpers._clone_at_sha")
     def test_merge_applies_upstream_changes(self, mock_clone, tmp_path, git_project, git_setup):
         """_merge_with_base applies diff(base→upstream) to the target cleanly."""
         git_executable, git_env = git_setup
@@ -1351,7 +1351,7 @@ class TestThreeWayMergeWithBase:
         assert 'version = "0.2.0"' in pyproject, "version should be bumped"
         assert "ruff check" in makefile, "lint target should be added"
 
-    @patch("rhiza._sync_helpers._clone_at_sha")
+    @patch("rhiza.commands._sync_helpers._clone_at_sha")
     def test_merge_no_changes_updates_lock_only(self, mock_clone, tmp_path, git_project, git_setup):
         """When base and upstream are identical, no files are modified but lock is updated."""
         git_executable, git_env = git_setup
@@ -1392,7 +1392,7 @@ class TestThreeWayMergeWithBase:
         # Lock should be updated to upstream SHA
         assert _read_lock(git_project) == "upstream_sha_abc"
 
-    @patch("rhiza._sync_helpers._clone_at_sha")
+    @patch("rhiza.commands._sync_helpers._clone_at_sha")
     def test_merge_upstream_adds_new_file(self, mock_clone, tmp_path, git_project, git_setup):
         """_merge_with_base handles upstream adding a file that wasn't in base."""
         git_executable, git_env = git_setup
@@ -1430,7 +1430,7 @@ class TestThreeWayMergeWithBase:
         assert (git_project / "new_workflow.yml").exists()
         assert "deploy" in (git_project / "new_workflow.yml").read_text()
 
-    @patch("rhiza._sync_helpers._clone_at_sha")
+    @patch("rhiza.commands._sync_helpers._clone_at_sha")
     def test_merge_upstream_removes_file(self, mock_clone, tmp_path, git_project, git_setup):
         """_merge_with_base handles upstream removing a file from the template."""
         git_executable, git_env = git_setup
@@ -1507,8 +1507,8 @@ class TestThreeWayMergeSyncMergeStrategy:
         )
         return project
 
-    @patch("rhiza._sync_helpers._clone_at_sha")
-    @patch("rhiza._sync_helpers._warn_about_workflow_files")
+    @patch("rhiza.commands._sync_helpers._clone_at_sha")
+    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
     def test_sync_merge_subsequent_applies_diff(
         self,
         mock_warn,
@@ -1573,8 +1573,8 @@ class TestThreeWayMergeSyncMergeStrategy:
         # Lock file should be updated
         assert _read_lock(target) == "upstream_sha_456"
 
-    @patch("rhiza._sync_helpers._clone_at_sha")
-    @patch("rhiza._sync_helpers._warn_about_workflow_files")
+    @patch("rhiza.commands._sync_helpers._clone_at_sha")
+    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
     def test_sync_merge_first_run_copies_without_merge(
         self,
         mock_warn,
@@ -1643,7 +1643,7 @@ class TestHandleTargetBranch:
     def test_no_branch_is_noop(self, tmp_path, git_setup):
         """Passing None for target_branch should not call git."""
         git_executable, git_env = git_setup
-        with patch("rhiza._sync_helpers.subprocess.run") as mock_run:
+        with patch("rhiza.commands._sync_helpers.subprocess.run") as mock_run:
             _handle_target_branch(tmp_path, None, git_executable, git_env)
         mock_run.assert_not_called()
 
@@ -1660,7 +1660,7 @@ class TestHandleTargetBranch:
                 result.returncode = 0
             return result
 
-        with patch("rhiza._sync_helpers.subprocess.run", side_effect=_side_effect) as mock_run:
+        with patch("rhiza.commands._sync_helpers.subprocess.run", side_effect=_side_effect) as mock_run:
             _handle_target_branch(tmp_path, "new-branch", git_executable, git_env)
 
         calls = [str(c) for c in mock_run.call_args_list]
@@ -1676,7 +1676,7 @@ class TestHandleTargetBranch:
             result.returncode = 0  # branch found
             return result
 
-        with patch("rhiza._sync_helpers.subprocess.run", side_effect=_side_effect) as mock_run:
+        with patch("rhiza.commands._sync_helpers.subprocess.run", side_effect=_side_effect) as mock_run:
             _handle_target_branch(tmp_path, "existing-branch", git_executable, git_env)
 
         calls = [str(c) for c in mock_run.call_args_list]
@@ -1808,13 +1808,13 @@ class TestWarnAboutWorkflowFiles:
 
     def test_no_warning_without_workflow_files(self):
         """No warning is emitted when there are no workflow files."""
-        with patch("rhiza._sync_helpers.logger") as mock_logger:
+        with patch("rhiza.commands._sync_helpers.logger") as mock_logger:
             _warn_about_workflow_files([Path("Makefile"), Path(".github/CODEOWNERS")])
         mock_logger.warning.assert_not_called()
 
     def test_warning_with_workflow_files(self):
         """A warning is emitted when workflow files are present."""
-        with patch("rhiza._sync_helpers.logger") as mock_logger:
+        with patch("rhiza.commands._sync_helpers.logger") as mock_logger:
             _warn_about_workflow_files([Path(".github/workflows/ci.yml")])
         mock_logger.warning.assert_called_once()
         assert "workflow" in mock_logger.warning.call_args[0][0].lower()
@@ -1834,7 +1834,7 @@ class TestCloneTemplateRepository:
             return Mock(returncode=0)
 
         with (
-            patch("rhiza._sync_helpers.subprocess.run", side_effect=_side_effect),
+            patch("rhiza.commands._sync_helpers.subprocess.run", side_effect=_side_effect),
             pytest.raises(subprocess.CalledProcessError),
         ):
             _clone_template_repository(
@@ -1845,7 +1845,7 @@ class TestCloneTemplateRepository:
         """All three subprocess calls succeed; lines 315 and 331 are executed."""
         git_executable, git_env = git_setup
         ok = MagicMock(returncode=0, stdout="", stderr="")
-        with patch("rhiza._sync_helpers.subprocess.run", return_value=ok):
+        with patch("rhiza.commands._sync_helpers.subprocess.run", return_value=ok):
             _clone_template_repository(
                 tmp_path,
                 "https://github.com/example/repo.git",
@@ -1870,7 +1870,7 @@ class TestCloneTemplateRepository:
         err = subprocess.CalledProcessError(1, ["git"])
         err.stderr = "error"
         with (
-            patch("rhiza._sync_helpers.subprocess.run", side_effect=[ok] * fail_at + [err]),
+            patch("rhiza.commands._sync_helpers.subprocess.run", side_effect=[ok] * fail_at + [err]),
             pytest.raises(subprocess.CalledProcessError),
         ):
             _clone_template_repository(
@@ -1897,7 +1897,7 @@ class TestLogGitStderrErrors:
     )
     def test_stderr_logging(self, stderr, expected_calls):
         """Appropriate lines are logged as errors; irrelevant lines and None are ignored."""
-        with patch("rhiza._sync_helpers.logger") as mock_logger:
+        with patch("rhiza.commands._sync_helpers.logger") as mock_logger:
             _log_git_stderr_errors(stderr)
         assert mock_logger.error.call_count == len(expected_calls)
         for expected in expected_calls:
@@ -2027,7 +2027,7 @@ class TestCleanOrphanedFiles:
         history_file.write_text("Makefile\n")
 
         # Force TemplateLock.from_yaml to raise
-        with patch("rhiza._sync_helpers.TemplateLock.from_yaml", side_effect=Exception("corrupt lock")):
+        with patch("rhiza.commands._sync_helpers.TemplateLock.from_yaml", side_effect=Exception("corrupt lock")):
             files = _read_previously_tracked_files(tmp_path)
 
         assert Path("Makefile") in files
@@ -2040,7 +2040,7 @@ class TestUpdateSparseCheckout:
         """A sparse-checkout failure re-raises the exception."""
         git_executable, git_env = git_setup
 
-        with patch("rhiza._sync_helpers.subprocess.run") as mock_run:
+        with patch("rhiza.commands._sync_helpers.subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.CalledProcessError(128, ["git"], stderr="error: failed")
             with pytest.raises(subprocess.CalledProcessError):
                 _update_sparse_checkout(tmp_path, [".github"], git_executable, git_env)
@@ -2048,7 +2048,7 @@ class TestUpdateSparseCheckout:
     def test_success_logs_debug(self, tmp_path, git_setup):
         """Success path logs debug message."""
         git_executable, git_env = git_setup
-        with patch("rhiza._sync_helpers.subprocess.run") as mock_run:
+        with patch("rhiza.commands._sync_helpers.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
             # Should not raise
             _update_sparse_checkout(tmp_path, [".github"], git_executable, git_env)
@@ -2134,7 +2134,7 @@ class TestMergeFileFallbackEdgeCases:
         mock_result.returncode = -9  # killed by signal
         mock_result.stderr = b"process killed"
 
-        with patch("rhiza._sync_helpers.subprocess.run", return_value=mock_result):
+        with patch("rhiza.commands._sync_helpers.subprocess.run", return_value=mock_result):
             result = _merge_file_fallback(diff, target, base, upstream, git_executable, git_env)
 
         assert result is False
@@ -2143,7 +2143,7 @@ class TestMergeFileFallbackEdgeCases:
 class TestApplyDiffBlobFallback:
     """Tests for the blob-fallback path in _apply_diff."""
 
-    @patch("rhiza._sync_helpers._merge_file_fallback")
+    @patch("rhiza.commands._sync_helpers._merge_file_fallback")
     def test_blob_fallback_triggered(self, mock_fallback, git_project, git_setup):
         """When git apply -3 fails with 'lacks the necessary blob', _merge_file_fallback is used (909-910)."""
         git_executable, git_env = git_setup
@@ -2154,7 +2154,7 @@ class TestApplyDiffBlobFallback:
         err = subprocess.CalledProcessError(1, ["git", "apply", "-3"])
         err.stderr = b"error: sha1 information is lacking or useless (file.txt). lacks the necessary blob"
 
-        with patch("rhiza._sync_helpers.subprocess.run", side_effect=err):
+        with patch("rhiza.commands._sync_helpers.subprocess.run", side_effect=err):
             base_snapshot = git_project / "base"
             base_snapshot.mkdir()
             upstream_snapshot = git_project / "upstream"

@@ -25,7 +25,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from rhiza._sync_helpers import (
+from rhiza.commands._sync_helpers import (
     LOCK_FILE,
     _clone_and_resolve_upstream,
     _construct_git_url,

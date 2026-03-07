@@ -12,7 +12,7 @@ solely for backward compatibility and will be removed in a future release.
 
 import warnings
 
-from rhiza._sync_helpers import (
+from rhiza.commands._sync_helpers import (
     _clean_orphaned_files,
     _clone_template_repository,
     _construct_git_url,
