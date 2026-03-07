@@ -115,6 +115,8 @@ class TestLockFile:
 
     def test_write_lock_yaml_format(self, tmp_path):
         """Lock file is written as YAML with all required fields including files."""
+        # Create the file so it exists on disk (lock must not record absent files).
+        (tmp_path / "Makefile").write_text("all:\n\techo done\n")
         lock = TemplateLock(
             sha="abc123def456",
             repo="jebel-quant/rhiza",
@@ -136,6 +138,43 @@ class TestLockFile:
         assert data["exclude"] == []
         assert data["templates"] == []
         assert data["files"] == ["Makefile"]
+
+    def test_write_lock_filters_missing_files(self, tmp_path):
+        """Files listed in the lock that don't exist in target are excluded."""
+        # Only create one of the two files so the other is filtered out.
+        (tmp_path / "exists.txt").write_text("here")
+        lock = TemplateLock(
+            sha="deadbeef12345678",
+            files=["exists.txt", "missing.txt"],
+        )
+        _write_lock(tmp_path, lock)
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+        data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+        assert data["files"] == ["exists.txt"]
+
+    def test_write_lock_empty_files_when_all_missing(self, tmp_path):
+        """When no listed files exist on disk the saved files list is empty."""
+        lock = TemplateLock(
+            sha="cafebabe12345678",
+            files=["ghost_a.txt", "ghost_b.txt"],
+        )
+        _write_lock(tmp_path, lock)
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+        data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+        assert data["files"] == []
+
+    def test_write_lock_preserves_all_existing_files(self, tmp_path):
+        """When all listed files exist on disk none are filtered out."""
+        (tmp_path / "a.txt").write_text("a")
+        (tmp_path / "b.txt").write_text("b")
+        lock = TemplateLock(
+            sha="1234567890abcdef",
+            files=["a.txt", "b.txt"],
+        )
+        _write_lock(tmp_path, lock)
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+        data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+        assert sorted(data["files"]) == ["a.txt", "b.txt"]
 
     def test_read_lock_legacy_plain_sha(self, tmp_path):
         """Legacy plain-SHA lock files are still readable."""
