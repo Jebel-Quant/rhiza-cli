@@ -567,51 +567,6 @@ def _write_lock(target: Path, lock: TemplateLock) -> None:
     logger.info(f"Updated {LOCK_FILE} -> {lock.sha[:12]}")
 
 
-def _is_template_config_changed(
-    target: Path,
-    template: RhizaTemplate,
-    rhiza_repo: str,
-    rhiza_host: str,
-    rhiza_branch: str,
-) -> bool:
-    """Return True when template.yml settings differ from those recorded in template.lock.
-
-    Compares the key configuration fields that determine *which files* the sync
-    manages — repository, host, branch, include paths, exclude paths, and
-    template bundle names.  The SHA is intentionally excluded from this
-    comparison; it is managed by the sync process itself.
-
-    When no lock file exists this function returns False (first-time sync
-    is handled separately by the ``base_sha is None`` path in :func:`sync`).
-
-    Args:
-        target: Path to the target repository.
-        template: The :class:`~rhiza.models.RhizaTemplate` loaded from
-            the current ``template.yml``.
-        rhiza_repo: Resolved template repository (e.g. ``"jebel-quant/rhiza"``).
-        rhiza_host: Resolved git host (``"github"`` or ``"gitlab"``).
-        rhiza_branch: Resolved branch name.
-
-    Returns:
-        True if any configuration field differs from the lock, False otherwise.
-    """
-    lock_path = target / LOCK_FILE
-    if not lock_path.exists():
-        return False
-    try:
-        lock = TemplateLock.from_yaml(lock_path)
-    except (yaml.YAMLError, TypeError, ValueError):
-        return False
-    return (
-        lock.repo != rhiza_repo
-        or lock.host != rhiza_host
-        or lock.ref != rhiza_branch
-        or lock.include != (template.include or [])
-        or lock.exclude != (template.exclude or [])
-        or lock.templates != (template.templates or [])
-    )
-
-
 # ---------------------------------------------------------------------------
 # Git helpers
 # ---------------------------------------------------------------------------

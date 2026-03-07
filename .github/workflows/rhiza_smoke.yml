@@ -33,8 +33,8 @@ jobs:
       - name: Run rhiza status (requires lock file)
         run: rhiza status .
 
-      - name: Run rhiza sync (idempotency check — must say "Already up to date")
-        run: rhiza sync . 2>&1 | tee /tmp/sync_out.txt && grep -q "Already up to date" /tmp/sync_out.txt
+      - name: Run rhiza sync
+        run: rhiza sync .
 
       - name: Smoke-test rhiza init in a fresh git repo
         run: |

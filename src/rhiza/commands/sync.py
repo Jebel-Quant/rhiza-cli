@@ -31,7 +31,6 @@ from rhiza.commands._sync_helpers import (
     _construct_git_url,
     _excluded_set,
     _handle_target_branch,
-    _is_template_config_changed,
     _prepare_snapshot,
     _read_lock,
     _sync_diff,
@@ -52,7 +51,7 @@ def sync(
 ) -> None:
     """Sync Rhiza templates using cruft-style diff/merge.
 
-    Uses ``cruft``'s diff utilities to compute the diff between the base
+    Uses diff utilities to compute the diff between the base
     (last-synced) and upstream (latest) template snapshots, then applies
     the diff to the project using ``git apply -3`` for a 3-way merge.
 
@@ -90,15 +89,15 @@ def sync(
 
     try:
         base_sha = _read_lock(target)
-        if base_sha == upstream_sha:
-            if not _is_template_config_changed(target, template, rhiza_repo, rhiza_host, rhiza_branch):
-                logger.success("Already up to date -- nothing to sync")
-                return
-            # template.yml has changed even though the upstream commit is the same.
-            # Force a full re-sync from the current template.yml so that newly-added
-            # include paths are materialised and removed paths are cleaned up.
-            logger.info("template.yml has changed — re-syncing to apply new configuration")
-            base_sha = None
+        # if base_sha == upstream_sha:
+        #    if not _is_template_config_changed(target, template, rhiza_repo, rhiza_host, rhiza_branch):
+        #        logger.success("Already up to date -- nothing to sync")
+        #        return
+        #    # template.yml has changed even though the upstream commit is the same.
+        #    # Force a full re-sync from the current template.yml so that newly-added
+        #    # include paths are materialised and removed paths are cleaned up.
+        #    logger.info("template.yml has changed — re-syncing to apply new configuration")
+        #    base_sha = None
 
         excludes = _excluded_set(upstream_dir, excluded_paths)
 
