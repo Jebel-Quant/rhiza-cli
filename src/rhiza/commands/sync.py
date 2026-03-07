@@ -27,6 +27,7 @@ from loguru import logger
 
 from rhiza.commands._sync_helpers import (
     LOCK_FILE,
+    _assert_git_status_clean,
     _clone_and_resolve_upstream,
     _construct_git_url,
     _excluded_set,
@@ -71,6 +72,7 @@ def sync(
     git_env = os.environ.copy()
     git_env["GIT_TERMINAL_PROMPT"] = "0"
 
+    _assert_git_status_clean(target, git_executable, git_env)
     _handle_target_branch(target, target_branch, git_executable, git_env)
 
     template, rhiza_repo, rhiza_branch, include_paths, excluded_paths = _validate_and_load_template(target, branch)

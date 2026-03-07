@@ -22,6 +22,7 @@ from typer.testing import CliRunner
 from rhiza import cli
 from rhiza.commands._sync_helpers import (
     _apply_diff,
+    _assert_git_status_clean,
     _clean_orphaned_files,
     _clone_and_resolve_upstream,
     _clone_at_sha,
@@ -327,6 +328,46 @@ class TestApplyDiff:
         git_executable, git_env = git_setup
         result = _apply_diff("", git_project, git_executable, git_env)
         assert result is True
+
+
+class TestAssertGitStatusClean:
+    """Tests for _assert_git_status_clean."""
+
+    def test_clean_working_tree_does_not_raise(self, git_project, git_setup):
+        """A clean working tree should not raise."""
+        git_executable, git_env = git_setup
+        # Create and commit a file so the tree is clean
+        (git_project / "README.md").write_text("# test\n")
+        _commit_all(git_project, git_executable, git_env, "initial commit")
+        # Should not raise
+        _assert_git_status_clean(git_project, git_executable, git_env)
+
+    def test_dirty_working_tree_raises(self, git_project, git_setup):
+        """An uncommitted change should raise RuntimeError."""
+        git_executable, git_env = git_setup
+        (git_project / "README.md").write_text("# test\n")
+        _commit_all(git_project, git_executable, git_env, "initial commit")
+        # Introduce an uncommitted change
+        (git_project / "dirty.txt").write_text("untracked change")
+        with pytest.raises(RuntimeError, match="Working tree is not clean"):
+            _assert_git_status_clean(git_project, git_executable, git_env)
+
+    def test_staged_changes_raises(self, git_project, git_setup):
+        """Staged-but-not-committed changes should raise RuntimeError."""
+        git_executable, git_env = git_setup
+        (git_project / "README.md").write_text("# test\n")
+        _commit_all(git_project, git_executable, git_env, "initial commit")
+        # Stage a new file without committing
+        (git_project / "staged.txt").write_text("staged content")
+        subprocess.run(  # nosec B603
+            [git_executable, "add", "staged.txt"],
+            cwd=git_project,
+            check=True,
+            capture_output=True,
+            env=git_env,
+        )
+        with pytest.raises(RuntimeError, match="Working tree is not clean"):
+            _assert_git_status_clean(git_project, git_executable, git_env)
 
 
 class TestSyncCommand:
