@@ -1057,7 +1057,7 @@ class TestMergeFileFallback:
     # _apply_diff routing test
     # ------------------------------------------------------------------
 
-    def test_apply_diff_routes_to_merge_file_when_blob_absent(self, tmp_path, git_project, git_setup):
+    def test_apply_diff_routes_to_merge_file_when_blob_absent(self, tmp_path, git_project, git_ctx):
         """_apply_diff uses git merge-file when git apply -3 reports 'lacks blob'.
 
         ``git apply -3`` produces "lacks the necessary blob" when the patch's
@@ -1070,8 +1070,6 @@ class TestMergeFileFallback:
         We commit the diverged content so that the working tree matches the
         index and git apply -3 actually reaches the blob lookup stage.
         """
-        git_executable, git_env = git_setup
-
         base_content = (
             "name: CI\n"
             "on:\n"
@@ -1107,7 +1105,7 @@ class TestMergeFileFallback:
 
         # Commit the DIVERGED local content so git apply -3 can reach the blob lookup
         (git_project / "ci.yml").write_text(local_content)
-        _commit_all(git_project, git_executable, git_env)
+        _commit_all(git_project, git_ctx)
 
         base = tmp_path / "base"
         base.mkdir()
@@ -1116,8 +1114,8 @@ class TestMergeFileFallback:
         (base / "ci.yml").write_text(base_content)
         (upstream / "ci.yml").write_text(upstream_content)
 
-        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
-        result = _apply_diff(diff, git_project, git_executable, git_env, base_snapshot=base, upstream_snapshot=upstream)
+        diff = _get_diff(base, upstream, git_ctx)
+        result = _apply_diff(diff, git_project, git_ctx, base_snapshot=base, upstream_snapshot=upstream)
 
         assert result is True
         content = (git_project / "ci.yml").read_text()
@@ -1485,16 +1483,14 @@ class TestThreeWayMergeSyncMergeStrategy:
 class TestHandleTargetBranch:
     """Tests for _handle_target_branch."""
 
-    def test_no_branch_is_noop(self, tmp_path, git_setup):
+    def test_no_branch_is_noop(self, tmp_path, git_ctx):
         """Passing None for target_branch should not call git."""
-        git_executable, git_env = git_setup
         with patch("rhiza.commands._sync_helpers.subprocess.run") as mock_run:
-            _handle_target_branch(tmp_path, None, git_executable, git_env)
+            _handle_target_branch(tmp_path, None, git_ctx)
         mock_run.assert_not_called()
 
-    def test_creates_new_branch(self, tmp_path, git_setup):
+    def test_creates_new_branch(self, tmp_path, git_ctx):
         """When the branch does not exist, ``checkout -b`` is called."""
-        git_executable, git_env = git_setup
 
         def _side_effect(*args, **kwargs):
             cmd = args[0] if args else kwargs.get("args", [])
@@ -1506,14 +1502,13 @@ class TestHandleTargetBranch:
             return result
 
         with patch("rhiza.commands._sync_helpers.subprocess.run", side_effect=_side_effect) as mock_run:
-            _handle_target_branch(tmp_path, "new-branch", git_executable, git_env)
+            _handle_target_branch(tmp_path, "new-branch", git_ctx)
 
         calls = [str(c) for c in mock_run.call_args_list]
         assert any("checkout" in c and "-b" in c for c in calls)
 
-    def test_checks_out_existing_branch(self, tmp_path, git_setup):
+    def test_checks_out_existing_branch(self, tmp_path, git_ctx):
         """When the branch already exists, a plain ``checkout`` is called."""
-        git_executable, git_env = git_setup
 
         def _side_effect(*args, **kwargs):
             args[0] if args else kwargs.get("args", [])
@@ -1522,14 +1517,13 @@ class TestHandleTargetBranch:
             return result
 
         with patch("rhiza.commands._sync_helpers.subprocess.run", side_effect=_side_effect) as mock_run:
-            _handle_target_branch(tmp_path, "existing-branch", git_executable, git_env)
+            _handle_target_branch(tmp_path, "existing-branch", git_ctx)
 
         calls = [str(c) for c in mock_run.call_args_list]
         assert any("checkout" in c and "existing-branch" in c for c in calls)
 
-    def test_checkout_failure_propagates(self, tmp_path, git_setup):
+    def test_checkout_failure_propagates(self, tmp_path, git_ctx):
         """A CalledProcessError during checkout is re-raised."""
-        git_executable, git_env = git_setup
 
         def _side_effect(*args, **kwargs):
             cmd = args[0] if args else kwargs.get("args", [])
@@ -1540,7 +1534,7 @@ class TestHandleTargetBranch:
             raise subprocess.CalledProcessError(1, cmd, stderr="error: conflict")
 
         with pytest.raises(subprocess.CalledProcessError):
-            _handle_target_branch(tmp_path, "bad-branch", git_executable, git_env)
+            _handle_target_branch(tmp_path, "bad-branch", git_ctx)
 
 
 class TestWarnAboutWorkflowFiles:
