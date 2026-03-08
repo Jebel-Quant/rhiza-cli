@@ -142,7 +142,9 @@ class TestSyncE2ETypicalWorkflow:
                 base_sha=None,
                 materialized=materialized,
                 template=RhizaTemplate(
-                    template_repository="example/repo", include=["Makefile", "config.py", "README.md"]
+                    template_repository="example/repo",
+                    template_branch="main",
+                    include=["Makefile", "config.py", "README.md"],
                 ),
                 excludes=set(),
                 git=git,
@@ -192,7 +194,9 @@ class TestSyncE2ETypicalWorkflow:
                 base_sha=None,
                 materialized=materialized_v1,
                 template=RhizaTemplate(
-                    template_repository="example/repo", include=["Makefile", "config.py", "README.md"]
+                    template_repository="example/repo",
+                    template_branch="main",
+                    include=["Makefile", "config.py", "README.md"],
                 ),
                 excludes=set(),
                 git=git,
@@ -231,7 +235,9 @@ class TestSyncE2ETypicalWorkflow:
                 base_sha="sha_v1",
                 materialized=materialized_v2,
                 template=RhizaTemplate(
-                    template_repository="example/repo", include=["Makefile", "config.py", "new.yml"]
+                    template_repository="example/repo",
+                    template_branch="main",
+                    include=["Makefile", "config.py", "new.yml"],
                 ),
                 excludes=set(),
                 git=git,
@@ -286,7 +292,9 @@ class TestSyncE2EOrphanedFiles:
                 upstream_snapshot=upstream_v1,
                 base_sha=None,
                 materialized=materialized_v1,
-                template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
+                template=RhizaTemplate(
+                    template_repository="example/repo", template_branch="main", include=["file_a.txt", "file_b.txt"]
+                ),
                 excludes=set(),
                 git=git,
                 lock=_make_lock("sha_v1", ["file_a.txt", "file_b.txt"]),
@@ -312,7 +320,9 @@ class TestSyncE2EOrphanedFiles:
                 upstream_snapshot=upstream_v2,
                 base_sha="sha_v1",
                 materialized=materialized_v2,
-                template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt"]),
+                template=RhizaTemplate(
+                    template_repository="example/repo", template_branch="main", include=["file_a.txt"]
+                ),
                 excludes=set(),
                 git=git,
                 lock=_make_lock("sha_v2", ["file_a.txt"]),
@@ -354,7 +364,9 @@ class TestSyncE2EThreeWayMerge:
                 upstream_snapshot=upstream_v1,
                 base_sha=None,
                 materialized=[Path("config.py")],
-                template=RhizaTemplate(template_repository="example/repo", include=["config.py"]),
+                template=RhizaTemplate(
+                    template_repository="example/repo", template_branch="main", include=["config.py"]
+                ),
                 excludes=set(),
                 git=git,
                 lock=_make_lock("sha_v1", ["config.py"]),
@@ -380,7 +392,9 @@ class TestSyncE2EThreeWayMerge:
                 upstream_snapshot=upstream_v2,
                 base_sha="sha_v1",
                 materialized=[Path("config.py")],
-                template=RhizaTemplate(template_repository="example/repo", include=["config.py"]),
+                template=RhizaTemplate(
+                    template_repository="example/repo", template_branch="main", include=["config.py"]
+                ),
                 excludes=set(),
                 git=git,
                 lock=_make_lock("sha_v2", ["config.py"]),
@@ -425,7 +439,9 @@ class TestSyncE2EExcludedFiles:
                 upstream_snapshot=upstream,
                 base_sha=None,
                 materialized=[Path("Makefile")],
-                template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
+                template=RhizaTemplate(
+                    template_repository="example/repo", template_branch="main", include=["Makefile"]
+                ),
                 excludes=set(),
                 git=git,
                 lock=_make_lock("sha_v1", ["Makefile"]),
@@ -459,7 +475,9 @@ class TestSyncE2EExcludedFiles:
                 upstream_snapshot=upstream_v1,
                 base_sha=None,
                 materialized=materialized_v1,
-                template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
+                template=RhizaTemplate(
+                    template_repository="example/repo", template_branch="main", include=["file_a.txt", "file_b.txt"]
+                ),
                 excludes=set(),
                 git=git,
                 lock=_make_lock("sha_v1", ["file_a.txt", "file_b.txt"]),
@@ -486,7 +504,9 @@ class TestSyncE2EExcludedFiles:
                 upstream_snapshot=upstream_v2,
                 base_sha="sha_v1",
                 materialized=materialized_v2,
-                template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
+                template=RhizaTemplate(
+                    template_repository="example/repo", template_branch="main", include=["file_a.txt", "file_b.txt"]
+                ),
                 excludes={"file_b.txt"},
                 git=git,
                 lock=_make_lock("sha_v2", ["file_a.txt"]),

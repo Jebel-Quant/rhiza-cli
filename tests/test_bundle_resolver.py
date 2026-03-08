@@ -208,6 +208,7 @@ class TestResolveIncludePaths:
         """Test resolving paths in template mode."""
         template = RhizaTemplate(
             template_repository="test/repo",
+            template_branch="main",
             templates=["core", "tests"],
         )
         bundles = RhizaBundles(
@@ -235,6 +236,7 @@ class TestResolveIncludePaths:
         """Test resolving paths in include mode."""
         template = RhizaTemplate(
             template_repository="test/repo",
+            template_branch="main",
             include=[".rhiza", ".github", "tests/"],
         )
 
@@ -245,6 +247,7 @@ class TestResolveIncludePaths:
         """Test resolving paths in hybrid mode (templates + include)."""
         template = RhizaTemplate(
             template_repository="test/repo",
+            template_branch="main",
             templates=["core"],
             include=[".github", "custom/"],
         )
@@ -262,6 +265,7 @@ class TestResolveIncludePaths:
         """Test that hybrid mode deduplicates overlapping paths."""
         template = RhizaTemplate(
             template_repository="test/repo",
+            template_branch="main",
             templates=["core"],
             include=[".rhiza", "custom/"],  # .rhiza overlaps with core bundle
         )
@@ -276,6 +280,7 @@ class TestResolveIncludePaths:
         """Test that template mode without bundles config raises error."""
         template = RhizaTemplate(
             template_repository="test/repo",
+            template_branch="main",
             templates=["core"],
         )
 
@@ -286,6 +291,7 @@ class TestResolveIncludePaths:
         """Test that templates with no templates or include raise error."""
         template = RhizaTemplate(
             template_repository="test/repo",
+            template_branch="main",
         )
 
         with pytest.raises(ValueError, match="must specify either 'templates' or 'include'"):

@@ -177,7 +177,7 @@ class TestRhizaTemplate:
         assert config["language"] == "go"
 
         # 3. Optional fields (templates, include, exclude) are only included if non-empty
-        template = RhizaTemplate(template_repository="owner/repo", include=["only"])
+        template = RhizaTemplate(template_repository="owner/repo", template_branch="main", include=["only"])
         template_file = tmp_path / "template_optional.yml"
         template.to_yaml(template_file)
         with open(template_file) as f:
@@ -360,28 +360,30 @@ class TestRhizaTemplateGitUrl:
 
     def test_github_url(self):
         """GitHub host produces the correct HTTPS URL."""
-        template = RhizaTemplate(template_repository="owner/repo", template_host="github")
+        template = RhizaTemplate(template_repository="owner/repo", template_branch="main", template_host="github")
         assert template.git_url == "https://github.com/owner/repo.git"
 
     def test_gitlab_url(self):
         """GitLab host produces the correct HTTPS URL."""
-        template = RhizaTemplate(template_repository="mygroup/myproject", template_host="gitlab")
+        template = RhizaTemplate(
+            template_repository="mygroup/myproject", template_branch="main", template_host="gitlab"
+        )
         assert template.git_url == "https://gitlab.com/mygroup/myproject.git"
 
     def test_default_host_is_github(self):
         """Default host (github) is used when template_host is not specified."""
-        template = RhizaTemplate(template_repository="owner/repo")
+        template = RhizaTemplate(template_repository="owner/repo", template_branch="main")
         assert template.git_url == "https://github.com/owner/repo.git"
 
     def test_invalid_host_raises(self):
         """An unsupported template_host raises ValueError."""
-        template = RhizaTemplate(template_repository="owner/repo", template_host="bitbucket")
+        template = RhizaTemplate(template_repository="owner/repo", template_branch="main", template_host="bitbucket")
         with pytest.raises(ValueError, match="Unsupported template-host"):
             _ = template.git_url
 
     def test_missing_repository_raises(self):
         """git_url raises ValueError when template_repository is not set."""
-        template = RhizaTemplate()
+        template = RhizaTemplate(template_repository=None, template_branch="main")
         with pytest.raises(ValueError, match="template_repository is not configured"):
             _ = template.git_url
 
@@ -439,15 +441,9 @@ class TestRhizaTemplateClone:
         assert upstream_sha == "deadbeef1234"
         shutil.rmtree(upstream_dir, ignore_errors=True)
 
-    def test_clone_raises_when_no_repository(self):
-        """Clone raises ValueError when template_repository is not set."""
-        template = RhizaTemplate(include=["Makefile"])
-        with pytest.raises(ValueError, match="template_repository is not configured"):
-            template.clone(GitContext.default())
-
     def test_clone_raises_when_no_include_or_templates(self):
         """Clone raises ValueError when neither include nor templates are set."""
-        template = RhizaTemplate(template_repository="owner/repo")
+        template = RhizaTemplate(template_repository="owner/repo", template_branch="main")
         with pytest.raises(ValueError, match="No templates or include paths"):
             template.clone(GitContext.default())
 
@@ -487,6 +483,7 @@ class TestRhizaTemplateSnapshot:
 
         template = RhizaTemplate(
             template_repository="owner/repo",
+            template_branch="main",
             include=["a.txt", "b.txt"],
         )
 
@@ -508,6 +505,7 @@ class TestRhizaTemplateSnapshot:
 
         template = RhizaTemplate(
             template_repository="owner/repo",
+            template_branch="main",
             include=["keep.txt", "skip.txt"],
             exclude=["skip.txt"],
         )
@@ -532,6 +530,7 @@ class TestRhizaTemplateSnapshot:
 
         template = RhizaTemplate(
             template_repository="owner/repo",
+            template_branch="main",
             include=["secrets.env"],
             exclude=["secrets.env"],
         )
@@ -559,6 +558,7 @@ class TestRhizaTemplateSnapshot:
         # 1. Recursive include, recursive exclude
         template = RhizaTemplate(
             template_repository="owner/repo",
+            template_branch="main",
             include=["src", "docs"],
             exclude=["docs"],
         )
@@ -575,6 +575,7 @@ class TestRhizaTemplateSnapshot:
         snapshot_dir.mkdir()
         template = RhizaTemplate(
             template_repository="owner/repo",
+            template_branch="main",
             include=["src", "docs"],
             exclude=["docs/secret.txt"],
         )

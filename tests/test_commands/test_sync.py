@@ -577,7 +577,7 @@ class TestMergeWithBasePaths:
             upstream_snapshot,
             "oldsha",
             [],
-            RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
+            RhizaTemplate(template_repository="example/repo", template_branch="main", include=["file.txt"]),
             git,
             TemplateLock(sha="newsha"),
         )
@@ -602,7 +602,7 @@ class TestMergeWithBasePaths:
             upstream_snapshot,
             "oldsha",
             [],
-            RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
+            RhizaTemplate(template_repository="example/repo", template_branch="main", include=["file.txt"]),
             git,
             TemplateLock(sha="newsha"),
         )
@@ -633,7 +633,7 @@ class TestMergeWithBasePaths:
             upstream_snapshot,
             "oldsha",
             [],
-            RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
+            RhizaTemplate(template_repository="example/repo", template_branch="main", include=["file.txt"]),
             git,
             TemplateLock(sha="newsha"),
         )
@@ -1156,7 +1156,9 @@ class TestThreeWayMergeWithBase:
 
     def _populate_base_snapshot_from_clone(self, base_clone, include_paths, excludes, base_snapshot):
         """Helper to prepare a base snapshot without a real git clone."""
-        template = RhizaTemplate(template_repository="example/repo", include=include_paths, exclude=list(excludes))
+        template = RhizaTemplate(
+            template_repository="example/repo", template_branch="main", include=include_paths, exclude=list(excludes)
+        )
         template.snapshot(base_clone, base_snapshot)
 
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
@@ -1187,7 +1189,9 @@ class TestThreeWayMergeWithBase:
             upstream_snapshot,
             "oldsha",
             [Path("pyproject.toml"), Path("Makefile")],
-            RhizaTemplate(template_repository="example/repo", include=["pyproject.toml", "Makefile"]),
+            RhizaTemplate(
+                template_repository="example/repo", template_branch="main", include=["pyproject.toml", "Makefile"]
+            ),
             git,
             TemplateLock(sha="newsha"),
         )
@@ -1221,7 +1225,7 @@ class TestThreeWayMergeWithBase:
             upstream_snapshot,
             "base_sha_xyz",
             [Path("ci.yml")],
-            RhizaTemplate(template_repository="example/repo", include=["ci.yml"]),
+            RhizaTemplate(template_repository="example/repo", template_branch="main", include=["ci.yml"]),
             git,
             TemplateLock(sha="upstream_sha_abc"),
         )
@@ -1254,7 +1258,7 @@ class TestThreeWayMergeWithBase:
             upstream_snapshot,
             "oldsha",
             [Path("existing.yml"), Path("new_workflow.yml")],
-            RhizaTemplate(template_repository="example/repo", include=["existing.yml"]),
+            RhizaTemplate(template_repository="example/repo", template_branch="main", include=["existing.yml"]),
             git,
             TemplateLock(sha="newsha"),
         )
@@ -1286,7 +1290,9 @@ class TestThreeWayMergeWithBase:
             upstream_snapshot,
             "oldsha",
             [Path("main.cfg")],
-            RhizaTemplate(template_repository="example/repo", include=["legacy.cfg", "main.cfg"]),
+            RhizaTemplate(
+                template_repository="example/repo", template_branch="main", include=["legacy.cfg", "main.cfg"]
+            ),
             git,
             TemplateLock(sha="newsha"),
         )
@@ -1379,7 +1385,7 @@ class TestThreeWayMergeSyncMergeStrategy:
             upstream_snapshot=upstream_snapshot,
             base_sha="base_sha_123",
             materialized=[Path("Makefile")],
-            template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
+            template=RhizaTemplate(template_repository="example/repo", template_branch="main", include=["Makefile"]),
             excludes=set(),
             git=git,
             lock=TemplateLock(sha="upstream_sha_456"),
@@ -1417,7 +1423,7 @@ class TestThreeWayMergeSyncMergeStrategy:
             upstream_snapshot=upstream_snapshot,
             base_sha=None,
             materialized=[Path("Makefile")],
-            template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
+            template=RhizaTemplate(template_repository="example/repo", template_branch="main", include=["Makefile"]),
             excludes=set(),
             git=git,
             lock=TemplateLock(sha="first_sha_abc"),
@@ -1484,7 +1490,9 @@ class TestThreeWayMergeSyncMergeStrategy:
             upstream_snapshot=upstream_snapshot,
             base_sha="base_sha_123",
             materialized=[Path("Makefile"), Path("LICENSE")],
-            template=RhizaTemplate(template_repository="example/repo", include=["Makefile", "LICENSE"]),
+            template=RhizaTemplate(
+                template_repository="example/repo", template_branch="main", include=["Makefile", "LICENSE"]
+            ),
             excludes=set(),
             git=git,
             lock=TemplateLock(sha="upstream_sha_456", files=["Makefile", "LICENSE"]),
@@ -1590,7 +1598,7 @@ class TestCloneTemplateRepository:
         """A clone failure logs the error and re-raises the exception."""
         git = git_setup
 
-        template = RhizaTemplate(template_repository="bad/repo", include=[".github"])
+        template = RhizaTemplate(template_repository="bad/repo", template_branch="main", include=[".github"])
 
         def _side_effect(*args, **kwargs):
             cmd = args[0] if args else kwargs.get("args", [])
@@ -1615,7 +1623,7 @@ class TestCloneTemplateRepository:
     def test_subprocess_failure_reraises(self, tmp_path, git_setup, fail_at):
         """Any subprocess failure in _clone_template_repository re-raises CalledProcessError."""
         git = git_setup
-        template = RhizaTemplate(template_repository="example/repo", include=[".github"])
+        template = RhizaTemplate(template_repository="example/repo", template_branch="main", include=[".github"])
         ok = MagicMock(returncode=0, stdout="", stderr="")
         err = subprocess.CalledProcessError(1, ["git"])
         err.stderr = "error"
