@@ -2,7 +2,6 @@
 
 import pytest
 
-from rhiza.bundle_resolver import load_bundles_from_clone, resolve_include_paths
 from rhiza.models import BundleDefinition, RhizaBundles, RhizaTemplate
 
 
@@ -227,7 +226,7 @@ class TestResolveIncludePaths:
             },
         )
 
-        result = resolve_include_paths(template, bundles)
+        result = template.resolve_include_paths(bundles)
         assert "Makefile" in result
         assert "tests/" in result
 
@@ -238,7 +237,7 @@ class TestResolveIncludePaths:
             include=[".rhiza", ".github", "tests/"],
         )
 
-        result = resolve_include_paths(template, None)
+        result = template.resolve_include_paths(None)
         assert result == [".rhiza", ".github", "tests/"]
 
     def test_hybrid_mode(self, core_bundles) -> None:
@@ -249,7 +248,7 @@ class TestResolveIncludePaths:
             include=[".github", "custom/"],
         )
 
-        result = resolve_include_paths(template, core_bundles)
+        result = template.resolve_include_paths(core_bundles)
         # Should have paths from both templates and include, deduplicated
         assert "Makefile" in result
         assert ".rhiza" in result
@@ -266,7 +265,7 @@ class TestResolveIncludePaths:
             include=[".rhiza", "custom/"],  # .rhiza overlaps with core bundle
         )
 
-        result = resolve_include_paths(template, core_bundles)
+        result = template.resolve_include_paths(core_bundles)
         # .rhiza should only appear once
         assert result.count(".rhiza") == 1
         assert "Makefile" in result
@@ -280,7 +279,7 @@ class TestResolveIncludePaths:
         )
 
         with pytest.raises(ValueError, match=r"Template uses templates but template-bundles\.yml not found"):
-            resolve_include_paths(template, None)
+            template.resolve_include_paths(None)
 
     def test_no_configuration(self) -> None:
         """Test that templates with no templates or include raise error."""
@@ -289,7 +288,7 @@ class TestResolveIncludePaths:
         )
 
         with pytest.raises(ValueError, match="must specify either 'templates' or 'include'"):
-            resolve_include_paths(template, None)
+            template.resolve_include_paths(None)
 
 
 class TestLoadBundlesFromClone:
@@ -310,12 +309,12 @@ bundles:
     depends-on: []
 """)
 
-        result = load_bundles_from_clone(tmp_path)
+        result = RhizaBundles.from_clone(tmp_path)
         assert result is not None
         assert result.version == "1.0"
         assert "core" in result.bundles
 
     def test_load_missing_bundles(self, tmp_path):
         """Test that missing template-bundles.yml returns None."""
-        result = load_bundles_from_clone(tmp_path)
+        result = RhizaBundles.from_clone(tmp_path)
         assert result is None

@@ -224,6 +224,25 @@ class RhizaBundles:
 
         return paths
 
+    @classmethod
+    def from_clone(cls, tmp_dir: Path) -> "RhizaBundles | None":
+        """Load .rhiza/template-bundles.yml from a cloned template repo.
+
+        Args:
+            tmp_dir: Path to the cloned template repository.
+
+        Returns:
+            RhizaBundles if template-bundles.yml exists, None otherwise.
+
+        Raises:
+            yaml.YAMLError: If template-bundles.yml is malformed.
+            ValueError: If template-bundles.yml is invalid.
+        """
+        bundles_file = tmp_dir / ".rhiza" / "template-bundles.yml"
+        if not bundles_file.exists():
+            return None
+        return cls.from_yaml(bundles_file)
+
 
 @dataclass
 class RhizaTemplate:
@@ -696,6 +715,42 @@ class RhizaTemplate:
     # Public clone / snapshot workflow methods
     # ------------------------------------------------------------------
 
+    def resolve_include_paths(self, bundles_config: "RhizaBundles | None") -> list[str]:
+        """Resolve template configuration to file paths.
+
+        Supports:
+        - Template-based mode (templates field)
+        - Path-based mode (include field)
+        - Hybrid mode (both templates and include)
+
+        Args:
+            bundles_config: The loaded bundles configuration, or None if not available.
+
+        Returns:
+            List of file paths to materialize.
+
+        Raises:
+            ValueError: If configuration is invalid or bundles.yml is missing.
+        """
+        paths: list[str] = []
+        if self.templates:
+            if not bundles_config:
+                msg = "Template uses templates but template-bundles.yml not found in template repository"
+                raise ValueError(msg)
+            paths.extend(bundles_config.resolve_to_paths(self.templates))
+        if self.include:
+            paths.extend(self.include)
+        if not paths:
+            msg = "Template configuration must specify either 'templates' or 'include'"
+            raise ValueError(msg)
+        seen: set[str] = set()
+        deduplicated: list[str] = []
+        for path in paths:
+            if path not in seen:
+                deduplicated.append(path)
+                seen.add(path)
+        return deduplicated
+
     def clone(
         self,
         git_executable: str,
@@ -724,11 +779,6 @@ class RhizaTemplate:
                 unsupported, or no include paths / templates are configured.
             subprocess.CalledProcessError: If a git operation fails.
         """
-        from rhiza.bundle_resolver import (
-            load_bundles_from_clone,
-            resolve_include_paths,
-        )
-
         if not self.template_repository:
             raise ValueError("template_repository is not configured in template.yml")  # noqa: TRY003
         if not self.templates and not self.include:
@@ -742,8 +792,8 @@ class RhizaTemplate:
         self._clone_template_repository(upstream_dir, rhiza_branch, initial_paths, git_executable, git_env)
 
         if self.templates:
-            bundles_config = load_bundles_from_clone(upstream_dir)
-            resolved_paths = resolve_include_paths(self, bundles_config)
+            bundles_config = RhizaBundles.from_clone(upstream_dir)
+            resolved_paths = self.resolve_include_paths(bundles_config)
             self._update_sparse_checkout(upstream_dir, resolved_paths, git_executable, git_env)
             self.include = resolved_paths
 
