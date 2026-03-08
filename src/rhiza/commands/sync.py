@@ -22,6 +22,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
+from typing import cast
 
 from loguru import logger
 
@@ -72,6 +73,9 @@ def sync(
     _handle_target_branch(target, target_branch, git_executable, git_env)
 
     template = _validate_and_load_template(target, branch)
+    # _validate_and_load_template guarantees these are set; cast for type narrowing
+    template.template_repository = cast(str, template.template_repository)
+    template.template_branch = cast(str, template.template_branch)
 
     logger.info(f"Cloning {template.template_repository}@{template.template_branch} (upstream)")
     upstream_dir, upstream_sha = template.clone(git_executable, git_env, branch=branch)
@@ -98,7 +102,7 @@ def sync(
             )
 
             if strategy == "diff":
-                _sync_diff(target, upstream_snapshot)
+                _sync_diff(target=target, upstream_snapshot=upstream_snapshot)
             else:
                 _sync_merge(
                     target,
@@ -111,8 +115,6 @@ def sync(
                     template.git_url,
                     git_executable,
                     git_env,
-                    template.template_repository,
-                    template.template_branch,
                     lock,
                 )
         finally:

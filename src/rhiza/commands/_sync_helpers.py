@@ -1050,8 +1050,6 @@ def _sync_merge(
     git_url: str,
     git_executable: str,
     git_env: dict[str, str],
-    rhiza_repo: str,
-    rhiza_branch: str,
     lock: TemplateLock,
 ) -> None:
     """Execute the merge strategy (cruft-style 3-way merge).
