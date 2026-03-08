@@ -6,6 +6,7 @@ git URL construction, cloning, and snapshotting.
 """
 
 import shutil
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -480,3 +481,175 @@ class TestLoadModel:
 
         with pytest.raises(TypeError, match="NoYaml does not implement from_yaml"):
             load_model(NoYaml, Path("irrelevant.yml"))
+
+
+# ---------------------------------------------------------------------------
+# Private helper methods — direct coverage
+# ---------------------------------------------------------------------------
+
+
+class TestExpandPaths:
+    """Tests for RhizaTemplate._expand_paths."""
+
+    def test_expand_paths_with_directory(self, tmp_path):
+        """When a path points to a directory, all files within are returned."""
+        sub = tmp_path / "subdir"
+        sub.mkdir()
+        (sub / "a.txt").write_text("a")
+        (sub / "b.txt").write_text("b")
+
+        result = RhizaTemplate._expand_paths(tmp_path, ["subdir"])
+
+        assert len(result) == 2
+        assert all(f.is_file() for f in result)
+
+
+class TestUpdateSparseCheckout:
+    """Tests for RhizaTemplate._update_sparse_checkout."""
+
+    def test_success(self, tmp_path):
+        """Success path calls subprocess and logs completion."""
+        git_ctx = GitContext.default()
+        ok = MagicMock(returncode=0, stdout="", stderr="")
+        with patch("rhiza.models.template.subprocess.run", return_value=ok) as mock_run:
+            RhizaTemplate._update_sparse_checkout(tmp_path, [".github"], git_ctx)
+        mock_run.assert_called_once()
+
+    def test_failure_reraises(self, tmp_path):
+        """CalledProcessError is logged and re-raised."""
+        git_ctx = GitContext.default()
+        err = subprocess.CalledProcessError(1, ["git"])
+        err.stderr = "error output"
+        with (
+            patch("rhiza.models.template.subprocess.run", side_effect=err),
+            pytest.raises(subprocess.CalledProcessError),
+        ):
+            RhizaTemplate._update_sparse_checkout(tmp_path, [".github"], git_ctx)
+
+
+class TestGetHeadSha:
+    """Tests for RhizaTemplate._get_head_sha."""
+
+    def test_returns_sha(self, tmp_path):
+        """Returns the stdout stripped from git rev-parse HEAD."""
+        git_ctx = GitContext.default()
+        ok = MagicMock(returncode=0, stdout="abc123def456\n", stderr="")
+        with patch("rhiza.models.template.subprocess.run", return_value=ok):
+            sha = RhizaTemplate._get_head_sha(tmp_path, git_ctx)
+        assert sha == "abc123def456"
+
+
+class TestCloneTemplateRepositorySuccess:
+    """Tests for the success path of RhizaTemplate._clone_template_repository."""
+
+    def test_all_subprocess_calls_succeed(self, tmp_path):
+        """When all three subprocess calls succeed, no exception is raised."""
+        template = RhizaTemplate(template_repository="owner/repo", include=[".github"])
+        git_ctx = GitContext.default()
+        ok = MagicMock(returncode=0, stdout="", stderr="")
+        with patch("rhiza.models.template.subprocess.run", return_value=ok):
+            template._clone_template_repository(tmp_path, "main", [".github"], git_ctx)
+
+
+class TestCloneAtShaErrors:
+    """Tests for _clone_at_sha error paths."""
+
+    def test_clone_failure_reraises(self, tmp_path):
+        """CalledProcessError from the clone step is logged and re-raised."""
+        template = RhizaTemplate(template_repository="owner/repo", include=[".github"])
+        git_ctx = GitContext.default()
+        err = subprocess.CalledProcessError(128, ["git", "clone"])
+        err.stderr = "fatal: not found"
+        with (
+            patch("rhiza.models.template.subprocess.run", side_effect=err),
+            pytest.raises(subprocess.CalledProcessError),
+        ):
+            template._clone_at_sha("abc123", tmp_path / "dest", [".github"], git_ctx)
+
+    def test_sparse_checkout_failure_reraises(self, tmp_path):
+        """CalledProcessError from the sparse-checkout step is logged and re-raised."""
+        template = RhizaTemplate(template_repository="owner/repo", include=[".github"])
+        git_ctx = GitContext.default()
+        ok = MagicMock(returncode=0, stdout="", stderr="")
+        err = subprocess.CalledProcessError(1, ["git", "sparse-checkout"])
+        err.stderr = "error"
+        with (
+            patch("rhiza.models.template.subprocess.run", side_effect=[ok, err]),
+            pytest.raises(subprocess.CalledProcessError),
+        ):
+            template._clone_at_sha("abc123", tmp_path / "dest", [".github"], git_ctx)
+
+
+# ---------------------------------------------------------------------------
+# from_project — branch coverage
+# ---------------------------------------------------------------------------
+
+
+def _write_template_yml(target: Path, config: dict) -> None:
+    rhiza_dir = target / ".rhiza"
+    rhiza_dir.mkdir(parents=True, exist_ok=True)
+    with open(rhiza_dir / "template.yml", "w") as f:
+        yaml.dump(config, f)
+
+
+class TestFromProject:
+    """Tests for RhizaTemplate.from_project branch coverage."""
+
+    def test_validation_failure_raises(self, tmp_path):
+        """RuntimeError is raised when validate() returns False."""
+        _write_template_yml(tmp_path, {"template-repository": "owner/repo", "include": ["Makefile"]})
+        with (
+            patch("rhiza.commands.validate.validate", return_value=False),
+            pytest.raises(RuntimeError, match="validation failed"),
+        ):
+            RhizaTemplate.from_project(tmp_path)
+
+    def test_missing_template_repository_raises(self, tmp_path):
+        """RuntimeError is raised when template_repository is not set."""
+        _write_template_yml(tmp_path, {"include": ["Makefile"]})
+        with (
+            patch("rhiza.commands.validate.validate", return_value=True),
+            pytest.raises(RuntimeError, match="template-repository is required"),
+        ):
+            RhizaTemplate.from_project(tmp_path)
+
+    def test_missing_template_branch_uses_fallback(self, tmp_path):
+        """template_branch is set from the branch argument when not in template.yml."""
+        _write_template_yml(tmp_path, {"template-repository": "owner/repo", "include": ["Makefile"]})
+        with patch("rhiza.commands.validate.validate", return_value=True):
+            template = RhizaTemplate.from_project(tmp_path, branch="develop")
+        assert template.template_branch == "develop"
+
+    def test_no_include_or_templates_raises(self, tmp_path):
+        """RuntimeError is raised when neither include nor templates are configured."""
+        _write_template_yml(tmp_path, {"template-repository": "owner/repo", "template-branch": "main"})
+        with (
+            patch("rhiza.commands.validate.validate", return_value=True),
+            pytest.raises(RuntimeError, match="No templates or include paths"),
+        ):
+            RhizaTemplate.from_project(tmp_path)
+
+    def test_templates_list_is_logged(self, tmp_path):
+        """from_project succeeds and returns template when templates are configured."""
+        _write_template_yml(
+            tmp_path,
+            {"template-repository": "owner/repo", "template-branch": "main", "templates": ["core"]},
+        )
+        with patch("rhiza.commands.validate.validate", return_value=True):
+            template = RhizaTemplate.from_project(tmp_path)
+        assert template.templates == ["core"]
+
+    def test_exclude_list_is_logged(self, tmp_path):
+        """from_project succeeds and returns template when exclude paths are configured."""
+        _write_template_yml(
+            tmp_path,
+            {
+                "template-repository": "owner/repo",
+                "template-branch": "main",
+                "include": ["Makefile"],
+                "exclude": ["secret.txt"],
+            },
+        )
+        with patch("rhiza.commands.validate.validate", return_value=True):
+            template = RhizaTemplate.from_project(tmp_path)
+        assert template.exclude == ["secret.txt"]
