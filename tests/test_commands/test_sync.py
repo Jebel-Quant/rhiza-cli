@@ -1425,10 +1425,9 @@ class TestThreeWayMergeSyncMergeStrategy:
         mock_clone,
         tmp_path,
         project_with_template,
-        git_setup,
+        git_ctx,
     ):
         """On first sync (no lock), files are copied directly without diff/merge."""
-        git_executable, git_env = git_setup
         target = project_with_template
 
         # No lock file → first sync
@@ -1446,8 +1445,7 @@ class TestThreeWayMergeSyncMergeStrategy:
             materialized=[Path("Makefile")],
             template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
             excludes=set(),
-            git_executable=git_executable,
-            git_env=git_env,
+            git_ctx=git_ctx,
             lock=TemplateLock(sha="first_sha_abc"),
         )
 
@@ -1465,7 +1463,7 @@ class TestThreeWayMergeSyncMergeStrategy:
         mock_clone,
         tmp_path,
         project_with_template,
-        git_setup,
+        git_ctx,
     ):
         """Files in materialized but absent from target are restored after merge.
 
@@ -1475,7 +1473,6 @@ class TestThreeWayMergeSyncMergeStrategy:
         They should be copied from the upstream snapshot, not silently excluded
         from the lock.
         """
-        git_executable, git_env = git_setup
         target = project_with_template
 
         makefile_content = "install:\n\tpip install .\n"
@@ -1483,14 +1480,7 @@ class TestThreeWayMergeSyncMergeStrategy:
 
         # Only Makefile exists in the target; LICENSE is missing.
         (target / "Makefile").write_text(makefile_content)
-        subprocess.run([git_executable, "add", "."], cwd=target, check=True, capture_output=True, env=git_env)
-        subprocess.run(
-            [git_executable, "commit", "-m", "add Makefile"],
-            cwd=target,
-            check=True,
-            capture_output=True,
-            env=git_env,
-        )
+        _commit_all(target, git_ctx)
 
         _write_lock(target, TemplateLock(sha="base_sha_123", files=["Makefile", "LICENSE"]))
 
@@ -1501,7 +1491,7 @@ class TestThreeWayMergeSyncMergeStrategy:
         (upstream_snapshot / "LICENSE").write_text(license_content)
 
         # The base clone will also contain both files (no diff → nothing to apply).
-        def populate_base(sha, dest, include_paths, git_exe, git_env_):
+        def populate_base(sha, dest, include_paths, git_ctx_):
             (dest / "Makefile").write_text(makefile_content)
             (dest / "LICENSE").write_text(license_content)
 
@@ -1515,8 +1505,7 @@ class TestThreeWayMergeSyncMergeStrategy:
             materialized=[Path("Makefile"), Path("LICENSE")],
             template=RhizaTemplate(template_repository="example/repo", include=["Makefile", "LICENSE"]),
             excludes=set(),
-            git_executable=git_executable,
-            git_env=git_env,
+            git_ctx=git_ctx,
             lock=TemplateLock(sha="upstream_sha_456", files=["Makefile", "LICENSE"]),
         )
 
@@ -1642,9 +1631,8 @@ class TestCloneTemplateRepository:
             pytest.param(2, id="sparse-checkout set fails"),
         ],
     )
-    def test_subprocess_failure_reraises(self, tmp_path, git_setup, fail_at):
+    def test_subprocess_failure_reraises(self, tmp_path, git_ctx, fail_at):
         """Any subprocess failure in _clone_template_repository re-raises CalledProcessError."""
-        git_executable, git_env = git_setup
         template = RhizaTemplate(template_repository="example/repo", include=[".github"])
         ok = MagicMock(returncode=0, stdout="", stderr="")
         err = subprocess.CalledProcessError(1, ["git"])
@@ -1653,7 +1641,7 @@ class TestCloneTemplateRepository:
             patch("rhiza.models.template.subprocess.run", side_effect=[ok] * fail_at + [err]),
             pytest.raises(subprocess.CalledProcessError),
         ):
-            template._clone_template_repository(tmp_path, "main", [".github"], git_executable, git_env)
+            template._clone_template_repository(tmp_path, "main", [".github"], git_ctx)
 
 
 class TestLogGitStderrErrors:
