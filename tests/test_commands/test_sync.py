@@ -365,9 +365,8 @@ class TestSyncCommand:
         assert (tmp_path / "test.txt").read_text() == "new template content\n"
         assert _read_lock(tmp_path) == "first111"
 
-    def test_sync_diff_no_changes(self, tmp_path, git_setup):
+    def test_sync_diff_no_changes(self, tmp_path, git_ctx):
         """_sync_diff logs success when there are no differences."""
-        git_executable, git_env = git_setup
         # target and upstream_snapshot with identical content
         target = tmp_path / "target"
         target.mkdir()
@@ -378,7 +377,7 @@ class TestSyncCommand:
         (upstream / "same.txt").write_text("identical")
 
         # Should not raise; line 355 (logger.success) should be executed
-        _sync_diff(target, upstream, GitContext(executable=git_executable, env=git_env))
+        _sync_diff(target, upstream, git_ctx)
 
 
 class TestSyncOrphanedFiles:
@@ -1908,9 +1907,8 @@ class TestMergeFileFallbackEdgeCases:
             "+new\n"
         )
 
-    def test_missing_target_file_copied_from_upstream(self, tmp_path, git_setup):
+    def test_missing_target_file_copied_from_upstream(self, tmp_path, git_ctx):
         """Modified file missing from target is copied from upstream."""
-        git_executable, git_env = git_setup
         diff = self._make_diff("file.txt")
 
         base = tmp_path / "base"
@@ -1925,14 +1923,13 @@ class TestMergeFileFallbackEdgeCases:
         target.mkdir()
         # file.txt does NOT exist in target
 
-        result = _merge_file_fallback(diff, target, base, upstream, git_executable, git_env)
+        result = _merge_file_fallback(diff, target, base, upstream, git_ctx)
 
         assert result is True
         assert (target / "file.txt").read_text() == "new\n"
 
-    def test_missing_base_file_overwrites_with_upstream(self, tmp_path, git_setup):
+    def test_missing_base_file_overwrites_with_upstream(self, tmp_path, git_ctx):
         """When base file is missing, target is overwritten with upstream."""
-        git_executable, git_env = git_setup
         diff = self._make_diff("file.txt")
 
         base = tmp_path / "base"
@@ -1947,14 +1944,13 @@ class TestMergeFileFallbackEdgeCases:
         target.mkdir()
         (target / "file.txt").write_text("local\n")
 
-        result = _merge_file_fallback(diff, target, base, upstream, git_executable, git_env)
+        result = _merge_file_fallback(diff, target, base, upstream, git_ctx)
 
         assert result is True
         assert (target / "file.txt").read_text() == "new\n"
 
-    def test_negative_returncode_from_merge_file(self, tmp_path, git_setup):
+    def test_negative_returncode_from_merge_file(self, tmp_path, git_ctx):
         """Negative returncode from git merge-file marks result as unclean."""
-        git_executable, git_env = git_setup
         diff = self._make_diff("file.txt")
 
         base = tmp_path / "base"
@@ -1974,7 +1970,7 @@ class TestMergeFileFallbackEdgeCases:
         mock_result.stderr = b"process killed"
 
         with patch("rhiza.commands._sync_helpers.subprocess.run", return_value=mock_result):
-            result = _merge_file_fallback(diff, target, base, upstream, git_executable, git_env)
+            result = _merge_file_fallback(diff, target, base, upstream, git_ctx)
 
         assert result is False
 
@@ -1983,9 +1979,8 @@ class TestApplyDiffBlobFallback:
     """Tests for the blob-fallback path in _apply_diff."""
 
     @patch("rhiza.commands._sync_helpers._merge_file_fallback")
-    def test_blob_fallback_triggered(self, mock_fallback, git_project, git_setup):
+    def test_blob_fallback_triggered(self, mock_fallback, git_project, git_ctx):
         """When git apply -3 fails with 'lacks the necessary blob', _merge_file_fallback is used (909-910)."""
-        git_executable, git_env = git_setup
         mock_fallback.return_value = True
 
         diff = "diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new\n"
@@ -2002,8 +1997,7 @@ class TestApplyDiffBlobFallback:
             result = _apply_diff(
                 diff,
                 git_project,
-                git_executable,
-                git_env,
+                git_ctx,
                 base_snapshot=base_snapshot,
                 upstream_snapshot=upstream_snapshot,
             )
