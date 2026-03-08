@@ -19,7 +19,7 @@ from loguru import logger
 
 from rhiza.commands.list_repos import _DESC_WIDTH, _fetch_repos
 from rhiza.commands.validate import validate
-from rhiza.models import RhizaTemplate, get_git_executable
+from rhiza.models import GitHost, RhizaTemplate, get_git_executable
 
 
 def _normalize_package_name(name: str) -> str:
@@ -39,27 +39,28 @@ def _normalize_package_name(name: str) -> str:
     return name
 
 
-def _validate_git_host(git_host: str | None) -> str | None:
+def _validate_git_host(git_host: str | None) -> GitHost | None:
     """Validate git_host parameter.
 
     Args:
         git_host: Git hosting platform.
 
     Returns:
-        Validated git_host or None.
+        Validated GitHost enum value or None.
 
     Raises:
         ValueError: If git_host is invalid.
     """
     if git_host is not None:
         git_host = git_host.lower()
-        if git_host not in ["github", "gitlab"]:
+        if git_host not in GitHost._value2member_map_:
             logger.error(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")
             raise ValueError(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")  # noqa: TRY003
-    return git_host
+        return GitHost(git_host)
+    return None
 
 
-def _check_template_repository_reachable(template_repository: str, git_host: str = "github") -> bool:
+def _check_template_repository_reachable(template_repository: str, git_host: GitHost | str = GitHost.GITHUB) -> bool:
     """Check if the template repository is reachable via git ls-remote.
 
     Args:
@@ -70,8 +71,8 @@ def _check_template_repository_reachable(template_repository: str, git_host: str
         True if the repository is reachable, False otherwise.
     """
     host_urls = {
-        "github": "https://github.com",
-        "gitlab": "https://gitlab.com",
+        GitHost.GITHUB: "https://github.com",
+        GitHost.GITLAB: "https://gitlab.com",
     }
     base_url = host_urls.get(git_host, "https://github.com")
     repo_url = f"{base_url}/{template_repository}"
@@ -100,11 +101,11 @@ def _check_template_repository_reachable(template_repository: str, git_host: str
         return True  # Don't block init if git is unavailable
 
 
-def _prompt_git_host() -> str:
+def _prompt_git_host() -> GitHost:
     """Prompt user for git hosting platform.
 
     Returns:
-        Git hosting platform choice.
+        Git hosting platform choice as a GitHost enum value.
     """
     if sys.stdin.isatty():
         logger.info("Where will your project be hosted?")
@@ -114,7 +115,7 @@ def _prompt_git_host() -> str:
             default="github",
         ).lower()
 
-        while git_host not in ["github", "gitlab"]:
+        while git_host not in GitHost._value2member_map_:
             logger.warning(f"Invalid choice: {git_host}. Please choose 'github' or 'gitlab'")
             git_host = typer.prompt(
                 "Target Git hosting platform (github/gitlab)",
@@ -125,7 +126,7 @@ def _prompt_git_host() -> str:
         git_host = "github"
         logger.debug("Non-interactive mode detected, defaulting to github")
 
-    return str(git_host)
+    return GitHost(git_host)
 
 
 def _prompt_template_repository() -> str | None:
@@ -181,7 +182,7 @@ def _prompt_template_repository() -> str | None:
         return None
 
 
-def _get_default_templates_for_host(git_host: str) -> list[str]:
+def _get_default_templates_for_host(git_host: GitHost | str) -> list[str]:
     """Get default templates based on git hosting platform.
 
     Args:
@@ -191,7 +192,7 @@ def _get_default_templates_for_host(git_host: str) -> list[str]:
         List of template names.
     """
     common = ["core", "tests", "book", "marimo", "presentation"]
-    if git_host == "gitlab":
+    if git_host == GitHost.GITLAB:
         return [*common, "gitlab"]
     else:
         return [*common, "github"]
@@ -199,7 +200,7 @@ def _get_default_templates_for_host(git_host: str) -> list[str]:
 
 def _create_template_file(
     target: Path,
-    git_host: str,
+    git_host: GitHost | str,
     language: str = "python",
     template_repository: str | None = None,
     template_branch: str | None = None,

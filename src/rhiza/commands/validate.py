@@ -11,6 +11,7 @@ import yaml
 from loguru import logger
 
 from rhiza.language_validators import get_validator_registry
+from rhiza.models.template import GitHost
 
 
 def _check_git_repository(target: Path) -> bool:
@@ -318,7 +319,7 @@ def _validate_host_field(config: dict[str, Any]) -> None:
     if not isinstance(host, str):
         logger.warning(f"template-host should be a string, got {type(host).__name__}: {host}")
         logger.warning("Must be 'github' or 'gitlab'")
-    elif host not in ("github", "gitlab"):
+    elif host not in GitHost._value2member_map_:
         logger.warning(f"template-host should be 'github' or 'gitlab', got: {host}")
         logger.warning("Other hosts are not currently supported")
     else:
