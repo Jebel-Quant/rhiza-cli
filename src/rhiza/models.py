@@ -618,12 +618,12 @@ class RhizaTemplate:
         git_executable: str,
         git_env: dict[str, str],
         branch: str = "main",
-    ) -> tuple[Path, str]:
+    ) -> tuple[Path, str, list[str]]:
         """Clone the upstream template repository and resolve include paths.
 
         Clones the template repository using sparse checkout.  When
         ``templates`` are configured the corresponding bundle names are resolved
-        to file paths and ``self.include`` is updated with the result.
+        to file paths.
 
         Args:
             git_executable: Absolute path to the git executable.
@@ -632,9 +632,12 @@ class RhizaTemplate:
                 on the template.
 
         Returns:
-            Tuple of ``(upstream_dir, upstream_sha)`` where *upstream_dir* is a
-            temporary directory containing the cloned repository tree.  The
-            caller is responsible for removing *upstream_dir* when done.
+            Tuple of ``(upstream_dir, upstream_sha, include_paths)`` where
+            *upstream_dir* is a temporary directory containing the cloned
+            repository tree and *include_paths* is the resolved list of paths
+            to include (from bundle resolution when ``templates`` are
+            configured, otherwise ``self.include``).  The caller is
+            responsible for removing *upstream_dir* when done.
 
         Raises:
             ValueError: If ``template_repository`` is not set, the host is
@@ -676,12 +679,12 @@ class RhizaTemplate:
                 logger.error("Failed to update sparse checkout paths")
                 _log_git_stderr_errors(e.stderr)
                 raise
-            self.include = resolved_paths
+            include_paths = resolved_paths
 
         upstream_sha = self._get_head_sha(upstream_dir, git_executable, git_env)
         logger.info(f"Upstream HEAD: {upstream_sha[:12]}")
 
-        return upstream_dir, upstream_sha
+        return upstream_dir, upstream_sha, include_paths
 
     def snapshot(
         self,

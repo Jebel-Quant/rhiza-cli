@@ -404,10 +404,13 @@ class TestRhizaTemplateClone:
             include=["Makefile", ".github"],
         )
 
-        upstream_dir, upstream_sha = template.clone(get_git_executable(), os.environ.copy(), branch="main")
+        upstream_dir, upstream_sha, include_paths = template.clone(
+            get_git_executable(), os.environ.copy(), branch="main"
+        )
 
         assert upstream_dir.is_dir()
         assert upstream_sha == "abc123def456"
+        assert include_paths == ["Makefile", ".github"]
         mock_clone.assert_called_once()
         shutil.rmtree(upstream_dir, ignore_errors=True)
 
@@ -434,12 +437,15 @@ class TestRhizaTemplateClone:
         )
 
         with patch("subprocess.run") as mock_run:
-            upstream_dir, upstream_sha = template.clone(get_git_executable(), os.environ.copy(), branch="main")
+            upstream_dir, upstream_sha, include_paths = template.clone(
+                get_git_executable(), os.environ.copy(), branch="main"
+            )
             mock_run.assert_called_once()
 
         mock_load_bundles.assert_called_once()
         mock_resolve.assert_called_once_with(template, mock_bundles)
-        assert template.include == ["Makefile", ".github"]
+        assert include_paths == ["Makefile", ".github"]
+        assert template.include == []
         assert upstream_sha == "deadbeef1234"
         shutil.rmtree(upstream_dir, ignore_errors=True)
 
@@ -473,12 +479,15 @@ class TestRhizaTemplateClone:
             include=["Makefile"],
         )
 
-        upstream_dir, upstream_sha = template.clone(get_git_executable(), os.environ.copy(), branch="main")
+        upstream_dir, upstream_sha, include_paths = template.clone(
+            get_git_executable(), os.environ.copy(), branch="main"
+        )
 
         # The clone should use 'develop' (template_branch), not 'main' (default arg).
         call_args = mock_clone.call_args
         assert call_args[0][1] == "develop"
         assert upstream_sha == "sha_from_develop"
+        assert include_paths == ["Makefile"]
         shutil.rmtree(upstream_dir, ignore_errors=True)
 
 

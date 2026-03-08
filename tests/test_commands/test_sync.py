@@ -551,13 +551,14 @@ class TestCloneAndResolveUpstreamWithTemplates:
         mock_head_sha.return_value = "abc123def456"
 
         with patch("subprocess.run") as mock_run:
-            upstream_dir, upstream_sha = template.clone(git_executable, git_env, branch="main")
+            upstream_dir, upstream_sha, include_paths = template.clone(git_executable, git_env, branch="main")
             mock_run.assert_called_once()
 
         # Bundle resolution code path should have been taken
         mock_load_bundles.assert_called_once()
         mock_resolve.assert_called_once_with(template, mock_bundles)
-        assert template.include == ["Makefile", ".github"]
+        assert include_paths == ["Makefile", ".github"]
+        assert template.include == []
         assert upstream_sha == "abc123def456"
         shutil.rmtree(upstream_dir, ignore_errors=True)
 
@@ -588,6 +589,7 @@ class TestMergeWithBasePaths:
             "oldsha",
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
+            ["file.txt"],
             git_executable,
             git_env,
             TemplateLock(sha="newsha"),
@@ -616,6 +618,7 @@ class TestMergeWithBasePaths:
             "oldsha",
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
+            ["file.txt"],
             git_executable,
             git_env,
             TemplateLock(sha="newsha"),
@@ -650,6 +653,7 @@ class TestMergeWithBasePaths:
             "oldsha",
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
+            ["file.txt"],
             git_executable,
             git_env,
             TemplateLock(sha="newsha"),
@@ -1211,6 +1215,7 @@ class TestThreeWayMergeWithBase:
             "oldsha",
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["pyproject.toml", "Makefile"]),
+            ["pyproject.toml", "Makefile"],
             git_executable,
             git_env,
             TemplateLock(sha="newsha"),
@@ -1249,6 +1254,7 @@ class TestThreeWayMergeWithBase:
             "base_sha_xyz",
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["ci.yml"]),
+            ["ci.yml"],
             git_executable,
             git_env,
             TemplateLock(sha="upstream_sha_abc"),
@@ -1286,6 +1292,7 @@ class TestThreeWayMergeWithBase:
             "oldsha",
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["existing.yml"]),
+            ["existing.yml"],
             git_executable,
             git_env,
             TemplateLock(sha="newsha"),
@@ -1324,6 +1331,7 @@ class TestThreeWayMergeWithBase:
             "oldsha",
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["legacy.cfg", "main.cfg"]),
+            ["legacy.cfg", "main.cfg"],
             git_executable,
             git_env,
             TemplateLock(sha="newsha"),
@@ -1418,6 +1426,7 @@ class TestThreeWayMergeSyncMergeStrategy:
             base_sha="base_sha_123",
             materialized=[Path("Makefile")],
             template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
+            include_paths=["Makefile"],
             excludes=set(),
             git_executable=git_executable,
             git_env=git_env,
@@ -1457,6 +1466,7 @@ class TestThreeWayMergeSyncMergeStrategy:
             base_sha=None,
             materialized=[Path("Makefile")],
             template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
+            include_paths=["Makefile"],
             excludes=set(),
             git_executable=git_executable,
             git_env=git_env,
@@ -1525,6 +1535,7 @@ class TestThreeWayMergeSyncMergeStrategy:
             base_sha="base_sha_123",
             materialized=[Path("Makefile"), Path("LICENSE")],
             template=RhizaTemplate(template_repository="example/repo", include=["Makefile", "LICENSE"]),
+            include_paths=["Makefile", "LICENSE"],
             excludes=set(),
             git_executable=git_executable,
             git_env=git_env,

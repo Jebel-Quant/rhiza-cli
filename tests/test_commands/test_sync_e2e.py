@@ -144,6 +144,7 @@ class TestSyncE2ETypicalWorkflow:
                 template=RhizaTemplate(
                     template_repository="example/repo", include=["Makefile", "config.py", "README.md"]
                 ),
+                include_paths=["Makefile", "config.py", "README.md"],
                 excludes=set(),
                 git_executable=git_executable,
                 git_env=git_env,
@@ -195,6 +196,7 @@ class TestSyncE2ETypicalWorkflow:
                 template=RhizaTemplate(
                     template_repository="example/repo", include=["Makefile", "config.py", "README.md"]
                 ),
+                include_paths=["Makefile", "config.py", "README.md"],
                 excludes=set(),
                 git_executable=git_executable,
                 git_env=git_env,
@@ -235,6 +237,7 @@ class TestSyncE2ETypicalWorkflow:
                 template=RhizaTemplate(
                     template_repository="example/repo", include=["Makefile", "config.py", "new.yml"]
                 ),
+                include_paths=["Makefile", "config.py", "new.yml"],
                 excludes=set(),
                 git_executable=git_executable,
                 git_env=git_env,
@@ -290,6 +293,7 @@ class TestSyncE2EOrphanedFiles:
                 base_sha=None,
                 materialized=materialized_v1,
                 template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
+                include_paths=["file_a.txt", "file_b.txt"],
                 excludes=set(),
                 git_executable=git_executable,
                 git_env=git_env,
@@ -317,6 +321,7 @@ class TestSyncE2EOrphanedFiles:
                 base_sha="sha_v1",
                 materialized=materialized_v2,
                 template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt"]),
+                include_paths=["file_a.txt"],
                 excludes=set(),
                 git_executable=git_executable,
                 git_env=git_env,
@@ -360,6 +365,7 @@ class TestSyncE2EThreeWayMerge:
                 base_sha=None,
                 materialized=[Path("config.py")],
                 template=RhizaTemplate(template_repository="example/repo", include=["config.py"]),
+                include_paths=["config.py"],
                 excludes=set(),
                 git_executable=git_executable,
                 git_env=git_env,
@@ -387,6 +393,7 @@ class TestSyncE2EThreeWayMerge:
                 base_sha="sha_v1",
                 materialized=[Path("config.py")],
                 template=RhizaTemplate(template_repository="example/repo", include=["config.py"]),
+                include_paths=["config.py"],
                 excludes=set(),
                 git_executable=git_executable,
                 git_env=git_env,
@@ -433,6 +440,7 @@ class TestSyncE2EExcludedFiles:
                 base_sha=None,
                 materialized=[Path("Makefile")],
                 template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
+                include_paths=["Makefile"],
                 excludes=set(),
                 git_executable=git_executable,
                 git_env=git_env,
@@ -468,6 +476,7 @@ class TestSyncE2EExcludedFiles:
                 base_sha=None,
                 materialized=materialized_v1,
                 template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
+                include_paths=["file_a.txt", "file_b.txt"],
                 excludes=set(),
                 git_executable=git_executable,
                 git_env=git_env,
@@ -496,6 +505,7 @@ class TestSyncE2EExcludedFiles:
                 base_sha="sha_v1",
                 materialized=materialized_v2,
                 template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
+                include_paths=["file_a.txt", "file_b.txt"],
                 excludes={"file_b.txt"},
                 git_executable=git_executable,
                 git_env=git_env,
@@ -556,7 +566,7 @@ class TestSyncE2EUpdatedTemplateYml:
         (upstream_dir_v1 / "file_b.txt").write_text("content b\n")
 
         def clone_v1(git_exe, git_env_, branch="main"):
-            return upstream_dir_v1, "sha_v1"
+            return upstream_dir_v1, "sha_v1", ["file_a.txt", "file_b.txt"]
 
         with patch.object(RhizaTemplate, "clone", side_effect=clone_v1):
             sync(target=project, branch="main", target_branch=None, strategy="merge")
@@ -587,7 +597,7 @@ class TestSyncE2EUpdatedTemplateYml:
         (upstream_dir_v2 / "file_c.txt").write_text("content c\n")
 
         def clone_v2(git_exe, git_env_, branch="main"):
-            return upstream_dir_v2, "sha_v2"
+            return upstream_dir_v2, "sha_v2", ["file_a.txt", "file_b.txt", "file_c.txt"]
 
         def populate_base(sha, dest, include_paths, git_exe, git_env_):
             """Base snapshot contains only the files present at sha_v1."""
@@ -637,7 +647,7 @@ class TestSyncE2EUpdatedTemplateYml:
         (upstream_dir_v1 / "file_b.txt").write_text("content b\n")
 
         def clone_v1(git_exe, git_env_, branch="main"):
-            return upstream_dir_v1, "sha_v1"
+            return upstream_dir_v1, "sha_v1", ["file_a.txt", "file_b.txt"]
 
         with patch.object(RhizaTemplate, "clone", side_effect=clone_v1):
             sync(target=project, branch="main", target_branch=None, strategy="merge")
@@ -665,7 +675,7 @@ class TestSyncE2EUpdatedTemplateYml:
 
         def clone_v2(git_exe, git_env_, branch="main"):
             # Only file_a.txt is in the updated include list from template.yml.
-            return upstream_dir_v2, "sha_v2"
+            return upstream_dir_v2, "sha_v2", ["file_a.txt"]
 
         def populate_base(sha, dest, include_paths, git_exe, git_env_):
             # Orphan cleanup uses the lock's ``files`` field, not the diff,

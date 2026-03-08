@@ -73,7 +73,7 @@ def sync(
     template = RhizaTemplate.from_project(target, branch)
 
     logger.info(f"Cloning {template.template_repository}@{template.template_branch} (upstream)")
-    upstream_dir, upstream_sha = template.clone(git_executable, git_env, branch=branch)
+    upstream_dir, upstream_sha, include_paths = template.clone(git_executable, git_env, branch=branch)
 
     try:
         base_sha = _read_lock(target)
@@ -87,7 +87,7 @@ def sync(
                 repo=template.template_repository,
                 host=template.template_host,
                 ref=template.template_branch,
-                include=template.include,
+                include=include_paths,
                 exclude=template.exclude,
                 templates=template.templates,
                 files=[str(p) for p in materialized],
@@ -103,6 +103,7 @@ def sync(
                     upstream_snapshot=upstream_snapshot,
                     base_sha=base_sha,
                     template=template,
+                    include_paths=include_paths,
                     materialized=materialized,
                     excludes=excludes,
                     git_executable=git_executable,
