@@ -1,8 +1,40 @@
 """Git utility helpers for Rhiza models."""
 
+import os
 import shutil
+from dataclasses import dataclass, field
 
 from loguru import logger
+
+
+@dataclass
+class GitContext:
+    """Bundles the git executable path and environment for subprocess calls.
+
+    All git-invoking functions in the sync helpers accept a
+    :class:`GitContext` instead of resolving the executable on their own,
+    making them easily testable via binary injection.
+
+    Attributes:
+        executable: Absolute path to the git binary.
+        env: Environment variables passed to every git subprocess.
+    """
+
+    executable: str
+    env: dict[str, str] = field(default_factory=dict)
+
+    @classmethod
+    def default(cls) -> "GitContext":
+        """Create a GitContext using the system git and process environment.
+
+        Returns:
+            A :class:`GitContext` populated with the real git executable path
+            and a copy of the current process environment with
+            ``GIT_TERMINAL_PROMPT`` set to ``"0"``.
+        """
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        return cls(executable=get_git_executable(), env=env)
 
 
 def _normalize_to_list(value: str | list[str] | None) -> list[str]:

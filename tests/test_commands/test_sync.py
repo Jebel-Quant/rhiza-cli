@@ -39,7 +39,7 @@ from rhiza.commands._sync_helpers import (
     _write_lock,
 )
 from rhiza.commands.sync import sync
-from rhiza.models import RhizaTemplate, TemplateLock
+from rhiza.models import GitContext, RhizaTemplate, TemplateLock
 from rhiza.models._git_utils import _log_git_stderr_errors
 
 # ---------------------------------------------------------------------------
@@ -365,8 +365,9 @@ class TestSyncCommand:
         assert (tmp_path / "test.txt").read_text() == "new template content\n"
         assert _read_lock(tmp_path) == "first111"
 
-    def test_sync_diff_no_changes(self, tmp_path):
+    def test_sync_diff_no_changes(self, tmp_path, git_setup):
         """_sync_diff logs success when there are no differences."""
+        git_executable, git_env = git_setup
         # target and upstream_snapshot with identical content
         target = tmp_path / "target"
         target.mkdir()
@@ -377,7 +378,7 @@ class TestSyncCommand:
         (upstream / "same.txt").write_text("identical")
 
         # Should not raise; line 355 (logger.success) should be executed
-        _sync_diff(target, upstream)
+        _sync_diff(target, upstream, GitContext(executable=git_executable, env=git_env))
 
 
 class TestSyncOrphanedFiles:
@@ -700,7 +701,7 @@ class TestThreeWayMergeApplyDiff:
         (base / "Makefile").write_text("install:\n\techo old\n")
         (upstream / "Makefile").write_text("install:\n\techo new\n")
 
-        diff = _get_diff(base, upstream)
+        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
         result = _apply_diff(diff, git_project, git_executable, git_env)
 
         assert result is True
@@ -721,7 +722,7 @@ class TestThreeWayMergeApplyDiff:
         # base has no new_tool.yml; upstream adds it
         (upstream / "new_tool.yml").write_text("version: 1\nenabled: true\n")
 
-        diff = _get_diff(base, upstream)
+        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
         result = _apply_diff(diff, git_project, git_executable, git_env)
 
         assert result is True
@@ -743,7 +744,7 @@ class TestThreeWayMergeApplyDiff:
         (base / "legacy_config.yml").write_text("old: setting\n")
         # upstream does NOT have the file → deletion diff
 
-        diff = _get_diff(base, upstream)
+        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
         result = _apply_diff(diff, git_project, git_executable, git_env)
 
         assert result is True
@@ -770,7 +771,7 @@ class TestThreeWayMergeApplyDiff:
             (base / f).write_text(f"steps:\n  - run: {old}\n")
             (upstream / f).write_text(f"steps:\n  - run: {new}\n")
 
-        diff = _get_diff(base, upstream)
+        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
         result = _apply_diff(diff, git_project, git_executable, git_env)
 
         assert result is True
@@ -793,7 +794,7 @@ class TestThreeWayMergeApplyDiff:
         (base / "Makefile").write_text(makefile_base)
         (upstream / "Makefile").write_text(makefile_base + "\ntest:\n\tpytest\n")
 
-        diff = _get_diff(base, upstream)
+        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
         result = _apply_diff(diff, git_project, git_executable, git_env)
 
         assert result is True
@@ -820,7 +821,7 @@ class TestThreeWayMergeApplyDiff:
         (base / "settings.cfg").write_text("timeout = 30\n")
         (upstream / "settings.cfg").write_text("timeout = 60\n")
 
-        diff = _get_diff(base, upstream)
+        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
         result = _apply_diff(diff, git_project, git_executable, git_env)
 
         # Apply cannot succeed — local file diverged from the context
@@ -847,7 +848,7 @@ class TestThreeWayMergeApplyDiff:
         (upstream / "kept.yml").write_text("version: 2\n")
         (upstream / "new.yml").write_text("feature: true\n")
 
-        diff = _get_diff(base, upstream)
+        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
         result = _apply_diff(diff, git_project, git_executable, git_env)
 
         assert result is True
@@ -879,8 +880,9 @@ class TestMergeFileFallback:
     # _parse_diff_filenames unit tests
     # ------------------------------------------------------------------
 
-    def test_parse_diff_filenames_modified(self, tmp_path):
+    def test_parse_diff_filenames_modified(self, tmp_path, git_setup):
         """Detects a modified file correctly."""
+        git_executable, git_env = git_setup
         base = tmp_path / "base"
         base.mkdir()
         upstream = tmp_path / "upstream"
@@ -888,7 +890,7 @@ class TestMergeFileFallback:
         (base / "ci.yml").write_text("version: 1\n")
         (upstream / "ci.yml").write_text("version: 2\n")
 
-        diff = _get_diff(base, upstream)
+        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
         entries = _parse_diff_filenames(diff)
 
         assert len(entries) == 1
@@ -897,15 +899,16 @@ class TestMergeFileFallback:
         assert not is_new
         assert not is_deleted
 
-    def test_parse_diff_filenames_new_file(self, tmp_path):
+    def test_parse_diff_filenames_new_file(self, tmp_path, git_setup):
         """Detects a file added by upstream."""
+        git_executable, git_env = git_setup
         base = tmp_path / "base"
         base.mkdir()
         upstream = tmp_path / "upstream"
         upstream.mkdir()
         (upstream / "added.yml").write_text("new: true\n")
 
-        diff = _get_diff(base, upstream)
+        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
         entries = _parse_diff_filenames(diff)
 
         assert len(entries) == 1
@@ -914,15 +917,16 @@ class TestMergeFileFallback:
         assert is_new
         assert not is_deleted
 
-    def test_parse_diff_filenames_deleted_file(self, tmp_path):
+    def test_parse_diff_filenames_deleted_file(self, tmp_path, git_setup):
         """Detects a file removed by upstream."""
+        git_executable, git_env = git_setup
         base = tmp_path / "base"
         base.mkdir()
         upstream = tmp_path / "upstream"
         upstream.mkdir()
         (base / "gone.yml").write_text("old: true\n")
 
-        diff = _get_diff(base, upstream)
+        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
         entries = _parse_diff_filenames(diff)
 
         assert len(entries) == 1
@@ -931,8 +935,9 @@ class TestMergeFileFallback:
         assert not is_new
         assert is_deleted
 
-    def test_parse_diff_filenames_mixed(self, tmp_path):
+    def test_parse_diff_filenames_mixed(self, tmp_path, git_setup):
         """Handles a diff with add, modify, and delete in one pass."""
+        git_executable, git_env = git_setup
         base = tmp_path / "base"
         base.mkdir()
         upstream = tmp_path / "upstream"
@@ -942,7 +947,7 @@ class TestMergeFileFallback:
         (upstream / "keep.yml").write_text("v: 2\n")
         (upstream / "new.yml").write_text("fresh: yes\n")
 
-        diff = _get_diff(base, upstream)
+        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
         entries = _parse_diff_filenames(diff)
 
         paths = {e[0]: e for e in entries}
@@ -1016,7 +1021,7 @@ class TestMergeFileFallback:
         upstream.mkdir()
         (upstream / "ci.yml").write_text(upstream_content)
 
-        diff = _get_diff(base, upstream)
+        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
         result = _merge_file_fallback(diff, git_project, base, upstream, git_executable, git_env)
 
         assert result is True
@@ -1044,7 +1049,7 @@ class TestMergeFileFallback:
         (base / "settings.cfg").write_text("timeout = 30\n")
         (upstream / "settings.cfg").write_text("timeout = 60\n")
 
-        diff = _get_diff(base, upstream)
+        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
         result = _merge_file_fallback(diff, git_project, base, upstream, git_executable, git_env)
 
         assert result is False
@@ -1066,7 +1071,7 @@ class TestMergeFileFallback:
         upstream.mkdir()
         (upstream / "new_workflow.yml").write_text("name: deploy\n")
 
-        diff = _get_diff(base, upstream)
+        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
         result = _merge_file_fallback(diff, git_project, base, upstream, git_executable, git_env)
 
         assert result is True
@@ -1086,7 +1091,7 @@ class TestMergeFileFallback:
         upstream.mkdir()
         (base / "legacy.cfg").write_text("old: setting\n")
 
-        diff = _get_diff(base, upstream)
+        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
         result = _merge_file_fallback(diff, git_project, base, upstream, git_executable, git_env)
 
         assert result is True
@@ -1155,7 +1160,7 @@ class TestMergeFileFallback:
         (base / "ci.yml").write_text(base_content)
         (upstream / "ci.yml").write_text(upstream_content)
 
-        diff = _get_diff(base, upstream)
+        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
         result = _apply_diff(diff, git_project, git_executable, git_env, base_snapshot=base, upstream_snapshot=upstream)
 
         assert result is True
