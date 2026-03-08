@@ -174,15 +174,16 @@ def _handle_target_branch(
         raise
 
 
-def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplate, str, str, list[str], list[str]]:
+def _validate_and_load_template(target: Path, branch: str = "main") -> RhizaTemplate:
     """Validate configuration and load template settings.
 
     Args:
         target: Path to the target repository.
-        branch: The Rhiza template branch to use (CLI argument).
+        branch: The Rhiza template branch to use as a fallback when
+            ``template-branch`` is not set in ``template.yml``.
 
     Returns:
-        Tuple of (template, rhiza_repo, rhiza_branch, include_paths, excluded_paths).
+        The loaded and validated :class:`~rhiza.models.RhizaTemplate`.
     """
     from rhiza.commands.validate import validate
 
@@ -195,15 +196,15 @@ def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplat
     template_file = target / ".rhiza" / "template.yml"
     template = RhizaTemplate.from_yaml(template_file)
 
-    rhiza_repo = template.template_repository
-    if not rhiza_repo:
+    if not template.template_repository:
         logger.error("template-repository is not configured in template.yml")
         raise RuntimeError("template-repository is required")  # noqa: TRY003
-    rhiza_branch = template.template_branch or branch
-    excluded_paths = template.exclude
-    include_paths = template.include
 
-    if not template.templates and not include_paths:
+    # Apply CLI branch as fallback when template.yml has no ref.
+    if not template.template_branch:
+        template.template_branch = branch
+
+    if not template.templates and not template.include:
         logger.error("No templates or include paths found in template.yml")
         logger.error("Add either 'templates' or 'include' list in template.yml")
         raise RuntimeError("No templates or include paths found in template.yml")  # noqa: TRY003
@@ -213,17 +214,17 @@ def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplat
         for t in template.templates:
             logger.info(f"  - {t}")
 
-    if include_paths:
+    if template.include:
         logger.info("Include paths:")
-        for p in include_paths:
+        for p in template.include:
             logger.info(f"  - {p}")
 
-    if excluded_paths:
+    if template.exclude:
         logger.info("Exclude paths:")
-        for p in excluded_paths:
+        for p in template.exclude:
             logger.info(f"  - {p}")
 
-    return template, rhiza_repo, rhiza_branch, include_paths, excluded_paths
+    return template
 
 
 def _update_sparse_checkout(

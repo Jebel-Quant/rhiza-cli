@@ -71,10 +71,9 @@ def sync(
     _assert_git_status_clean(target, git_executable, git_env)
     _handle_target_branch(target, target_branch, git_executable, git_env)
 
-    template, rhiza_repo, rhiza_branch, _, _ = _validate_and_load_template(target, branch)
-    rhiza_host = template.template_host or "github"
+    template = _validate_and_load_template(target, branch)
 
-    logger.info(f"Cloning {rhiza_repo}@{rhiza_branch} (upstream)")
+    logger.info(f"Cloning {template.template_repository}@{template.template_branch} (upstream)")
     upstream_dir, upstream_sha = template.clone(git_executable, git_env, branch=branch)
 
     try:
@@ -95,9 +94,9 @@ def sync(
             logger.info(f"Upstream: {len(materialized)} file(s) to consider")
             lock = TemplateLock(
                 sha=upstream_sha,
-                repo=rhiza_repo,
-                host=rhiza_host,
-                ref=rhiza_branch,
+                repo=template.template_repository,
+                host=template.template_host,
+                ref=template.template_branch,
                 include=template.include,
                 exclude=template.exclude,
                 templates=template.templates,
@@ -120,8 +119,8 @@ def sync(
                     template.git_url,
                     git_executable,
                     git_env,
-                    rhiza_repo,
-                    rhiza_branch,
+                    template.template_repository,
+                    template.template_branch,
                     lock,
                 )
         finally:

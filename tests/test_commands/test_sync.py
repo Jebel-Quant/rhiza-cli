@@ -1815,19 +1815,18 @@ class TestValidateAndLoadTemplate:
         rhiza_dir.mkdir(parents=True, exist_ok=True)
         (rhiza_dir / "template.yml").write_text(yaml.dump(data))
 
-    def test_valid_config_returns_tuple(self, tmp_path):
-        """A valid template.yml returns a 5-tuple."""
+    def test_valid_config_returns_template(self, tmp_path):
+        """A valid template.yml returns a RhizaTemplate with all fields set."""
         (tmp_path / ".git").mkdir()
         (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\n')
         self._write_template(
             tmp_path,
             {"template-repository": "owner/repo", "template-branch": "main", "include": [".github"]},
         )
-        result = _validate_and_load_template(tmp_path, "main")
-        _template, repo, branch, include, _exclude = result
-        assert repo == "owner/repo"
-        assert branch == "main"
-        assert ".github" in include
+        template = _validate_and_load_template(tmp_path, "main")
+        assert template.template_repository == "owner/repo"
+        assert template.template_branch == "main"
+        assert ".github" in template.include
 
     def test_missing_template_repository_raises(self, tmp_path):
         """A template.yml without template-repository raises RuntimeError."""
@@ -1888,7 +1887,7 @@ class TestValidateAndLoadTemplate:
         rhiza_dir.mkdir(parents=True)
         (rhiza_dir / "template.yml").write_text("template-repository: owner/repo\ntemplates:\n  - core\n  - tests\n")
 
-        template, _repo, _branch, _include, _excluded = _validate_and_load_template(tmp_path, "main")
+        template = _validate_and_load_template(tmp_path, "main")
 
         assert template.templates == ["core", "tests"]
 
@@ -1903,9 +1902,22 @@ class TestValidateAndLoadTemplate:
             "template-repository: owner/repo\ninclude:\n  - .github/\nexclude:\n  - .github/workflows/ci.yml\n"
         )
 
-        _template, _repo, _branch, _include, excluded = _validate_and_load_template(tmp_path, "main")
+        template = _validate_and_load_template(tmp_path, "main")
 
-        assert excluded == [".github/workflows/ci.yml"]
+        assert template.exclude == [".github/workflows/ci.yml"]
+
+    @patch("rhiza.commands.validate.validate")
+    def test_branch_fallback_applied_when_template_branch_unset(self, mock_validate, tmp_path):
+        """CLI branch is used as template_branch when template.yml has no ref."""
+        mock_validate.return_value = True
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        (rhiza_dir / "template.yml").write_text("template-repository: owner/repo\ninclude:\n  - Makefile\n")
+
+        template = _validate_and_load_template(tmp_path, "develop")
+
+        assert template.template_branch == "develop"
 
 
 class TestWarnAboutWorkflowFiles:
