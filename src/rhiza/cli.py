@@ -5,6 +5,8 @@ Commands are thin wrappers around implementations in `rhiza.commands.*`.
 """
 
 import subprocess  # nosec B404
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated
 
@@ -20,6 +22,22 @@ from rhiza.commands.summarise import summarise as summarise_cmd
 from rhiza.commands.sync import sync as sync_cmd
 from rhiza.commands.tree import tree as tree_cmd
 from rhiza.commands.uninstall import uninstall as uninstall_cmd
+
+
+@contextmanager
+def _exit_on_error(*exc_types: type[BaseException]) -> Iterator[None]:
+    """Context manager that catches specified exceptions and exits with code 1.
+
+    Args:
+        *exc_types: Exception types to catch. Defaults to catching Exception
+            if none are provided.
+    """
+    _types: tuple[type[BaseException], ...] = exc_types if exc_types else (Exception,)
+    try:
+        yield
+    except _types:
+        raise typer.Exit(code=1) from None
+
 
 app = typer.Typer(
     help=(
@@ -195,10 +213,8 @@ def materialize(
         "Use `rhiza sync` instead.",
         err=True,
     )
-    try:
+    with _exit_on_error(subprocess.CalledProcessError, RuntimeError, ValueError):
         sync_cmd(target, branch, target_branch, "merge")
-    except (subprocess.CalledProcessError, RuntimeError, ValueError):
-        raise typer.Exit(code=1) from None
 
 
 @app.command()
@@ -265,10 +281,8 @@ def sync(
     if strategy not in ("merge", "diff"):
         typer.echo(f"Unknown strategy: {strategy}. Must be 'merge' or 'diff'.")
         raise typer.Exit(code=1)
-    try:
+    with _exit_on_error(subprocess.CalledProcessError, RuntimeError, ValueError):
         sync_cmd(target, branch, target_branch, strategy)
-    except (subprocess.CalledProcessError, RuntimeError, ValueError):
-        raise typer.Exit(code=1) from None
 
 
 @app.command()
@@ -281,10 +295,8 @@ def status(
     ] = Path("."),
 ) -> None:
     """Show the current sync status from template.lock."""
-    try:
+    with _exit_on_error(Exception):
         status_cmd(target.resolve())
-    except Exception:
-        raise typer.Exit(code=1) from None
 
 
 @app.command()
@@ -305,10 +317,8 @@ def tree(
         rhiza tree
         rhiza tree /path/to/project
     """
-    try:
+    with _exit_on_error(Exception):
         tree_cmd(target.resolve())
-    except Exception:
-        raise typer.Exit(code=1) from None
 
 
 @app.command()
@@ -449,10 +459,8 @@ def uninstall(
         rhiza uninstall /path/to/project
         rhiza uninstall /path/to/project -y
     """
-    try:
+    with _exit_on_error(RuntimeError):
         uninstall_cmd(target, force)
-    except RuntimeError:
-        raise typer.Exit(code=1) from None
 
 
 @app.command()
@@ -499,7 +507,5 @@ def summarise(
         rhiza summarise --output pr-body.md
         gh pr create --title "chore: Sync with rhiza" --body-file pr-body.md
     """
-    try:
+    with _exit_on_error(RuntimeError):
         summarise_cmd(target, output)
-    except RuntimeError:
-        raise typer.Exit(code=1) from None
