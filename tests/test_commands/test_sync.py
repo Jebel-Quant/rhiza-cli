@@ -1655,7 +1655,7 @@ class TestCloneTemplateRepository:
             return Mock(returncode=0)
 
         with (
-            patch("rhiza.models.subprocess.run", side_effect=_side_effect),
+            patch("rhiza.models.template.subprocess.run", side_effect=_side_effect),
             pytest.raises(subprocess.CalledProcessError),
         ):
             template._clone_template_repository(tmp_path, "main", [".github"], git_executable, git_env)
@@ -1676,7 +1676,7 @@ class TestCloneTemplateRepository:
         err = subprocess.CalledProcessError(1, ["git"])
         err.stderr = "error"
         with (
-            patch("rhiza.models.subprocess.run", side_effect=[ok] * fail_at + [err]),
+            patch("rhiza.models.template.subprocess.run", side_effect=[ok] * fail_at + [err]),
             pytest.raises(subprocess.CalledProcessError),
         ):
             template._clone_template_repository(tmp_path, "main", [".github"], git_executable, git_env)
