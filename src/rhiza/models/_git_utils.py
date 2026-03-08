@@ -2,17 +2,6 @@
 
 import shutil
 
-from loguru import logger
-
-
-def _log_git_stderr_errors(stderr: str | None) -> None:
-    """Extract and log only relevant error messages from git stderr."""
-    if stderr:
-        for line in stderr.strip().split("\n"):
-            line = line.strip()
-            if line and (line.startswith("fatal:") or line.startswith("error:")):
-                logger.error(line)
-
 
 def _normalize_to_list(value: str | list[str] | None) -> list[str]:
     r"""Convert a value to a list of strings.

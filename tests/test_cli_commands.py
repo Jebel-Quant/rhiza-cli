@@ -95,9 +95,9 @@ class TestMainEntry:
         finally:
             sys.argv = original_argv
 
-    def test_load_plugins_with_error(self, capsys, monkeypatch):
+    def test_load_plugins_with_error(self, monkeypatch):
         """Test plugin loading handles exceptions gracefully."""
-        from unittest.mock import MagicMock
+        from unittest.mock import MagicMock, patch
 
         import typer
 
@@ -121,11 +121,12 @@ class TestMainEntry:
         # Import and call load_plugins directly
         from rhiza.__main__ import load_plugins
 
-        load_plugins(test_app)
+        with patch("rhiza.__main__.logger") as mock_logger:
+            load_plugins(test_app)
 
-        # Verify the error message was printed
-        captured = capsys.readouterr()
-        assert "Failed to load plugin bad_plugin" in captured.out
+        # Verify the error message was logged as a warning
+        mock_logger.warning.assert_called_once()
+        assert "bad_plugin" in mock_logger.warning.call_args[0][0]
 
     def test_load_plugins_successfully(self, monkeypatch):
         """Test plugin loading works with a valid plugin."""
