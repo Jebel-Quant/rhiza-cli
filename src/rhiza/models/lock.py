@@ -7,6 +7,7 @@ from typing import Any
 import yaml
 
 from rhiza.models._git_utils import _normalize_to_list
+from rhiza.models.template import GitHost
 
 
 @dataclass
@@ -28,7 +29,7 @@ class TemplateLock:
 
     sha: str
     repo: str = ""
-    host: str = "github"
+    host: GitHost | str = GitHost.GITHUB
     ref: str = "main"
     include: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
@@ -69,7 +70,7 @@ class TemplateLock:
         return cls(
             sha=data.get("sha", ""),
             repo=data.get("repo", ""),
-            host=data.get("host", "github"),
+            host=data.get("host", GitHost.GITHUB),
             ref=data.get("ref", "main"),
             include=_normalize_to_list(data.get("include")),
             exclude=_normalize_to_list(data.get("exclude")),
@@ -90,7 +91,7 @@ class TemplateLock:
         config: dict[str, Any] = {
             "sha": self.sha,
             "repo": self.repo,
-            "host": self.host,
+            "host": str(self.host),
             "ref": self.ref,
             "include": self.include,
             "exclude": self.exclude,
