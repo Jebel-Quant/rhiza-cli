@@ -1,4 +1,5 @@
 """Template model for Rhiza configuration."""
+
 import logging
 import shutil
 import subprocess  # nosec B404
@@ -162,6 +163,7 @@ class RhizaTemplate:
         Args:
             base_dir: Root directory to resolve against.
             paths: Relative path strings.
+            logger: Optional logger; defaults to module logger.
 
         Returns:
             Flat list of file paths.
@@ -238,6 +240,7 @@ class RhizaTemplate:
             tmp_dir: Temporary directory with cloned repository.
             include_paths: Paths to include in sparse checkout.
             git_ctx: Git context.
+            logger: Optional logger; defaults to module logger.
         """
         logger = logger or logging.getLogger(__name__)
 
@@ -253,7 +256,7 @@ class RhizaTemplate:
             )
             logger.debug("Sparse checkout paths updated")
         except subprocess.CalledProcessError as e:
-            logger.error("Failed to update sparse checkout paths")
+            logger.exception("Failed to update sparse checkout paths")
             _log_git_stderr_errors(e.stderr)
             raise
 
@@ -293,6 +296,7 @@ class RhizaTemplate:
             rhiza_branch: Branch to clone.
             include_paths: Initial paths to include in sparse checkout.
             git_ctx: Git context.
+            logger: Optional logger; defaults to module logger.
         """
         logger = logger or logging.getLogger(__name__)
 
@@ -319,12 +323,12 @@ class RhizaTemplate:
             )
             logger.debug("Git clone completed successfully")
         except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to clone repository from {git_url}")
+            logger.exception(f"Failed to clone repository from {git_url}")
             _log_git_stderr_errors(e.stderr)
-            logger.error("Please check that:")
-            logger.error("  - The repository exists and is accessible")
-            logger.error(f"  - Branch '{rhiza_branch}' exists in the repository")
-            logger.error("  - You have network access to the git hosting service")
+            logger.exception("Please check that:")
+            logger.exception("  - The repository exists and is accessible")
+            logger.exception(f"  - Branch '{rhiza_branch}' exists in the repository")
+            logger.exception("  - You have network access to the git hosting service")
             raise
 
         try:
@@ -339,7 +343,7 @@ class RhizaTemplate:
             )
             logger.debug("Sparse checkout initialized")
         except subprocess.CalledProcessError as e:
-            logger.error("Failed to initialize sparse checkout")
+            logger.exception("Failed to initialize sparse checkout")
             _log_git_stderr_errors(e.stderr)
             raise
 
@@ -355,7 +359,7 @@ class RhizaTemplate:
             )
             logger.debug("Sparse checkout paths configured")
         except subprocess.CalledProcessError as e:
-            logger.error("Failed to configure sparse checkout paths")
+            logger.exception("Failed to configure sparse checkout paths")
             _log_git_stderr_errors(e.stderr)
             raise
 
@@ -374,6 +378,7 @@ class RhizaTemplate:
             dest: Target directory for the clone.
             include_paths: Paths for sparse checkout.
             git_ctx: Git context.
+            logger: Optional logger; defaults to module logger.
         """
         logger = logger or logging.getLogger(__name__)
         git_url = self.git_url
@@ -394,7 +399,7 @@ class RhizaTemplate:
                 env=git_ctx.env,
             )
         except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to clone repository for base snapshot: {git_url}")
+            logger.exception(f"Failed to clone repository for base snapshot: {git_url}")
             _log_git_stderr_errors(e.stderr)
             raise
 
@@ -416,7 +421,7 @@ class RhizaTemplate:
                 env=git_ctx.env,
             )
         except subprocess.CalledProcessError as e:
-            logger.error("Failed to configure sparse checkout for base snapshot")
+            logger.exception("Failed to configure sparse checkout for base snapshot")
             _log_git_stderr_errors(e.stderr)
             raise
 
@@ -430,7 +435,7 @@ class RhizaTemplate:
                 env=git_ctx.env,
             )
         except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to checkout base commit {sha[:12]}")
+            logger.exception(f"Failed to checkout base commit {sha[:12]}")
             _log_git_stderr_errors(e.stderr)
             raise
 
@@ -447,6 +452,7 @@ class RhizaTemplate:
                 ``.rhiza/template.yml``).
             branch: The Rhiza template branch to use as a fallback when
                 ``template-branch`` is not set in ``template.yml``.
+            logger: Optional logger; defaults to module logger.
 
         Returns:
             The loaded and validated :class:`RhizaTemplate`.
@@ -533,12 +539,7 @@ class RhizaTemplate:
                 seen.add(path)
         return deduplicated
 
-    def clone(
-        self,
-        git_ctx: GitContext,
-        branch: str = "main",
-        logger=None
-    ) -> tuple[Path, str]:
+    def clone(self, git_ctx: GitContext, branch: str = "main", logger=None) -> tuple[Path, str]:
         """Clone the upstream template repository and resolve include paths.
 
         Clones the template repository using sparse checkout.  When
@@ -549,6 +550,7 @@ class RhizaTemplate:
             git_ctx: Git context.
             branch: Default branch to use when ``template_branch`` is not set
                 on the template.
+            logger: Optional logger; defaults to module logger.
 
         Returns:
             Tuple of ``(upstream_dir, upstream_sha)`` where *upstream_dir* is a
