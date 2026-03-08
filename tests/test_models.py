@@ -412,8 +412,8 @@ class TestRhizaTemplateClone:
         shutil.rmtree(upstream_dir, ignore_errors=True)
 
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
-    @patch("rhiza.bundle_resolver.resolve_include_paths")
-    @patch("rhiza.bundle_resolver.load_bundles_from_clone")
+    @patch("rhiza.models.RhizaTemplate.resolve_include_paths")
+    @patch("rhiza.models.RhizaBundles.from_clone")
     @patch("rhiza.models.RhizaTemplate._update_sparse_checkout")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     def test_clone_resolves_bundles_and_updates_include(
@@ -437,7 +437,7 @@ class TestRhizaTemplateClone:
         upstream_dir, upstream_sha = template.clone(get_git_executable(), os.environ.copy(), branch="main")
 
         mock_load_bundles.assert_called_once()
-        mock_resolve.assert_called_once_with(template, mock_bundles)
+        mock_resolve.assert_called_once_with(mock_bundles)
         mock_update_sparse.assert_called_once()
         assert template.include == ["Makefile", ".github"]
         assert upstream_sha == "deadbeef1234"
