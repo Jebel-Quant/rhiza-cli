@@ -393,7 +393,7 @@ class TestRhizaTemplateClone:
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     def test_clone_returns_upstream_dir_and_sha(self, mock_clone, mock_head_sha):
         """Clone returns (upstream_dir, upstream_sha) for a plain include-list template."""
-        from rhiza.subprocess_utils import get_git_executable
+        from rhiza.models import get_git_executable
 
         mock_head_sha.return_value = "abc123def456"
 
@@ -412,15 +412,15 @@ class TestRhizaTemplateClone:
         shutil.rmtree(upstream_dir, ignore_errors=True)
 
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
-    @patch("rhiza.bundle_resolver.resolve_include_paths")
-    @patch("rhiza.bundle_resolver.load_bundles_from_clone")
+    @patch("rhiza.models.RhizaTemplate.resolve_include_paths")
+    @patch("rhiza.models.RhizaBundles.from_clone")
     @patch("rhiza.models.RhizaTemplate._update_sparse_checkout")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     def test_clone_resolves_bundles_and_updates_include(
         self, mock_clone, mock_update_sparse, mock_load_bundles, mock_resolve, mock_head_sha
     ):
         """Clone resolves bundle paths and updates self.include when templates are set."""
-        from rhiza.subprocess_utils import get_git_executable
+        from rhiza.models import get_git_executable
 
         mock_bundles = MagicMock()
         mock_load_bundles.return_value = mock_bundles
@@ -437,7 +437,7 @@ class TestRhizaTemplateClone:
         upstream_dir, upstream_sha = template.clone(get_git_executable(), os.environ.copy(), branch="main")
 
         mock_load_bundles.assert_called_once()
-        mock_resolve.assert_called_once_with(template, mock_bundles)
+        mock_resolve.assert_called_once_with(mock_bundles)
         mock_update_sparse.assert_called_once()
         assert template.include == ["Makefile", ".github"]
         assert upstream_sha == "deadbeef1234"
@@ -445,7 +445,7 @@ class TestRhizaTemplateClone:
 
     def test_clone_raises_when_no_repository(self):
         """Clone raises ValueError when template_repository is not set."""
-        from rhiza.subprocess_utils import get_git_executable
+        from rhiza.models import get_git_executable
 
         template = RhizaTemplate(include=["Makefile"])
         with pytest.raises(ValueError, match="template_repository is not configured"):
@@ -453,7 +453,7 @@ class TestRhizaTemplateClone:
 
     def test_clone_raises_when_no_include_or_templates(self):
         """Clone raises ValueError when neither include nor templates are set."""
-        from rhiza.subprocess_utils import get_git_executable
+        from rhiza.models import get_git_executable
 
         template = RhizaTemplate(template_repository="owner/repo")
         with pytest.raises(ValueError, match="No templates or include paths"):
@@ -463,7 +463,7 @@ class TestRhizaTemplateClone:
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     def test_clone_uses_template_branch_over_default(self, mock_clone, mock_head_sha):
         """Clone uses template_branch when set, ignoring the branch argument."""
-        from rhiza.subprocess_utils import get_git_executable
+        from rhiza.models import get_git_executable
 
         mock_head_sha.return_value = "sha_from_develop"
 

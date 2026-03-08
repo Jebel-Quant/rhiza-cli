@@ -520,8 +520,8 @@ class TestCloneAndResolveUpstreamWithTemplates:
     """Tests for template bundle resolution path in RhizaTemplate.clone."""
 
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
-    @patch("rhiza.bundle_resolver.resolve_include_paths")
-    @patch("rhiza.bundle_resolver.load_bundles_from_clone")
+    @patch("rhiza.models.RhizaTemplate.resolve_include_paths")
+    @patch("rhiza.models.RhizaBundles.from_clone")
     @patch("rhiza.models.RhizaTemplate._update_sparse_checkout")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     def test_bundle_resolution_path(
@@ -534,7 +534,7 @@ class TestCloneAndResolveUpstreamWithTemplates:
         tmp_path,
     ):
         """RhizaTemplate.clone resolves bundle paths when templates is set."""
-        from rhiza.subprocess_utils import get_git_executable
+        from rhiza.models import get_git_executable
 
         git_executable = get_git_executable()
         git_env = os.environ.copy()
@@ -557,7 +557,7 @@ class TestCloneAndResolveUpstreamWithTemplates:
 
         # Bundle resolution code path should have been taken
         mock_load_bundles.assert_called_once()
-        mock_resolve.assert_called_once_with(template, mock_bundles)
+        mock_resolve.assert_called_once_with(mock_bundles)
         mock_update_sparse.assert_called_once()
         assert template.include == ["Makefile", ".github"]
         assert upstream_sha == "abc123def456"

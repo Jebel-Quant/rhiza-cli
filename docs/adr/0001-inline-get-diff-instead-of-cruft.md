@@ -56,7 +56,7 @@ locate files relative to the project root on all platforms.
 
 **Negative**
 
-- `git` must be available on `PATH` (mitigated by `subprocess_utils.get_git_executable`
+- `git` must be available on `PATH` (mitigated by `models.get_git_executable`
   which raises a clear error if git is missing).
 - The regex strip of drive letters (`/[a-z]:`) is a heuristic that could in theory
   affect non-Windows paths with a matching pattern, though this has not been observed
