@@ -9,7 +9,6 @@ Tests cover:
 - CLI wiring
 """
 
-import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -525,12 +524,6 @@ class TestCloneAndResolveUpstreamWithTemplates:
         tmp_path,
     ):
         """RhizaTemplate.clone resolves bundle paths when templates is set."""
-        from rhiza.models import get_git_executable
-
-        git_executable = get_git_executable()
-        git_env = os.environ.copy()
-        git_env["GIT_TERMINAL_PROMPT"] = "0"
-
         # Build a real RhizaTemplate with templates set
         template = RhizaTemplate(
             template_repository="example/repo",
@@ -544,7 +537,7 @@ class TestCloneAndResolveUpstreamWithTemplates:
         mock_resolve.return_value = ["Makefile", ".github"]
         mock_head_sha.return_value = "abc123def456"
 
-        upstream_dir, upstream_sha = template.clone(git_executable, git_env, branch="main")
+        upstream_dir, upstream_sha = template.clone(GitContext.default(), branch="main")
 
         # Bundle resolution code path should have been taken
         mock_load_bundles.assert_called_once()
@@ -930,7 +923,7 @@ class TestMergeFileFallback:
     # _merge_file_fallback integration tests
     # ------------------------------------------------------------------
 
-    def test_non_overlapping_divergence_merges_cleanly(self, tmp_path, git_project, git_setup):
+    def test_non_overlapping_divergence_merges_cleanly(self, tmp_path, git_project, git_ctx):
         """Non-overlapping local and template changes both survive the merge.
 
         Simulates the real-world case where Renovate bumped tool versions
@@ -940,8 +933,6 @@ class TestMergeFileFallback:
         The file must be large enough that the two changed sections are in
         separate diff hunks; otherwise git merge-file treats them as a conflict.
         """
-        git_executable, git_env = git_setup
-
         # A realistic workflow file — local changes are in the install step
         # (near the top) while the template change is in the upload step
         # (near the bottom), separated by many context lines.
@@ -979,7 +970,7 @@ class TestMergeFileFallback:
         upstream_content = base_content.replace("upload-artifact@v3", "upload-artifact@v4")
 
         (git_project / "ci.yml").write_text(base_content)
-        _commit_all(git_project, git_executable, git_env)
+        _commit_all(git_project, git_ctx)
 
         # Diverge the local file (Renovate bump, not committed)
         (git_project / "ci.yml").write_text(local_content)
@@ -992,8 +983,8 @@ class TestMergeFileFallback:
         upstream.mkdir()
         (upstream / "ci.yml").write_text(upstream_content)
 
-        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
-        result = _merge_file_fallback(diff, git_project, base, upstream, git_executable, git_env)
+        diff = _get_diff(base, upstream, git_ctx)
+        result = _merge_file_fallback(diff, git_project, base, upstream, git_ctx)
 
         assert result is True
         content = (git_project / "ci.yml").read_text()
@@ -1003,12 +994,10 @@ class TestMergeFileFallback:
         # Template's upload-artifact bump is applied
         assert "upload-artifact@v4" in content
 
-    def test_overlapping_changes_leave_conflict_markers(self, tmp_path, git_project, git_setup):
+    def test_overlapping_changes_leave_conflict_markers(self, tmp_path, git_project, git_ctx):
         """Overlapping edits produce conflict markers and return False."""
-        git_executable, git_env = git_setup
-
         (git_project / "settings.cfg").write_text("timeout = 30\n")
-        _commit_all(git_project, git_executable, git_env)
+        _commit_all(git_project, git_ctx)
 
         # Local changed timeout to 99; template changes it to 60
         (git_project / "settings.cfg").write_text("timeout = 99\n")
@@ -1020,8 +1009,8 @@ class TestMergeFileFallback:
         (base / "settings.cfg").write_text("timeout = 30\n")
         (upstream / "settings.cfg").write_text("timeout = 60\n")
 
-        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
-        result = _merge_file_fallback(diff, git_project, base, upstream, git_executable, git_env)
+        diff = _get_diff(base, upstream, git_ctx)
+        result = _merge_file_fallback(diff, git_project, base, upstream, git_ctx)
 
         assert result is False
         content = (git_project / "settings.cfg").read_text()
@@ -1029,12 +1018,10 @@ class TestMergeFileFallback:
         assert "timeout = 99" in content
         assert "timeout = 60" in content
 
-    def test_new_file_is_copied_from_upstream(self, tmp_path, git_project, git_setup):
+    def test_new_file_is_copied_from_upstream(self, tmp_path, git_project, git_ctx):
         """Files added by the template are created in the target."""
-        git_executable, git_env = git_setup
-
         (git_project / "README.md").write_text("# hi\n")
-        _commit_all(git_project, git_executable, git_env)
+        _commit_all(git_project, git_ctx)
 
         base = tmp_path / "base"
         base.mkdir()
@@ -1042,19 +1029,17 @@ class TestMergeFileFallback:
         upstream.mkdir()
         (upstream / "new_workflow.yml").write_text("name: deploy\n")
 
-        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
-        result = _merge_file_fallback(diff, git_project, base, upstream, git_executable, git_env)
+        diff = _get_diff(base, upstream, git_ctx)
+        result = _merge_file_fallback(diff, git_project, base, upstream, git_ctx)
 
         assert result is True
         assert (git_project / "new_workflow.yml").exists()
         assert "deploy" in (git_project / "new_workflow.yml").read_text()
 
-    def test_deleted_file_is_removed_from_target(self, tmp_path, git_project, git_setup):
+    def test_deleted_file_is_removed_from_target(self, tmp_path, git_project, git_ctx):
         """Files removed from the template are deleted in the target."""
-        git_executable, git_env = git_setup
-
         (git_project / "legacy.cfg").write_text("old: setting\n")
-        _commit_all(git_project, git_executable, git_env)
+        _commit_all(git_project, git_ctx)
 
         base = tmp_path / "base"
         base.mkdir()
@@ -1062,8 +1047,8 @@ class TestMergeFileFallback:
         upstream.mkdir()
         (base / "legacy.cfg").write_text("old: setting\n")
 
-        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
-        result = _merge_file_fallback(diff, git_project, base, upstream, git_executable, git_env)
+        diff = _get_diff(base, upstream, git_ctx)
+        result = _merge_file_fallback(diff, git_project, base, upstream, git_ctx)
 
         assert result is True
         assert not (git_project / "legacy.cfg").exists()
