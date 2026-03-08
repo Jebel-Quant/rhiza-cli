@@ -1605,10 +1605,8 @@ class TestCloneTemplateRepository:
     These tests verify error handling through subprocess patching.
     """
 
-    def test_clone_failure_logs_and_reraises(self, tmp_path, git_setup):
+    def test_clone_failure_logs_and_reraises(self, tmp_path, git_ctx):
         """A clone failure logs the error and re-raises the exception."""
-        git_executable, git_env = git_setup
-
         template = RhizaTemplate(template_repository="bad/repo", include=[".github"])
 
         def _side_effect(*args, **kwargs):
@@ -1621,7 +1619,7 @@ class TestCloneTemplateRepository:
             patch("rhiza.models.template.subprocess.run", side_effect=_side_effect),
             pytest.raises(subprocess.CalledProcessError),
         ):
-            template._clone_template_repository(tmp_path, "main", [".github"], git_executable, git_env)
+            template._clone_template_repository(tmp_path, "main", [".github"], git_ctx)
 
     @pytest.mark.parametrize(
         "fail_at",
