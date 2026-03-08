@@ -389,8 +389,8 @@ class TestRhizaTemplateGitUrl:
 class TestRhizaTemplateClone:
     """Tests for the RhizaTemplate.clone method."""
 
-    @patch("rhiza.commands._sync_helpers._get_head_sha")
-    @patch("rhiza.commands._sync_helpers._clone_template_repository")
+    @patch("rhiza.models.RhizaTemplate._get_head_sha")
+    @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     def test_clone_returns_upstream_dir_and_sha(self, mock_clone, mock_head_sha):
         """Clone returns (upstream_dir, upstream_sha) for a plain include-list template."""
         from rhiza.subprocess_utils import get_git_executable
@@ -411,11 +411,11 @@ class TestRhizaTemplateClone:
         mock_clone.assert_called_once()
         shutil.rmtree(upstream_dir, ignore_errors=True)
 
-    @patch("rhiza.commands._sync_helpers._get_head_sha")
+    @patch("rhiza.models.RhizaTemplate._get_head_sha")
     @patch("rhiza.bundle_resolver.resolve_include_paths")
     @patch("rhiza.bundle_resolver.load_bundles_from_clone")
-    @patch("rhiza.commands._sync_helpers._update_sparse_checkout")
-    @patch("rhiza.commands._sync_helpers._clone_template_repository")
+    @patch("rhiza.models.RhizaTemplate._update_sparse_checkout")
+    @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     def test_clone_resolves_bundles_and_updates_include(
         self, mock_clone, mock_update_sparse, mock_load_bundles, mock_resolve, mock_head_sha
     ):
@@ -459,8 +459,8 @@ class TestRhizaTemplateClone:
         with pytest.raises(ValueError, match="No templates or include paths"):
             template.clone(get_git_executable(), os.environ.copy())
 
-    @patch("rhiza.commands._sync_helpers._get_head_sha")
-    @patch("rhiza.commands._sync_helpers._clone_template_repository")
+    @patch("rhiza.models.RhizaTemplate._get_head_sha")
+    @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     def test_clone_uses_template_branch_over_default(self, mock_clone, mock_head_sha):
         """Clone uses template_branch when set, ignoring the branch argument."""
         from rhiza.subprocess_utils import get_git_executable
@@ -477,7 +477,7 @@ class TestRhizaTemplateClone:
 
         # The clone should use 'develop' (template_branch), not 'main' (default arg).
         call_args = mock_clone.call_args
-        assert call_args[0][2] == "develop"
+        assert call_args[0][1] == "develop"
         assert upstream_sha == "sha_from_develop"
         shutil.rmtree(upstream_dir, ignore_errors=True)
 

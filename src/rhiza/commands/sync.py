@@ -33,9 +33,8 @@ from rhiza.commands._sync_helpers import (
     _read_lock,
     _sync_diff,
     _sync_merge,
-    _validate_and_load_template,
 )
-from rhiza.models import TemplateLock
+from rhiza.models import RhizaTemplate, TemplateLock
 from rhiza.subprocess_utils import get_git_executable
 
 __all__ = ["LOCK_FILE", "sync"]
@@ -72,8 +71,8 @@ def sync(
     _assert_git_status_clean(target, git_executable, git_env)
     _handle_target_branch(target, target_branch, git_executable, git_env)
 
-    template = _validate_and_load_template(target, branch)
-    # _validate_and_load_template guarantees these are set; cast for type narrowing
+    template = RhizaTemplate.from_project(target, branch)
+    # from_project guarantees these are set; cast for type narrowing
     template.template_repository = cast(str, template.template_repository)
     template.template_branch = cast(str, template.template_branch)
 
@@ -110,9 +109,8 @@ def sync(
                     upstream_sha,
                     base_sha,
                     materialized,
-                    template.include,
+                    template,
                     excludes,
-                    template.git_url,
                     git_executable,
                     git_env,
                     lock,

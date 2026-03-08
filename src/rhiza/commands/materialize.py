@@ -14,22 +14,16 @@ import warnings
 
 from rhiza.commands._sync_helpers import (
     _clean_orphaned_files,
-    _clone_template_repository,
     _handle_target_branch,
     _log_git_stderr_errors,
-    _update_sparse_checkout,
-    _validate_and_load_template,
     _warn_about_workflow_files,
 )
 from rhiza.commands.sync import sync
 
 __all__ = [
     "_clean_orphaned_files",
-    "_clone_template_repository",
     "_handle_target_branch",
     "_log_git_stderr_errors",
-    "_update_sparse_checkout",
-    "_validate_and_load_template",
     "_warn_about_workflow_files",
     "materialize",
     "sync",

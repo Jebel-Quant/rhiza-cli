@@ -135,20 +135,19 @@ class TestSyncE2ETypicalWorkflow:
 
         materialized = [Path("Makefile"), Path("config.py"), Path("README.md")]
 
-        with patch("rhiza.commands._sync_helpers._clone_at_sha"):
+        with patch("rhiza.models.RhizaTemplate._clone_at_sha"):
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream,
                 upstream_sha="sha_v1",
                 base_sha=None,
                 materialized=materialized,
-                include_paths=["Makefile", "config.py", "README.md"],
+                template=RhizaTemplate(
+                    template_repository="example/repo", include=["Makefile", "config.py", "README.md"]
+                ),
                 excludes=set(),
-                git_url="file:///fake/url",
                 git_executable=git_executable,
                 git_env=git_env,
-                rhiza_repo="jebel-quant/rhiza",
-                rhiza_branch="main",
                 lock=_make_lock("sha_v1", [str(p) for p in materialized]),
             )
 
@@ -188,20 +187,19 @@ class TestSyncE2ETypicalWorkflow:
 
         materialized_v1 = [Path("Makefile"), Path("config.py"), Path("README.md")]
 
-        with patch("rhiza.commands._sync_helpers._clone_at_sha"):
+        with patch("rhiza.models.RhizaTemplate._clone_at_sha"):
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v1,
                 upstream_sha="sha_v1",
                 base_sha=None,
                 materialized=materialized_v1,
-                include_paths=["Makefile", "config.py", "README.md"],
+                template=RhizaTemplate(
+                    template_repository="example/repo", include=["Makefile", "config.py", "README.md"]
+                ),
                 excludes=set(),
-                git_url="file:///fake/url",
                 git_executable=git_executable,
                 git_env=git_env,
-                rhiza_repo="jebel-quant/rhiza",
-                rhiza_branch="main",
                 lock=_make_lock("sha_v1", [str(p) for p in materialized_v1]),
             )
 
@@ -224,26 +222,25 @@ class TestSyncE2ETypicalWorkflow:
 
         materialized_v2 = [Path("Makefile"), Path("config.py"), Path("new.yml")]
 
-        def populate_base(git_url, sha, dest, include_paths, git_exe, git_env_):
+        def populate_base(sha, dest, include_paths, git_exe, git_env_):
             """Populate the base-snapshot directory with template v1 content."""
             (dest / "Makefile").write_text("install:\n\tpip install .\n")
             (dest / "config.py").write_text("version = 1\napi = 'default'\n")
             (dest / "README.md").write_text("# My Project\n")
 
-        with patch("rhiza.commands._sync_helpers._clone_at_sha", side_effect=populate_base):
+        with patch("rhiza.models.RhizaTemplate._clone_at_sha", side_effect=populate_base):
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v2,
                 upstream_sha="sha_v2",
                 base_sha="sha_v1",
                 materialized=materialized_v2,
-                include_paths=["Makefile", "config.py", "new.yml"],
+                template=RhizaTemplate(
+                    template_repository="example/repo", include=["Makefile", "config.py", "new.yml"]
+                ),
                 excludes=set(),
-                git_url="file:///fake/url",
                 git_executable=git_executable,
                 git_env=git_env,
-                rhiza_repo="jebel-quant/rhiza",
-                rhiza_branch="main",
                 lock=_make_lock("sha_v2", [str(p) for p in materialized_v2]),
             )
 
@@ -289,20 +286,17 @@ class TestSyncE2EOrphanedFiles:
 
         materialized_v1 = [Path("file_a.txt"), Path("file_b.txt")]
 
-        with patch("rhiza.commands._sync_helpers._clone_at_sha"):
+        with patch("rhiza.models.RhizaTemplate._clone_at_sha"):
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v1,
                 upstream_sha="sha_v1",
                 base_sha=None,
                 materialized=materialized_v1,
-                include_paths=["file_a.txt", "file_b.txt"],
+                template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
                 excludes=set(),
-                git_url="file:///fake/url",
                 git_executable=git_executable,
                 git_env=git_env,
-                rhiza_repo="jebel-quant/rhiza",
-                rhiza_branch="main",
                 lock=_make_lock("sha_v1", ["file_a.txt", "file_b.txt"]),
             )
 
@@ -316,24 +310,21 @@ class TestSyncE2EOrphanedFiles:
 
         materialized_v2 = [Path("file_a.txt")]
 
-        def populate_base(git_url, sha, dest, include_paths, git_exe, git_env_):
+        def populate_base(sha, dest, include_paths, git_exe, git_env_):
             (dest / "file_a.txt").write_text("content a\n")
             (dest / "file_b.txt").write_text("content b\n")
 
-        with patch("rhiza.commands._sync_helpers._clone_at_sha", side_effect=populate_base):
+        with patch("rhiza.models.RhizaTemplate._clone_at_sha", side_effect=populate_base):
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v2,
                 upstream_sha="sha_v2",
                 base_sha="sha_v1",
                 materialized=materialized_v2,
-                include_paths=["file_a.txt"],
+                template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt"]),
                 excludes=set(),
-                git_url="file:///fake/url",
                 git_executable=git_executable,
                 git_env=git_env,
-                rhiza_repo="jebel-quant/rhiza",
-                rhiza_branch="main",
                 lock=_make_lock("sha_v2", ["file_a.txt"]),
             )
 
@@ -367,20 +358,17 @@ class TestSyncE2EThreeWayMerge:
         upstream_v1.mkdir()
         (upstream_v1 / "config.py").write_text(template_v1)
 
-        with patch("rhiza.commands._sync_helpers._clone_at_sha"):
+        with patch("rhiza.models.RhizaTemplate._clone_at_sha"):
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v1,
                 upstream_sha="sha_v1",
                 base_sha=None,
                 materialized=[Path("config.py")],
-                include_paths=["config.py"],
+                template=RhizaTemplate(template_repository="example/repo", include=["config.py"]),
                 excludes=set(),
-                git_url="file:///fake/url",
                 git_executable=git_executable,
                 git_env=git_env,
-                rhiza_repo="jebel-quant/rhiza",
-                rhiza_branch="main",
                 lock=_make_lock("sha_v1", ["config.py"]),
             )
 
@@ -395,23 +383,20 @@ class TestSyncE2EThreeWayMerge:
         upstream_v2.mkdir()
         (upstream_v2 / "config.py").write_text("version = 2\napi = 'default'\n")
 
-        def populate_base(git_url, sha, dest, include_paths, git_exe, git_env_):
+        def populate_base(sha, dest, include_paths, git_exe, git_env_):
             (dest / "config.py").write_text(template_v1)
 
-        with patch("rhiza.commands._sync_helpers._clone_at_sha", side_effect=populate_base):
+        with patch("rhiza.models.RhizaTemplate._clone_at_sha", side_effect=populate_base):
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v2,
                 upstream_sha="sha_v2",
                 base_sha="sha_v1",
                 materialized=[Path("config.py")],
-                include_paths=["config.py"],
+                template=RhizaTemplate(template_repository="example/repo", include=["config.py"]),
                 excludes=set(),
-                git_url="file:///fake/url",
                 git_executable=git_executable,
                 git_env=git_env,
-                rhiza_repo="jebel-quant/rhiza",
-                rhiza_branch="main",
                 lock=_make_lock("sha_v2", ["config.py"]),
             )
 
@@ -448,20 +433,17 @@ class TestSyncE2EExcludedFiles:
         upstream.mkdir()
         (upstream / "Makefile").write_text("install:\n\tpip install .\n")
 
-        with patch("rhiza.commands._sync_helpers._clone_at_sha"):
+        with patch("rhiza.models.RhizaTemplate._clone_at_sha"):
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream,
                 upstream_sha="sha_v1",
                 base_sha=None,
                 materialized=[Path("Makefile")],
-                include_paths=["Makefile"],
+                template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
                 excludes=set(),
-                git_url="file:///fake/url",
                 git_executable=git_executable,
                 git_env=git_env,
-                rhiza_repo="jebel-quant/rhiza",
-                rhiza_branch="main",
                 lock=_make_lock("sha_v1", ["Makefile"]),
             )
 
@@ -487,20 +469,17 @@ class TestSyncE2EExcludedFiles:
 
         materialized_v1 = [Path("file_a.txt"), Path("file_b.txt")]
 
-        with patch("rhiza.commands._sync_helpers._clone_at_sha"):
+        with patch("rhiza.models.RhizaTemplate._clone_at_sha"):
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v1,
                 upstream_sha="sha_v1",
                 base_sha=None,
                 materialized=materialized_v1,
-                include_paths=["file_a.txt", "file_b.txt"],
+                template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
                 excludes=set(),
-                git_url="file:///fake/url",
                 git_executable=git_executable,
                 git_env=git_env,
-                rhiza_repo="jebel-quant/rhiza",
-                rhiza_branch="main",
                 lock=_make_lock("sha_v1", ["file_a.txt", "file_b.txt"]),
             )
 
@@ -515,24 +494,21 @@ class TestSyncE2EExcludedFiles:
 
         materialized_v2 = [Path("file_a.txt")]  # file_b excluded from materialized
 
-        def populate_base(git_url, sha, dest, include_paths, git_exe, git_env_):
+        def populate_base(sha, dest, include_paths, git_exe, git_env_):
             (dest / "file_a.txt").write_text("content a\n")
             (dest / "file_b.txt").write_text("content b\n")
 
-        with patch("rhiza.commands._sync_helpers._clone_at_sha", side_effect=populate_base):
+        with patch("rhiza.models.RhizaTemplate._clone_at_sha", side_effect=populate_base):
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v2,
                 upstream_sha="sha_v2",
                 base_sha="sha_v1",
                 materialized=materialized_v2,
-                include_paths=["file_a.txt", "file_b.txt"],
+                template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
                 excludes={"file_b.txt"},  # user excluded file_b.txt
-                git_url="file:///fake/url",
                 git_executable=git_executable,
                 git_env=git_env,
-                rhiza_repo="jebel-quant/rhiza",
-                rhiza_branch="main",
                 lock=_make_lock("sha_v2", ["file_a.txt"]),
             )
 
@@ -623,14 +599,14 @@ class TestSyncE2EUpdatedTemplateYml:
         def clone_v2(git_exe, git_env_, branch="main"):
             return upstream_dir_v2, "sha_v2"
 
-        def populate_base(git_url, sha, dest, include_paths, git_exe, git_env_):
+        def populate_base(sha, dest, include_paths, git_exe, git_env_):
             """Base snapshot contains only the files present at sha_v1."""
             (dest / "file_a.txt").write_text("content a\n")
             (dest / "file_b.txt").write_text("content b\n")
 
         with (
             patch.object(RhizaTemplate, "clone", side_effect=clone_v2),
-            patch("rhiza.commands._sync_helpers._clone_at_sha", side_effect=populate_base),
+            patch("rhiza.models.RhizaTemplate._clone_at_sha", side_effect=populate_base),
         ):
             sync(target=project, branch="main", target_branch=None, strategy="merge")
 
@@ -701,14 +677,14 @@ class TestSyncE2EUpdatedTemplateYml:
             # Only file_a.txt is in the updated include list from template.yml.
             return upstream_dir_v2, "sha_v2"
 
-        def populate_base(git_url, sha, dest, include_paths, git_exe, git_env_):
+        def populate_base(sha, dest, include_paths, git_exe, git_env_):
             # Orphan cleanup uses the lock's ``files`` field, not the diff,
             # so only the currently-included file needs to be in the base.
             (dest / "file_a.txt").write_text("content a\n")
 
         with (
             patch.object(RhizaTemplate, "clone", side_effect=clone_v2),
-            patch("rhiza.commands._sync_helpers._clone_at_sha", side_effect=populate_base),
+            patch("rhiza.models.RhizaTemplate._clone_at_sha", side_effect=populate_base),
         ):
             sync(target=project, branch="main", target_branch=None, strategy="merge")
 
