@@ -2,7 +2,8 @@
 
 import pytest
 
-from rhiza.models import BundleDefinition, RhizaBundles, RhizaTemplate
+from rhiza.models.bundle import BundleDefinition, RhizaBundles
+from rhiza.models.template import RhizaTemplate
 
 
 @pytest.fixture

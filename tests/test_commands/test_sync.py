@@ -28,7 +28,6 @@ from rhiza.commands._sync_helpers import (
     _files_from_snapshot,
     _get_diff,
     _handle_target_branch,
-    _log_git_stderr_errors,
     _merge_file_fallback,
     _merge_with_base,
     _parse_diff_filenames,
@@ -41,6 +40,7 @@ from rhiza.commands._sync_helpers import (
 )
 from rhiza.commands.sync import sync
 from rhiza.models import RhizaTemplate, TemplateLock
+from rhiza.subprocess_utils import _log_git_stderr_errors
 
 # ---------------------------------------------------------------------------
 # Module-level helpers shared across test classes
@@ -1660,7 +1660,7 @@ class TestCloneTemplateRepository:
             return Mock(returncode=0)
 
         with (
-            patch("rhiza.models.subprocess.run", side_effect=_side_effect),
+            patch("rhiza.models.template.subprocess.run", side_effect=_side_effect),
             pytest.raises(subprocess.CalledProcessError),
         ):
             template._clone_template_repository(tmp_path, "main", [".github"], git_executable, git_env)
@@ -1681,7 +1681,7 @@ class TestCloneTemplateRepository:
         err = subprocess.CalledProcessError(1, ["git"])
         err.stderr = "error"
         with (
-            patch("rhiza.models.subprocess.run", side_effect=[ok] * fail_at + [err]),
+            patch("rhiza.models.template.subprocess.run", side_effect=[ok] * fail_at + [err]),
             pytest.raises(subprocess.CalledProcessError),
         ):
             template._clone_template_repository(tmp_path, "main", [".github"], git_executable, git_env)
@@ -1701,7 +1701,7 @@ class TestLogGitStderrErrors:
     )
     def test_stderr_logging(self, stderr, expected_calls):
         """Appropriate lines are logged as errors; irrelevant lines and None are ignored."""
-        with patch("rhiza.commands._sync_helpers.logger") as mock_logger:
+        with patch("rhiza.subprocess_utils.logger") as mock_logger:
             _log_git_stderr_errors(stderr)
         assert mock_logger.error.call_count == len(expected_calls)
         for expected in expected_calls:

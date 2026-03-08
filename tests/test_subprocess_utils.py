@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from rhiza.models import get_git_executable
+from rhiza.models._git_utils import get_git_executable
 
 
 class TestGetGitExecutable:
@@ -23,7 +23,7 @@ class TestGetGitExecutable:
     def test_raises_when_git_not_found(self):
         """Raises RuntimeError when git is not found in PATH."""
         with (
-            patch("rhiza.models.shutil.which", return_value=None),
+            patch("rhiza.models._git_utils.shutil.which", return_value=None),
             pytest.raises(RuntimeError, match="git executable not found in PATH"),
         ):
             get_git_executable()

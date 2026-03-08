@@ -3,7 +3,6 @@
 This module tests:
 - The __main__.py entry point
 - The cli.py Typer app and command wrappers
-- The deprecated materialize command (now delegates to sync)
 """
 
 import shutil
@@ -95,9 +94,9 @@ class TestMainEntry:
         finally:
             sys.argv = original_argv
 
-    def test_load_plugins_with_error(self, capsys, monkeypatch):
+    def test_load_plugins_with_error(self, monkeypatch):
         """Test plugin loading handles exceptions gracefully."""
-        from unittest.mock import MagicMock
+        from unittest.mock import MagicMock, patch
 
         import typer
 
@@ -121,11 +120,12 @@ class TestMainEntry:
         # Import and call load_plugins directly
         from rhiza.__main__ import load_plugins
 
-        load_plugins(test_app)
+        with patch("rhiza.__main__.logger") as mock_logger:
+            load_plugins(test_app)
 
-        # Verify the error message was printed
-        captured = capsys.readouterr()
-        assert "Failed to load plugin bad_plugin" in captured.out
+        # Verify the error message was logged as a warning
+        mock_logger.warning.assert_called_once()
+        assert "bad_plugin" in mock_logger.warning.call_args[0][0]
 
     def test_load_plugins_successfully(self, monkeypatch):
         """Test plugin loading works with a valid plugin."""
@@ -217,12 +217,6 @@ class TestCLIExceptionHandling:
     """Tests for exception-handling branches in CLI command wrappers."""
 
     runner = CliRunner()
-
-    def test_materialize_exits_with_code_1_on_runtime_error(self, tmp_path):
-        """Materialize command exits with code 1 when RuntimeError is raised."""
-        with patch("rhiza.cli.sync_cmd", side_effect=RuntimeError("sync failed")):
-            result = self.runner.invoke(app, ["materialize", str(tmp_path)])
-        assert result.exit_code == 1
 
     def test_status_exits_with_code_1_on_exception(self, tmp_path):
         """Status command exits with code 1 when any Exception is raised."""

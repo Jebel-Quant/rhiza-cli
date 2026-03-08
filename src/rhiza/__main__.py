@@ -7,6 +7,7 @@ delegating execution to the Typer application defined in `rhiza.cli`.
 from importlib.metadata import entry_points
 
 import typer
+from loguru import logger
 
 from rhiza.cli import app
 
@@ -22,7 +23,7 @@ def load_plugins(app: typer.Typer) -> None:
             # This adds the plugin as a subcommand, e.g., 'rhiza tools bump'
             app.add_typer(plugin_app, name=entry.name)
         except Exception as e:
-            print(f"Failed to load plugin {entry.name}: {e}")
+            logger.warning(f"Failed to load plugin {entry.name}: {e}")
 
 
 load_plugins(app)
