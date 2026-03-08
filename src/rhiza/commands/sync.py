@@ -76,17 +76,9 @@ def sync(
     logger.info(f"Cloning {template.template_repository}@{template.template_branch} (upstream)")
     upstream_dir, upstream_sha = template.clone(git_executable, git_env, branch=branch)
 
+    # Synchronizes target with upstream template snapshot transactionally; cleans up resources
     try:
         base_sha = _read_lock(target)
-        # if base_sha == upstream_sha:
-        #    if not _is_template_config_changed(target, template, rhiza_repo, rhiza_host, rhiza_branch):
-        #        logger.success("Already up to date -- nothing to sync")
-        #        return
-        #    # template.yml has changed even though the upstream commit is the same.
-        #    # Force a full re-sync from the current template.yml so that newly-added
-        #    # include paths are materialised and removed paths are cleaned up.
-        #    logger.info("template.yml has changed — re-syncing to apply new configuration")
-        #    base_sha = None
 
         upstream_snapshot = Path(tempfile.mkdtemp())
         try:
