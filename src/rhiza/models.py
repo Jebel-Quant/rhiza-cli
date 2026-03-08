@@ -260,8 +260,8 @@ class RhizaTemplate:
             Can be used together with include to merge paths.
     """
 
-    template_repository: str | None = None
-    template_branch: str | None = None
+    template_repository: str
+    template_branch: str
     template_host: str = "github"
     language: str = "python"
     include: list[str] = field(default_factory=list)
