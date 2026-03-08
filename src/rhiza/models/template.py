@@ -4,6 +4,7 @@ import shutil
 import subprocess  # nosec B404
 import tempfile
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,13 @@ from loguru import logger
 
 from rhiza.models._git_utils import _log_git_stderr_errors, _normalize_to_list
 from rhiza.models.bundle import RhizaBundles
+
+
+class GitHost(StrEnum):
+    """Supported git hosting platforms."""
+
+    GITHUB = "github"
+    GITLAB = "gitlab"
 
 
 @dataclass
@@ -35,7 +43,7 @@ class RhizaTemplate:
 
     template_repository: str = ""
     template_branch: str = ""
-    template_host: str = "github"
+    template_host: GitHost | str = GitHost.GITHUB
     language: str = "python"
     include: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
@@ -73,7 +81,7 @@ class RhizaTemplate:
         return cls(
             template_repository=template_repository,
             template_branch=template_branch,
-            template_host=config.get("template-host", "github"),
+            template_host=config.get("template-host", GitHost.GITHUB),
             language=config.get("language", "python"),
             include=_normalize_to_list(config.get("include")),
             exclude=_normalize_to_list(config.get("exclude")),
@@ -101,8 +109,8 @@ class RhizaTemplate:
             config["ref"] = self.template_branch
 
         # Only include template-host if it's not the default "github"
-        if self.template_host and self.template_host != "github":
-            config["template-host"] = self.template_host
+        if self.template_host and self.template_host != GitHost.GITHUB:
+            config["template-host"] = str(self.template_host)
 
         # Only include language if it's not the default "python"
         if self.language and self.language != "python":
@@ -137,10 +145,10 @@ class RhizaTemplate:
         """
         if not self.template_repository:
             raise ValueError("template_repository is not configured in template.yml")  # noqa: TRY003
-        host = self.template_host or "github"
-        if host == "github":
+        host = self.template_host or GitHost.GITHUB
+        if host == GitHost.GITHUB:
             return f"https://github.com/{self.template_repository}.git"
-        if host == "gitlab":
+        if host == GitHost.GITLAB:
             return f"https://gitlab.com/{self.template_repository}.git"
         raise ValueError(f"Unsupported template-host: {host}. Must be 'github' or 'gitlab'.")  # noqa: TRY003
 
