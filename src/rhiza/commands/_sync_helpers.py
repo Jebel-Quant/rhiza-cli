@@ -41,6 +41,12 @@ _DIFF_DST_PREFIX = "upstream-template-new"
 
 LOCK_FILE = ".rhiza/template.lock"
 
+# ---------------------------------------------------------------------------
+# Protected files — never deleted by orphan cleanup
+# ---------------------------------------------------------------------------
+
+_PROTECTED_FILES: frozenset[Path] = frozenset({Path(".rhiza/template.yml")})
+
 
 def _get_diff(repo0: Path, repo1: Path) -> str:
     """Compute the raw diff between two directory trees using ``git diff --no-index``."""
@@ -224,7 +230,7 @@ def _read_previously_tracked_files(target: Path, base_snapshot: Path | None = No
                 if snapshot_files:
                     logger.debug(f"Reconstructing previous file list from base snapshot ({len(snapshot_files)} files)")
                     return snapshot_files
-        except Exception as e:
+        except (FileNotFoundError, yaml.YAMLError, TypeError, ValueError) as e:
             logger.debug(f"Could not read template.lock for orphan cleanup: {e}")
 
     history_file = target / ".rhiza" / "history"
@@ -306,7 +312,7 @@ def _clean_orphaned_files(
         excluded_as_paths = {Path(e) for e in excludes}
         orphaned_files = orphaned_files - excluded_as_paths
 
-    protected_files = {Path(".rhiza/template.yml")}
+    protected_files = _PROTECTED_FILES
 
     if not orphaned_files:
         logger.debug("No orphaned files to clean up")
@@ -428,15 +434,12 @@ def _parse_diff_filenames(diff: str) -> list[tuple[str, bool, bool]]:
     dst_path: str | None = None
     in_diff = False
 
-    def _flush() -> None:
-        rel = dst_path if not is_deleted else src_path
-        if rel:
-            results.append((rel, is_new, is_deleted))
-
     for line in diff.splitlines():
         if line.startswith("diff --git "):
             if in_diff:
-                _flush()
+                rel = dst_path if not is_deleted else src_path
+                if rel:
+                    results.append((rel, is_new, is_deleted))
             is_new = False
             is_deleted = False
             src_path = None
@@ -456,7 +459,9 @@ def _parse_diff_filenames(diff: str) -> list[tuple[str, bool, bool]]:
                 dst_path = raw[len(dst_prefix) :]
 
     if in_diff:
-        _flush()
+        rel = dst_path if not is_deleted else src_path
+        if rel:
+            results.append((rel, is_new, is_deleted))
 
     return results
 
@@ -560,6 +565,42 @@ def _merge_file_fallback(
     return all_clean
 
 
+def _apply_diff_reject_fallback(
+    diff: str,
+    target: Path,
+    git_executable: str,
+    git_env: dict[str, str],
+) -> None:
+    """Apply *diff* via ``git apply --reject``, leaving ``.rej`` files for conflicts.
+
+    This is the last-resort fallback when ``git apply -3`` fails with conflicts
+    and the blob-fallback path is not available.  It applies as much of the diff
+    as possible and writes ``*.rej`` files for any hunks that cannot be merged.
+
+    Args:
+        diff: Unified diff string.
+        target: Path to the target repository.
+        git_executable: Absolute path to git.
+        git_env: Environment variables for git commands.
+    """
+    try:
+        subprocess.run(  # nosec B603  # noqa: S603
+            [git_executable, "apply", "--reject"],
+            input=diff.encode(),
+            cwd=target,
+            check=True,
+            capture_output=True,
+            env=git_env,
+        )
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode() if e.stderr else ""
+        if stderr:
+            logger.warning(stderr.strip())
+        logger.warning(
+            "Some changes could not be applied cleanly. Check for *.rej files and resolve conflicts manually."
+        )
+
+
 def _apply_diff(
     diff: str,
     target: Path,
@@ -575,7 +616,8 @@ def _apply_diff(
     *upstream_snapshot* are provided, falls back to :func:`_merge_file_fallback`
     which uses ``git merge-file`` on the on-disk snapshot files instead.
 
-    Otherwise falls back to ``git apply --reject``.
+    Otherwise falls back to :func:`_apply_diff_reject_fallback` which uses
+    ``git apply --reject``.
 
     Args:
         diff: Unified diff string.
@@ -602,37 +644,22 @@ def _apply_diff(
         )
     except subprocess.CalledProcessError as e:
         stderr = e.stderr.decode() if e.stderr else ""
-
-        # git apply -3 cannot do a real 3-way merge when the template blobs are
-        # not present in the target repository's object store.  If we have the
-        # snapshot directories on disk, use git merge-file instead — it works
-        # directly on file content and needs no shared git history.
-        if "lacks the necessary blob" in stderr and base_snapshot is not None and upstream_snapshot is not None:
-            logger.debug("git apply -3 lacks blob objects; switching to git merge-file fallback")
-            return _merge_file_fallback(diff, target, base_snapshot, upstream_snapshot, git_executable, git_env)
-
-        if stderr:
-            logger.warning(f"3-way merge had conflicts:\n{stderr.strip()}")
-        # Fall back to --reject for conflict files
-        try:
-            subprocess.run(  # nosec B603  # noqa: S603
-                [git_executable, "apply", "--reject"],
-                input=diff.encode(),
-                cwd=target,
-                check=True,
-                capture_output=True,
-                env=git_env,
-            )
-        except subprocess.CalledProcessError as e2:
-            stderr2 = e2.stderr.decode() if e2.stderr else ""
-            if stderr2:
-                logger.warning(stderr2.strip())
-            logger.warning(
-                "Some changes could not be applied cleanly. Check for *.rej files and resolve conflicts manually."
-            )
-        return False
     else:
         return True
+
+    # git apply -3 cannot do a real 3-way merge when the template blobs are
+    # not present in the target repository's object store.  If we have the
+    # snapshot directories on disk, use git merge-file instead — it works
+    # directly on file content and needs no shared git history.
+    if "lacks the necessary blob" in stderr and base_snapshot is not None and upstream_snapshot is not None:
+        logger.debug("git apply -3 lacks blob objects; switching to git merge-file fallback")
+        return _merge_file_fallback(diff, target, base_snapshot, upstream_snapshot, git_executable, git_env)
+
+    if stderr:
+        logger.warning(f"3-way merge had conflicts:\n{stderr.strip()}")
+    # Fall back to --reject for conflict files
+    _apply_diff_reject_fallback(diff, target, git_executable, git_env)
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -672,6 +699,52 @@ def _sync_diff(target: Path, upstream_snapshot: Path) -> None:
         logger.info(f"{changes} file(s) would be changed")
     else:
         logger.success("No differences found")
+
+
+def _finalize_sync(
+    target: Path,
+    upstream_snapshot: Path,
+    materialized: list[Path],
+    excludes: set[str],
+    base_snapshot: Path,
+    old_tracked_files: set[Path],
+    lock: TemplateLock,
+) -> None:
+    """Run the post-merge finalization steps.
+
+    Restores any template-managed files that went missing during the merge,
+    warns about workflow files, removes orphaned files, and writes the lock.
+
+    Args:
+        target: Path to the target repository.
+        upstream_snapshot: Path to the upstream snapshot directory.
+        materialized: List of relative file paths managed by the template.
+        excludes: Set of relative paths to exclude from cleanup.
+        base_snapshot: Directory containing the base snapshot (used for orphan
+            cleanup when the lock file has no ``files`` entry).
+        old_tracked_files: Previously tracked files captured before the merge.
+        lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
+    """
+    # Restore any template-managed files that are absent from the target.
+    # This can happen when files tracked by the template do not exist in the
+    # downstream repository — for example when the template snapshot was
+    # unchanged since the last sync so no diff was applied, but the files
+    # were never present or were manually deleted.
+    missing_from_target = [p for p in materialized if not (target / p).exists()]
+    if missing_from_target:
+        logger.info(f"Restoring {len(missing_from_target)} template file(s) missing from target")
+        _copy_files_to_target(upstream_snapshot, target, missing_from_target)
+
+    _warn_about_workflow_files(materialized)
+    _clean_orphaned_files(
+        target,
+        materialized,
+        excludes=excludes,
+        base_snapshot=base_snapshot,
+        previously_tracked_files=old_tracked_files if old_tracked_files else None,
+    )
+    _write_lock(target, lock)
+    logger.success(f"Sync complete — {len(materialized)} file(s) processed")
 
 
 def _sync_merge(
@@ -729,26 +802,7 @@ def _sync_merge(
             logger.info("First sync — copying all template files")
             _copy_files_to_target(upstream_snapshot, target, materialized)
 
-        # Restore any template-managed files that are absent from the target.
-        # This can happen when files tracked by the template do not exist in the
-        # downstream repository — for example when the template snapshot was
-        # unchanged since the last sync so no diff was applied, but the files
-        # were never present or were manually deleted.
-        missing_from_target = [p for p in materialized if not (target / p).exists()]
-        if missing_from_target:
-            logger.info(f"Restoring {len(missing_from_target)} template file(s) missing from target")
-            _copy_files_to_target(upstream_snapshot, target, missing_from_target)
-
-        _warn_about_workflow_files(materialized)
-        _clean_orphaned_files(
-            target,
-            materialized,
-            excludes=excludes,
-            base_snapshot=base_snapshot,
-            previously_tracked_files=old_tracked_files if old_tracked_files else None,
-        )
-        _write_lock(target, lock)
-        logger.success(f"Sync complete — {len(materialized)} file(s) processed")
+        _finalize_sync(target, upstream_snapshot, materialized, excludes, base_snapshot, old_tracked_files, lock)
     finally:
         if base_snapshot.exists():
             shutil.rmtree(base_snapshot)
@@ -785,7 +839,7 @@ def _merge_with_base(
     try:
         template._clone_at_sha(base_sha, base_clone, template.include, git_executable, git_env)
         RhizaTemplate._prepare_snapshot(base_clone, template.include, excludes, base_snapshot)
-    except Exception:
+    except (subprocess.CalledProcessError, OSError, FileNotFoundError):
         logger.warning("Could not checkout base commit — treating all files as new")
     finally:
         if base_clone.exists():

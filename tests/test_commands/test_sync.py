@@ -570,7 +570,7 @@ class TestMergeWithBasePaths:
     def test_merge_with_base_handles_clone_exception(self, mock_clone_at_sha, tmp_path, git_setup):
         """Exception in _clone_at_sha is caught and logged."""
         git_executable, git_env = git_setup
-        mock_clone_at_sha.side_effect = RuntimeError("network error")
+        mock_clone_at_sha.side_effect = subprocess.CalledProcessError(128, "git clone", stderr=b"network error")
 
         upstream_snapshot = tmp_path / "upstream"
         upstream_snapshot.mkdir()
@@ -1826,7 +1826,7 @@ class TestCleanOrphanedFiles:
         history_file.write_text("Makefile\n")
 
         # Force TemplateLock.from_yaml to raise
-        with patch("rhiza.commands._sync_helpers.TemplateLock.from_yaml", side_effect=Exception("corrupt lock")):
+        with patch("rhiza.commands._sync_helpers.TemplateLock.from_yaml", side_effect=yaml.YAMLError("corrupt lock")):
             files = _read_previously_tracked_files(tmp_path)
 
         assert Path("Makefile") in files
