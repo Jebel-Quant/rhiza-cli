@@ -13,13 +13,14 @@ Sub-modules
 """
 
 from rhiza.models._base import YamlSerializable, load_model
-from rhiza.models._git_utils import get_git_executable
+from rhiza.models._git_utils import GitContext, get_git_executable
 from rhiza.models.bundle import BundleDefinition, RhizaBundles
 from rhiza.models.lock import TemplateLock
 from rhiza.models.template import GitHost, RhizaTemplate
 
 __all__ = [
     "BundleDefinition",
+    "GitContext",
     "GitHost",
     "RhizaBundles",
     "RhizaTemplate",

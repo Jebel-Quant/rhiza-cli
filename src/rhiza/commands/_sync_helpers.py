@@ -25,8 +25,8 @@ except ImportError:  # pragma: no cover - Windows
 import yaml
 from loguru import logger
 
-from rhiza.models import RhizaTemplate, TemplateLock, get_git_executable
-from rhiza.models._git_utils import _log_git_stderr_errors
+from rhiza.models import RhizaTemplate, TemplateLock
+from rhiza.models._git_utils import GitContext, _log_git_stderr_errors
 
 # ---------------------------------------------------------------------------
 # Diff prefix constants
@@ -42,14 +42,23 @@ _DIFF_DST_PREFIX = "upstream-template-new"
 LOCK_FILE = ".rhiza/template.lock"
 
 
-def _get_diff(repo0: Path, repo1: Path) -> str:
-    """Compute the raw diff between two directory trees using ``git diff --no-index``."""
-    git = get_git_executable()
+def _get_diff(repo0: Path, repo1: Path, git_ctx: GitContext) -> str:
+    """Compute the raw diff between two directory trees using ``git diff --no-index``.
+
+    Args:
+        repo0: Path to the base (old) directory tree.
+        repo1: Path to the upstream (new) directory tree.
+        git_ctx: :class:`~rhiza.models.GitContext` supplying the git executable
+            and environment to use.  Accepting an explicit context (rather than
+            resolving the executable internally) keeps this function consistent
+            with all other git-invoking helpers in this module and allows tests
+            to inject a custom binary without patching globals.
+    """
     repo0_str = repo0.resolve().as_posix()
     repo1_str = repo1.resolve().as_posix()
     result = subprocess.run(  # nosec B603  # noqa: S603
         [
-            git,
+            git_ctx.executable,
             "-c",
             "diff.noprefix=",
             "diff",
@@ -65,6 +74,7 @@ def _get_diff(repo0: Path, repo1: Path) -> str:
         ],
         cwd=repo0_str,
         capture_output=True,
+        env=git_ctx.env,
     )
     diff = result.stdout.decode()
     for repo in [repo0_str, repo1_str]:
@@ -656,7 +666,7 @@ def _copy_files_to_target(snapshot_dir: Path, target: Path, materialized: list[P
         logger.success(f"[COPY] {rel_path}")
 
 
-def _sync_diff(target: Path, upstream_snapshot: Path) -> None:
+def _sync_diff(target: Path, upstream_snapshot: Path, git_ctx: GitContext) -> None:
     """Execute the diff (dry-run) strategy.
 
     Shows what would change without modifying any files.
@@ -664,8 +674,10 @@ def _sync_diff(target: Path, upstream_snapshot: Path) -> None:
     Args:
         target: Path to the target repository.
         upstream_snapshot: Path to the upstream snapshot directory.
+        git_ctx: :class:`~rhiza.models.GitContext` supplying the git executable
+            and environment for the underlying diff invocation.
     """
-    diff = _get_diff(target, upstream_snapshot)
+    diff = _get_diff(target, upstream_snapshot, git_ctx)
     if diff.strip():
         logger.info(f"\n{diff}")
         changes = diff.count("diff --git")
@@ -791,7 +803,7 @@ def _merge_with_base(
         if base_clone.exists():
             shutil.rmtree(base_clone)
 
-    diff = _get_diff(base_snapshot, upstream_snapshot)
+    diff = _get_diff(base_snapshot, upstream_snapshot, GitContext(executable=git_executable, env=git_env))
 
     if not diff.strip():
         logger.success("Template unchanged since last sync — nothing to apply")
