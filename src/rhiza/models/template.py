@@ -10,8 +10,9 @@ from typing import Any
 import yaml
 from loguru import logger
 
-from rhiza.models._git_utils import _log_git_stderr_errors, _normalize_to_list
+from rhiza.models._git_utils import _normalize_to_list
 from rhiza.models.bundle import RhizaBundles
+from rhiza.subprocess_utils import _log_git_stderr_errors
 
 
 @dataclass
