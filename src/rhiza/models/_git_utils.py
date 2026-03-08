@@ -6,8 +6,13 @@ import subprocess  # nosec B404
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from loguru import logger
+
+if TYPE_CHECKING:
+    from rhiza.models.lock import TemplateLock
+    from rhiza.models.template import RhizaTemplate
 
 
 @dataclass
