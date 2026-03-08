@@ -221,25 +221,23 @@ class TestLockFile:
 class TestApplyDiff:
     """Tests for the diff application helper."""
 
-    def test_apply_clean_diff(self, git_project, git_setup):
+    def test_apply_clean_diff(self, git_project, git_ctx):
         """A clean diff should apply without conflicts."""
-        git_executable, git_env = git_setup
-
         # Create and commit initial file
         (git_project / "test.txt").write_text("line1\nline2\nline3\n")
         subprocess.run(  # nosec B603
-            [git_executable, "add", "."],
+            [git_ctx.executable, "add", "."],
             cwd=git_project,
             check=True,
             capture_output=True,
-            env=git_env,
+            env=git_ctx.env,
         )
         subprocess.run(  # nosec B603
-            [git_executable, "commit", "-m", "initial"],
+            [git_ctx.executable, "commit", "-m", "initial"],
             cwd=git_project,
             check=True,
             capture_output=True,
-            env=git_env,
+            env=git_ctx.env,
         )
 
         # Create a simple diff
@@ -254,55 +252,51 @@ class TestApplyDiff:
             " line3\n"
         )
 
-        result = _apply_diff(diff, git_project, git_executable, git_env)
+        result = _apply_diff(diff, git_project, git_ctx)
         assert result is True
         assert "line2-updated" in (git_project / "test.txt").read_text()
 
-    def test_apply_empty_diff_returns_true(self, git_project, git_setup):
+    def test_apply_empty_diff_returns_true(self, git_project, git_ctx):
         """An empty diff is not a failure."""
-        git_executable, git_env = git_setup
-        result = _apply_diff("", git_project, git_executable, git_env)
+        result = _apply_diff("", git_project, git_ctx)
         assert result is True
 
 
 class TestAssertGitStatusClean:
     """Tests for _assert_git_status_clean."""
 
-    def test_clean_working_tree_does_not_raise(self, git_project, git_setup):
+    def test_clean_working_tree_does_not_raise(self, git_project, git_ctx):
         """A clean working tree should not raise."""
-        git_executable, git_env = git_setup
         # Create and commit a file so the tree is clean
         (git_project / "README.md").write_text("# test\n")
-        _commit_all(git_project, git_executable, git_env, "initial commit")
+        _commit_all(git_project, git_ctx, "initial commit")
         # Should not raise
-        _assert_git_status_clean(git_project, git_executable, git_env)
+        _assert_git_status_clean(git_project, git_ctx)
 
-    def test_dirty_working_tree_raises(self, git_project, git_setup):
+    def test_dirty_working_tree_raises(self, git_project, git_ctx):
         """An uncommitted change should raise RuntimeError."""
-        git_executable, git_env = git_setup
         (git_project / "README.md").write_text("# test\n")
-        _commit_all(git_project, git_executable, git_env, "initial commit")
+        _commit_all(git_project, git_ctx, "initial commit")
         # Introduce an uncommitted change
         (git_project / "dirty.txt").write_text("untracked change")
         with pytest.raises(RuntimeError, match="Working tree is not clean"):
-            _assert_git_status_clean(git_project, git_executable, git_env)
+            _assert_git_status_clean(git_project, git_ctx)
 
-    def test_staged_changes_raises(self, git_project, git_setup):
+    def test_staged_changes_raises(self, git_project, git_ctx):
         """Staged-but-not-committed changes should raise RuntimeError."""
-        git_executable, git_env = git_setup
         (git_project / "README.md").write_text("# test\n")
-        _commit_all(git_project, git_executable, git_env, "initial commit")
+        _commit_all(git_project, git_ctx, "initial commit")
         # Stage a new file without committing
         (git_project / "staged.txt").write_text("staged content")
         subprocess.run(  # nosec B603
-            [git_executable, "add", "staged.txt"],
+            [git_ctx.executable, "add", "staged.txt"],
             cwd=git_project,
             check=True,
             capture_output=True,
-            env=git_env,
+            env=git_ctx.env,
         )
         with pytest.raises(RuntimeError, match="Working tree is not clean"):
-            _assert_git_status_clean(git_project, git_executable, git_env)
+            _assert_git_status_clean(git_project, git_ctx)
 
 
 class TestSyncCommand:
@@ -458,10 +452,8 @@ class TestSyncCLI:
 class TestApplyDiffConflict:
     """Tests for conflict-handling branch in _apply_diff."""
 
-    def test_apply_diff_returns_false_on_conflict(self, git_project, git_setup):
+    def test_apply_diff_returns_false_on_conflict(self, git_project, git_ctx):
         """When git apply -3 fails, _apply_diff falls back and returns False."""
-        git_executable, git_env = git_setup
-
         # A diff that cannot apply (no context in repo)
         diff = (
             "diff --git a/nonexistent.txt b/nonexistent.txt\n"
@@ -471,7 +463,7 @@ class TestApplyDiffConflict:
             "-old\n"
             "+new\n"
         )
-        result = _apply_diff(diff, git_project, git_executable, git_env)
+        result = _apply_diff(diff, git_project, git_ctx)
         assert result is False
 
 
