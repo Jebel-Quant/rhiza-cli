@@ -42,7 +42,6 @@ import pytest
 
 from rhiza.commands._sync_helpers import (
     _read_lock,
-    _sync_merge,
 )
 from rhiza.commands.sync import sync
 from rhiza.models import GitContext, RhizaTemplate, TemplateLock
@@ -133,7 +132,7 @@ class TestSyncE2ETypicalWorkflow:
         materialized = [Path("Makefile"), Path("config.py"), Path("README.md")]
 
         with patch("rhiza.models.RhizaTemplate._clone_at_sha"):
-            _sync_merge(
+            git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream,
                 upstream_sha="sha_v1",
@@ -143,7 +142,6 @@ class TestSyncE2ETypicalWorkflow:
                     template_repository="example/repo", include=["Makefile", "config.py", "README.md"]
                 ),
                 excludes=set(),
-                git_ctx=git_ctx,
                 lock=_make_lock("sha_v1", [str(p) for p in materialized]),
             )
 
@@ -182,7 +180,7 @@ class TestSyncE2ETypicalWorkflow:
         materialized_v1 = [Path("Makefile"), Path("config.py"), Path("README.md")]
 
         with patch("rhiza.models.RhizaTemplate._clone_at_sha"):
-            _sync_merge(
+            git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v1,
                 upstream_sha="sha_v1",
@@ -192,7 +190,6 @@ class TestSyncE2ETypicalWorkflow:
                     template_repository="example/repo", include=["Makefile", "config.py", "README.md"]
                 ),
                 excludes=set(),
-                git_ctx=git_ctx,
                 lock=_make_lock("sha_v1", [str(p) for p in materialized_v1]),
             )
 
@@ -222,7 +219,7 @@ class TestSyncE2ETypicalWorkflow:
             (dest / "README.md").write_text("# My Project\n")
 
         with patch("rhiza.models.RhizaTemplate._clone_at_sha", side_effect=populate_base):
-            _sync_merge(
+            git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v2,
                 upstream_sha="sha_v2",
@@ -232,7 +229,6 @@ class TestSyncE2ETypicalWorkflow:
                     template_repository="example/repo", include=["Makefile", "config.py", "new.yml"]
                 ),
                 excludes=set(),
-                git_ctx=git_ctx,
                 lock=_make_lock("sha_v2", [str(p) for p in materialized_v2]),
             )
 
@@ -277,7 +273,7 @@ class TestSyncE2EOrphanedFiles:
         materialized_v1 = [Path("file_a.txt"), Path("file_b.txt")]
 
         with patch("rhiza.models.RhizaTemplate._clone_at_sha"):
-            _sync_merge(
+            git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v1,
                 upstream_sha="sha_v1",
@@ -285,7 +281,6 @@ class TestSyncE2EOrphanedFiles:
                 materialized=materialized_v1,
                 template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
                 excludes=set(),
-                git_ctx=git_ctx,
                 lock=_make_lock("sha_v1", ["file_a.txt", "file_b.txt"]),
             )
 
@@ -304,7 +299,7 @@ class TestSyncE2EOrphanedFiles:
             (dest / "file_b.txt").write_text("content b\n")
 
         with patch("rhiza.models.RhizaTemplate._clone_at_sha", side_effect=populate_base):
-            _sync_merge(
+            git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v2,
                 upstream_sha="sha_v2",
@@ -312,7 +307,6 @@ class TestSyncE2EOrphanedFiles:
                 materialized=materialized_v2,
                 template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt"]),
                 excludes=set(),
-                git_ctx=git_ctx,
                 lock=_make_lock("sha_v2", ["file_a.txt"]),
             )
 
@@ -345,7 +339,7 @@ class TestSyncE2EThreeWayMerge:
         (upstream_v1 / "config.py").write_text(template_v1)
 
         with patch("rhiza.models.RhizaTemplate._clone_at_sha"):
-            _sync_merge(
+            git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v1,
                 upstream_sha="sha_v1",
@@ -353,7 +347,6 @@ class TestSyncE2EThreeWayMerge:
                 materialized=[Path("config.py")],
                 template=RhizaTemplate(template_repository="example/repo", include=["config.py"]),
                 excludes=set(),
-                git_ctx=git_ctx,
                 lock=_make_lock("sha_v1", ["config.py"]),
             )
 
@@ -372,7 +365,7 @@ class TestSyncE2EThreeWayMerge:
             (dest / "config.py").write_text(template_v1)
 
         with patch("rhiza.models.RhizaTemplate._clone_at_sha", side_effect=populate_base):
-            _sync_merge(
+            git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v2,
                 upstream_sha="sha_v2",
@@ -380,7 +373,6 @@ class TestSyncE2EThreeWayMerge:
                 materialized=[Path("config.py")],
                 template=RhizaTemplate(template_repository="example/repo", include=["config.py"]),
                 excludes=set(),
-                git_ctx=git_ctx,
                 lock=_make_lock("sha_v2", ["config.py"]),
             )
 
@@ -416,7 +408,7 @@ class TestSyncE2EExcludedFiles:
         (upstream / "Makefile").write_text("install:\n\tpip install .\n")
 
         with patch("rhiza.models.RhizaTemplate._clone_at_sha"):
-            _sync_merge(
+            git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream,
                 upstream_sha="sha_v1",
@@ -424,7 +416,6 @@ class TestSyncE2EExcludedFiles:
                 materialized=[Path("Makefile")],
                 template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
                 excludes=set(),
-                git_ctx=git_ctx,
                 lock=_make_lock("sha_v1", ["Makefile"]),
             )
 
@@ -449,7 +440,7 @@ class TestSyncE2EExcludedFiles:
         materialized_v1 = [Path("file_a.txt"), Path("file_b.txt")]
 
         with patch("rhiza.models.RhizaTemplate._clone_at_sha"):
-            _sync_merge(
+            git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v1,
                 upstream_sha="sha_v1",
@@ -457,7 +448,6 @@ class TestSyncE2EExcludedFiles:
                 materialized=materialized_v1,
                 template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
                 excludes=set(),
-                git_ctx=git_ctx,
                 lock=_make_lock("sha_v1", ["file_a.txt", "file_b.txt"]),
             )
 
@@ -477,7 +467,7 @@ class TestSyncE2EExcludedFiles:
             (dest / "file_b.txt").write_text("content b\n")
 
         with patch("rhiza.models.RhizaTemplate._clone_at_sha", side_effect=populate_base):
-            _sync_merge(
+            git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v2,
                 upstream_sha="sha_v2",
@@ -485,7 +475,6 @@ class TestSyncE2EExcludedFiles:
                 materialized=materialized_v2,
                 template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
                 excludes={"file_b.txt"},  # user excluded file_b.txt
-                git_ctx=git_ctx,
                 lock=_make_lock("sha_v2", ["file_a.txt"]),
             )
 
