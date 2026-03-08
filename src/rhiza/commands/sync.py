@@ -18,7 +18,6 @@ copy and records the commit SHA.
 """
 
 import datetime
-import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -34,7 +33,7 @@ from rhiza.commands._sync_helpers import (
     _sync_merge,
 )
 from rhiza.models import RhizaTemplate, TemplateLock
-from rhiza.subprocess_utils import get_git_executable
+from rhiza.subprocess_utils import GitContext
 
 __all__ = ["LOCK_FILE", "sync"]
 
@@ -63,17 +62,15 @@ def sync(
     logger.info(f"Rhiza branch: {branch}")
     logger.info(f"Sync strategy: {strategy}")
 
-    git_executable = get_git_executable()
-    git_env = os.environ.copy()
-    git_env["GIT_TERMINAL_PROMPT"] = "0"
+    git = GitContext.default()
 
-    _assert_git_status_clean(target, git_executable, git_env)
-    _handle_target_branch(target, target_branch, git_executable, git_env)
+    _assert_git_status_clean(target, git)
+    _handle_target_branch(target, target_branch, git)
 
     template = RhizaTemplate.from_project(target, branch)
 
     logger.info(f"Cloning {template.template_repository}@{template.template_branch} (upstream)")
-    upstream_dir, upstream_sha = template.clone(git_executable, git_env, branch=branch)
+    upstream_dir, upstream_sha = template.clone(git, branch=branch)
 
     try:
         base_sha = _read_lock(target)
@@ -102,11 +99,10 @@ def sync(
                     target=target,
                     upstream_snapshot=upstream_snapshot,
                     base_sha=base_sha,
-                    template=template,
                     materialized=materialized,
+                    template=template,
                     excludes=excludes,
-                    git_executable=git_executable,
-                    git_env=git_env,
+                    git=git,
                     lock=lock,
                 )
         finally:
