@@ -522,6 +522,7 @@ class TestCloneAndResolveUpstreamWithTemplates:
         mock_resolve,
         mock_head_sha,
         tmp_path,
+        git_ctx,
     ):
         """RhizaTemplate.clone resolves bundle paths when templates is set."""
         # Build a real RhizaTemplate with templates set
@@ -537,7 +538,7 @@ class TestCloneAndResolveUpstreamWithTemplates:
         mock_resolve.return_value = ["Makefile", ".github"]
         mock_head_sha.return_value = "abc123def456"
 
-        upstream_dir, upstream_sha = template.clone(GitContext.default(), branch="main")
+        upstream_dir, upstream_sha = template.clone(git_ctx, branch="main")
 
         # Bundle resolution code path should have been taken
         mock_load_bundles.assert_called_once()

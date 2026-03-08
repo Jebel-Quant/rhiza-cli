@@ -52,29 +52,29 @@ from rhiza.models import GitContext, RhizaTemplate, TemplateLock
 # ---------------------------------------------------------------------------
 
 
-def _git_commit_all(project: Path, git_executable: str, git_env: dict, message: str = "commit") -> str:
+def _git_commit_all(project: Path, git_ctx: GitContext, message: str = "commit") -> str:
     """Stage all files and create a commit.  Returns the new HEAD SHA."""
     subprocess.run(  # nosec B603
-        [git_executable, "add", "."],
+        [git_ctx.executable, "add", "."],
         cwd=project,
         check=True,
         capture_output=True,
-        env=git_env,
+        env=git_ctx.env,
     )
     subprocess.run(  # nosec B603
-        [git_executable, "commit", "-m", message],
+        [git_ctx.executable, "commit", "-m", message],
         cwd=project,
         check=True,
         capture_output=True,
-        env=git_env,
+        env=git_ctx.env,
     )
     result = subprocess.run(  # nosec B603
-        [git_executable, "rev-parse", "HEAD"],
+        [git_ctx.executable, "rev-parse", "HEAD"],
         cwd=project,
         capture_output=True,
         text=True,
         check=True,
-        env=git_env,
+        env=git_ctx.env,
     )
     return result.stdout.strip()
 
@@ -99,9 +99,8 @@ def _make_lock(sha: str, files: list[str]) -> TemplateLock:
 
 
 @pytest.fixture
-def project(git_project, git_setup):
+def project(git_project, git_ctx):
     """A git-initialised project with an initial commit."""
-    git_executable, git_env = git_setup
     project = git_project
     (project / "pyproject.toml").write_text('[project]\nname = "myapp"\n')
     rhiza_dir = project / ".rhiza"
@@ -111,7 +110,7 @@ def project(git_project, git_setup):
         "template-branch: main\n"
         "include:\n  - Makefile\n  - config.py\n  - README.md\n"
     )
-    _git_commit_all(project, git_executable, git_env, "init project")
+    _git_commit_all(project, git_ctx, "init project")
     return project
 
 

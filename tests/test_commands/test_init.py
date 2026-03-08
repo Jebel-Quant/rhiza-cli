@@ -564,8 +564,7 @@ class TestCheckTemplateRepositoryReachable:
     """Tests for the _check_template_repository_reachable function."""
 
     @patch("rhiza.commands.init.subprocess.run")
-    @patch("rhiza.commands.init.get_git_executable", return_value="/usr/bin/git")
-    def test_reachable_repository_returns_true(self, mock_git_exec, mock_run):
+    def test_reachable_repository_returns_true(self, mock_run):
         """Test that a reachable repository returns True."""
         mock_run.return_value = MagicMock(returncode=0)
         result = _check_template_repository_reachable("myorg/my-templates", "github")
@@ -575,16 +574,14 @@ class TestCheckTemplateRepositoryReachable:
         assert "https://github.com/myorg/my-templates" in args
 
     @patch("rhiza.commands.init.subprocess.run")
-    @patch("rhiza.commands.init.get_git_executable", return_value="/usr/bin/git")
-    def test_unreachable_repository_returns_false(self, mock_git_exec, mock_run):
+    def test_unreachable_repository_returns_false(self, mock_run):
         """Test that an unreachable repository returns False."""
         mock_run.return_value = MagicMock(returncode=128)
         result = _check_template_repository_reachable("typo/nonexistent", "github")
         assert result is False
 
     @patch("rhiza.commands.init.subprocess.run")
-    @patch("rhiza.commands.init.get_git_executable", return_value="/usr/bin/git")
-    def test_gitlab_host_uses_gitlab_url(self, mock_git_exec, mock_run):
+    def test_gitlab_host_uses_gitlab_url(self, mock_run):
         """Test that gitlab host uses gitlab.com URL."""
         mock_run.return_value = MagicMock(returncode=0)
         _check_template_repository_reachable("myorg/my-templates", "gitlab")
@@ -592,17 +589,16 @@ class TestCheckTemplateRepositoryReachable:
         assert "https://gitlab.com/myorg/my-templates" in args
 
     @patch("rhiza.commands.init.subprocess.run")
-    @patch("rhiza.commands.init.get_git_executable", return_value="/usr/bin/git")
-    def test_timeout_returns_false(self, mock_git_exec, mock_run):
+    def test_timeout_returns_false(self, mock_run):
         """Test that a timeout returns False."""
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=30)
         result = _check_template_repository_reachable("myorg/my-templates", "github")
         assert result is False
 
-    @patch("rhiza.commands.init.get_git_executable")
-    def test_git_not_found_returns_true(self, mock_git_exec):
+    @patch("rhiza.commands.init.GitContext")
+    def test_git_not_found_returns_true(self, mock_git_ctx_cls):
         """Test that missing git executable returns True (don't block init)."""
-        mock_git_exec.side_effect = RuntimeError("git not found")
+        mock_git_ctx_cls.default.side_effect = RuntimeError("git not found")
         result = _check_template_repository_reachable("myorg/my-templates", "github")
         assert result is True
 
