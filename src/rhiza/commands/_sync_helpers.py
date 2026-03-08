@@ -727,7 +727,7 @@ def _sync_merge(
     try:
         if base_sha:
             _merge_with_base(
-                target, upstream_snapshot, base_sha, base_snapshot, template, excludes, git_executable, git_env, lock
+                target, upstream_snapshot, base_sha, base_snapshot, template, git_executable, git_env, lock
             )
         else:
             logger.info("First sync — copying all template files")
@@ -764,7 +764,6 @@ def _merge_with_base(
     base_sha: str,
     base_snapshot: Path,
     template: "RhizaTemplate",
-    excludes: set[str],
     git_executable: str,
     git_env: dict[str, str],
     lock: TemplateLock,
@@ -777,7 +776,6 @@ def _merge_with_base(
         base_sha: Previously synced commit SHA.
         base_snapshot: Directory to populate with the base snapshot.
         template: The :class:`~rhiza.models.RhizaTemplate` driving this sync.
-        excludes: Set of relative paths to exclude.
         git_executable: Absolute path to git.
         git_env: Environment variables for git commands.
         lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.

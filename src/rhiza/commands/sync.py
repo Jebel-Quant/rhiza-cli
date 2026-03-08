@@ -22,7 +22,6 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import cast
 
 from loguru import logger
 
@@ -72,14 +71,10 @@ def sync(
     _handle_target_branch(target, target_branch, git_executable, git_env)
 
     template = RhizaTemplate.from_project(target, branch)
-    # from_project guarantees these are set; cast for type narrowing
-    template.template_repository = cast(str, template.template_repository)
-    template.template_branch = cast(str, template.template_branch)
 
     logger.info(f"Cloning {template.template_repository}@{template.template_branch} (upstream)")
     upstream_dir, upstream_sha = template.clone(git_executable, git_env, branch=branch)
 
-    # Synchronizes target with upstream template snapshot transactionally; cleans up resources
     try:
         base_sha = _read_lock(target)
 
@@ -104,7 +99,15 @@ def sync(
                 _sync_diff(target=target, upstream_snapshot=upstream_snapshot)
             else:
                 _sync_merge(
-                    target, upstream_snapshot, base_sha, materialized, template, excludes, git_executable, git_env, lock
+                    target=target,
+                    upstream_snapshot=upstream_snapshot,
+                    base_sha=base_sha,
+                    template=template,
+                    materialized=materialized,
+                    excludes=excludes,
+                    git_executable=git_executable,
+                    git_env=git_env,
+                    lock=lock,
                 )
         finally:
             if upstream_snapshot.exists():
