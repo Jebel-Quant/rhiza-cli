@@ -109,7 +109,7 @@ def project(git_project, git_ctx):
         "template-branch: main\n"
         "include:\n  - Makefile\n  - config.py\n  - README.md\n"
     )
-    _git_commit_all(project, "init project")
+    _git_commit_all(project, git_ctx, "init project")
     return project
 
 
@@ -121,7 +121,7 @@ def project(git_project, git_ctx):
 class TestSyncE2ETypicalWorkflow:
     """End-to-end tests for the typical first-then-subsequent-sync workflow."""
 
-    def test_first_sync_copies_all_template_files(self, project, tmp_path):
+    def test_first_sync_copies_all_template_files(self, project, git_ctx, tmp_path):
         """First sync (no lock file) copies every materialized template file into target."""
         upstream = tmp_path / "upstream"
         upstream.mkdir()
@@ -153,7 +153,7 @@ class TestSyncE2ETypicalWorkflow:
         assert _read_lock(project) == "sha_v1"
 
     @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
-    def test_subsequent_sync_applies_template_changes(self, mock_warn, project, tmp_path):
+    def test_subsequent_sync_applies_template_changes(self, mock_warn, project, git_ctx, tmp_path):
         """After first sync, a second sync applies upstream changes and removes orphaned files.
 
         Timeline:
@@ -325,7 +325,7 @@ class TestSyncE2EThreeWayMerge:
     """End-to-end tests verifying that local user changes survive a sync."""
 
     @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
-    def test_user_changes_not_overwritten_by_sync(self, mock_warn, project, tmp_path):
+    def test_user_changes_not_overwritten_by_sync(self, mock_warn, project, git_ctx, tmp_path):
         """Local modifications to a file are preserved when the template also changes it.
 
         The user changes line 2 (api key); the template changes line 1
@@ -394,7 +394,7 @@ class TestSyncE2EExcludedFiles:
     """End-to-end tests verifying that excluded files are never removed."""
 
     @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
-    def test_local_only_file_not_removed_when_not_tracked(self, mock_warn, project, tmp_path):
+    def test_local_only_file_not_removed_when_not_tracked(self, mock_warn, project, git_ctx, tmp_path):
         """A file that was never tracked by the template is never deleted by sync.
 
         The user has a local ``secrets.env`` that is not in the template at

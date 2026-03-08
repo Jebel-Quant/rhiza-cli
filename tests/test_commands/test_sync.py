@@ -293,9 +293,9 @@ class TestSyncCommand:
     """Integration-style tests for the sync command."""
 
     @patch("rhiza.models._git_utils.subprocess.run")
-    @patch("rhiza.commands._sync_helpers.shutil.rmtree")
+    @patch("rhiza.commands.sync.shutil.rmtree")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
-    @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
     def test_sync_diff_does_not_modify_files(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, mock_run, tmp_path):
         """Diff strategy shows changes but does not modify files."""
@@ -328,9 +328,9 @@ class TestSyncCommand:
         assert _read_lock(tmp_path) is None
 
     @patch("rhiza.models._git_utils.subprocess.run")
-    @patch("rhiza.commands._sync_helpers.shutil.rmtree")
+    @patch("rhiza.commands.sync.shutil.rmtree")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
-    @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
     def test_sync_merge_first_sync_copies_files(
         self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, mock_run, tmp_path
@@ -382,9 +382,9 @@ class TestSyncOrphanedFiles:
     """Tests verifying that orphaned files are deleted when template.yml changes during sync."""
 
     @patch("rhiza.models._git_utils.subprocess.run")
-    @patch("rhiza.commands._sync_helpers.shutil.rmtree")
+    @patch("rhiza.commands.sync.shutil.rmtree")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
-    @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
     def test_merge_first_sync_deletes_orphaned_files(
         self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, mock_run, tmp_path
@@ -483,10 +483,10 @@ class TestSyncMergeWithBase:
     """Tests for merge strategy with an existing base SHA."""
 
     @patch("rhiza.models._git_utils.subprocess.run")
-    @patch("rhiza.commands._sync_helpers.shutil.rmtree")
+    @patch("rhiza.commands.sync.shutil.rmtree")
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
-    @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
     def test_sync_merge_with_existing_base_sha(
         self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_rmtree, mock_run, tmp_path
@@ -1939,7 +1939,7 @@ class TestMergeFileFallbackEdgeCases:
         mock_result.returncode = -9  # killed by signal
         mock_result.stderr = b"process killed"
 
-        with patch("rhiza.commands._sync_helpers.subprocess.run", return_value=mock_result):
+        with patch("rhiza.models._git_utils.subprocess.run", return_value=mock_result):
             result = git_ctx._merge_file_fallback(diff, target, base, upstream)
 
         assert result is False

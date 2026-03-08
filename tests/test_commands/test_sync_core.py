@@ -54,9 +54,9 @@ def _make_clone_dir(tmp_path: Path, name: str, files: dict[str, str]) -> Path:
 class TestSyncCore:
     """Core scenario tests for sync()."""
 
-    @patch("rhiza.commands._sync_helpers.shutil.rmtree")
+    @patch("rhiza.commands.sync.shutil.rmtree")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
-    @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
     def test_first_merge_sync_copies_files_and_writes_lock(
         self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path
@@ -76,9 +76,9 @@ class TestSyncCore:
         assert (tmp_path / "test.txt").read_text() == "template content\n"
         assert _read_lock(tmp_path) == "first111"
 
-    @patch("rhiza.commands._sync_helpers.shutil.rmtree")
+    @patch("rhiza.commands.sync.shutil.rmtree")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
-    @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
     def test_diff_strategy_does_not_modify_files_or_write_lock(
         self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path
@@ -98,9 +98,9 @@ class TestSyncCore:
         assert (tmp_path / "test.txt").read_text() == "local content"
         assert _read_lock(tmp_path) is None
 
-    @patch("rhiza.commands._sync_helpers.shutil.rmtree")
+    @patch("rhiza.commands.sync.shutil.rmtree")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
-    @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
     def test_subsequent_merge_updates_lock_sha(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
         """When upstream has a newer SHA, merge updates the lock to the new SHA."""
