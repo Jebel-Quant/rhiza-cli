@@ -578,6 +578,7 @@ class TestMergeWithBasePaths:
             "oldsha",
             [],
             RhizaTemplate(template_repository="example/repo", template_branch="main", include=["file.txt"]),
+            set(),
             git,
             TemplateLock(sha="newsha"),
         )
@@ -603,6 +604,7 @@ class TestMergeWithBasePaths:
             "oldsha",
             [],
             RhizaTemplate(template_repository="example/repo", template_branch="main", include=["file.txt"]),
+            set(),
             git,
             TemplateLock(sha="newsha"),
         )
@@ -634,6 +636,7 @@ class TestMergeWithBasePaths:
             "oldsha",
             [],
             RhizaTemplate(template_repository="example/repo", template_branch="main", include=["file.txt"]),
+            set(),
             git,
             TemplateLock(sha="newsha"),
         )
@@ -1192,6 +1195,7 @@ class TestThreeWayMergeWithBase:
             RhizaTemplate(
                 template_repository="example/repo", template_branch="main", include=["pyproject.toml", "Makefile"]
             ),
+            set(),
             git,
             TemplateLock(sha="newsha"),
         )
@@ -1226,6 +1230,7 @@ class TestThreeWayMergeWithBase:
             "base_sha_xyz",
             [Path("ci.yml")],
             RhizaTemplate(template_repository="example/repo", template_branch="main", include=["ci.yml"]),
+            set(),
             git,
             TemplateLock(sha="upstream_sha_abc"),
         )
@@ -1259,6 +1264,7 @@ class TestThreeWayMergeWithBase:
             "oldsha",
             [Path("existing.yml"), Path("new_workflow.yml")],
             RhizaTemplate(template_repository="example/repo", template_branch="main", include=["existing.yml"]),
+            set(),
             git,
             TemplateLock(sha="newsha"),
         )
@@ -1293,6 +1299,7 @@ class TestThreeWayMergeWithBase:
             RhizaTemplate(
                 template_repository="example/repo", template_branch="main", include=["legacy.cfg", "main.cfg"]
             ),
+            set(),
             git,
             TemplateLock(sha="newsha"),
         )
