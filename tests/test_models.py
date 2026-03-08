@@ -4,7 +4,6 @@ This module verifies that the RhizaTemplate dataclass correctly represents
 and handles .rhiza/template.yml configuration.
 """
 
-import os
 import shutil
 from unittest.mock import MagicMock, patch
 
@@ -12,6 +11,7 @@ import pytest
 import yaml
 
 from rhiza.models import RhizaTemplate, TemplateLock
+from rhiza.subprocess_utils import GitContext
 
 
 class TestRhizaTemplate:
@@ -393,8 +393,6 @@ class TestRhizaTemplateClone:
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     def test_clone_returns_upstream_dir_and_sha(self, mock_clone, mock_head_sha):
         """Clone returns (upstream_dir, upstream_sha) for a plain include-list template."""
-        from rhiza.subprocess_utils import get_git_executable
-
         mock_head_sha.return_value = "abc123def456"
 
         template = RhizaTemplate(
@@ -404,7 +402,7 @@ class TestRhizaTemplateClone:
             include=["Makefile", ".github"],
         )
 
-        upstream_dir, upstream_sha = template.clone(get_git_executable(), os.environ.copy(), branch="main")
+        upstream_dir, upstream_sha = template.clone(GitContext.default(), branch="main")
 
         assert upstream_dir.is_dir()
         assert upstream_sha == "abc123def456"
@@ -419,8 +417,6 @@ class TestRhizaTemplateClone:
         self, mock_clone, mock_load_bundles, mock_resolve, mock_head_sha
     ):
         """Clone resolves bundle paths and updates self.include when templates are set."""
-        from rhiza.subprocess_utils import get_git_executable
-
         mock_bundles = MagicMock()
         mock_load_bundles.return_value = mock_bundles
         mock_resolve.return_value = ["Makefile", ".github"]
@@ -434,7 +430,7 @@ class TestRhizaTemplateClone:
         )
 
         with patch("subprocess.run") as mock_run:
-            upstream_dir, upstream_sha = template.clone(get_git_executable(), os.environ.copy(), branch="main")
+            upstream_dir, upstream_sha = template.clone(GitContext.default(), branch="main")
             mock_run.assert_called_once()
 
         mock_load_bundles.assert_called_once()
@@ -445,26 +441,20 @@ class TestRhizaTemplateClone:
 
     def test_clone_raises_when_no_repository(self):
         """Clone raises ValueError when template_repository is not set."""
-        from rhiza.subprocess_utils import get_git_executable
-
         template = RhizaTemplate(include=["Makefile"])
         with pytest.raises(ValueError, match="template_repository is not configured"):
-            template.clone(get_git_executable(), os.environ.copy())
+            template.clone(GitContext.default())
 
     def test_clone_raises_when_no_include_or_templates(self):
         """Clone raises ValueError when neither include nor templates are set."""
-        from rhiza.subprocess_utils import get_git_executable
-
         template = RhizaTemplate(template_repository="owner/repo")
         with pytest.raises(ValueError, match="No templates or include paths"):
-            template.clone(get_git_executable(), os.environ.copy())
+            template.clone(GitContext.default())
 
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     def test_clone_uses_template_branch_over_default(self, mock_clone, mock_head_sha):
         """Clone uses template_branch when set, ignoring the branch argument."""
-        from rhiza.subprocess_utils import get_git_executable
-
         mock_head_sha.return_value = "sha_from_develop"
 
         template = RhizaTemplate(
@@ -473,7 +463,7 @@ class TestRhizaTemplateClone:
             include=["Makefile"],
         )
 
-        upstream_dir, upstream_sha = template.clone(get_git_executable(), os.environ.copy(), branch="main")
+        upstream_dir, upstream_sha = template.clone(GitContext.default(), branch="main")
 
         # The clone should use 'develop' (template_branch), not 'main' (default arg).
         call_args = mock_clone.call_args

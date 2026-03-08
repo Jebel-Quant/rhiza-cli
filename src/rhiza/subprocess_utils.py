@@ -4,7 +4,29 @@ This module provides helper functions to resolve executable paths
 to prevent PATH manipulation security vulnerabilities.
 """
 
+import os
 import shutil
+from dataclasses import dataclass, field
+
+
+@dataclass
+class GitContext:
+    """Bundles the git executable path and environment for subprocess calls.
+
+    Attributes:
+        executable: Absolute path to the git binary (from ``get_git_executable()``).
+        env: Environment mapping to pass to every git subprocess.
+    """
+
+    executable: str
+    env: dict[str, str] = field(default_factory=dict)
+
+    @classmethod
+    def default(cls) -> "GitContext":
+        """Construct a GitContext using the system git and a clean copy of os.environ."""
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        return cls(executable=get_git_executable(), env=env)
 
 
 def get_git_executable() -> str:

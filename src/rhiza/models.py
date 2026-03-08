@@ -15,8 +15,11 @@ from typing import Any
 import yaml
 from loguru import logger
 
+from rhiza.subprocess_utils import GitContext
+
 __all__ = [
     "BundleDefinition",
+    "GitContext",
     "RhizaBundles",
     "RhizaTemplate",
     "TemplateLock",
@@ -376,24 +379,23 @@ class RhizaTemplate:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _get_head_sha(repo_dir: Path, git_executable: str, git_env: dict[str, str]) -> str:
+    def _get_head_sha(repo_dir: Path, git: GitContext) -> str:
         """Return the HEAD commit SHA of a cloned repository.
 
         Args:
             repo_dir: Path to the git repository.
-            git_executable: Absolute path to git.
-            git_env: Environment variables for git commands.
+            git: Git context (executable path and environment).
 
         Returns:
             The full HEAD SHA.
         """
         result = subprocess.run(  # nosec B603  # noqa: S603
-            [git_executable, "rev-parse", "HEAD"],
+            [git.executable, "rev-parse", "HEAD"],
             cwd=repo_dir,
             capture_output=True,
             text=True,
             check=True,
-            env=git_env,
+            env=git.env,
         )
         return result.stdout.strip()
 
@@ -402,8 +404,7 @@ class RhizaTemplate:
         tmp_dir: Path,
         rhiza_branch: str,
         include_paths: list[str],
-        git_executable: str,
-        git_env: dict[str, str],
+        git: GitContext,
     ) -> None:
         """Clone template repository with sparse checkout.
 
@@ -411,15 +412,14 @@ class RhizaTemplate:
             tmp_dir: Temporary directory for cloning.
             rhiza_branch: Branch to clone.
             include_paths: Initial paths to include in sparse checkout.
-            git_executable: Path to git executable.
-            git_env: Environment variables for git commands.
+            git: Git context (executable path and environment).
         """
         git_url = self.git_url
         try:
             logger.debug("Executing git clone with sparse checkout")
             subprocess.run(  # nosec B603  # noqa: S603
                 [
-                    git_executable,
+                    git.executable,
                     "clone",
                     "--depth",
                     "1",
@@ -433,7 +433,7 @@ class RhizaTemplate:
                 check=True,
                 capture_output=True,
                 text=True,
-                env=git_env,
+                env=git.env,
             )
             logger.debug("Git clone completed successfully")
         except subprocess.CalledProcessError as e:
@@ -448,12 +448,12 @@ class RhizaTemplate:
         try:
             logger.debug("Initializing sparse checkout")
             subprocess.run(  # nosec B603  # noqa: S603
-                [git_executable, "sparse-checkout", "init", "--cone"],
+                [git.executable, "sparse-checkout", "init", "--cone"],
                 cwd=tmp_dir,
                 check=True,
                 capture_output=True,
                 text=True,
-                env=git_env,
+                env=git.env,
             )
             logger.debug("Sparse checkout initialized")
         except subprocess.CalledProcessError as e:
@@ -464,12 +464,12 @@ class RhizaTemplate:
         try:
             logger.debug(f"Setting sparse checkout paths: {include_paths}")
             subprocess.run(  # nosec B603  # noqa: S603
-                [git_executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
+                [git.executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
                 cwd=tmp_dir,
                 check=True,
                 capture_output=True,
                 text=True,
-                env=git_env,
+                env=git.env,
             )
             logger.debug("Sparse checkout paths configured")
         except subprocess.CalledProcessError as e:
@@ -482,8 +482,7 @@ class RhizaTemplate:
         sha: str,
         dest: Path,
         include_paths: list[str],
-        git_executable: str,
-        git_env: dict[str, str],
+        git: GitContext,
     ) -> None:
         """Clone the template repository and checkout a specific commit.
 
@@ -491,14 +490,13 @@ class RhizaTemplate:
             sha: Commit SHA to check out.
             dest: Target directory for the clone.
             include_paths: Paths for sparse checkout.
-            git_executable: Absolute path to git.
-            git_env: Environment variables for git commands.
+            git: Git context (executable path and environment).
         """
         git_url = self.git_url
         try:
             subprocess.run(  # nosec B603  # noqa: S603
                 [
-                    git_executable,
+                    git.executable,
                     "clone",
                     "--filter=blob:none",
                     "--sparse",
@@ -509,7 +507,7 @@ class RhizaTemplate:
                 check=True,
                 capture_output=True,
                 text=True,
-                env=git_env,
+                env=git.env,
             )
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to clone repository for base snapshot: {git_url}")
@@ -518,20 +516,20 @@ class RhizaTemplate:
 
         try:
             subprocess.run(  # nosec B603  # noqa: S603
-                [git_executable, "sparse-checkout", "init", "--cone"],
+                [git.executable, "sparse-checkout", "init", "--cone"],
                 cwd=dest,
                 check=True,
                 capture_output=True,
                 text=True,
-                env=git_env,
+                env=git.env,
             )
             subprocess.run(  # nosec B603  # noqa: S603
-                [git_executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
+                [git.executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
                 cwd=dest,
                 check=True,
                 capture_output=True,
                 text=True,
-                env=git_env,
+                env=git.env,
             )
         except subprocess.CalledProcessError as e:
             logger.error("Failed to configure sparse checkout for base snapshot")
@@ -540,12 +538,12 @@ class RhizaTemplate:
 
         try:
             subprocess.run(  # nosec B603  # noqa: S603
-                [git_executable, "checkout", sha],
+                [git.executable, "checkout", sha],
                 cwd=dest,
                 check=True,
                 capture_output=True,
                 text=True,
-                env=git_env,
+                env=git.env,
             )
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to checkout base commit {sha[:12]}")
@@ -615,8 +613,7 @@ class RhizaTemplate:
 
     def clone(
         self,
-        git_executable: str,
-        git_env: dict[str, str],
+        git: GitContext,
         branch: str = "main",
     ) -> tuple[Path, str]:
         """Clone the upstream template repository and resolve include paths.
@@ -626,8 +623,7 @@ class RhizaTemplate:
         to file paths and ``self.include`` is updated with the result.
 
         Args:
-            git_executable: Absolute path to the git executable.
-            git_env: Environment variables for git commands.
+            git: Git context (executable path and environment).
             branch: Default branch to use when ``template_branch`` is not set
                 on the template.
 
@@ -656,7 +652,7 @@ class RhizaTemplate:
 
         upstream_dir = Path(tempfile.mkdtemp())
         initial_paths = [".rhiza"] if self.templates else include_paths
-        self._clone_template_repository(upstream_dir, rhiza_branch, initial_paths, git_executable, git_env)
+        self._clone_template_repository(upstream_dir, rhiza_branch, initial_paths, git)
 
         if self.templates:
             bundles_config = load_bundles_from_clone(upstream_dir)
@@ -664,12 +660,12 @@ class RhizaTemplate:
             try:
                 logger.debug(f"Updating sparse checkout paths: {resolved_paths}")
                 subprocess.run(  # nosec B603  # noqa: S603
-                    [git_executable, "sparse-checkout", "set", "--skip-checks", *resolved_paths],
+                    [git.executable, "sparse-checkout", "set", "--skip-checks", *resolved_paths],
                     cwd=upstream_dir,
                     check=True,
                     capture_output=True,
                     text=True,
-                    env=git_env,
+                    env=git.env,
                 )
                 logger.debug("Sparse checkout paths updated")
             except subprocess.CalledProcessError as e:
@@ -678,7 +674,7 @@ class RhizaTemplate:
                 raise
             self.include = resolved_paths
 
-        upstream_sha = self._get_head_sha(upstream_dir, git_executable, git_env)
+        upstream_sha = self._get_head_sha(upstream_dir, git)
         logger.info(f"Upstream HEAD: {upstream_sha[:12]}")
 
         return upstream_dir, upstream_sha
