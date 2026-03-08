@@ -449,15 +449,15 @@ class TestSyncCLI:
         result = self.runner.invoke(cli.app, ["sync", str(tmp_path), "--strategy", "invalid"])
         assert result.exit_code != 0
 
-    @patch("rhiza.commands.sync.sync")
+    @patch("rhiza.cli.sync_cmd")
     def test_sync_cli_calls_sync_function(self, mock_sync, tmp_path):
         """CLI should delegate to sync function."""
         result = self.runner.invoke(
             cli.app,
             ["sync", str(tmp_path), "--strategy", "diff", "--branch", "develop"],
         )
-        if result.exit_code == 0:
-            mock_sync.assert_called_once()
+        assert result.exit_code == 0
+        mock_sync.assert_called_once()
 
 
 class TestApplyDiffConflict:
