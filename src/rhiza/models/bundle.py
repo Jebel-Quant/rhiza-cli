@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -179,3 +180,33 @@ class RhizaBundles:
         if not bundles_file.exists():
             return None
         return cls.from_yaml(bundles_file)
+
+    def to_yaml(self, file_path: Path) -> None:
+        """Save RhizaBundles to a YAML file.
+
+        Args:
+            file_path: Destination path.  Parent directories are created
+                automatically if they do not exist.
+        """
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        config: dict[str, Any] = {}
+
+        if self.version is not None:
+            config["version"] = self.version
+
+        bundles_dict: dict[str, Any] = {}
+        for name, bundle in self.bundles.items():
+            bundle_entry: dict[str, Any] = {"description": bundle.description}
+            if bundle.files:
+                bundle_entry["files"] = bundle.files
+            if bundle.workflows:
+                bundle_entry["workflows"] = bundle.workflows
+            if bundle.depends_on:
+                bundle_entry["depends-on"] = bundle.depends_on
+            bundles_dict[name] = bundle_entry
+
+        config["bundles"] = bundles_dict
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
