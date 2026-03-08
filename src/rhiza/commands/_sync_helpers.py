@@ -26,7 +26,7 @@ import yaml
 from loguru import logger
 
 from rhiza.models import RhizaTemplate, TemplateLock, _is_excluded
-from rhiza.subprocess_utils import get_git_executable
+from rhiza.subprocess_utils import GitContext
 
 # ---------------------------------------------------------------------------
 # Diff prefix constants
@@ -42,14 +42,13 @@ _DIFF_DST_PREFIX = "upstream-template-new"
 LOCK_FILE = ".rhiza/template.lock"
 
 
-def _get_diff(repo0: Path, repo1: Path) -> str:
+def _get_diff(repo0: Path, repo1: Path, git: GitContext) -> str:
     """Compute the raw diff between two directory trees using ``git diff --no-index``."""
-    git = get_git_executable()
     repo0_str = repo0.resolve().as_posix()
     repo1_str = repo1.resolve().as_posix()
     result = subprocess.run(  # nosec B603  # noqa: S603
         [
-            git,
+            git.executable,
             "-c",
             "diff.noprefix=",
             "diff",
@@ -670,7 +669,7 @@ def _copy_files_to_target(snapshot_dir: Path, target: Path, materialized: list[P
         logger.success(f"[COPY] {rel_path}")
 
 
-def _sync_diff(target: Path, upstream_snapshot: Path) -> None:
+def _sync_diff(target: Path, upstream_snapshot: Path, git: GitContext) -> None:
     """Execute the diff (dry-run) strategy.
 
     Shows what would change without modifying any files.
@@ -678,8 +677,9 @@ def _sync_diff(target: Path, upstream_snapshot: Path) -> None:
     Args:
         target: Path to the target repository.
         upstream_snapshot: Path to the upstream snapshot directory.
+        git: GitContext carrying the resolved git executable.
     """
-    diff = _get_diff(target, upstream_snapshot)
+    diff = _get_diff(target, upstream_snapshot, git)
     if diff.strip():
         logger.info(f"\n{diff}")
         changes = diff.count("diff --git")
@@ -791,7 +791,7 @@ def _merge_with_base(
         if base_clone.exists():
             shutil.rmtree(base_clone)
 
-    diff = _get_diff(base_snapshot, upstream_snapshot)
+    diff = _get_diff(base_snapshot, upstream_snapshot, GitContext(executable=git_executable))
 
     if not diff.strip():
         logger.success("Template unchanged since last sync — nothing to apply")

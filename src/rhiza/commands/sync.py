@@ -34,7 +34,7 @@ from rhiza.commands._sync_helpers import (
     _sync_merge,
 )
 from rhiza.models import RhizaTemplate, TemplateLock
-from rhiza.subprocess_utils import get_git_executable
+from rhiza.subprocess_utils import GitContext, get_git_executable
 
 __all__ = ["LOCK_FILE", "sync"]
 
@@ -96,7 +96,11 @@ def sync(
             )
 
             if strategy == "diff":
-                _sync_diff(target=target, upstream_snapshot=upstream_snapshot)
+                _sync_diff(
+                    target=target,
+                    upstream_snapshot=upstream_snapshot,
+                    git=GitContext(executable=git_executable),
+                )
             else:
                 _sync_merge(
                     target=target,

@@ -4,7 +4,31 @@ This module provides helper functions to resolve executable paths
 to prevent PATH manipulation security vulnerabilities.
 """
 
+import dataclasses
 import shutil
+
+
+@dataclasses.dataclass
+class GitContext:
+    """Holds the resolved git executable path for injection into helpers.
+
+    Attributes:
+        executable: Absolute path to the git binary.
+    """
+
+    executable: str
+
+    @classmethod
+    def default(cls) -> "GitContext":
+        """Create a GitContext using the git executable found on PATH.
+
+        Returns:
+            A GitContext backed by the system git binary.
+
+        Raises:
+            RuntimeError: If git is not found in PATH.
+        """
+        return cls(executable=get_git_executable())
 
 
 def get_git_executable() -> str:
