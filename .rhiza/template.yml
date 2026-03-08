@@ -7,3 +7,6 @@ templates:
     - legal
     - tests
     - book
+
+exclude:
+  - .github/workflows/rhiza_benchmarks.yml
