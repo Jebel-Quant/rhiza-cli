@@ -20,6 +20,7 @@ __all__ = [
     "RhizaBundles",
     "RhizaTemplate",
     "TemplateLock",
+    "get_git_executable",
 ]
 
 
@@ -69,6 +70,25 @@ def _normalize_to_list(value: str | list[str] | None) -> list[str]:
         items = value.split("\\n") if "\\n" in value and "\n" not in value else value.split("\n")
         return [item.strip() for item in items if item.strip()]
     return []
+
+
+def get_git_executable() -> str:
+    """Get the absolute path to the git executable.
+
+    This function ensures we use the full path to git to prevent
+    security issues related to PATH manipulation.
+
+    Returns:
+        str: Absolute path to the git executable.
+
+    Raises:
+        RuntimeError: If git executable is not found in PATH.
+    """
+    git_path = shutil.which("git")
+    if git_path is None:
+        msg = "git executable not found in PATH. Please ensure git is installed and available."
+        raise RuntimeError(msg)
+    return git_path
 
 
 @dataclass

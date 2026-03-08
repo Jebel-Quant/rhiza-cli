@@ -19,8 +19,7 @@ from loguru import logger
 
 from rhiza.commands.list_repos import _DESC_WIDTH, _fetch_repos
 from rhiza.commands.validate import validate
-from rhiza.models import RhizaTemplate
-from rhiza.subprocess_utils import get_git_executable
+from rhiza.models import RhizaTemplate, get_git_executable
 
 
 def _normalize_package_name(name: str) -> str:
