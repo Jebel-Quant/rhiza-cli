@@ -27,8 +27,6 @@ from loguru import logger
 from rhiza.commands._sync_helpers import (
     LOCK_FILE,
     _read_lock,
-    _sync_diff,
-    _sync_merge,
 )
 from rhiza.models import GitContext, RhizaTemplate, TemplateLock
 
@@ -91,22 +89,20 @@ def sync(
             )
 
             if strategy == "diff":
-                _sync_diff(
+                git_ctx.sync_diff(
                     target=target,
                     upstream_snapshot=upstream_snapshot,
-                    git_ctx=git_ctx,
                 )
             else:
-                _sync_merge(
-                    target,
-                    upstream_snapshot,
-                    upstream_sha,
-                    base_sha,
-                    materialized,
-                    template,
-                    excludes,
-                    git_ctx,
-                    lock,
+                git_ctx.sync_merge(
+                    target=target,
+                    upstream_snapshot=upstream_snapshot,
+                    upstream_sha=upstream_sha,
+                    base_sha=base_sha,
+                    materialized=materialized,
+                    template=template,
+                    excludes=excludes,
+                    lock=lock,
                 )
         finally:
             if upstream_snapshot.exists():

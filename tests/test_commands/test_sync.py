@@ -20,18 +20,11 @@ from typer.testing import CliRunner
 
 from rhiza import cli
 from rhiza.commands._sync_helpers import (
-    _apply_diff,
     _clean_orphaned_files,
     _delete_orphaned_file,
     _files_from_snapshot,
-    _get_diff,
-    _merge_file_fallback,
-    _merge_with_base,
-    _parse_diff_filenames,
     _read_lock,
     _read_previously_tracked_files,
-    _sync_diff,
-    _sync_merge,
     _warn_about_workflow_files,
     _write_lock,
 )
@@ -249,13 +242,13 @@ class TestApplyDiff:
             " line3\n"
         )
 
-        result = _apply_diff(diff, git_project, git_ctx)
+        result = git_ctx._apply_diff(diff, git_project)
         assert result is True
         assert "line2-updated" in (git_project / "test.txt").read_text()
 
     def test_apply_empty_diff_returns_true(self, git_project, git_ctx):
         """An empty diff is not a failure."""
-        result = _apply_diff("", git_project, git_ctx)
+        result = git_ctx._apply_diff("", git_project, git_ctx)
         assert result is True
 
 
@@ -382,7 +375,7 @@ class TestSyncCommand:
         (upstream / "same.txt").write_text("identical")
 
         # Should not raise; line 355 (logger.success) should be executed
-        _sync_diff(target, upstream, git_ctx)
+        git_ctx.sync_diff(target, upstream)
 
 
 class TestSyncOrphanedFiles:
@@ -482,7 +475,7 @@ class TestApplyDiffConflict:
             "-old\n"
             "+new\n"
         )
-        result = _apply_diff(diff, git_project, git_ctx)
+        result = git_ctx._apply_diff(diff, git_project)
         assert result is False
 
 
@@ -594,7 +587,7 @@ class TestMergeWithBasePaths:
         target.mkdir()
 
         # Should not raise — exception is caught and we fall through
-        _merge_with_base(
+        git_ctx._merge_with_base(
             target,
             upstream_snapshot,
             "newsha",
@@ -602,11 +595,10 @@ class TestMergeWithBasePaths:
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
             set(),
-            git_ctx,
             TemplateLock(sha="newsha"),
         )
 
-    @patch("rhiza.commands._sync_helpers._get_diff")
+    @patch("rhiza.models._git_utils.GitContext.get_diff")
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
     @patch("rhiza.models.RhizaTemplate._prepare_snapshot")
     def test_merge_with_base_no_diff(self, mock_prepare, mock_clone, mock_get_diff, tmp_path, git_ctx):
@@ -621,7 +613,7 @@ class TestMergeWithBasePaths:
         target.mkdir()
         (target / ".rhiza").mkdir()
 
-        _merge_with_base(
+        git_ctx._merge_with_base(
             target,
             upstream_snapshot,
             "newsha",
@@ -629,15 +621,14 @@ class TestMergeWithBasePaths:
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
             set(),
-            git_ctx,
             TemplateLock(sha="newsha"),
         )
 
         # Lock should be updated with upstream SHA
         assert _read_lock(target) == "newsha"
 
-    @patch("rhiza.commands._sync_helpers._apply_diff")
-    @patch("rhiza.commands._sync_helpers._get_diff")
+    @patch("rhiza.models._git_utils.GitContext._apply_diff")
+    @patch("rhiza.models._git_utils.GitContext.get_diff")
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
     @patch("rhiza.models.RhizaTemplate._prepare_snapshot")
     def test_merge_with_base_clean_apply(
@@ -654,7 +645,7 @@ class TestMergeWithBasePaths:
         base_snapshot = tmp_path / "base"
         base_snapshot.mkdir()
 
-        _merge_with_base(
+        git_ctx._merge_with_base(
             git_project,
             upstream_snapshot,
             "newsha",
@@ -662,7 +653,6 @@ class TestMergeWithBasePaths:
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
             set(),
-            git_ctx,
             TemplateLock(sha="newsha"),
         )
 
@@ -704,8 +694,8 @@ class TestThreeWayMergeApplyDiff:
         (base / "Makefile").write_text("install:\n\techo old\n")
         (upstream / "Makefile").write_text("install:\n\techo new\n")
 
-        diff = _get_diff(base, upstream, git_ctx)
-        result = _apply_diff(diff, git_project, git_ctx)
+        diff = git_ctx.get_diff(base, upstream)
+        result = git_ctx._apply_diff(diff, git_project)
 
         assert result is True
         assert "echo new" in (git_project / "Makefile").read_text()
@@ -723,8 +713,8 @@ class TestThreeWayMergeApplyDiff:
         # base has no new_tool.yml; upstream adds it
         (upstream / "new_tool.yml").write_text("version: 1\nenabled: true\n")
 
-        diff = _get_diff(base, upstream, git_ctx)
-        result = _apply_diff(diff, git_project, git_ctx)
+        diff = git_ctx.get_diff(base, upstream)
+        result = git_ctx._apply_diff(diff, git_project)
 
         assert result is True
         assert (git_project / "new_tool.yml").exists()
@@ -743,8 +733,8 @@ class TestThreeWayMergeApplyDiff:
         (base / "legacy_config.yml").write_text("old: setting\n")
         # upstream does NOT have the file → deletion diff
 
-        diff = _get_diff(base, upstream, git_ctx)
-        result = _apply_diff(diff, git_project, git_ctx)
+        diff = git_ctx.get_diff(base, upstream)
+        result = git_ctx._apply_diff(diff, git_project)
 
         assert result is True
         assert not (git_project / "legacy_config.yml").exists()
@@ -768,8 +758,8 @@ class TestThreeWayMergeApplyDiff:
             (base / f).write_text(f"steps:\n  - run: {old}\n")
             (upstream / f).write_text(f"steps:\n  - run: {new}\n")
 
-        diff = _get_diff(base, upstream, git_ctx)
-        result = _apply_diff(diff, git_project, git_ctx)
+        diff = git_ctx.get_diff(base, upstream)
+        result = git_ctx._apply_diff(diff, git_project)
 
         assert result is True
         assert "test-v2" in (git_project / "ci.yml").read_text()
@@ -789,8 +779,8 @@ class TestThreeWayMergeApplyDiff:
         (base / "Makefile").write_text(makefile_base)
         (upstream / "Makefile").write_text(makefile_base + "\ntest:\n\tpytest\n")
 
-        diff = _get_diff(base, upstream, git_ctx)
-        result = _apply_diff(diff, git_project, git_ctx)
+        diff = git_ctx.get_diff(base, upstream)
+        result = git_ctx._apply_diff(diff, git_project)
 
         assert result is True
         content = (git_project / "Makefile").read_text()
@@ -814,8 +804,8 @@ class TestThreeWayMergeApplyDiff:
         (base / "settings.cfg").write_text("timeout = 30\n")
         (upstream / "settings.cfg").write_text("timeout = 60\n")
 
-        diff = _get_diff(base, upstream, git_ctx)
-        result = _apply_diff(diff, git_project, git_ctx)
+        diff = git_ctx.get_diff(base, upstream)
+        result = git_ctx._apply_diff(diff, git_project)
 
         # Apply cannot succeed — local file diverged from the context
         assert result is False
@@ -839,8 +829,8 @@ class TestThreeWayMergeApplyDiff:
         (upstream / "kept.yml").write_text("version: 2\n")
         (upstream / "new.yml").write_text("feature: true\n")
 
-        diff = _get_diff(base, upstream, git_ctx)
-        result = _apply_diff(diff, git_project, git_ctx)
+        diff = git_ctx.get_diff(base, upstream)
+        result = git_ctx._apply_diff(diff, git_project)
 
         assert result is True
         assert "version: 2" in (git_project / "kept.yml").read_text()
@@ -881,8 +871,9 @@ class TestMergeFileFallback:
         (base / "ci.yml").write_text("version: 1\n")
         (upstream / "ci.yml").write_text("version: 2\n")
 
-        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
-        entries = _parse_diff_filenames(diff)
+        diff = GitContext(executable=git_executable, env=git_env).get_diff(base, upstream)
+        ctx = GitContext(executable=git_executable, env=git_env)
+        entries = ctx._parse_diff_filenames(diff)
 
         assert len(entries) == 1
         rel_path, is_new, is_deleted = entries[0]
@@ -899,8 +890,9 @@ class TestMergeFileFallback:
         upstream.mkdir()
         (upstream / "added.yml").write_text("new: true\n")
 
-        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
-        entries = _parse_diff_filenames(diff)
+        diff = GitContext(executable=git_executable, env=git_env).get_diff(base, upstream)
+        ctx = GitContext(executable=git_executable, env=git_env)
+        entries = ctx._parse_diff_filenames(diff)
 
         assert len(entries) == 1
         rel_path, is_new, is_deleted = entries[0]
@@ -917,8 +909,9 @@ class TestMergeFileFallback:
         upstream.mkdir()
         (base / "gone.yml").write_text("old: true\n")
 
-        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
-        entries = _parse_diff_filenames(diff)
+        diff = GitContext(executable=git_executable, env=git_env).get_diff(base, upstream)
+        ctx = GitContext(executable=git_executable, env=git_env)
+        entries = ctx._parse_diff_filenames(diff)
 
         assert len(entries) == 1
         rel_path, is_new, is_deleted = entries[0]
@@ -938,8 +931,9 @@ class TestMergeFileFallback:
         (upstream / "keep.yml").write_text("v: 2\n")
         (upstream / "new.yml").write_text("fresh: yes\n")
 
-        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
-        entries = _parse_diff_filenames(diff)
+        diff = GitContext(executable=git_executable, env=git_env).get_diff(base, upstream)
+        ctx = GitContext(executable=git_executable, env=git_env)
+        entries = ctx._parse_diff_filenames(diff)
 
         paths = {e[0]: e for e in entries}
         assert paths["keep.yml"] == ("keep.yml", False, False)
@@ -1010,8 +1004,8 @@ class TestMergeFileFallback:
         upstream.mkdir()
         (upstream / "ci.yml").write_text(upstream_content)
 
-        diff = _get_diff(base, upstream, git_ctx)
-        result = _merge_file_fallback(diff, git_project, base, upstream, git_ctx)
+        diff = git_ctx.get_diff(base, upstream)
+        result = git_ctx._merge_file_fallback(diff, git_project, base, upstream)
 
         assert result is True
         content = (git_project / "ci.yml").read_text()
@@ -1036,8 +1030,8 @@ class TestMergeFileFallback:
         (base / "settings.cfg").write_text("timeout = 30\n")
         (upstream / "settings.cfg").write_text("timeout = 60\n")
 
-        diff = _get_diff(base, upstream, git_ctx)
-        result = _merge_file_fallback(diff, git_project, base, upstream, git_ctx)
+        diff = git_ctx.get_diff(base, upstream)
+        result = git_ctx._merge_file_fallback(diff, git_project, base, upstream)
 
         assert result is False
         content = (git_project / "settings.cfg").read_text()
@@ -1056,8 +1050,8 @@ class TestMergeFileFallback:
         upstream.mkdir()
         (upstream / "new_workflow.yml").write_text("name: deploy\n")
 
-        diff = _get_diff(base, upstream, git_ctx)
-        result = _merge_file_fallback(diff, git_project, base, upstream, git_ctx)
+        diff = git_ctx.get_diff(base, upstream)
+        result = git_ctx._merge_file_fallback(diff, git_project, base, upstream)
 
         assert result is True
         assert (git_project / "new_workflow.yml").exists()
@@ -1074,8 +1068,8 @@ class TestMergeFileFallback:
         upstream.mkdir()
         (base / "legacy.cfg").write_text("old: setting\n")
 
-        diff = _get_diff(base, upstream, git_ctx)
-        result = _merge_file_fallback(diff, git_project, base, upstream, git_ctx)
+        diff = git_ctx.get_diff(base, upstream)
+        result = git_ctx._merge_file_fallback(diff, git_project, base, upstream)
 
         assert result is True
         assert not (git_project / "legacy.cfg").exists()
@@ -1141,8 +1135,8 @@ class TestMergeFileFallback:
         (base / "ci.yml").write_text(base_content)
         (upstream / "ci.yml").write_text(upstream_content)
 
-        diff = _get_diff(base, upstream, git_ctx)
-        result = _apply_diff(diff, git_project, git_ctx, base_snapshot=base, upstream_snapshot=upstream)
+        diff = git_ctx.get_diff(base, upstream)
+        result = git_ctx._apply_diff(diff, git_project, base_snapshot=base, upstream_snapshot=upstream)
 
         assert result is True
         content = (git_project / "ci.yml").read_text()
@@ -1193,7 +1187,7 @@ class TestThreeWayMergeWithBase:
 
         mock_clone.side_effect = populate_base_clone
 
-        _merge_with_base(
+        git_ctx._merge_with_base(
             git_project,
             upstream_snapshot,
             "newsha",
@@ -1201,7 +1195,6 @@ class TestThreeWayMergeWithBase:
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["pyproject.toml", "Makefile"]),
             set(),
-            git_ctx,
             TemplateLock(sha="newsha"),
         )
 
@@ -1230,7 +1223,7 @@ class TestThreeWayMergeWithBase:
 
         mock_clone.side_effect = populate_base_clone
 
-        _merge_with_base(
+        git_ctx._merge_with_base(
             git_project,
             upstream_snapshot,
             "upstream_sha_abc",
@@ -1238,7 +1231,6 @@ class TestThreeWayMergeWithBase:
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["ci.yml"]),
             set(),
-            git_ctx,
             TemplateLock(sha="upstream_sha_abc"),
         )
 
@@ -1266,7 +1258,7 @@ class TestThreeWayMergeWithBase:
 
         mock_clone.side_effect = populate_base_clone
 
-        _merge_with_base(
+        git_ctx._merge_with_base(
             git_project,
             upstream_snapshot,
             "newsha",
@@ -1274,7 +1266,6 @@ class TestThreeWayMergeWithBase:
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["existing.yml"]),
             set(),
-            git_ctx,
             TemplateLock(sha="newsha"),
         )
 
@@ -1303,7 +1294,7 @@ class TestThreeWayMergeWithBase:
 
         mock_clone.side_effect = populate_base_clone
 
-        _merge_with_base(
+        git_ctx._merge_with_base(
             git_project,
             upstream_snapshot,
             "newsha",
@@ -1311,7 +1302,6 @@ class TestThreeWayMergeWithBase:
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["legacy.cfg", "main.cfg"]),
             set(),
-            git_ctx,
             TemplateLock(sha="newsha"),
         )
 
@@ -1386,7 +1376,7 @@ class TestThreeWayMergeSyncMergeStrategy:
 
         mock_clone.side_effect = populate_base
 
-        _sync_merge(
+        git_ctx.sync_merge(
             target=target,
             upstream_snapshot=upstream_snapshot,
             upstream_sha="upstream_sha_456",
@@ -1394,7 +1384,6 @@ class TestThreeWayMergeSyncMergeStrategy:
             materialized=[Path("Makefile")],
             template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
             excludes=set(),
-            git_ctx=git_ctx,
             lock=TemplateLock(sha="upstream_sha_456"),
         )
 
@@ -1424,7 +1413,7 @@ class TestThreeWayMergeSyncMergeStrategy:
         upstream_snapshot.mkdir()
         (upstream_snapshot / "Makefile").write_text("install:\n\tpip install .\n")
 
-        _sync_merge(
+        git_ctx.sync_merge(
             target=target,
             upstream_snapshot=upstream_snapshot,
             upstream_sha="first_sha_abc",
@@ -1432,7 +1421,6 @@ class TestThreeWayMergeSyncMergeStrategy:
             materialized=[Path("Makefile")],
             template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
             excludes=set(),
-            git_ctx=git_ctx,
             lock=TemplateLock(sha="first_sha_abc"),
         )
 
@@ -1484,7 +1472,7 @@ class TestThreeWayMergeSyncMergeStrategy:
 
         mock_clone.side_effect = populate_base
 
-        _sync_merge(
+        git_ctx.sync_merge(
             target=target,
             upstream_snapshot=upstream_snapshot,
             upstream_sha="upstream_sha_456",
@@ -1492,7 +1480,6 @@ class TestThreeWayMergeSyncMergeStrategy:
             materialized=[Path("Makefile"), Path("LICENSE")],
             template=RhizaTemplate(template_repository="example/repo", include=["Makefile", "LICENSE"]),
             excludes=set(),
-            git_ctx=git_ctx,
             lock=TemplateLock(sha="upstream_sha_456", files=["Makefile", "LICENSE"]),
         )
 
@@ -1906,7 +1893,7 @@ class TestMergeFileFallbackEdgeCases:
         target.mkdir()
         # file.txt does NOT exist in target
 
-        result = _merge_file_fallback(diff, target, base, upstream, git_ctx)
+        result = git_ctx._merge_file_fallback(diff, target, base, upstream)
 
         assert result is True
         assert (target / "file.txt").read_text() == "new\n"
@@ -1927,7 +1914,7 @@ class TestMergeFileFallbackEdgeCases:
         target.mkdir()
         (target / "file.txt").write_text("local\n")
 
-        result = _merge_file_fallback(diff, target, base, upstream, git_ctx)
+        result = git_ctx._merge_file_fallback(diff, target, base, upstream)
 
         assert result is True
         assert (target / "file.txt").read_text() == "new\n"
@@ -1953,7 +1940,7 @@ class TestMergeFileFallbackEdgeCases:
         mock_result.stderr = b"process killed"
 
         with patch("rhiza.commands._sync_helpers.subprocess.run", return_value=mock_result):
-            result = _merge_file_fallback(diff, target, base, upstream, git_ctx)
+            result = git_ctx._merge_file_fallback(diff, target, base, upstream)
 
         assert result is False
 
@@ -1961,7 +1948,7 @@ class TestMergeFileFallbackEdgeCases:
 class TestApplyDiffBlobFallback:
     """Tests for the blob-fallback path in _apply_diff."""
 
-    @patch("rhiza.commands._sync_helpers._merge_file_fallback")
+    @patch("rhiza.models._git_utils.GitContext._merge_file_fallback")
     def test_blob_fallback_triggered(self, mock_fallback, git_project, git_ctx):
         """When git apply -3 fails with 'lacks the necessary blob', _merge_file_fallback is used (909-910)."""
         mock_fallback.return_value = True
@@ -1971,16 +1958,15 @@ class TestApplyDiffBlobFallback:
         err = subprocess.CalledProcessError(1, ["git", "apply", "-3"])
         err.stderr = b"error: sha1 information is lacking or useless (file.txt). lacks the necessary blob"
 
-        with patch("rhiza.commands._sync_helpers.subprocess.run", side_effect=err):
+        with patch("rhiza.models._git_utils.subprocess.run", side_effect=err):
             base_snapshot = git_project / "base"
             base_snapshot.mkdir()
             upstream_snapshot = git_project / "upstream"
             upstream_snapshot.mkdir()
 
-            result = _apply_diff(
+            result = git_ctx._apply_diff(
                 diff,
                 git_project,
-                git_ctx,
                 base_snapshot=base_snapshot,
                 upstream_snapshot=upstream_snapshot,
             )
