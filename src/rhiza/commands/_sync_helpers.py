@@ -26,6 +26,7 @@ import yaml
 from loguru import logger
 
 from rhiza.models import RhizaTemplate, TemplateLock, get_git_executable
+from rhiza.subprocess_utils import _log_git_stderr_errors
 
 # ---------------------------------------------------------------------------
 # Diff prefix constants
@@ -78,19 +79,6 @@ def _get_diff(repo0: Path, repo1: Path) -> str:
 # ---------------------------------------------------------------------------
 # Shared template helpers
 # ---------------------------------------------------------------------------
-
-
-def _log_git_stderr_errors(stderr: str | None) -> None:
-    """Extract and log only relevant error messages from git stderr.
-
-    Args:
-        stderr: Git command stderr output.
-    """
-    if stderr:
-        for line in stderr.strip().split("\n"):
-            line = line.strip()
-            if line and (line.startswith("fatal:") or line.startswith("error:")):
-                logger.error(line)
 
 
 def _assert_git_status_clean(target: Path, git_executable: str, git_env: dict[str, str]) -> None:

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+import yaml
 
 from rhiza import __version__
 from rhiza.commands import init as init_cmd
@@ -252,7 +253,7 @@ def status(
     ] = Path("."),
 ) -> None:
     """Show the current sync status from template.lock."""
-    with _exit_on_error(Exception):
+    with _exit_on_error(FileNotFoundError, ValueError, TypeError, yaml.YAMLError):
         status_cmd(target.resolve())
 
 
@@ -274,7 +275,7 @@ def tree(
         rhiza tree
         rhiza tree /path/to/project
     """
-    with _exit_on_error(Exception):
+    with _exit_on_error(FileNotFoundError, ValueError, TypeError, yaml.YAMLError):
         tree_cmd(target.resolve())
 
 
