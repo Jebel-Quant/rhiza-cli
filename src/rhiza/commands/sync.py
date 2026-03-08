@@ -18,7 +18,6 @@ copy and records the commit SHA.
 """
 
 import datetime
-import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -27,13 +26,11 @@ from loguru import logger
 
 from rhiza.commands._sync_helpers import (
     LOCK_FILE,
-    _assert_git_status_clean,
-    _handle_target_branch,
     _read_lock,
     _sync_diff,
     _sync_merge,
 )
-from rhiza.models import GitContext, RhizaTemplate, TemplateLock, get_git_executable
+from rhiza.models import GitContext, RhizaTemplate, TemplateLock
 
 __all__ = ["LOCK_FILE", "sync"]
 
@@ -62,17 +59,15 @@ def sync(
     logger.info(f"Rhiza branch: {branch}")
     logger.info(f"Sync strategy: {strategy}")
 
-    git_executable = get_git_executable()
-    git_env = os.environ.copy()
-    git_env["GIT_TERMINAL_PROMPT"] = "0"
+    git_ctx = GitContext.default()
 
-    _assert_git_status_clean(target, git_executable, git_env)
-    _handle_target_branch(target, target_branch, git_executable, git_env)
+    git_ctx.assert_status_clean(target)
+    git_ctx.handle_target_branch(target, target_branch)
 
     template = RhizaTemplate.from_project(target, branch)
 
     logger.info(f"Cloning {template.template_repository}@{template.template_branch} (upstream)")
-    upstream_dir, upstream_sha = template.clone(git_executable, git_env, branch=branch)
+    upstream_dir, upstream_sha = template.clone(git_ctx, branch=branch)
 
     # Synchronizes target with upstream template snapshot transactionally; cleans up resources
     try:
@@ -99,7 +94,7 @@ def sync(
                 _sync_diff(
                     target=target,
                     upstream_snapshot=upstream_snapshot,
-                    git_ctx=GitContext(executable=git_executable, env=git_env),
+                    git_ctx=git_ctx,
                 )
             else:
                 _sync_merge(
@@ -110,8 +105,7 @@ def sync(
                     materialized,
                     template,
                     excludes,
-                    git_executable,
-                    git_env,
+                    git_ctx,
                     lock,
                 )
         finally:

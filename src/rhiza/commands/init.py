@@ -19,7 +19,7 @@ from loguru import logger
 
 from rhiza.commands.list_repos import _DESC_WIDTH, _fetch_repos
 from rhiza.commands.validate import validate
-from rhiza.models import GitHost, RhizaTemplate, get_git_executable
+from rhiza.models import GitContext, GitHost, RhizaTemplate
 
 
 def _normalize_package_name(name: str) -> str:
@@ -79,11 +79,12 @@ def _check_template_repository_reachable(template_repository: str, git_host: Git
 
     logger.debug(f"Checking reachability of template repository: {repo_url}")
     try:
-        git = get_git_executable()
+        git_ctx = GitContext.default()
         result = subprocess.run(  # nosec B603  # noqa: S603
-            [git, "ls-remote", "--exit-code", repo_url],
+            [git_ctx.executable, "ls-remote", "--exit-code", repo_url],
             capture_output=True,
             timeout=30,
+            env=git_ctx.env,
         )
         if result.returncode == 0:
             logger.success(f"Template repository is reachable: {template_repository}")

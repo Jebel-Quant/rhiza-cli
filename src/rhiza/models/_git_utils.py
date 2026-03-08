@@ -2,7 +2,9 @@
 
 import os
 import shutil
+import subprocess  # nosec B404
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from loguru import logger
 
@@ -35,6 +37,78 @@ class GitContext:
         env = os.environ.copy()
         env["GIT_TERMINAL_PROMPT"] = "0"
         return cls(executable=get_git_executable(), env=env)
+
+    def assert_status_clean(self, target: Path) -> None:
+        """Raise RuntimeError if the target repository has uncommitted changes.
+
+        Runs ``git status --porcelain`` and raises if the output is non-empty,
+        preventing a sync from running on a dirty working tree.
+
+        Args:
+            target: Path to the target repository.
+
+        Raises:
+            RuntimeError: If the working tree has uncommitted changes.
+        """
+        result = subprocess.run(  # nosec B603  # noqa: S603
+            [self.executable, "status", "--porcelain"],
+            cwd=target,
+            capture_output=True,
+            text=True,
+            env=self.env,
+        )
+        if result.stdout.strip():
+            logger.error("Working tree is not clean. Please commit or stash your changes before syncing.")
+            logger.error("Uncommitted changes:")
+            for line in result.stdout.strip().splitlines():
+                logger.error(f"  {line}")
+            raise RuntimeError("Working tree is not clean. Please commit or stash your changes before syncing.")  # noqa: TRY003
+
+    def handle_target_branch(self, target: Path, target_branch: str | None) -> None:
+        """Handle target branch creation or checkout if specified.
+
+        Args:
+            target: Path to the target repository.
+            target_branch: Optional branch name to create/checkout.
+        """
+        if not target_branch:
+            return
+
+        logger.info(f"Creating/checking out target branch: {target_branch}")
+        try:
+            result = subprocess.run(  # nosec B603  # noqa: S603
+                [self.executable, "rev-parse", "--verify", target_branch],
+                cwd=target,
+                capture_output=True,
+                text=True,
+                env=self.env,
+            )
+
+            if result.returncode == 0:
+                logger.info(f"Branch '{target_branch}' exists, checking out...")
+                subprocess.run(  # nosec B603  # noqa: S603
+                    [self.executable, "checkout", target_branch],
+                    cwd=target,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    env=self.env,
+                )
+            else:
+                logger.info(f"Creating new branch '{target_branch}'...")
+                subprocess.run(  # nosec B603  # noqa: S603
+                    [self.executable, "checkout", "-b", target_branch],
+                    cwd=target,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    env=self.env,
+                )
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to create/checkout branch '{target_branch}'")
+            _log_git_stderr_errors(e.stderr)
+            logger.error("Please ensure you have no uncommitted changes or conflicts")
+            raise
 
 
 def _normalize_to_list(value: str | list[str] | None) -> list[str]:
