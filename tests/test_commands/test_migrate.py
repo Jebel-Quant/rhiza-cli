@@ -4,15 +4,33 @@ This module verifies that `migrate` creates the .rhiza folder and migrates
 configuration files from .github to the new location.
 """
 
+import pytest
 import yaml
+from loguru import logger
 from typer.testing import CliRunner
 
 from rhiza import cli
 from rhiza.commands.migrate import migrate
 
 
+@pytest.fixture
+def log_sink():
+    """Capture loguru output into a list for assertions."""
+    messages: list[str] = []
+    handler_id = logger.add(lambda msg: messages.append(msg), format="{message}", colorize=False)
+    yield messages
+    logger.remove(handler_id)
+
+
 class TestMigrateCommand:
     """Tests for the migrate command."""
+
+    def test_migrate_shows_deprecation_warning(self, tmp_path, log_sink):
+        """Test that migrate prints a deprecation warning."""
+        migrate(tmp_path)
+
+        output = "\n".join(log_sink)
+        assert "deprecated" in output.lower()
 
     def test_migrate_creates_rhiza_folder(self, tmp_path):
         """Test that migrate creates the .rhiza folder."""
