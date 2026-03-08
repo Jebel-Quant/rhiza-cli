@@ -761,6 +761,7 @@ def _prepare_snapshot(
         List of relative file paths that were copied.
     """
     materialized: list[Path] = []
+    # Copies included files to snapshot excluding specified paths
     for f in _expand_paths(clone_dir, include_paths):
         rel = str(f.relative_to(clone_dir))
         if rel not in excludes:
@@ -1051,6 +1052,8 @@ def _sync_merge(
     git_executable: str,
     git_env: dict[str, str],
     lock: TemplateLock,
+    rhiza_repo: str = "",
+    rhiza_branch: str = "",
 ) -> None:
     """Execute the merge strategy (cruft-style 3-way merge).
 
@@ -1069,9 +1072,9 @@ def _sync_merge(
         git_url: Remote URL of the template repository.
         git_executable: Absolute path to git.
         git_env: Environment variables for git commands.
-        rhiza_repo: Template repository name.
-        rhiza_branch: Template branch name.
         lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
+        rhiza_repo: Template repository name (unused, kept for compatibility).
+        rhiza_branch: Template branch name (unused, kept for compatibility).
     """
     # Snapshot the currently-tracked files before the merge runs.  The merge
     # may write a new lock (e.g. on the "template unchanged" early-return path
