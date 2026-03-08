@@ -178,6 +178,7 @@ def migrate(target: Path) -> None:
     Args:
         target (Path): Path to the target repository.
     """
+    logger.warning("⚠️  The 'migrate' command is deprecated and will be removed in a future release.")
     target = target.resolve()
     logger.info(f"Migrating Rhiza structure in: {target}")
     logger.info("This will create the .rhiza folder and migrate configuration files")
