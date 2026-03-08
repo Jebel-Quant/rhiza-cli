@@ -139,7 +139,6 @@ class TestSyncE2ETypicalWorkflow:
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream,
-                upstream_sha="sha_v1",
                 base_sha=None,
                 materialized=materialized,
                 template=RhizaTemplate(
@@ -191,7 +190,6 @@ class TestSyncE2ETypicalWorkflow:
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v1,
-                upstream_sha="sha_v1",
                 base_sha=None,
                 materialized=materialized_v1,
                 template=RhizaTemplate(
@@ -232,7 +230,6 @@ class TestSyncE2ETypicalWorkflow:
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v2,
-                upstream_sha="sha_v2",
                 base_sha="sha_v1",
                 materialized=materialized_v2,
                 template=RhizaTemplate(
@@ -290,7 +287,6 @@ class TestSyncE2EOrphanedFiles:
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v1,
-                upstream_sha="sha_v1",
                 base_sha=None,
                 materialized=materialized_v1,
                 template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
@@ -318,7 +314,6 @@ class TestSyncE2EOrphanedFiles:
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v2,
-                upstream_sha="sha_v2",
                 base_sha="sha_v1",
                 materialized=materialized_v2,
                 template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt"]),
@@ -362,7 +357,6 @@ class TestSyncE2EThreeWayMerge:
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v1,
-                upstream_sha="sha_v1",
                 base_sha=None,
                 materialized=[Path("config.py")],
                 template=RhizaTemplate(template_repository="example/repo", include=["config.py"]),
@@ -390,7 +384,6 @@ class TestSyncE2EThreeWayMerge:
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v2,
-                upstream_sha="sha_v2",
                 base_sha="sha_v1",
                 materialized=[Path("config.py")],
                 template=RhizaTemplate(template_repository="example/repo", include=["config.py"]),
@@ -437,7 +430,6 @@ class TestSyncE2EExcludedFiles:
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream,
-                upstream_sha="sha_v1",
                 base_sha=None,
                 materialized=[Path("Makefile")],
                 template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
@@ -473,7 +465,6 @@ class TestSyncE2EExcludedFiles:
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v1,
-                upstream_sha="sha_v1",
                 base_sha=None,
                 materialized=materialized_v1,
                 template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
@@ -502,11 +493,10 @@ class TestSyncE2EExcludedFiles:
             _sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v2,
-                upstream_sha="sha_v2",
                 base_sha="sha_v1",
                 materialized=materialized_v2,
                 template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
-                excludes={"file_b.txt"},  # user excluded file_b.txt
+                excludes={"file_b.txt"},
                 git_executable=git_executable,
                 git_env=git_env,
                 lock=_make_lock("sha_v2", ["file_a.txt"]),

@@ -691,7 +691,6 @@ def _sync_diff(target: Path, upstream_snapshot: Path) -> None:
 def _sync_merge(
     target: Path,
     upstream_snapshot: Path,
-    upstream_sha: str,
     base_sha: str | None,
     materialized: list[Path],
     template: "RhizaTemplate",

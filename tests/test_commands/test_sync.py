@@ -1422,7 +1422,6 @@ class TestThreeWayMergeSyncMergeStrategy:
         _sync_merge(
             target=target,
             upstream_snapshot=upstream_snapshot,
-            upstream_sha="upstream_sha_456",
             base_sha="base_sha_123",
             materialized=[Path("Makefile")],
             template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
@@ -1462,7 +1461,6 @@ class TestThreeWayMergeSyncMergeStrategy:
         _sync_merge(
             target=target,
             upstream_snapshot=upstream_snapshot,
-            upstream_sha="first_sha_abc",
             base_sha=None,
             materialized=[Path("Makefile")],
             template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
@@ -1531,7 +1529,6 @@ class TestThreeWayMergeSyncMergeStrategy:
         _sync_merge(
             target=target,
             upstream_snapshot=upstream_snapshot,
-            upstream_sha="upstream_sha_456",
             base_sha="base_sha_123",
             materialized=[Path("Makefile"), Path("LICENSE")],
             template=RhizaTemplate(template_repository="example/repo", include=["Makefile", "LICENSE"]),

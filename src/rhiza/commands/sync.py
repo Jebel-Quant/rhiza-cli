@@ -104,16 +104,7 @@ def sync(
                 _sync_diff(target=target, upstream_snapshot=upstream_snapshot)
             else:
                 _sync_merge(
-                    target,
-                    upstream_snapshot,
-                    upstream_sha,
-                    base_sha,
-                    materialized,
-                    template,
-                    excludes,
-                    git_executable,
-                    git_env,
-                    lock,
+                    target, upstream_snapshot, base_sha, materialized, template, excludes, git_executable, git_env, lock
                 )
         finally:
             if upstream_snapshot.exists():
