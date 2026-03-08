@@ -26,8 +26,6 @@ from loguru import logger
 
 from rhiza.commands._sync_helpers import (
     LOCK_FILE,
-    _assert_git_status_clean,
-    _handle_target_branch,
     _read_lock,
     _sync_diff,
     _sync_merge,
@@ -63,8 +61,8 @@ def sync(
 
     git_ctx = GitContext.default()
 
-    _assert_git_status_clean(target, git_ctx)
-    _handle_target_branch(target, target_branch, git_ctx)
+    git_ctx.assert_status_clean(target)
+    git_ctx.handle_target_branch(target, target_branch)
 
     template = RhizaTemplate.from_project(target, branch)
 

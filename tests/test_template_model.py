@@ -354,8 +354,10 @@ class TestRhizaTemplateClone:
         upstream_dir, upstream_sha = template.clone(GitContext.default(), branch="main")
 
         # The clone should use 'develop' (template_branch), not 'main' (default arg).
-        call_args = mock_clone.call_args
-        assert call_args[0][1] == "develop"
+        mock_clone.assert_called_once()
+        # The second positional argument should be the branch
+        args, _ = mock_clone.call_args
+        assert args[1] == "develop"
         assert upstream_sha == "sha_from_develop"
         shutil.rmtree(upstream_dir, ignore_errors=True)
 

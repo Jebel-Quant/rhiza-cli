@@ -26,7 +26,7 @@ import yaml
 from loguru import logger
 
 from rhiza.models import RhizaTemplate, TemplateLock
-from rhiza.models._git_utils import GitContext, _log_git_stderr_errors
+from rhiza.models._git_utils import GitContext
 
 # ---------------------------------------------------------------------------
 # Diff prefix constants
@@ -76,7 +76,7 @@ def _get_diff(repo0: Path, repo1: Path, git_ctx: GitContext) -> str:
         capture_output=True,
         env=git_ctx.env,
     )
-    diff = result.stdout.decode()
+    diff = result.stdout.decode() if isinstance(result.stdout, bytes) else (result.stdout or "")
     for repo in [repo0_str, repo1_str]:
         repo_nix = sub("/[a-z]:", "", repo)
         diff = diff.replace(f"{_DIFF_SRC_PREFIX}{repo_nix}", _DIFF_SRC_PREFIX).replace(
@@ -89,82 +89,6 @@ def _get_diff(repo0: Path, repo1: Path, git_ctx: GitContext) -> str:
 # ---------------------------------------------------------------------------
 # Shared template helpers
 # ---------------------------------------------------------------------------
-
-
-def _assert_git_status_clean(target: Path, git_ctx: GitContext) -> None:
-    """Raise RuntimeError if the target repository has uncommitted changes.
-
-    Runs ``git status --porcelain`` and raises if the output is non-empty,
-    preventing a sync from running on a dirty working tree.
-
-    Args:
-        target: Path to the target repository.
-        git_ctx: Git context.
-
-    Raises:
-        RuntimeError: If the working tree has uncommitted changes.
-    """
-    result = subprocess.run(  # nosec B603  # noqa: S603
-        [git_ctx.executable, "status", "--porcelain"],
-        cwd=target,
-        capture_output=True,
-        text=True,
-        env=git_ctx.env,
-    )
-    if result.stdout.strip():
-        logger.error("Working tree is not clean. Please commit or stash your changes before syncing.")
-        logger.error("Uncommitted changes:")
-        for line in result.stdout.strip().splitlines():
-            logger.error(f"  {line}")
-        raise RuntimeError("Working tree is not clean. Please commit or stash your changes before syncing.")  # noqa: TRY003
-
-
-def _handle_target_branch(target: Path, target_branch: str | None, git_ctx: GitContext) -> None:
-    """Handle target branch creation or checkout if specified.
-
-    Args:
-        target: Path to the target repository.
-        target_branch: Optional branch name to create/checkout.
-        git_ctx: Git context.
-    """
-    if not target_branch:
-        return
-
-    logger.info(f"Creating/checking out target branch: {target_branch}")
-    try:
-        result = subprocess.run(  # nosec B603  # noqa: S603
-            [git_ctx.executable, "rev-parse", "--verify", target_branch],
-            cwd=target,
-            capture_output=True,
-            text=True,
-            env=git_ctx.env,
-        )
-
-        if result.returncode == 0:
-            logger.info(f"Branch '{target_branch}' exists, checking out...")
-            subprocess.run(  # nosec B603  # noqa: S603
-                [git_ctx.executable, "checkout", target_branch],
-                cwd=target,
-                check=True,
-                capture_output=True,
-                text=True,
-                env=git_ctx.env,
-            )
-        else:
-            logger.info(f"Creating new branch '{target_branch}'...")
-            subprocess.run(  # nosec B603  # noqa: S603
-                [git_ctx.executable, "checkout", "-b", target_branch],
-                cwd=target,
-                check=True,
-                capture_output=True,
-                text=True,
-                env=git_ctx.env,
-            )
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to create/checkout branch '{target_branch}'")
-        _log_git_stderr_errors(e.stderr)
-        logger.error("Please ensure you have no uncommitted changes or conflicts")
-        raise
 
 
 def _warn_about_workflow_files(materialized_files: list[Path]) -> None:
@@ -596,14 +520,14 @@ def _apply_diff(
     try:
         subprocess.run(  # nosec B603  # noqa: S603
             [git_ctx.executable, "apply", "-3"],
-            input=diff.encode(),
+            input=diff.encode() if isinstance(diff, str) else diff,
             cwd=target,
             check=True,
             capture_output=True,
             env=git_ctx.env,
         )
     except subprocess.CalledProcessError as e:
-        stderr = e.stderr.decode() if e.stderr else ""
+        stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
 
         # git apply -3 cannot do a real 3-way merge when the template blobs are
         # not present in the target repository's object store.  If we have the
@@ -619,14 +543,14 @@ def _apply_diff(
         try:
             subprocess.run(  # nosec B603  # noqa: S603
                 [git_ctx.executable, "apply", "--reject"],
-                input=diff.encode(),
+                input=diff.encode() if isinstance(diff, str) else diff,
                 cwd=target,
                 check=True,
                 capture_output=True,
                 env=git_ctx.env,
             )
         except subprocess.CalledProcessError as e2:
-            stderr2 = e2.stderr.decode() if e2.stderr else ""
+            stderr2 = e2.stderr.decode() if isinstance(e2.stderr, bytes) else (e2.stderr or "")
             if stderr2:
                 logger.warning(stderr2.strip())
             logger.warning(

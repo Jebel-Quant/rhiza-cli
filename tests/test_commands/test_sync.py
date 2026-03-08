@@ -21,12 +21,10 @@ from typer.testing import CliRunner
 from rhiza import cli
 from rhiza.commands._sync_helpers import (
     _apply_diff,
-    _assert_git_status_clean,
     _clean_orphaned_files,
     _delete_orphaned_file,
     _files_from_snapshot,
     _get_diff,
-    _handle_target_branch,
     _merge_file_fallback,
     _merge_with_base,
     _parse_diff_filenames,
@@ -270,7 +268,7 @@ class TestAssertGitStatusClean:
         (git_project / "README.md").write_text("# test\n")
         _commit_all(git_project, git_ctx, "initial commit")
         # Should not raise
-        _assert_git_status_clean(git_project, git_ctx)
+        git_ctx.assert_status_clean(git_project)
 
     def test_dirty_working_tree_raises(self, git_project, git_ctx):
         """An uncommitted change should raise RuntimeError."""
@@ -279,7 +277,7 @@ class TestAssertGitStatusClean:
         # Introduce an uncommitted change
         (git_project / "dirty.txt").write_text("untracked change")
         with pytest.raises(RuntimeError, match="Working tree is not clean"):
-            _assert_git_status_clean(git_project, git_ctx)
+            git_ctx.assert_status_clean(git_project)
 
     def test_staged_changes_raises(self, git_project, git_ctx):
         """Staged-but-not-committed changes should raise RuntimeError."""
@@ -295,18 +293,24 @@ class TestAssertGitStatusClean:
             env=git_ctx.env,
         )
         with pytest.raises(RuntimeError, match="Working tree is not clean"):
-            _assert_git_status_clean(git_project, git_ctx)
+            git_ctx.assert_status_clean(git_project)
 
 
 class TestSyncCommand:
     """Integration-style tests for the sync command."""
 
+    @patch("rhiza.models._git_utils.subprocess.run")
     @patch("rhiza.commands._sync_helpers.shutil.rmtree")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
-    def test_sync_diff_does_not_modify_files(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
+    def test_sync_diff_does_not_modify_files(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, mock_run, tmp_path):
         """Diff strategy shows changes but does not modify files."""
+        # Setup git status check mock to return clean
+        mock_result = MagicMock()
+        mock_result.stdout = ""
+        mock_run.return_value = mock_result
+
         _setup_project(tmp_path)
 
         # Create existing local file
@@ -330,12 +334,20 @@ class TestSyncCommand:
         # Lock should NOT be updated in diff mode
         assert _read_lock(tmp_path) is None
 
+    @patch("rhiza.models._git_utils.subprocess.run")
     @patch("rhiza.commands._sync_helpers.shutil.rmtree")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
-    def test_sync_merge_first_sync_copies_files(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
+    def test_sync_merge_first_sync_copies_files(
+        self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, mock_run, tmp_path
+    ):
         """On first sync (no lock), merge copies new files."""
+        # Setup git status check mock to return clean
+        mock_result = MagicMock()
+        mock_result.stdout = ""
+        mock_run.return_value = mock_result
+
         _setup_project(tmp_path)
 
         mock_sha.return_value = "first111"
@@ -376,12 +388,20 @@ class TestSyncCommand:
 class TestSyncOrphanedFiles:
     """Tests verifying that orphaned files are deleted when template.yml changes during sync."""
 
+    @patch("rhiza.models._git_utils.subprocess.run")
     @patch("rhiza.commands._sync_helpers.shutil.rmtree")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
-    def test_merge_first_sync_deletes_orphaned_files(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
+    def test_merge_first_sync_deletes_orphaned_files(
+        self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, mock_run, tmp_path
+    ):
         """Merge strategy (first sync) removes files no longer present in the updated template."""
+        # Setup git status check mock to return clean
+        mock_result = MagicMock()
+        mock_result.stdout = ""
+        mock_run.return_value = mock_result
+
         # Template now only includes new.txt (old.txt was removed from template.yml)
         _setup_project(tmp_path, include=["new.txt"])
 
@@ -469,15 +489,21 @@ class TestApplyDiffConflict:
 class TestSyncMergeWithBase:
     """Tests for merge strategy with an existing base SHA."""
 
+    @patch("rhiza.models._git_utils.subprocess.run")
     @patch("rhiza.commands._sync_helpers.shutil.rmtree")
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     @patch("rhiza.commands._sync_helpers.tempfile.mkdtemp")
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
     def test_sync_merge_with_existing_base_sha(
-        self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_rmtree, tmp_path
+        self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_rmtree, mock_run, tmp_path
     ):
         """Merge strategy calls _merge_with_base when a base SHA exists."""
+        # Setup git status check mock to return clean
+        mock_result = MagicMock()
+        mock_result.stdout = ""
+        mock_run.return_value = mock_result
+
         _setup_project(tmp_path)
 
         # Write a lock so base_sha will be "oldsha" ≠ upstream
@@ -1482,12 +1508,12 @@ class TestThreeWayMergeSyncMergeStrategy:
 
 
 class TestHandleTargetBranch:
-    """Tests for _handle_target_branch."""
+    """Tests for git_ctx.handle_target_branch."""
 
     def test_no_branch_is_noop(self, tmp_path, git_ctx):
         """Passing None for target_branch should not call git."""
-        with patch("rhiza.commands._sync_helpers.subprocess.run") as mock_run:
-            _handle_target_branch(tmp_path, None, git_ctx)
+        with patch("rhiza.models._git_utils.subprocess.run") as mock_run:
+            git_ctx.handle_target_branch(tmp_path, None)
         mock_run.assert_not_called()
 
     def test_creates_new_branch(self, tmp_path, git_ctx):
@@ -1502,8 +1528,8 @@ class TestHandleTargetBranch:
                 result.returncode = 0
             return result
 
-        with patch("rhiza.commands._sync_helpers.subprocess.run", side_effect=_side_effect) as mock_run:
-            _handle_target_branch(tmp_path, "new-branch", git_ctx)
+        with patch("rhiza.models._git_utils.subprocess.run", side_effect=_side_effect) as mock_run:
+            git_ctx.handle_target_branch(tmp_path, "new-branch")
 
         calls = [str(c) for c in mock_run.call_args_list]
         assert any("checkout" in c and "-b" in c for c in calls)
@@ -1512,13 +1538,12 @@ class TestHandleTargetBranch:
         """When the branch already exists, a plain ``checkout`` is called."""
 
         def _side_effect(*args, **kwargs):
-            args[0] if args else kwargs.get("args", [])
             result = Mock()
             result.returncode = 0  # branch found
             return result
 
-        with patch("rhiza.commands._sync_helpers.subprocess.run", side_effect=_side_effect) as mock_run:
-            _handle_target_branch(tmp_path, "existing-branch", git_ctx)
+        with patch("rhiza.models._git_utils.subprocess.run", side_effect=_side_effect) as mock_run:
+            git_ctx.handle_target_branch(tmp_path, "existing-branch")
 
         calls = [str(c) for c in mock_run.call_args_list]
         assert any("checkout" in c and "existing-branch" in c for c in calls)
@@ -1535,7 +1560,7 @@ class TestHandleTargetBranch:
             raise subprocess.CalledProcessError(1, cmd, stderr="error: conflict")
 
         with pytest.raises(subprocess.CalledProcessError):
-            _handle_target_branch(tmp_path, "bad-branch", git_ctx)
+            git_ctx.handle_target_branch(tmp_path, "bad-branch")
 
 
 class TestWarnAboutWorkflowFiles:
