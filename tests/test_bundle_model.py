@@ -15,13 +15,9 @@ from rhiza.models.bundle import RhizaBundles
 class TestYamlSerializableProtocol:
     """Tests for the YamlSerializable Protocol as it applies to RhizaBundles."""
 
-    def test_rhiza_bundles_satisfies_protocol(self, write_yaml):
+    def test_rhiza_bundles_satisfies_protocol(self):
         """RhizaBundles is a runtime-checkable instance of YamlSerializable."""
-        bundles_file = write_yaml(
-            "template-bundles.yml",
-            {"bundles": {"core": {"description": "Core"}}},
-        )
-        bundles = RhizaBundles.from_yaml(bundles_file)
+        bundles = RhizaBundles.from_config({"bundles": {"core": {"description": "Core"}}})
         assert isinstance(bundles, YamlSerializable)
 
 
@@ -33,14 +29,13 @@ class TestYamlSerializableProtocol:
 class TestLoadModel:
     """Tests for the load_model generic helper as it applies to RhizaBundles."""
 
-    def test_load_model_returns_rhiza_bundles(self, write_yaml):
+    def test_load_model_returns_rhiza_bundles(self, tmp_path):
         """load_model loads a RhizaBundles and returns the correct type/values."""
-        bundles_file = write_yaml(
-            "template-bundles.yml",
-            {
-                "version": "1",
-                "bundles": {"core": {"description": "Core bundle", "files": ["Makefile"]}},
-            },
+        import yaml
+
+        bundles_file = tmp_path / "template-bundles.yml"
+        bundles_file.write_text(
+            yaml.dump({"version": "1", "bundles": {"core": {"description": "Core bundle", "files": ["Makefile"]}}})
         )
 
         result = load_model(RhizaBundles, bundles_file)
