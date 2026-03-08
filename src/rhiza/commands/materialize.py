@@ -15,7 +15,6 @@ import warnings
 from rhiza.commands._sync_helpers import (
     _clean_orphaned_files,
     _clone_template_repository,
-    _construct_git_url,
     _handle_target_branch,
     _log_git_stderr_errors,
     _update_sparse_checkout,
@@ -27,7 +26,6 @@ from rhiza.commands.sync import sync
 __all__ = [
     "_clean_orphaned_files",
     "_clone_template_repository",
-    "_construct_git_url",
     "_handle_target_branch",
     "_log_git_stderr_errors",
     "_update_sparse_checkout",

@@ -28,8 +28,6 @@ from loguru import logger
 from rhiza.commands._sync_helpers import (
     LOCK_FILE,
     _assert_git_status_clean,
-    _clone_and_resolve_upstream,
-    _construct_git_url,
     _excluded_set,
     _handle_target_branch,
     _prepare_snapshot,
@@ -77,17 +75,10 @@ def sync(
 
     template, rhiza_repo, rhiza_branch, include_paths, excluded_paths = _validate_and_load_template(target, branch)
     rhiza_host = template.template_host or "github"
-    git_url = _construct_git_url(rhiza_repo, rhiza_host)
 
     logger.info(f"Cloning {rhiza_repo}@{rhiza_branch} (upstream)")
-    upstream_dir, upstream_sha, include_paths = _clone_and_resolve_upstream(
-        template,
-        git_url,
-        rhiza_branch,
-        include_paths,
-        git_executable,
-        git_env,
-    )
+    upstream_dir, upstream_sha = template.clone(git_executable, git_env, branch=branch)
+    include_paths = template.include
 
     try:
         base_sha = _read_lock(target)
@@ -132,7 +123,7 @@ def sync(
                     materialized,
                     include_paths,
                     excludes,
-                    git_url,
+                    template.git_url,
                     git_executable,
                     git_env,
                     rhiza_repo,

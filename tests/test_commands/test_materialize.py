@@ -4,9 +4,8 @@ The ``rhiza materialize`` command is deprecated and delegates to
 ``rhiza sync`` (with strategy ``"merge"``).  These tests verify that the
 CLI wiring is correct and that the deprecation warning is emitted.
 
-Implementation tests for the underlying helpers (e.g. ``_construct_git_url``,
-``_handle_target_branch``) live in ``test_sync.py``, which is the canonical
-home for those functions.
+Implementation tests for the underlying helpers (e.g. ``_handle_target_branch``)
+live in ``test_sync.py``, which is the canonical home for those functions.
 """
 
 import warnings

@@ -24,10 +24,8 @@ from rhiza.commands._sync_helpers import (
     _apply_diff,
     _assert_git_status_clean,
     _clean_orphaned_files,
-    _clone_and_resolve_upstream,
     _clone_at_sha,
     _clone_template_repository,
-    _construct_git_url,
     _delete_orphaned_file,
     _excluded_set,
     _expand_paths,
@@ -665,11 +663,11 @@ class TestSyncMergeWithBase:
 
 
 class TestCloneAndResolveUpstreamWithTemplates:
-    """Tests for template bundle resolution path in _clone_and_resolve_upstream."""
+    """Tests for template bundle resolution path in RhizaTemplate.clone."""
 
     @patch("rhiza.commands._sync_helpers._get_head_sha")
-    @patch("rhiza.commands._sync_helpers.resolve_include_paths")
-    @patch("rhiza.commands._sync_helpers.load_bundles_from_clone")
+    @patch("rhiza.bundle_resolver.resolve_include_paths")
+    @patch("rhiza.bundle_resolver.load_bundles_from_clone")
     @patch("rhiza.commands._sync_helpers._update_sparse_checkout")
     @patch("rhiza.commands._sync_helpers._clone_template_repository")
     def test_bundle_resolution_path(
@@ -681,36 +679,33 @@ class TestCloneAndResolveUpstreamWithTemplates:
         mock_head_sha,
         tmp_path,
     ):
-        """_clone_and_resolve_upstream resolves bundle paths when template.templates is set."""
+        """RhizaTemplate.clone resolves bundle paths when templates is set."""
         from rhiza.subprocess_utils import get_git_executable
 
         git_executable = get_git_executable()
         git_env = os.environ.copy()
         git_env["GIT_TERMINAL_PROMPT"] = "0"
 
-        # Build a fake RhizaTemplate with templates set
-        template = MagicMock()
-        template.templates = ["core"]
+        # Build a real RhizaTemplate with templates set
+        template = RhizaTemplate(
+            template_repository="example/repo",
+            template_branch="main",
+            template_host="github",
+            templates=["core"],
+        )
 
         mock_bundles = MagicMock()
         mock_load_bundles.return_value = mock_bundles
         mock_resolve.return_value = ["Makefile", ".github"]
         mock_head_sha.return_value = "abc123def456"
 
-        upstream_dir, upstream_sha, resolved_paths = _clone_and_resolve_upstream(
-            template,
-            "https://github.com/example/repo.git",
-            "main",
-            [],
-            git_executable,
-            git_env,
-        )
+        upstream_dir, upstream_sha = template.clone(git_executable, git_env, branch="main")
 
         # Bundle resolution code path should have been taken
         mock_load_bundles.assert_called_once()
         mock_resolve.assert_called_once_with(template, mock_bundles)
         mock_update_sparse.assert_called_once()
-        assert resolved_paths == ["Makefile", ".github"]
+        assert template.include == ["Makefile", ".github"]
         assert upstream_sha == "abc123def456"
         shutil.rmtree(upstream_dir, ignore_errors=True)
 
@@ -1749,26 +1744,6 @@ class TestThreeWayMergeSyncMergeStrategy:
         lock_path = target / ".rhiza" / "template.lock"
         lock_data = yaml.safe_load(lock_path.read_text())
         assert "LICENSE" in lock_data["files"], "LICENSE must appear in the lock after restore"
-
-
-class TestConstructGitUrl:
-    """Tests for _construct_git_url."""
-
-    @pytest.mark.parametrize(
-        ("repo", "host", "expected"),
-        [
-            ("owner/repo", "github", "https://github.com/owner/repo.git"),
-            ("mygroup/myproject", "gitlab", "https://gitlab.com/mygroup/myproject.git"),
-        ],
-    )
-    def test_known_hosts(self, repo, host, expected):
-        """GitHub and GitLab hosts produce the correct HTTPS URL."""
-        assert _construct_git_url(repo, host) == expected
-
-    def test_invalid_host_raises(self):
-        """An unsupported template-host raises ValueError."""
-        with pytest.raises(ValueError, match="Unsupported template-host"):
-            _construct_git_url("owner/repo", "bitbucket")
 
 
 class TestHandleTargetBranch:
