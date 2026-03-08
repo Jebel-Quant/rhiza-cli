@@ -1,25 +1,15 @@
 """Lock model for Rhiza configuration."""
 
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
-import yaml
-from loguru import logger
-
+from rhiza.models._base import YamlSerializable
 from rhiza.models._git_utils import _normalize_to_list
 from rhiza.models.template import GitHost
 
-try:
-    import fcntl
-
-    _FCNTL_AVAILABLE = True
-except ImportError:  # pragma: no cover - Windows
-    _FCNTL_AVAILABLE = False
-
 
 @dataclass
-class TemplateLock:
+class TemplateLock(YamlSerializable):
     """Represents the structure of .rhiza/template.lock.
 
     Attributes:
@@ -47,89 +37,31 @@ class TemplateLock:
     strategy: str = ""
 
     @classmethod
-    def read_sha(cls, target: Path) -> str | None:
-        """Read the last-synced commit SHA from the lock file in *target*.
-
-        Handles both the structured YAML format and the legacy plain-SHA format.
-        Uses an exclusive advisory lock (via ``fcntl.flock``) when available so
-        that two concurrent ``rhiza sync`` processes cannot read a partially-written
-        file.  Falls back silently on platforms without ``fcntl`` (e.g. Windows).
+    def from_config(cls, config: dict[str, Any]) -> "TemplateLock":
+        """Create a TemplateLock instance from a configuration dictionary.
 
         Args:
-            target: Path to the target repository.
+            config: Dictionary containing lock configuration.
 
         Returns:
-            The commit SHA string or ``None`` when no lock exists.
+            A new TemplateLock instance.
         """
-        lock_path = target / ".rhiza" / "template.lock"
-        if not lock_path.exists():
-            return None
-        with lock_path.open(encoding="utf-8") as fh:
-            if _FCNTL_AVAILABLE:
-                fcntl.flock(fh, fcntl.LOCK_EX)
-            else:
-                logger.debug("fcntl not available - skipping advisory lock on read")
-            content = fh.read().strip()
-        # Try structured YAML format first
-        try:
-            data = yaml.safe_load(content)
-            if isinstance(data, dict) and "sha" in data:
-                return str(data["sha"])
-        except yaml.YAMLError:
-            pass
-        # Legacy plain-SHA format
-        return content
-
-    @classmethod
-    def from_yaml(cls, file_path: Path) -> "TemplateLock":
-        """Load TemplateLock from a YAML file.
-
-        Supports both the structured YAML format and the legacy plain-SHA format.
-
-        Args:
-            file_path: Path to the template.lock file.
-
-        Returns:
-            The loaded lock data.
-
-        Raises:
-            FileNotFoundError: If the file does not exist.
-            yaml.YAMLError: If the YAML is malformed.
-            ValueError: If the file format is not recognised.
-        """
-        with open(file_path, encoding="utf-8") as f:
-            content = f.read()
-
-        data = yaml.safe_load(content)
-
-        # Legacy plain-SHA format: yaml.safe_load returns the SHA string directly.
-        if isinstance(data, str):
-            return cls(sha=data.strip())
-
-        if not isinstance(data, dict):
-            raise TypeError("Invalid template.lock format")  # noqa: TRY003
-
         return cls(
-            sha=data.get("sha", ""),
-            repo=data.get("repo", ""),
-            host=data.get("host", GitHost.GITHUB),
-            ref=data.get("ref", "main"),
-            include=_normalize_to_list(data.get("include")),
-            exclude=_normalize_to_list(data.get("exclude")),
-            templates=_normalize_to_list(data.get("templates")),
-            files=_normalize_to_list(data.get("files")),
-            synced_at=data.get("synced_at", ""),
-            strategy=data.get("strategy", ""),
+            sha=config.get("sha", ""),
+            repo=config.get("repo", ""),
+            host=config.get("host", GitHost.GITHUB),
+            ref=config.get("ref", "main"),
+            include=_normalize_to_list(config.get("include")),
+            exclude=_normalize_to_list(config.get("exclude")),
+            templates=_normalize_to_list(config.get("templates")),
+            files=_normalize_to_list(config.get("files")),
+            synced_at=config.get("synced_at", ""),
+            strategy=config.get("strategy", ""),
         )
 
-    def to_yaml(self, file_path: Path) -> None:
-        """Save TemplateLock to a YAML file.
-
-        Args:
-            file_path: Path where the template.lock file should be saved.
-        """
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
+    @property
+    def config(self) -> dict[str, Any]:
+        """Return the lock's current state as a configuration dictionary."""
         config: dict[str, Any] = {
             "sha": self.sha,
             "repo": self.repo,
@@ -140,24 +72,8 @@ class TemplateLock:
             "templates": self.templates,
             "files": self.files,
         }
-
         if self.synced_at:
             config["synced_at"] = self.synced_at
         if self.strategy:
             config["strategy"] = self.strategy
-
-        class _IndentedDumper(yaml.Dumper):
-            def increase_indent(self, flow: bool = False, indentless: bool = False) -> None:
-                # Always use indented style for sequences regardless of context.
-                return super().increase_indent(flow, indentless=False)
-
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write("# This file is automatically generated by rhiza. Do not edit it manually.\n")
-            yaml.dump(
-                config,
-                f,
-                Dumper=_IndentedDumper,
-                default_flow_style=False,
-                sort_keys=False,
-                explicit_start=True,
-            )
+        return config

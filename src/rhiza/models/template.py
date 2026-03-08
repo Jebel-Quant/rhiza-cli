@@ -9,8 +9,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-import yaml
-
+from rhiza.models._base import YamlSerializable
 from rhiza.models._git_utils import GitContext, _log_git_stderr_errors, _normalize_to_list
 from rhiza.models.bundle import RhizaBundles
 
@@ -23,7 +22,7 @@ class GitHost(StrEnum):
 
 
 @dataclass
-class RhizaTemplate:
+class RhizaTemplate(YamlSerializable):
     """Represents the structure of .rhiza/template.yml.
 
     Attributes:
@@ -50,26 +49,15 @@ class RhizaTemplate:
     templates: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_yaml(cls, file_path: Path) -> "RhizaTemplate":
-        """Load RhizaTemplate from a YAML file.
+    def from_config(cls, config: dict[str, Any]) -> "RhizaTemplate":
+        """Create a RhizaTemplate instance from a configuration dictionary.
 
         Args:
-            file_path: Path to the template.yml file.
+            config: Dictionary containing template configuration.
 
         Returns:
-            The loaded template configuration.
-
-        Raises:
-            FileNotFoundError: If the file does not exist.
-            yaml.YAMLError: If the YAML is malformed.
-            ValueError: If the file is empty.
+            A new RhizaTemplate instance.
         """
-        with open(file_path) as f:
-            config = yaml.safe_load(f)
-
-        if not config:
-            raise ValueError("Template file is empty")  # noqa: TRY003
-
         # Support both 'repository' and 'template-repository' (repository takes precedence)
         # Empty or None values fall back to the alternative field
         template_repository = config.get("repository") or config.get("template-repository")
@@ -79,8 +67,8 @@ class RhizaTemplate:
         template_branch = config.get("ref") or config.get("template-branch")
 
         return cls(
-            template_repository=template_repository,
-            template_branch=template_branch,
+            template_repository=template_repository or "",
+            template_branch=template_branch or "",
             template_host=config.get("template-host", GitHost.GITHUB),
             language=config.get("language", "python"),
             include=_normalize_to_list(config.get("include")),
@@ -88,15 +76,9 @@ class RhizaTemplate:
             templates=_normalize_to_list(config.get("templates")),
         )
 
-    def to_yaml(self, file_path: Path) -> None:
-        """Save RhizaTemplate to a YAML file.
-
-        Args:
-            file_path: Path where the template.yml file should be saved.
-        """
-        # Ensure parent directory exists
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
+    @property
+    def config(self) -> dict[str, Any]:
+        """Read template configuration from the template.yml file."""
         # Convert to dictionary with YAML-compatible keys
         config: dict[str, Any] = {}
 
@@ -128,8 +110,7 @@ class RhizaTemplate:
         if self.exclude:
             config["exclude"] = self.exclude
 
-        with open(file_path, "w") as f:
-            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+        return config
 
     @property
     def git_url(self) -> str:

@@ -26,8 +26,7 @@ def load_plugins(app: typer.Typer) -> None:
             logger.warning(f"Failed to load plugin {entry.name}: {e}")
 
 
-load_plugins(app)
-
-
 if __name__ == "__main__":
+    load_plugins(app)
+
     app()

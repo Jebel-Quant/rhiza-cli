@@ -76,15 +76,15 @@ def _write_history(tmp_path, files):
 class TestLockFile:
     """Tests for lock-file helpers."""
 
-    def test_read_sha_returns_none_when_missing(self, tmp_path):
-        """No lock file → None."""
-        assert TemplateLock.read_sha(tmp_path) is None
+    def test_no_lock_file_when_missing(self, tmp_path):
+        """No lock file → lock path does not exist."""
+        assert not (tmp_path / ".rhiza" / "template.lock").exists()
 
-    def test_write_and_read_sha(self, tmp_path):
-        """Round-trip write/read of a lock file."""
+    def test_write_and_read_lock_sha(self, tmp_path):
+        """Round-trip: write lock then read back sha via from_yaml."""
         sha = "abc123def456"
         _write_lock(tmp_path, TemplateLock(sha=sha))
-        assert TemplateLock.read_sha(tmp_path) == sha
+        assert TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock").config["sha"] == sha
 
     def test_write_lock_creates_parent_directory(self, tmp_path):
         """Lock file creation should create .rhiza/ if needed."""
@@ -156,13 +156,6 @@ class TestLockFile:
         data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
         assert sorted(data["files"]) == ["a.txt", "b.txt"]
 
-    def test_read_sha_legacy_plain_sha(self, tmp_path):
-        """Legacy plain-SHA lock files are still readable."""
-        lock_path = tmp_path / ".rhiza" / "template.lock"
-        lock_path.parent.mkdir(parents=True)
-        lock_path.write_text("abc123def456\n", encoding="utf-8")
-        assert TemplateLock.read_sha(tmp_path) == "abc123def456"
-
     def test_write_lock_no_tmp_file_left(self, tmp_path):
         """After _write_lock completes, no .tmp or .fd file should remain."""
         _write_lock(tmp_path, TemplateLock(sha="deadbeef12345678"))
@@ -177,34 +170,14 @@ class TestLockFile:
         _write_lock(tmp_path, TemplateLock(sha=sha_first))
         _write_lock(tmp_path, TemplateLock(sha=sha_second))
         # The final lock must contain exactly the second SHA.
-        assert TemplateLock.read_sha(tmp_path) == sha_second
-
-    def test_read_sha_without_fcntl(self, tmp_path):
-        """TemplateLock.read_sha logs debug when fcntl is not available."""
-        _write_lock(tmp_path, TemplateLock(sha="deadbeef12345678"))
-
-        with patch("rhiza.models.lock._FCNTL_AVAILABLE", False):
-            sha = TemplateLock.read_sha(tmp_path)
-
-        assert sha == "deadbeef12345678"
+        assert TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock").config["sha"] == sha_second
 
     def test_write_lock_without_fcntl(self, tmp_path):
         """_write_lock logs debug when fcntl is not available."""
         with patch("rhiza.commands._sync_helpers._FCNTL_AVAILABLE", False):
             _write_lock(tmp_path, TemplateLock(sha="cafebabe12345678"))
 
-        assert TemplateLock.read_sha(tmp_path) == "cafebabe12345678"
-
-    def test_read_sha_falls_back_on_yaml_error(self, tmp_path):
-        """When yaml.safe_load raises YAMLError, TemplateLock.read_sha falls back to plain-SHA."""
-        lock_path = tmp_path / ".rhiza" / "template.lock"
-        lock_path.parent.mkdir(parents=True)
-        lock_path.write_text("abc123plainsha\n")
-
-        with patch("rhiza.models.lock.yaml.safe_load", side_effect=yaml.YAMLError("parse error")):
-            result = TemplateLock.read_sha(tmp_path)
-
-        assert result == "abc123plainsha"
+        assert TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock").config["sha"] == "cafebabe12345678"
 
 
 class TestApplyDiff:
@@ -324,7 +297,7 @@ class TestSyncCommand:
         # Local file should not be modified
         assert (tmp_path / "test.txt").read_text() == "local content"
         # Lock should NOT be updated in diff mode
-        assert TemplateLock.read_sha(tmp_path) is None
+        assert not (tmp_path / ".rhiza" / "template.lock").exists()
 
     @patch("rhiza.models._git_utils.subprocess.run")
     @patch("rhiza.commands.sync.shutil.rmtree")
@@ -360,7 +333,7 @@ class TestSyncCommand:
         sync(tmp_path, "main", None, "merge")
 
         assert (tmp_path / "test.txt").read_text() == "new template content\n"
-        assert TemplateLock.read_sha(tmp_path) == "first111"
+        assert TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock").config["sha"] == "first111"
 
     def test_sync_diff_no_changes(self, tmp_path, git_ctx):
         """_sync_diff logs success when there are no differences."""
@@ -624,7 +597,8 @@ class TestMergeWithBasePaths:
         )
 
         # Lock should be updated with upstream SHA
-        assert TemplateLock.read_sha(target) == "newsha"
+        assert TemplateLock.from_yaml(target / ".rhiza" / "template.lock").config["sha"] == "newsha"
+        assert TemplateLock.from_yaml(target / ".rhiza" / "template.lock").config["sha"] == "newsha"
 
     @patch("rhiza.models._git_utils.GitContext._apply_diff")
     @patch("rhiza.models._git_utils.GitContext.get_diff")
@@ -1236,7 +1210,7 @@ class TestThreeWayMergeWithBase:
         # File must be unchanged
         assert (git_project / "ci.yml").read_text() == identical_content
         # Lock should be updated to upstream SHA
-        assert TemplateLock.read_sha(git_project) == "upstream_sha_abc"
+        assert TemplateLock.from_yaml(git_project / ".rhiza" / "template.lock").config["sha"] == "upstream_sha_abc"
 
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
     def test_merge_upstream_adds_new_file(self, mock_clone, tmp_path, git_project, git_ctx):
@@ -1390,7 +1364,7 @@ class TestThreeWayMergeSyncMergeStrategy:
         assert "pip install" in content, "original content should be preserved"
         assert "pytest" in content, "upstream addition should be applied"
         # Lock file should be updated
-        assert TemplateLock.read_sha(target) == "upstream_sha_456"
+        assert TemplateLock.from_yaml(target / ".rhiza" / "template.lock").config["sha"] == "upstream_sha_456"
 
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
     @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
@@ -1406,7 +1380,7 @@ class TestThreeWayMergeSyncMergeStrategy:
         target = project_with_template
 
         # No lock file → first sync
-        assert TemplateLock.read_sha(target) is None
+        assert not (target / ".rhiza" / "template.lock").exists()
 
         upstream_snapshot = tmp_path / "upstream_snapshot"
         upstream_snapshot.mkdir()
@@ -1425,7 +1399,7 @@ class TestThreeWayMergeSyncMergeStrategy:
 
         assert (target / "Makefile").exists()
         assert "pip install" in (target / "Makefile").read_text()
-        assert TemplateLock.read_sha(target) == "first_sha_abc"
+        assert TemplateLock.from_yaml(target / ".rhiza" / "template.lock").config["sha"] == "first_sha_abc"
         # _clone_at_sha should NOT have been called (no base to clone)
         mock_clone.assert_not_called()
 

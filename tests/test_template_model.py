@@ -21,20 +21,17 @@ from rhiza.models.template import RhizaTemplate
 class TestRhizaTemplate:
     """Tests for the RhizaTemplate dataclass."""
 
-    def test_rhiza_template_from_yaml(self, tmp_path, write_yaml):
-        """Test loading RhizaTemplate from YAML with various field combinations."""
-        # 1. Standard loading with 'template-repository', 'template-branch', and 'exclude'
-        template_file = write_yaml(
-            "template_std.yml",
+    def test_rhiza_template_from_config(self):
+        """Test loading RhizaTemplate from config dict with various field combinations."""
+        # 1. Standard keys with 'template-repository', 'template-branch', and 'exclude'
+        template = RhizaTemplate.from_config(
             {
                 "template-repository": "custom/repo",
                 "template-branch": "dev",
                 "include": [".github", "Makefile"],
                 "exclude": [".github/workflows/docker.yml"],
-            },
+            }
         )
-
-        template = RhizaTemplate.from_yaml(template_file)
         assert template.template_repository == "custom/repo"
         assert template.template_branch == "dev"
         assert template.include == [".github", "Makefile"]
@@ -42,19 +39,16 @@ class TestRhizaTemplate:
         assert template.template_host == "github"  # Default
         assert template.language == "python"  # Default
 
-        # 2. Loading with aliases 'repository' and 'ref', and custom host/language
-        template_file = write_yaml(
-            "template_alt.yml",
+        # 2. Canonical aliases 'repository' and 'ref', with custom host/language
+        template = RhizaTemplate.from_config(
             {
                 "repository": "owner/repo",
                 "ref": "v1.0.0",
                 "template-host": "gitlab",
                 "language": "go",
                 "templates": ["core", "tests"],
-            },
+            }
         )
-
-        template = RhizaTemplate.from_yaml(template_file)
         assert template.template_repository == "owner/repo"
         assert template.template_branch == "v1.0.0"
         assert template.template_host == "gitlab"
@@ -62,26 +56,26 @@ class TestRhizaTemplate:
         assert template.templates == ["core", "tests"]
 
         # 3. Precedence: 'repository' over 'template-repository', 'ref' over 'template-branch'
-        template_file = write_yaml(
-            "template_precedence.yml",
+        template = RhizaTemplate.from_config(
             {
                 "repository": "correct/repo",
                 "template-repository": "wrong/repo",
                 "ref": "correct-branch",
                 "template-branch": "wrong-branch",
-            },
+            }
         )
-
-        template = RhizaTemplate.from_yaml(template_file)
         assert template.template_repository == "correct/repo"
         assert template.template_branch == "correct-branch"
 
         # 4. Fallback: null/empty primary fields use alternative fields
-        template_file = tmp_path / "template_fallback.yml"
-        template_file.write_text(
-            "repository: null\ntemplate-repository: fallback/repo\nref: ''\ntemplate-branch: fallback-branch\n"
+        template = RhizaTemplate.from_config(
+            {
+                "repository": None,
+                "template-repository": "fallback/repo",
+                "ref": "",
+                "template-branch": "fallback-branch",
+            }
         )
-        template = RhizaTemplate.from_yaml(template_file)
         assert template.template_repository == "fallback/repo"
         assert template.template_branch == "fallback-branch"
 
@@ -90,7 +84,7 @@ class TestRhizaTemplate:
         template_file = tmp_path / "template.yml"
         template_file.write_text("")
 
-        with pytest.raises(ValueError, match="Template file is empty"):
+        with pytest.raises(ValueError, match="is empty"):
             RhizaTemplate.from_yaml(template_file)
 
     def test_rhiza_template_from_yaml_invalid_yaml(self, tmp_path):
@@ -218,20 +212,17 @@ class TestRhizaTemplate:
         # Test with dict - should return []
         assert _normalize_to_list({"key": "value"}) == []  # type: ignore[arg-type]
 
-    def test_rhiza_hybrid_mode(self, tmp_path, write_yaml):
-        """Test template.yml with both templates and include fields (loading and saving)."""
-        # 1. Loading
-        template_file = write_yaml(
-            "template.yml",
+    def test_rhiza_hybrid_mode(self, tmp_path):
+        """Test template with both templates and include fields (loading and saving)."""
+        # 1. Loading via from_config
+        template = RhizaTemplate.from_config(
             {
                 "template-repository": "jebel-quant/rhiza",
                 "template-branch": "main",
                 "templates": ["core", "tests"],
                 "include": [".custom", "extra/"],
-            },
+            }
         )
-
-        template = RhizaTemplate.from_yaml(template_file)
         assert template.templates == ["core", "tests"]
         assert template.include == [".custom", "extra/"]
 
@@ -463,9 +454,12 @@ class TestYamlSerializableProtocol:
 class TestLoadModel:
     """Tests for the load_model generic helper as it applies to RhizaTemplate."""
 
-    def test_load_model_returns_rhiza_template(self, write_yaml):
+    def test_load_model_returns_rhiza_template(self, tmp_path):
         """load_model loads a RhizaTemplate and returns the correct type/values."""
-        template_file = write_yaml("template.yml", {"repository": "owner/repo", "ref": "main"})
+        import yaml
+
+        template_file = tmp_path / "template.yml"
+        template_file.write_text(yaml.dump({"repository": "owner/repo", "ref": "main"}))
 
         result = load_model(RhizaTemplate, template_file)
 
@@ -473,14 +467,14 @@ class TestLoadModel:
         assert result.template_repository == "owner/repo"
         assert result.template_branch == "main"
 
-    def test_load_model_raises_for_class_without_from_yaml(self):
-        """load_model raises TypeError when the class lacks from_yaml."""
+    def test_load_model_raises_for_class_without_from_config(self):
+        """load_model raises TypeError when the class lacks from_config."""
 
-        class NoYaml:
+        class NoConfig:
             pass
 
-        with pytest.raises(TypeError, match="NoYaml does not implement from_yaml"):
-            load_model(NoYaml, Path("irrelevant.yml"))
+        with pytest.raises(TypeError, match="NoConfig does not implement from_config"):
+            load_model(NoConfig, Path("irrelevant.yml"))
 
 
 # ---------------------------------------------------------------------------
