@@ -26,7 +26,7 @@ import yaml
 from loguru import logger
 
 from rhiza.models import RhizaTemplate, TemplateLock, get_git_executable
-from rhiza.subprocess_utils import _log_git_stderr_errors
+from rhiza.models._git_utils import _log_git_stderr_errors
 
 # ---------------------------------------------------------------------------
 # Diff prefix constants

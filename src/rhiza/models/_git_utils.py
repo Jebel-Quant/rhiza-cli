@@ -2,6 +2,8 @@
 
 import shutil
 
+from loguru import logger
+
 
 def _normalize_to_list(value: str | list[str] | None) -> list[str]:
     r"""Convert a value to a list of strings.
@@ -59,3 +61,16 @@ def get_git_executable() -> str:
         msg = "git executable not found in PATH. Please ensure git is installed and available."
         raise RuntimeError(msg)
     return git_path
+
+
+def _log_git_stderr_errors(stderr: str | None) -> None:
+    """Extract and log only relevant error messages from git stderr.
+
+    Args:
+        stderr: Git command stderr output.
+    """
+    if stderr:
+        for line in stderr.strip().split("\n"):
+            line = line.strip()
+            if line and (line.startswith("fatal:") or line.startswith("error:")):
+                logger.error(line)
