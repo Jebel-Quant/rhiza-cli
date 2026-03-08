@@ -28,9 +28,7 @@ from loguru import logger
 from rhiza.commands._sync_helpers import (
     LOCK_FILE,
     _assert_git_status_clean,
-    _excluded_set,
     _handle_target_branch,
-    _prepare_snapshot,
     _read_lock,
     _sync_diff,
     _sync_merge,
@@ -73,12 +71,11 @@ def sync(
     _assert_git_status_clean(target, git_executable, git_env)
     _handle_target_branch(target, target_branch, git_executable, git_env)
 
-    template, rhiza_repo, rhiza_branch, include_paths, excluded_paths = _validate_and_load_template(target, branch)
+    template, rhiza_repo, rhiza_branch, _, _ = _validate_and_load_template(target, branch)
     rhiza_host = template.template_host or "github"
 
     logger.info(f"Cloning {rhiza_repo}@{rhiza_branch} (upstream)")
     upstream_dir, upstream_sha = template.clone(git_executable, git_env, branch=branch)
-    include_paths = template.include
 
     try:
         base_sha = _read_lock(target)
@@ -92,20 +89,17 @@ def sync(
         #    logger.info("template.yml has changed — re-syncing to apply new configuration")
         #    base_sha = None
 
-        excludes = _excluded_set(upstream_dir, excluded_paths)
-
         upstream_snapshot = Path(tempfile.mkdtemp())
         try:
-            materialized = _prepare_snapshot(upstream_dir, include_paths, excludes, upstream_snapshot)
+            materialized, excludes = template.snapshot(upstream_dir, upstream_snapshot)
             logger.info(f"Upstream: {len(materialized)} file(s) to consider")
-
             lock = TemplateLock(
                 sha=upstream_sha,
                 repo=rhiza_repo,
                 host=rhiza_host,
                 ref=rhiza_branch,
                 include=template.include,
-                exclude=excluded_paths,
+                exclude=template.exclude,
                 templates=template.templates,
                 files=[str(p) for p in materialized],
                 synced_at=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -121,7 +115,7 @@ def sync(
                     upstream_sha,
                     base_sha,
                     materialized,
-                    include_paths,
+                    template.include,
                     excludes,
                     template.git_url,
                     git_executable,

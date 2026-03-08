@@ -480,3 +480,73 @@ class TestRhizaTemplateClone:
         assert call_args[0][2] == "develop"
         assert upstream_sha == "sha_from_develop"
         shutil.rmtree(upstream_dir, ignore_errors=True)
+
+
+class TestRhizaTemplateSnapshot:
+    """Tests for the RhizaTemplate.snapshot method."""
+
+    def test_snapshot_copies_included_files(self, tmp_path):
+        """Snapshot copies included files into snapshot_dir and returns them as materialized."""
+        upstream_dir = tmp_path / "upstream"
+        upstream_dir.mkdir()
+        (upstream_dir / "a.txt").write_text("content-a")
+        (upstream_dir / "b.txt").write_text("content-b")
+
+        snapshot_dir = tmp_path / "snapshot"
+        snapshot_dir.mkdir()
+
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            include=["a.txt", "b.txt"],
+        )
+
+        materialized, _excludes = template.snapshot(upstream_dir, snapshot_dir)
+
+        assert len(materialized) == 2
+        assert (snapshot_dir / "a.txt").read_text() == "content-a"
+        assert (snapshot_dir / "b.txt").read_text() == "content-b"
+
+    def test_snapshot_excludes_user_paths_and_rhiza_defaults(self, tmp_path):
+        """Snapshot excludes user-configured paths and always omits rhiza internals."""
+        upstream_dir = tmp_path / "upstream"
+        upstream_dir.mkdir()
+        (upstream_dir / "keep.txt").write_text("keep")
+        (upstream_dir / "skip.txt").write_text("skip")
+
+        snapshot_dir = tmp_path / "snapshot"
+        snapshot_dir.mkdir()
+
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            include=["keep.txt", "skip.txt"],
+            exclude=["skip.txt"],
+        )
+
+        materialized, excludes = template.snapshot(upstream_dir, snapshot_dir)
+
+        assert len(materialized) == 1
+        assert (snapshot_dir / "keep.txt").exists()
+        assert not (snapshot_dir / "skip.txt").exists()
+        assert "skip.txt" in excludes
+        assert ".rhiza/template.yml" in excludes
+        assert ".rhiza/history" in excludes
+
+    def test_snapshot_returns_excludes_for_downstream_use(self, tmp_path):
+        """Snapshot returns the excludes set so callers can pass it to merge helpers."""
+        upstream_dir = tmp_path / "upstream"
+        upstream_dir.mkdir()
+        (upstream_dir / "secrets.env").write_text("API_KEY=secret")
+
+        snapshot_dir = tmp_path / "snapshot"
+        snapshot_dir.mkdir()
+
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            include=["secrets.env"],
+            exclude=["secrets.env"],
+        )
+
+        _, excludes = template.snapshot(upstream_dir, snapshot_dir)
+
+        assert "secrets.env" in excludes
+        assert ".rhiza/template.yml" in excludes

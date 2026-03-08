@@ -408,6 +408,39 @@ class RhizaTemplate:
 
         return upstream_dir, upstream_sha
 
+    def snapshot(
+        self,
+        upstream_dir: Path,
+        snapshot_dir: Path,
+    ) -> tuple[list[Path], set[str]]:
+        """Build a clean snapshot of the included template files.
+
+        Computes the set of excluded paths from ``self.exclude`` and copies
+        all included (non-excluded) files from *upstream_dir* into
+        *snapshot_dir*, producing a flat tree suitable for
+        ``git diff --no-index``.
+
+        Args:
+            upstream_dir: Root of the cloned template repository (returned by
+                :meth:`clone`).
+            snapshot_dir: Destination directory for the snapshot.  Must already
+                exist.
+
+        Returns:
+            Tuple of ``(materialized, excludes)`` where *materialized* is the
+            list of relative file paths that were copied and *excludes* is the
+            full set of relative path strings that were skipped.
+        """
+        # Deferred import — breaks the circular dependency with _sync_helpers.
+        from rhiza.commands._sync_helpers import (
+            _excluded_set,
+            _prepare_snapshot,
+        )
+
+        excludes = _excluded_set(upstream_dir, self.exclude)
+        materialized = _prepare_snapshot(upstream_dir, self.include, excludes, snapshot_dir)
+        return materialized, excludes
+
 
 @dataclass
 class TemplateLock:
