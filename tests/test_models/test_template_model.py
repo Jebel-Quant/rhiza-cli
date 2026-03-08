@@ -647,3 +647,62 @@ class TestFromProject:
         with patch("rhiza.commands.validate.validate", return_value=True):
             template = RhizaTemplate.from_project(tmp_path)
         assert template.exclude == ["secret.txt"]
+
+
+# ---------------------------------------------------------------------------
+# resolve_include_paths
+# ---------------------------------------------------------------------------
+
+
+class TestResolveIncludePaths:
+    """Tests for RhizaTemplate.resolve_include_paths."""
+
+    def _make_template(self, **kwargs):
+        config = {"template-repository": "owner/repo", "template-branch": "main"}
+        config.update(kwargs)
+        return RhizaTemplate.from_config(config)
+
+    def _make_bundles(self):
+        from rhiza.models.bundle import RhizaBundles
+
+        return RhizaBundles.from_config(
+            {"bundles": {"core": {"description": "Core", "files": ["Makefile", "pyproject.toml"]}}}
+        )
+
+    def test_include_only_returns_include_paths(self):
+        """When only include is set, those paths are returned directly."""
+        template = self._make_template(include=["Makefile", "pyproject.toml"])
+        result = template.resolve_include_paths(None)
+        assert result == ["Makefile", "pyproject.toml"]
+
+    def test_templates_without_bundles_config_raises(self):
+        """ValueError raised when templates are configured but bundles_config is None."""
+        template = self._make_template(templates=["core"])
+        with pytest.raises(ValueError, match=r"template-bundles\.yml not found"):
+            template.resolve_include_paths(None)
+
+    def test_templates_resolved_via_bundles_config(self):
+        """Paths are resolved from bundles_config when templates are set."""
+        template = self._make_template(templates=["core"])
+        result = template.resolve_include_paths(self._make_bundles())
+        assert result == ["Makefile", "pyproject.toml"]
+
+    def test_hybrid_mode_combines_templates_and_include(self):
+        """Both templates and include paths are merged in hybrid mode."""
+        template = self._make_template(templates=["core"], include=["extra.txt"])
+        result = template.resolve_include_paths(self._make_bundles())
+        assert "Makefile" in result
+        assert "pyproject.toml" in result
+        assert "extra.txt" in result
+
+    def test_hybrid_mode_deduplicates_paths(self):
+        """A path listed in both templates and include appears only once."""
+        template = self._make_template(templates=["core"], include=["Makefile"])
+        result = template.resolve_include_paths(self._make_bundles())
+        assert result.count("Makefile") == 1
+
+    def test_no_paths_raises_value_error(self):
+        """ValueError raised when neither templates nor include yield any paths."""
+        template = self._make_template(include=[])
+        with pytest.raises(ValueError, match="must specify either 'templates' or 'include'"):
+            template.resolve_include_paths(None)
