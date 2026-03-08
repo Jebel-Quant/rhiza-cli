@@ -1,5 +1,5 @@
 """Template model for Rhiza configuration."""
-
+import logging
 import shutil
 import subprocess  # nosec B404
 import tempfile
@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from loguru import logger
 
 from rhiza.models._git_utils import GitContext, _log_git_stderr_errors, _normalize_to_list
 from rhiza.models.bundle import RhizaBundles
@@ -157,7 +156,7 @@ class RhizaTemplate:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
+    def _expand_paths(base_dir: Path, paths: list[str], logger=None) -> list[Path]:
         """Expand file/directory paths relative to *base_dir* into individual files.
 
         Args:
@@ -167,6 +166,8 @@ class RhizaTemplate:
         Returns:
             Flat list of file paths.
         """
+        logger = logger or logging.getLogger(__name__)
+
         all_files: list[Path] = []
         for p in paths:
             full = base_dir / p
@@ -229,6 +230,7 @@ class RhizaTemplate:
         tmp_dir: Path,
         include_paths: list[str],
         git_ctx: GitContext,
+        logger=None,
     ) -> None:
         """Update sparse-checkout paths in an already-cloned repository.
 
@@ -237,6 +239,8 @@ class RhizaTemplate:
             include_paths: Paths to include in sparse checkout.
             git_ctx: Git context.
         """
+        logger = logger or logging.getLogger(__name__)
+
         try:
             logger.debug(f"Updating sparse checkout paths: {include_paths}")
             subprocess.run(  # nosec B603  # noqa: S603
@@ -280,6 +284,7 @@ class RhizaTemplate:
         rhiza_branch: str,
         include_paths: list[str],
         git_ctx: GitContext,
+        logger=None,
     ) -> None:
         """Clone template repository with sparse checkout.
 
@@ -289,6 +294,8 @@ class RhizaTemplate:
             include_paths: Initial paths to include in sparse checkout.
             git_ctx: Git context.
         """
+        logger = logger or logging.getLogger(__name__)
+
         git_url = self.git_url
         try:
             logger.debug("Executing git clone with sparse checkout")
@@ -358,6 +365,7 @@ class RhizaTemplate:
         dest: Path,
         include_paths: list[str],
         git_ctx: GitContext,
+        logger=None,
     ) -> None:
         """Clone the template repository and checkout a specific commit.
 
@@ -367,6 +375,7 @@ class RhizaTemplate:
             include_paths: Paths for sparse checkout.
             git_ctx: Git context.
         """
+        logger = logger or logging.getLogger(__name__)
         git_url = self.git_url
         try:
             subprocess.run(  # nosec B603  # noqa: S603
@@ -426,7 +435,7 @@ class RhizaTemplate:
             raise
 
     @classmethod
-    def from_project(cls, target: Path, branch: str = "main") -> "RhizaTemplate":
+    def from_project(cls, target: Path, branch: str = "main", logger=None) -> "RhizaTemplate":
         """Validate and load a :class:`RhizaTemplate` from a project directory.
 
         Validates the project's ``template.yml`` via :func:`~rhiza.commands.validate.validate`,
@@ -443,6 +452,8 @@ class RhizaTemplate:
             The loaded and validated :class:`RhizaTemplate`.
         """
         from rhiza.commands.validate import validate
+
+        logger = logger or logging.getLogger(__name__)
 
         valid = validate(target)
         if not valid:
@@ -526,6 +537,7 @@ class RhizaTemplate:
         self,
         git_ctx: GitContext,
         branch: str = "main",
+        logger=None
     ) -> tuple[Path, str]:
         """Clone the upstream template repository and resolve include paths.
 
@@ -548,6 +560,8 @@ class RhizaTemplate:
                 unsupported, or no include paths / templates are configured.
             subprocess.CalledProcessError: If a git operation fails.
         """
+        logger = logger or logging.getLogger(__name__)
+
         if not self.template_repository:
             raise ValueError("template_repository is not configured in template.yml")  # noqa: TRY003
         if not self.templates and not self.include:

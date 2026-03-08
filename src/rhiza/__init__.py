@@ -12,7 +12,6 @@ template configuration.
 - Template materialization with selective include/exclude support.
 - Configuration validation (syntax and basic semantics).
 - Multi-host support (GitHub and GitLab).
-- Non-destructive updates by default, with an explicit `--force` flag.
 
 ## Quick start
 

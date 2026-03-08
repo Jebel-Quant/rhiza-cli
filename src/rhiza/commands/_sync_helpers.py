@@ -18,7 +18,6 @@ try:
 except ImportError:  # pragma: no cover - Windows
     _FCNTL_AVAILABLE = False
 
-import yaml
 from loguru import logger
 
 from rhiza.models import TemplateLock
@@ -196,40 +195,6 @@ def _clean_orphaned_files(
 # ---------------------------------------------------------------------------
 # Lock-file helpers
 # ---------------------------------------------------------------------------
-
-
-def _read_lock(target: Path) -> str | None:
-    """Read the last-synced commit SHA from the lock file.
-
-    Handles both the structured YAML format and the legacy plain-SHA format.
-    Uses an exclusive advisory lock (via ``fcntl.flock``) when available so
-    that two concurrent ``rhiza sync`` processes cannot read a partially-written
-    file.  Falls back silently on platforms without ``fcntl`` (e.g. Windows).
-
-    Args:
-        target: Path to the target repository.
-
-    Returns:
-        The commit SHA string or ``None`` when no lock exists.
-    """
-    lock_path = target / LOCK_FILE
-    if not lock_path.exists():
-        return None
-    with lock_path.open(encoding="utf-8") as fh:
-        if _FCNTL_AVAILABLE:
-            fcntl.flock(fh, fcntl.LOCK_EX)
-        else:
-            logger.debug("fcntl not available - skipping advisory lock on read")
-        content = fh.read().strip()
-    # Try structured YAML format first
-    try:
-        data = yaml.safe_load(content)
-        if isinstance(data, dict) and "sha" in data:
-            return data["sha"]
-    except yaml.YAMLError:
-        pass
-    # Legacy plain-SHA format
-    return content
 
 
 def _write_lock(target: Path, lock: TemplateLock) -> None:
