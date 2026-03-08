@@ -101,7 +101,7 @@ def sync(
             )
 
             if strategy == "diff":
-                _sync_diff(target=target, upstream_snapshot=upstream_snapshot)
+                _sync_diff(target=target, upstream_snapshot=upstream_snapshot, git_executable=git_executable)
             else:
                 _sync_merge(
                     target,
