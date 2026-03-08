@@ -414,10 +414,9 @@ class TestRhizaTemplateClone:
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
     @patch("rhiza.bundle_resolver.resolve_include_paths")
     @patch("rhiza.bundle_resolver.load_bundles_from_clone")
-    @patch("rhiza.models.RhizaTemplate._update_sparse_checkout")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     def test_clone_resolves_bundles_and_updates_include(
-        self, mock_clone, mock_update_sparse, mock_load_bundles, mock_resolve, mock_head_sha
+        self, mock_clone, mock_load_bundles, mock_resolve, mock_head_sha
     ):
         """Clone resolves bundle paths and updates self.include when templates are set."""
         from rhiza.subprocess_utils import get_git_executable
@@ -434,11 +433,12 @@ class TestRhizaTemplateClone:
             templates=["core"],
         )
 
-        upstream_dir, upstream_sha = template.clone(get_git_executable(), os.environ.copy(), branch="main")
+        with patch("subprocess.run") as mock_run:
+            upstream_dir, upstream_sha = template.clone(get_git_executable(), os.environ.copy(), branch="main")
+            mock_run.assert_called_once()
 
         mock_load_bundles.assert_called_once()
         mock_resolve.assert_called_once_with(template, mock_bundles)
-        mock_update_sparse.assert_called_once()
         assert template.include == ["Makefile", ".github"]
         assert upstream_sha == "deadbeef1234"
         shutil.rmtree(upstream_dir, ignore_errors=True)
@@ -550,3 +550,45 @@ class TestRhizaTemplateSnapshot:
 
         assert "secrets.env" in excludes
         assert ".rhiza/template.yml" in excludes
+
+    def test_snapshot_recursive_directories(self, tmp_path):
+        """Snapshot should recursively copy directories in include and exclude."""
+        upstream_dir = tmp_path / "upstream"
+        upstream_dir.mkdir()
+        (upstream_dir / "src").mkdir()
+        (upstream_dir / "src" / "main.py").write_text("main")
+        (upstream_dir / "src" / "utils").mkdir()
+        (upstream_dir / "src" / "utils" / "helper.py").write_text("helper")
+        (upstream_dir / "docs").mkdir()
+        (upstream_dir / "docs" / "readme.md").write_text("readme")
+        (upstream_dir / "docs" / "secret.txt").write_text("secret")
+
+        snapshot_dir = tmp_path / "snapshot"
+        snapshot_dir.mkdir()
+
+        # 1. Recursive include, recursive exclude
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            include=["src", "docs"],
+            exclude=["docs"],
+        )
+        materialized, _excludes = template.snapshot(upstream_dir, snapshot_dir)
+
+        rel_materialized = {str(p) for p in materialized}
+        assert "src/main.py" in rel_materialized
+        assert "src/utils/helper.py" in rel_materialized
+        assert "docs/readme.md" not in rel_materialized
+        assert "docs/secret.txt" not in rel_materialized
+
+        # 2. Specific file exclude under directory
+        shutil.rmtree(snapshot_dir)
+        snapshot_dir.mkdir()
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            include=["src", "docs"],
+            exclude=["docs/secret.txt"],
+        )
+        materialized, _excludes = template.snapshot(upstream_dir, snapshot_dir)
+        rel_materialized = {str(p) for p in materialized}
+        assert "docs/readme.md" in rel_materialized
+        assert "docs/secret.txt" not in rel_materialized

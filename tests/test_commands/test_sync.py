@@ -521,12 +521,10 @@ class TestCloneAndResolveUpstreamWithTemplates:
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
     @patch("rhiza.bundle_resolver.resolve_include_paths")
     @patch("rhiza.bundle_resolver.load_bundles_from_clone")
-    @patch("rhiza.models.RhizaTemplate._update_sparse_checkout")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     def test_bundle_resolution_path(
         self,
         mock_clone,
-        mock_update_sparse,
         mock_load_bundles,
         mock_resolve,
         mock_head_sha,
@@ -552,12 +550,13 @@ class TestCloneAndResolveUpstreamWithTemplates:
         mock_resolve.return_value = ["Makefile", ".github"]
         mock_head_sha.return_value = "abc123def456"
 
-        upstream_dir, upstream_sha = template.clone(git_executable, git_env, branch="main")
+        with patch("subprocess.run") as mock_run:
+            upstream_dir, upstream_sha = template.clone(git_executable, git_env, branch="main")
+            mock_run.assert_called_once()
 
         # Bundle resolution code path should have been taken
         mock_load_bundles.assert_called_once()
         mock_resolve.assert_called_once_with(template, mock_bundles)
-        mock_update_sparse.assert_called_once()
         assert template.include == ["Makefile", ".github"]
         assert upstream_sha == "abc123def456"
         shutil.rmtree(upstream_dir, ignore_errors=True)
@@ -598,11 +597,12 @@ class TestMergeWithBasePaths:
 
     @patch("rhiza.commands._sync_helpers._get_diff")
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
-    @patch("rhiza.models.RhizaTemplate._prepare_snapshot")
-    def test_merge_with_base_no_diff(self, mock_prepare, mock_clone, mock_get_diff, tmp_path, git_setup):
+    @patch("rhiza.models.RhizaTemplate.snapshot")
+    def test_merge_with_base_no_diff(self, mock_snapshot, mock_clone, mock_get_diff, tmp_path, git_setup):
         """When diff is empty, lock is updated and function returns early."""
         git_executable, git_env = git_setup
         mock_get_diff.return_value = ""  # empty diff → no changes
+        mock_snapshot.return_value = ([], set())
 
         upstream_snapshot = tmp_path / "upstream"
         upstream_snapshot.mkdir()
@@ -631,9 +631,9 @@ class TestMergeWithBasePaths:
     @patch("rhiza.commands._sync_helpers._apply_diff")
     @patch("rhiza.commands._sync_helpers._get_diff")
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
-    @patch("rhiza.models.RhizaTemplate._prepare_snapshot")
+    @patch("rhiza.models.RhizaTemplate.snapshot")
     def test_merge_with_base_clean_apply(
-        self, mock_prepare, mock_clone, mock_get_diff, mock_apply, tmp_path, git_project, git_setup
+        self, mock_snapshot, mock_clone, mock_get_diff, mock_apply, tmp_path, git_project, git_setup
     ):
         """When diff applies cleanly, success is logged."""
         git_executable, git_env = git_setup
@@ -641,6 +641,7 @@ class TestMergeWithBasePaths:
             "diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new\n"
         )
         mock_apply.return_value = True  # clean merge
+        mock_snapshot.return_value = ([], set())
 
         upstream_snapshot = tmp_path / "upstream"
         upstream_snapshot.mkdir()

@@ -32,6 +32,22 @@ def _log_git_stderr_errors(stderr: str | None) -> None:
                 logger.error(line)
 
 
+def _is_excluded(rel_path: Path, excludes: set[str]) -> bool:
+    """Check if a relative path (or any of its parents) is in the excludes set.
+
+    Args:
+        rel_path: Relative path to check.
+        excludes: Set of excluded path strings.
+
+    Returns:
+        True if the path or a parent is excluded, False otherwise.
+    """
+    path_str = str(rel_path)
+    if path_str in excludes:
+        return True
+    return any(str(parent) in excludes for parent in rel_path.parents)
+
+
 def _normalize_to_list(value: str | list[str] | None) -> list[str]:
     r"""Convert a value to a list of strings.
 
@@ -360,105 +376,6 @@ class RhizaTemplate:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
-        """Expand file/directory paths relative to *base_dir* into individual files.
-
-        Args:
-            base_dir: Root directory to resolve against.
-            paths: Relative path strings.
-
-        Returns:
-            Flat list of file paths.
-        """
-        all_files: list[Path] = []
-        for p in paths:
-            full = base_dir / p
-            if full.is_file():
-                all_files.append(full)
-            elif full.is_dir():
-                all_files.extend(f for f in full.rglob("*") if f.is_file())
-            else:
-                logger.debug(f"Path not found in template repository: {p}")
-        return all_files
-
-    @staticmethod
-    def _excluded_set(base_dir: Path, excluded_paths: list[str]) -> set[str]:
-        """Build a set of relative path strings that should be excluded.
-
-        Args:
-            base_dir: Root of the template clone.
-            excluded_paths: User-configured exclude list.
-
-        Returns:
-            Set of relative path strings (always includes rhiza internals).
-        """
-        result: set[str] = set()
-        for f in RhizaTemplate._expand_paths(base_dir, excluded_paths):
-            result.add(str(f.relative_to(base_dir)))
-        result.add(".rhiza/template.yml")
-        result.add(".rhiza/history")
-        return result
-
-    @staticmethod
-    def _prepare_snapshot(
-        clone_dir: Path,
-        include_paths: list[str],
-        excludes: set[str],
-        snapshot_dir: Path,
-    ) -> list[Path]:
-        """Copy included (non-excluded) files from a clone into a snapshot directory.
-
-        Args:
-            clone_dir: Root of the template clone.
-            include_paths: Paths to include.
-            excludes: Set of relative paths to exclude.
-            snapshot_dir: Destination directory for the snapshot.
-
-        Returns:
-            List of relative file paths that were copied.
-        """
-        materialized: list[Path] = []
-        for f in RhizaTemplate._expand_paths(clone_dir, include_paths):
-            rel = str(f.relative_to(clone_dir))
-            if rel not in excludes:
-                dst = snapshot_dir / rel
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(f, dst)
-                materialized.append(Path(rel))
-        return materialized
-
-    @staticmethod
-    def _update_sparse_checkout(
-        tmp_dir: Path,
-        include_paths: list[str],
-        git_executable: str,
-        git_env: dict[str, str],
-    ) -> None:
-        """Update sparse-checkout paths in an already-cloned repository.
-
-        Args:
-            tmp_dir: Temporary directory with cloned repository.
-            include_paths: Paths to include in sparse checkout.
-            git_executable: Path to git executable.
-            git_env: Environment variables for git commands.
-        """
-        try:
-            logger.debug(f"Updating sparse checkout paths: {include_paths}")
-            subprocess.run(  # nosec B603  # noqa: S603
-                [git_executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
-                cwd=tmp_dir,
-                check=True,
-                capture_output=True,
-                text=True,
-                env=git_env,
-            )
-            logger.debug("Sparse checkout paths updated")
-        except subprocess.CalledProcessError as e:
-            logger.error("Failed to update sparse checkout paths")
-            _log_git_stderr_errors(e.stderr)
-            raise
-
-    @staticmethod
     def _get_head_sha(repo_dir: Path, git_executable: str, git_env: dict[str, str]) -> str:
         """Return the HEAD commit SHA of a cloned repository.
 
@@ -744,7 +661,21 @@ class RhizaTemplate:
         if self.templates:
             bundles_config = load_bundles_from_clone(upstream_dir)
             resolved_paths = resolve_include_paths(self, bundles_config)
-            self._update_sparse_checkout(upstream_dir, resolved_paths, git_executable, git_env)
+            try:
+                logger.debug(f"Updating sparse checkout paths: {resolved_paths}")
+                subprocess.run(  # nosec B603  # noqa: S603
+                    [git_executable, "sparse-checkout", "set", "--skip-checks", *resolved_paths],
+                    cwd=upstream_dir,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    env=git_env,
+                )
+                logger.debug("Sparse checkout paths updated")
+            except subprocess.CalledProcessError as e:
+                logger.error("Failed to update sparse checkout paths")
+                _log_git_stderr_errors(e.stderr)
+                raise
             self.include = resolved_paths
 
         upstream_sha = self._get_head_sha(upstream_dir, git_executable, git_env)
@@ -759,9 +690,9 @@ class RhizaTemplate:
     ) -> tuple[list[Path], set[str]]:
         """Build a clean snapshot of the included template files.
 
-        Computes the set of excluded paths from ``self.exclude`` and copies
-        all included (non-excluded) files from *upstream_dir* into
-        *snapshot_dir*, producing a flat tree suitable for
+        Computes the set of excluded paths from ``self.exclude`` (adding default
+        rhiza exclusions) and copies all included (non-excluded) files from
+        *upstream_dir* into *snapshot_dir*, producing a flat tree suitable for
         ``git diff --no-index``.
 
         Args:
@@ -775,9 +706,26 @@ class RhizaTemplate:
             list of relative file paths that were copied and *excludes* is the
             full set of relative path strings that were skipped.
         """
-        excludes = self._excluded_set(upstream_dir, self.exclude)
-        materialized = self._prepare_snapshot(upstream_dir, self.include, excludes, snapshot_dir)
-        return materialized, excludes
+        excludes = set(self.exclude)
+        excludes.add(".rhiza/template.yml")
+        excludes.add(".rhiza/history")
+
+        materialized: list[Path] = []
+        for f in upstream_dir.rglob("*"):
+            if not f.is_file():
+                continue
+
+            rel = f.relative_to(upstream_dir)
+            if str(rel).startswith(".git/"):
+                continue
+
+            if not _is_excluded(rel, excludes):
+                dst = snapshot_dir / rel
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, dst)
+                materialized.append(rel)
+
+        return sorted(materialized), excludes
 
 
 @dataclass

@@ -25,7 +25,7 @@ except ImportError:  # pragma: no cover - Windows
 import yaml
 from loguru import logger
 
-from rhiza.models import RhizaTemplate, TemplateLock
+from rhiza.models import RhizaTemplate, TemplateLock, _is_excluded
 from rhiza.subprocess_utils import get_git_executable
 
 # ---------------------------------------------------------------------------
@@ -316,8 +316,9 @@ def _clean_orphaned_files(
     # Don't delete files that the user has explicitly excluded — they have
     # opted those files out of template management and want to keep them.
     if excludes:
-        excluded_as_paths = {Path(e) for e in excludes}
-        orphaned_files = orphaned_files - excluded_as_paths
+        # Use a list to avoid modifying orphaned_files during iteration
+        to_protect = {f for f in orphaned_files if _is_excluded(f, excludes)}
+        orphaned_files = orphaned_files - to_protect
 
     protected_files = {Path(".rhiza/template.yml")}
 
