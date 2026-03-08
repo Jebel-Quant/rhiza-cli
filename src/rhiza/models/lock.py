@@ -5,9 +5,17 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from loguru import logger
 
 from rhiza.models._git_utils import _normalize_to_list
 from rhiza.models.template import GitHost
+
+try:
+    import fcntl
+
+    _FCNTL_AVAILABLE = True
+except ImportError:  # pragma: no cover - Windows
+    _FCNTL_AVAILABLE = False
 
 
 @dataclass
@@ -37,6 +45,40 @@ class TemplateLock:
     files: list[str] = field(default_factory=list)
     synced_at: str = ""
     strategy: str = ""
+
+    @classmethod
+    def read_sha(cls, target: Path) -> str | None:
+        """Read the last-synced commit SHA from the lock file in *target*.
+
+        Handles both the structured YAML format and the legacy plain-SHA format.
+        Uses an exclusive advisory lock (via ``fcntl.flock``) when available so
+        that two concurrent ``rhiza sync`` processes cannot read a partially-written
+        file.  Falls back silently on platforms without ``fcntl`` (e.g. Windows).
+
+        Args:
+            target: Path to the target repository.
+
+        Returns:
+            The commit SHA string or ``None`` when no lock exists.
+        """
+        lock_path = target / ".rhiza" / "template.lock"
+        if not lock_path.exists():
+            return None
+        with lock_path.open(encoding="utf-8") as fh:
+            if _FCNTL_AVAILABLE:
+                fcntl.flock(fh, fcntl.LOCK_EX)
+            else:
+                logger.debug("fcntl not available - skipping advisory lock on read")
+            content = fh.read().strip()
+        # Try structured YAML format first
+        try:
+            data = yaml.safe_load(content)
+            if isinstance(data, dict) and "sha" in data:
+                return str(data["sha"])
+        except yaml.YAMLError:
+            pass
+        # Legacy plain-SHA format
+        return content
 
     @classmethod
     def from_yaml(cls, file_path: Path) -> "TemplateLock":

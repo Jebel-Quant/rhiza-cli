@@ -24,13 +24,9 @@ from pathlib import Path
 
 from loguru import logger
 
-from rhiza.commands._sync_helpers import (
-    LOCK_FILE,
-    _read_lock,
-)
 from rhiza.models import GitContext, RhizaTemplate, TemplateLock
 
-__all__ = ["LOCK_FILE", "sync"]
+__all__ = ["sync"]
 
 
 def sync(
@@ -69,7 +65,7 @@ def sync(
 
     # Synchronizes target with upstream template snapshot transactionally; cleans up resources
     try:
-        base_sha = _read_lock(target)
+        base_sha = TemplateLock.read_sha(target)
 
         upstream_snapshot = Path(tempfile.mkdtemp())
         try:

@@ -74,3 +74,23 @@ class TestLoadModel:
         assert loaded.bundles["core"].description == "Core files"
         assert loaded.bundles["core"].files == ["Makefile", "pyproject.toml"]
         assert loaded.bundles["core"].workflows == [".github/workflows/ci.yml"]
+
+    def test_rhiza_bundles_to_yaml_with_depends_on(self, tmp_path):
+        """RhizaBundles.to_yaml serialises depends_on under the 'depends-on' key."""
+        from rhiza.models.bundle import BundleDefinition
+
+        original = RhizaBundles(
+            bundles={
+                "extended": BundleDefinition(
+                    name="extended",
+                    description="Extended bundle",
+                    files=["extra.txt"],
+                    depends_on=["core"],
+                )
+            },
+        )
+        out_path = tmp_path / "template-bundles.yml"
+        original.to_yaml(out_path)
+        loaded = RhizaBundles.from_yaml(out_path)
+
+        assert loaded.bundles["extended"].depends_on == ["core"]
