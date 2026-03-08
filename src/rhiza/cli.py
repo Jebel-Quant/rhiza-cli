@@ -20,7 +20,6 @@ from rhiza.commands.summarise import summarise as summarise_cmd
 from rhiza.commands.sync import sync as sync_cmd
 from rhiza.commands.tree import tree as tree_cmd
 from rhiza.commands.uninstall import uninstall as uninstall_cmd
-from rhiza.commands.welcome import welcome as welcome_cmd
 
 app = typer.Typer(
     help=(
@@ -383,19 +382,6 @@ def migrate(
         rhiza migrate /path/to/project
     """
     migrate_cmd(target)
-
-
-@app.command()
-def welcome() -> None:
-    r"""Display a friendly welcome message and explain what Rhiza is.
-
-    Shows a welcome message, explains Rhiza's purpose, key features,
-    and provides guidance on getting started with the tool.
-
-    Examples:
-        rhiza welcome
-    """
-    welcome_cmd()
 
 
 @app.command(name="list")

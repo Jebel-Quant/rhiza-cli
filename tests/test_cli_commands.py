@@ -164,51 +164,6 @@ class TestMainEntry:
         add_typer_mock.assert_called_once_with(mock_plugin_app, name="good_plugin")
 
 
-class TestWelcomeCommand:
-    """Tests for the welcome command."""
-
-    def test_welcome_command(self, capsys):
-        """Test that the welcome command displays welcome message."""
-        result = subprocess.run(
-            [sys.executable, "-m", "rhiza", "welcome"],
-            capture_output=True,
-            text=True,
-        )
-        assert result.returncode == 0
-        output = result.stdout
-
-        # Check for key elements of the welcome message
-        assert "Welcome to Rhiza" in output
-        assert __version__ in output
-        assert "What Rhiza can do" in output
-        assert "Getting started" in output
-        assert "rhiza init" in output
-        assert "rhiza sync" in output
-
-    def test_welcome_command_function_coverage(self, capsys):
-        """Test the welcome command function directly for coverage."""
-        from rhiza.commands.welcome import welcome
-
-        welcome()
-
-        captured = capsys.readouterr()
-        assert "Welcome to Rhiza" in captured.out
-        assert __version__ in captured.out
-
-    def test_welcome_cli_wrapper_coverage(self, capsys):
-        """Test the CLI welcome command wrapper directly for coverage."""
-        from typer.testing import CliRunner
-
-        from rhiza.cli import app
-
-        runner = CliRunner()
-        result = runner.invoke(app, ["welcome"])
-
-        assert result.exit_code == 0
-        assert "Welcome to Rhiza" in result.stdout
-        assert __version__ in result.stdout
-
-
 class TestSummariseCommand:
     """Tests for the summarise command."""
 
