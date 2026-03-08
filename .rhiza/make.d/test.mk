@@ -46,6 +46,12 @@ test:: install ## run all tests
 	  --html=_tests/html-report/report.html; \
 	fi
 
+	@if [ -f _tests/coverage.json ]; then \
+	  printf "${BLUE}[INFO] Generating coverage badge JSON for shields.io endpoint...${RESET}\n"; \
+	  ${UV_BIN} run python3 -c "import json; d=json.load(open('_tests/coverage.json')); p=int(round(d['totals']['percent_covered'])); c='green' if p>=90 else 'yellowgreen' if p>=80 else 'yellow' if p>=70 else 'orange' if p>=60 else 'red'; open('_tests/coverage-badge.json','w').write(json.dumps({'schemaVersion':1,'label':'coverage','message':str(p)+'%','color':c}))"; \
+	  printf "${GREEN}[SUCCESS] Coverage badge JSON saved to _tests/coverage-badge.json${RESET}\n"; \
+	fi
+
 # The 'typecheck' target runs static type analysis using ty.
 # 1. Checks if the source directory exists.
 # 2. Runs ty on the source folder.

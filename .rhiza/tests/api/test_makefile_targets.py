@@ -171,6 +171,13 @@ class TestMakefile:
         assert "_tests/coverage.json" in out
         assert "assets/coverage-badge.svg" in out
 
+    def test_test_target_generates_coverage_badge_json(self, logger):
+        """Test target dry-run should include generation of shields.io coverage-badge.json."""
+        proc = run_make(logger, ["test"])
+        out = proc.stdout
+        assert "_tests/coverage-badge.json" in out
+        assert "coverage-badge.json" in out
+
 
 class TestMakefileRootFixture:
     """Tests for root fixture usage in Makefile tests."""
