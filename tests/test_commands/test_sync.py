@@ -533,7 +533,7 @@ class TestCloneAndResolveUpstreamWithTemplates:
         tmp_path,
     ):
         """RhizaTemplate.clone resolves bundle paths when templates is set."""
-        from rhiza.subprocess_utils import get_git_executable
+        from rhiza.models import get_git_executable
 
         git_executable = get_git_executable()
         git_env = os.environ.copy()

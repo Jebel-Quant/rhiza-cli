@@ -25,8 +25,7 @@ except ImportError:  # pragma: no cover - Windows
 import yaml
 from loguru import logger
 
-from rhiza.models import RhizaTemplate, TemplateLock
-from rhiza.subprocess_utils import get_git_executable
+from rhiza.models import RhizaTemplate, TemplateLock, get_git_executable
 
 # ---------------------------------------------------------------------------
 # Diff prefix constants
