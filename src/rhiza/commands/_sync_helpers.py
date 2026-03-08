@@ -718,17 +718,45 @@ def _sync_merge(
         lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
     """
     # Snapshot the currently-tracked files before the merge runs.  The merge
-    # may write a new lock (e.g. on the "template unchanged" early-return path
-    # in _merge_with_base), so we must read the old state first to ensure
-    # orphan cleanup compares against the previous sync, not the new one.
+    # may write a new lock (e.g. on the "template unchanged" early-return path),
+    # so we must read the old state first to ensure orphan cleanup compares
+    # against the previous sync, not the new one.
     old_tracked_files = _read_previously_tracked_files(target)
 
     base_snapshot = Path(tempfile.mkdtemp())
     try:
         if base_sha:
-            _merge_with_base(
-                target, upstream_snapshot, base_sha, base_snapshot, template, git_executable, git_env, lock
-            )
+            logger.info(f"Cloning base snapshot at {base_sha[:12]}")
+            base_clone = Path(tempfile.mkdtemp())
+            try:
+                template._clone_at_sha(base_sha, base_clone, template.include, git_executable, git_env)
+                template.snapshot(base_clone, base_snapshot)
+            except Exception:
+                logger.warning("Could not checkout base commit — treating all files as new")
+            finally:
+                if base_clone.exists():
+                    shutil.rmtree(base_clone)
+
+            diff = _get_diff(base_snapshot, upstream_snapshot)
+
+            if not diff.strip():
+                logger.success("Template unchanged since last sync — nothing to apply")
+                _write_lock(target, lock)
+            else:
+                logger.info("Applying template changes via 3-way merge (cruft)...")
+                clean = _apply_diff(
+                    diff,
+                    target,
+                    git_executable,
+                    git_env,
+                    base_snapshot=base_snapshot,
+                    upstream_snapshot=upstream_snapshot,
+                )
+
+                if clean:
+                    logger.success("All changes applied cleanly")
+                else:
+                    logger.warning("Some changes had conflicts. Check for *.rej files and resolve manually.")
         else:
             logger.info("First sync — copying all template files")
             _copy_files_to_target(upstream_snapshot, target, materialized)
@@ -756,54 +784,3 @@ def _sync_merge(
     finally:
         if base_snapshot.exists():
             shutil.rmtree(base_snapshot)
-
-
-def _merge_with_base(
-    target: Path,
-    upstream_snapshot: Path,
-    base_sha: str,
-    base_snapshot: Path,
-    template: "RhizaTemplate",
-    git_executable: str,
-    git_env: dict[str, str],
-    lock: TemplateLock,
-) -> None:
-    """Compute and apply the diff between base and upstream snapshots.
-
-    Args:
-        target: Path to the target repository.
-        upstream_snapshot: Path to the upstream snapshot directory.
-        base_sha: Previously synced commit SHA.
-        base_snapshot: Directory to populate with the base snapshot.
-        template: The :class:`~rhiza.models.RhizaTemplate` driving this sync.
-        git_executable: Absolute path to git.
-        git_env: Environment variables for git commands.
-        lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
-    """
-    logger.info(f"Cloning base snapshot at {base_sha[:12]}")
-    base_clone = Path(tempfile.mkdtemp())
-    try:
-        template._clone_at_sha(base_sha, base_clone, template.include, git_executable, git_env)
-        template.snapshot(base_clone, base_snapshot)
-    except Exception:
-        logger.warning("Could not checkout base commit — treating all files as new")
-    finally:
-        if base_clone.exists():
-            shutil.rmtree(base_clone)
-
-    diff = _get_diff(base_snapshot, upstream_snapshot)
-
-    if not diff.strip():
-        logger.success("Template unchanged since last sync — nothing to apply")
-        _write_lock(target, lock)
-        return
-
-    logger.info("Applying template changes via 3-way merge (cruft)...")
-    clean = _apply_diff(
-        diff, target, git_executable, git_env, base_snapshot=base_snapshot, upstream_snapshot=upstream_snapshot
-    )
-
-    if clean:
-        logger.success("All changes applied cleanly")
-    else:
-        logger.warning("Some changes had conflicts. Check for *.rej files and resolve manually.")
