@@ -585,7 +585,6 @@ class TestMergeWithBasePaths:
         _merge_with_base(
             target,
             upstream_snapshot,
-            "newsha",
             "oldsha",
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
@@ -615,7 +614,6 @@ class TestMergeWithBasePaths:
         _merge_with_base(
             target,
             upstream_snapshot,
-            "newsha",
             "oldsha",
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
@@ -651,7 +649,6 @@ class TestMergeWithBasePaths:
         _merge_with_base(
             git_project,
             upstream_snapshot,
-            "newsha",
             "oldsha",
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
@@ -1179,7 +1176,8 @@ class TestThreeWayMergeWithBase:
 
     def _populate_base_snapshot_from_clone(self, base_clone, include_paths, excludes, base_snapshot):
         """Helper to prepare a base snapshot without a real git clone."""
-        RhizaTemplate._prepare_snapshot(base_clone, include_paths, excludes, base_snapshot)
+        template = RhizaTemplate(template_repository="example/repo", include=include_paths, exclude=list(excludes))
+        template.snapshot(base_clone, base_snapshot)
 
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
     def test_merge_applies_upstream_changes(self, mock_clone, tmp_path, git_project, git_setup):
@@ -1204,7 +1202,7 @@ class TestThreeWayMergeWithBase:
         (upstream_snapshot / "Makefile").write_text("test:\n\tpytest\n\nlint:\n\truff check .\n")
 
         def populate_base_clone(sha, dest, include_paths, git_exe, git_env_):
-            # Populate the clone directory so _prepare_snapshot can copy files
+            # Populate the clone directory so snapshot can copy files
             (dest / "pyproject.toml").write_text('[project]\nname = "myapp"\nversion = "0.1.0"\n')
             (dest / "Makefile").write_text("test:\n\tpytest\n")
 
@@ -1213,7 +1211,6 @@ class TestThreeWayMergeWithBase:
         _merge_with_base(
             git_project,
             upstream_snapshot,
-            "newsha",
             "oldsha",
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["pyproject.toml", "Makefile"]),
@@ -1253,7 +1250,6 @@ class TestThreeWayMergeWithBase:
         _merge_with_base(
             git_project,
             upstream_snapshot,
-            "upstream_sha_abc",
             "base_sha_xyz",
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["ci.yml"]),
@@ -1292,7 +1288,6 @@ class TestThreeWayMergeWithBase:
         _merge_with_base(
             git_project,
             upstream_snapshot,
-            "newsha",
             "oldsha",
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["existing.yml"]),
@@ -1332,7 +1327,6 @@ class TestThreeWayMergeWithBase:
         _merge_with_base(
             git_project,
             upstream_snapshot,
-            "newsha",
             "oldsha",
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["legacy.cfg", "main.cfg"]),

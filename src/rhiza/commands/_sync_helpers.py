@@ -728,16 +728,7 @@ def _sync_merge(
     try:
         if base_sha:
             _merge_with_base(
-                target,
-                upstream_snapshot,
-                upstream_sha,
-                base_sha,
-                base_snapshot,
-                template,
-                excludes,
-                git_executable,
-                git_env,
-                lock,
+                target, upstream_snapshot, base_sha, base_snapshot, template, excludes, git_executable, git_env, lock
             )
         else:
             logger.info("First sync — copying all template files")
@@ -771,7 +762,6 @@ def _sync_merge(
 def _merge_with_base(
     target: Path,
     upstream_snapshot: Path,
-    upstream_sha: str,
     base_sha: str,
     base_snapshot: Path,
     template: "RhizaTemplate",
@@ -785,7 +775,6 @@ def _merge_with_base(
     Args:
         target: Path to the target repository.
         upstream_snapshot: Path to the upstream snapshot directory.
-        upstream_sha: HEAD SHA of the upstream template.
         base_sha: Previously synced commit SHA.
         base_snapshot: Directory to populate with the base snapshot.
         template: The :class:`~rhiza.models.RhizaTemplate` driving this sync.
@@ -798,7 +787,7 @@ def _merge_with_base(
     base_clone = Path(tempfile.mkdtemp())
     try:
         template._clone_at_sha(base_sha, base_clone, template.include, git_executable, git_env)
-        RhizaTemplate._prepare_snapshot(base_clone, template.include, excludes, base_snapshot)
+        template.snapshot(base_clone, base_snapshot)
     except Exception:
         logger.warning("Could not checkout base commit — treating all files as new")
     finally:
