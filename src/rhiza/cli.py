@@ -175,49 +175,6 @@ def init(
         raise typer.Exit(code=1)
 
 
-@app.command(deprecated=True)
-def materialize(
-    target: Annotated[
-        Path,
-        typer.Argument(
-            exists=True,
-            file_okay=False,
-            dir_okay=True,
-            help="Target git repository (defaults to current directory)",
-        ),
-    ] = Path("."),
-    branch: str = typer.Option("main", "--branch", "-b", help="Rhiza branch to use"),
-    target_branch: str = typer.Option(
-        None,
-        "--target-branch",
-        "--checkout-branch",
-        help="Create and checkout a new branch in the target repository for changes",
-    ),
-    force: bool = typer.Option(False, "--force", "-y", help="Overwrite existing files"),
-) -> None:
-    r"""[Deprecated] Use ``rhiza sync`` instead.
-
-    This command is deprecated. ``rhiza sync`` now handles all use cases:
-
-    \b
-    - rhiza sync              # first time → copies everything, writes lock
-    - rhiza sync              # subsequent → 3-way merge preserving local changes
-    - rhiza sync --strategy diff       # dry-run showing what would change
-
-    Examples:
-        rhiza sync
-        rhiza sync --branch develop
-        rhiza sync --target-branch feature/update-templates
-    """
-    typer.echo(
-        "DeprecationWarning: `rhiza materialize` is deprecated and will be removed in a future release. "
-        "Use `rhiza sync` instead.",
-        err=True,
-    )
-    with _exit_on_error(subprocess.CalledProcessError, RuntimeError, ValueError):
-        sync_cmd(target, branch, target_branch, "merge")
-
-
 @app.command()
 def sync(
     target: Annotated[

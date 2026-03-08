@@ -5,9 +5,8 @@ Run ``rhiza <command> --help`` for usage details.
 """
 
 from .init import init
-from .materialize import materialize
 from .sync import sync
 from .tree import tree
 from .validate import validate
 
-__all__ = ["init", "materialize", "sync", "tree", "validate"]
+__all__ = ["init", "sync", "tree", "validate"]
