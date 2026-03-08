@@ -4,6 +4,10 @@ This module verifies that the RhizaTemplate dataclass correctly represents
 and handles .rhiza/template.yml configuration.
 """
 
+import os
+import shutil
+from unittest.mock import MagicMock, patch
+
 import pytest
 import yaml
 
@@ -349,3 +353,200 @@ class TestTemplateLock:
 
         with pytest.raises(TypeError, match=r"Invalid template\.lock format"):
             TemplateLock.from_yaml(lock_path)
+
+
+class TestRhizaTemplateGitUrl:
+    """Tests for the RhizaTemplate.git_url property."""
+
+    def test_github_url(self):
+        """GitHub host produces the correct HTTPS URL."""
+        template = RhizaTemplate(template_repository="owner/repo", template_host="github")
+        assert template.git_url == "https://github.com/owner/repo.git"
+
+    def test_gitlab_url(self):
+        """GitLab host produces the correct HTTPS URL."""
+        template = RhizaTemplate(template_repository="mygroup/myproject", template_host="gitlab")
+        assert template.git_url == "https://gitlab.com/mygroup/myproject.git"
+
+    def test_default_host_is_github(self):
+        """Default host (github) is used when template_host is not specified."""
+        template = RhizaTemplate(template_repository="owner/repo")
+        assert template.git_url == "https://github.com/owner/repo.git"
+
+    def test_invalid_host_raises(self):
+        """An unsupported template_host raises ValueError."""
+        template = RhizaTemplate(template_repository="owner/repo", template_host="bitbucket")
+        with pytest.raises(ValueError, match="Unsupported template-host"):
+            _ = template.git_url
+
+    def test_missing_repository_raises(self):
+        """git_url raises ValueError when template_repository is not set."""
+        template = RhizaTemplate()
+        with pytest.raises(ValueError, match="template_repository is not configured"):
+            _ = template.git_url
+
+
+class TestRhizaTemplateClone:
+    """Tests for the RhizaTemplate.clone method."""
+
+    @patch("rhiza.commands._sync_helpers._get_head_sha")
+    @patch("rhiza.commands._sync_helpers._clone_template_repository")
+    def test_clone_returns_upstream_dir_and_sha(self, mock_clone, mock_head_sha):
+        """Clone returns (upstream_dir, upstream_sha) for a plain include-list template."""
+        from rhiza.subprocess_utils import get_git_executable
+
+        mock_head_sha.return_value = "abc123def456"
+
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            template_branch="main",
+            template_host="github",
+            include=["Makefile", ".github"],
+        )
+
+        upstream_dir, upstream_sha = template.clone(get_git_executable(), os.environ.copy(), branch="main")
+
+        assert upstream_dir.is_dir()
+        assert upstream_sha == "abc123def456"
+        mock_clone.assert_called_once()
+        shutil.rmtree(upstream_dir, ignore_errors=True)
+
+    @patch("rhiza.commands._sync_helpers._get_head_sha")
+    @patch("rhiza.bundle_resolver.resolve_include_paths")
+    @patch("rhiza.bundle_resolver.load_bundles_from_clone")
+    @patch("rhiza.commands._sync_helpers._update_sparse_checkout")
+    @patch("rhiza.commands._sync_helpers._clone_template_repository")
+    def test_clone_resolves_bundles_and_updates_include(
+        self, mock_clone, mock_update_sparse, mock_load_bundles, mock_resolve, mock_head_sha
+    ):
+        """Clone resolves bundle paths and updates self.include when templates are set."""
+        from rhiza.subprocess_utils import get_git_executable
+
+        mock_bundles = MagicMock()
+        mock_load_bundles.return_value = mock_bundles
+        mock_resolve.return_value = ["Makefile", ".github"]
+        mock_head_sha.return_value = "deadbeef1234"
+
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            template_branch="main",
+            template_host="github",
+            templates=["core"],
+        )
+
+        upstream_dir, upstream_sha = template.clone(get_git_executable(), os.environ.copy(), branch="main")
+
+        mock_load_bundles.assert_called_once()
+        mock_resolve.assert_called_once_with(template, mock_bundles)
+        mock_update_sparse.assert_called_once()
+        assert template.include == ["Makefile", ".github"]
+        assert upstream_sha == "deadbeef1234"
+        shutil.rmtree(upstream_dir, ignore_errors=True)
+
+    def test_clone_raises_when_no_repository(self):
+        """Clone raises ValueError when template_repository is not set."""
+        from rhiza.subprocess_utils import get_git_executable
+
+        template = RhizaTemplate(include=["Makefile"])
+        with pytest.raises(ValueError, match="template_repository is not configured"):
+            template.clone(get_git_executable(), os.environ.copy())
+
+    def test_clone_raises_when_no_include_or_templates(self):
+        """Clone raises ValueError when neither include nor templates are set."""
+        from rhiza.subprocess_utils import get_git_executable
+
+        template = RhizaTemplate(template_repository="owner/repo")
+        with pytest.raises(ValueError, match="No templates or include paths"):
+            template.clone(get_git_executable(), os.environ.copy())
+
+    @patch("rhiza.commands._sync_helpers._get_head_sha")
+    @patch("rhiza.commands._sync_helpers._clone_template_repository")
+    def test_clone_uses_template_branch_over_default(self, mock_clone, mock_head_sha):
+        """Clone uses template_branch when set, ignoring the branch argument."""
+        from rhiza.subprocess_utils import get_git_executable
+
+        mock_head_sha.return_value = "sha_from_develop"
+
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            template_branch="develop",
+            include=["Makefile"],
+        )
+
+        upstream_dir, upstream_sha = template.clone(get_git_executable(), os.environ.copy(), branch="main")
+
+        # The clone should use 'develop' (template_branch), not 'main' (default arg).
+        call_args = mock_clone.call_args
+        assert call_args[0][2] == "develop"
+        assert upstream_sha == "sha_from_develop"
+        shutil.rmtree(upstream_dir, ignore_errors=True)
+
+
+class TestRhizaTemplateSnapshot:
+    """Tests for the RhizaTemplate.snapshot method."""
+
+    def test_snapshot_copies_included_files(self, tmp_path):
+        """Snapshot copies included files into snapshot_dir and returns them as materialized."""
+        upstream_dir = tmp_path / "upstream"
+        upstream_dir.mkdir()
+        (upstream_dir / "a.txt").write_text("content-a")
+        (upstream_dir / "b.txt").write_text("content-b")
+
+        snapshot_dir = tmp_path / "snapshot"
+        snapshot_dir.mkdir()
+
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            include=["a.txt", "b.txt"],
+        )
+
+        materialized, _excludes = template.snapshot(upstream_dir, snapshot_dir)
+
+        assert len(materialized) == 2
+        assert (snapshot_dir / "a.txt").read_text() == "content-a"
+        assert (snapshot_dir / "b.txt").read_text() == "content-b"
+
+    def test_snapshot_excludes_user_paths_and_rhiza_defaults(self, tmp_path):
+        """Snapshot excludes user-configured paths and always omits rhiza internals."""
+        upstream_dir = tmp_path / "upstream"
+        upstream_dir.mkdir()
+        (upstream_dir / "keep.txt").write_text("keep")
+        (upstream_dir / "skip.txt").write_text("skip")
+
+        snapshot_dir = tmp_path / "snapshot"
+        snapshot_dir.mkdir()
+
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            include=["keep.txt", "skip.txt"],
+            exclude=["skip.txt"],
+        )
+
+        materialized, excludes = template.snapshot(upstream_dir, snapshot_dir)
+
+        assert len(materialized) == 1
+        assert (snapshot_dir / "keep.txt").exists()
+        assert not (snapshot_dir / "skip.txt").exists()
+        assert "skip.txt" in excludes
+        assert ".rhiza/template.yml" in excludes
+        assert ".rhiza/history" in excludes
+
+    def test_snapshot_returns_excludes_for_downstream_use(self, tmp_path):
+        """Snapshot returns the excludes set so callers can pass it to merge helpers."""
+        upstream_dir = tmp_path / "upstream"
+        upstream_dir.mkdir()
+        (upstream_dir / "secrets.env").write_text("API_KEY=secret")
+
+        snapshot_dir = tmp_path / "snapshot"
+        snapshot_dir.mkdir()
+
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            include=["secrets.env"],
+            exclude=["secrets.env"],
+        )
+
+        _, excludes = template.snapshot(upstream_dir, snapshot_dir)
+
+        assert "secrets.env" in excludes
+        assert ".rhiza/template.yml" in excludes

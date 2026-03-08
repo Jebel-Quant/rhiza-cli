@@ -25,7 +25,6 @@ except ImportError:  # pragma: no cover - Windows
 import yaml
 from loguru import logger
 
-from rhiza.bundle_resolver import load_bundles_from_clone, resolve_include_paths
 from rhiza.models import RhizaTemplate, TemplateLock
 from rhiza.subprocess_utils import get_git_executable
 
@@ -175,15 +174,16 @@ def _handle_target_branch(
         raise
 
 
-def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplate, str, str, list[str], list[str]]:
+def _validate_and_load_template(target: Path, branch: str = "main") -> RhizaTemplate:
     """Validate configuration and load template settings.
 
     Args:
         target: Path to the target repository.
-        branch: The Rhiza template branch to use (CLI argument).
+        branch: The Rhiza template branch to use as a fallback when
+            ``template-branch`` is not set in ``template.yml``.
 
     Returns:
-        Tuple of (template, rhiza_repo, rhiza_branch, include_paths, excluded_paths).
+        The loaded and validated :class:`~rhiza.models.RhizaTemplate`.
     """
     from rhiza.commands.validate import validate
 
@@ -196,15 +196,15 @@ def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplat
     template_file = target / ".rhiza" / "template.yml"
     template = RhizaTemplate.from_yaml(template_file)
 
-    rhiza_repo = template.template_repository
-    if not rhiza_repo:
+    if not template.template_repository:
         logger.error("template-repository is not configured in template.yml")
         raise RuntimeError("template-repository is required")  # noqa: TRY003
-    rhiza_branch = template.template_branch or branch
-    excluded_paths = template.exclude
-    include_paths = template.include
 
-    if not template.templates and not include_paths:
+    # Apply CLI branch as fallback when template.yml has no ref.
+    if not template.template_branch:
+        template.template_branch = branch
+
+    if not template.templates and not template.include:
         logger.error("No templates or include paths found in template.yml")
         logger.error("Add either 'templates' or 'include' list in template.yml")
         raise RuntimeError("No templates or include paths found in template.yml")  # noqa: TRY003
@@ -214,43 +214,17 @@ def _validate_and_load_template(target: Path, branch: str) -> tuple[RhizaTemplat
         for t in template.templates:
             logger.info(f"  - {t}")
 
-    if include_paths:
+    if template.include:
         logger.info("Include paths:")
-        for p in include_paths:
+        for p in template.include:
             logger.info(f"  - {p}")
 
-    if excluded_paths:
+    if template.exclude:
         logger.info("Exclude paths:")
-        for p in excluded_paths:
+        for p in template.exclude:
             logger.info(f"  - {p}")
 
-    return template, rhiza_repo, rhiza_branch, include_paths, excluded_paths
-
-
-def _construct_git_url(rhiza_repo: str, rhiza_host: str) -> str:
-    """Construct git clone URL based on host.
-
-    Args:
-        rhiza_repo: Repository name in 'owner/repo' format.
-        rhiza_host: Git hosting platform ('github' or 'gitlab').
-
-    Returns:
-        Git URL for cloning.
-
-    Raises:
-        ValueError: If rhiza_host is not supported.
-    """
-    if rhiza_host == "gitlab":
-        git_url = f"https://gitlab.com/{rhiza_repo}.git"
-        logger.debug(f"Using GitLab repository: {git_url}")
-    elif rhiza_host == "github":
-        git_url = f"https://github.com/{rhiza_repo}.git"
-        logger.debug(f"Using GitHub repository: {git_url}")
-    else:
-        logger.error(f"Unsupported template-host: {rhiza_host}")
-        logger.error("template-host must be 'github' or 'gitlab'")
-        raise ValueError(f"Unsupported template-host: {rhiza_host}. Must be 'github' or 'gitlab'.")  # noqa: TRY003
-    return git_url
+    return template
 
 
 def _update_sparse_checkout(
@@ -787,6 +761,7 @@ def _prepare_snapshot(
         List of relative file paths that were copied.
     """
     materialized: list[Path] = []
+    # Copies included files to snapshot excluding specified paths
     for f in _expand_paths(clone_dir, include_paths):
         rel = str(f.relative_to(clone_dir))
         if rel not in excludes:
@@ -1076,9 +1051,9 @@ def _sync_merge(
     git_url: str,
     git_executable: str,
     git_env: dict[str, str],
-    rhiza_repo: str,
-    rhiza_branch: str,
     lock: TemplateLock,
+    rhiza_repo: str = "",
+    rhiza_branch: str = "",
 ) -> None:
     """Execute the merge strategy (cruft-style 3-way merge).
 
@@ -1097,9 +1072,9 @@ def _sync_merge(
         git_url: Remote URL of the template repository.
         git_executable: Absolute path to git.
         git_env: Environment variables for git commands.
-        rhiza_repo: Template repository name.
-        rhiza_branch: Template branch name.
         lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
+        rhiza_repo: Template repository name (unused, kept for compatibility).
+        rhiza_branch: Template branch name (unused, kept for compatibility).
     """
     # Snapshot the currently-tracked files before the merge runs.  The merge
     # may write a new lock (e.g. on the "template unchanged" early-return path
@@ -1207,46 +1182,3 @@ def _merge_with_base(
         logger.success("All changes applied cleanly")
     else:
         logger.warning("Some changes had conflicts. Check for *.rej files and resolve manually.")
-
-
-# ---------------------------------------------------------------------------
-# Upstream clone and resolution
-# ---------------------------------------------------------------------------
-
-
-def _clone_and_resolve_upstream(
-    template: RhizaTemplate,
-    git_url: str,
-    rhiza_branch: str,
-    include_paths: list[str],
-    git_executable: str,
-    git_env: dict[str, str],
-) -> tuple[Path, str, list[str]]:
-    """Clone the upstream template repository and resolve bundle paths.
-
-    Args:
-        template: The loaded RhizaTemplate configuration.
-        git_url: Remote URL of the template repository.
-        rhiza_branch: Branch to clone.
-        include_paths: Initial include paths from template config.
-        git_executable: Absolute path to git.
-        git_env: Environment variables for git commands.
-
-    Returns:
-        Tuple of (upstream_dir, upstream_sha, resolved_include_paths).
-    """
-    upstream_dir = Path(tempfile.mkdtemp())
-
-    initial_paths = [".rhiza"] if template.templates else include_paths
-    _clone_template_repository(upstream_dir, git_url, rhiza_branch, initial_paths, git_executable, git_env)
-
-    if template.templates:
-        bundles_config = load_bundles_from_clone(upstream_dir)
-        resolved_paths = resolve_include_paths(template, bundles_config)
-        _update_sparse_checkout(upstream_dir, resolved_paths, git_executable, git_env)
-        include_paths = resolved_paths
-
-    upstream_sha = _get_head_sha(upstream_dir, git_executable, git_env)
-    logger.info(f"Upstream HEAD: {upstream_sha[:12]}")
-
-    return upstream_dir, upstream_sha, include_paths

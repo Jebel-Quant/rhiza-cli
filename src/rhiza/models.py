@@ -5,11 +5,13 @@ configuration files, making it easier to work with them without frequent
 YAML parsing.
 """
 
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
+from loguru import logger
 
 __all__ = [
     "BundleDefinition",
@@ -320,6 +322,124 @@ class RhizaTemplate:
 
         with open(file_path, "w") as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+    @property
+    def git_url(self) -> str:
+        """Construct the HTTPS clone URL for this template repository.
+
+        Returns:
+            HTTPS clone URL derived from ``template_repository`` and
+            ``template_host``.
+
+        Raises:
+            ValueError: If ``template_repository`` is not set or
+                ``template_host`` is not ``"github"`` or ``"gitlab"``.
+        """
+        if not self.template_repository:
+            raise ValueError("template_repository is not configured in template.yml")  # noqa: TRY003
+        host = self.template_host or "github"
+        if host == "github":
+            return f"https://github.com/{self.template_repository}.git"
+        if host == "gitlab":
+            return f"https://gitlab.com/{self.template_repository}.git"
+        raise ValueError(f"Unsupported template-host: {host}. Must be 'github' or 'gitlab'.")  # noqa: TRY003
+
+    def clone(
+        self,
+        git_executable: str,
+        git_env: dict[str, str],
+        branch: str = "main",
+    ) -> tuple[Path, str]:
+        """Clone the upstream template repository and resolve include paths.
+
+        Clones the template repository using sparse checkout.  When
+        ``templates`` are configured the corresponding bundle names are resolved
+        to file paths and ``self.include`` is updated with the result.
+
+        Args:
+            git_executable: Absolute path to the git executable.
+            git_env: Environment variables for git commands.
+            branch: Default branch to use when ``template_branch`` is not set
+                on the template.
+
+        Returns:
+            Tuple of ``(upstream_dir, upstream_sha)`` where *upstream_dir* is a
+            temporary directory containing the cloned repository tree.  The
+            caller is responsible for removing *upstream_dir* when done.
+
+        Raises:
+            ValueError: If ``template_repository`` is not set, the host is
+                unsupported, or no include paths / templates are configured.
+            subprocess.CalledProcessError: If a git operation fails.
+        """
+        # Deferred imports break the circular dependency caused by _sync_helpers
+        # importing RhizaTemplate from models at the top level, while this method
+        # needs helpers defined in _sync_helpers.
+        from rhiza.bundle_resolver import (
+            load_bundles_from_clone,
+            resolve_include_paths,
+        )
+        from rhiza.commands._sync_helpers import (
+            _clone_template_repository,
+            _get_head_sha,
+            _update_sparse_checkout,
+        )
+
+        if not self.template_repository:
+            raise ValueError("template_repository is not configured in template.yml")  # noqa: TRY003
+        if not self.templates and not self.include:
+            raise ValueError("No templates or include paths found in template.yml")  # noqa: TRY003
+
+        rhiza_branch = self.template_branch or branch
+        include_paths = self.include
+
+        upstream_dir = Path(tempfile.mkdtemp())
+        initial_paths = [".rhiza"] if self.templates else include_paths
+        _clone_template_repository(upstream_dir, self.git_url, rhiza_branch, initial_paths, git_executable, git_env)
+
+        if self.templates:
+            bundles_config = load_bundles_from_clone(upstream_dir)
+            resolved_paths = resolve_include_paths(self, bundles_config)
+            _update_sparse_checkout(upstream_dir, resolved_paths, git_executable, git_env)
+            self.include = resolved_paths
+
+        upstream_sha = _get_head_sha(upstream_dir, git_executable, git_env)
+        logger.info(f"Upstream HEAD: {upstream_sha[:12]}")
+
+        return upstream_dir, upstream_sha
+
+    def snapshot(
+        self,
+        upstream_dir: Path,
+        snapshot_dir: Path,
+    ) -> tuple[list[Path], set[str]]:
+        """Build a clean snapshot of the included template files.
+
+        Computes the set of excluded paths from ``self.exclude`` and copies
+        all included (non-excluded) files from *upstream_dir* into
+        *snapshot_dir*, producing a flat tree suitable for
+        ``git diff --no-index``.
+
+        Args:
+            upstream_dir: Root of the cloned template repository (returned by
+                :meth:`clone`).
+            snapshot_dir: Destination directory for the snapshot.  Must already
+                exist.
+
+        Returns:
+            Tuple of ``(materialized, excludes)`` where *materialized* is the
+            list of relative file paths that were copied and *excludes* is the
+            full set of relative path strings that were skipped.
+        """
+        # Deferred import — breaks the circular dependency with _sync_helpers.
+        from rhiza.commands._sync_helpers import (
+            _excluded_set,
+            _prepare_snapshot,
+        )
+
+        excludes = _excluded_set(upstream_dir, self.exclude)
+        materialized = _prepare_snapshot(upstream_dir, self.include, excludes, snapshot_dir)
+        return materialized, excludes
 
 
 @dataclass

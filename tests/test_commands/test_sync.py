@@ -24,10 +24,8 @@ from rhiza.commands._sync_helpers import (
     _apply_diff,
     _assert_git_status_clean,
     _clean_orphaned_files,
-    _clone_and_resolve_upstream,
     _clone_at_sha,
     _clone_template_repository,
-    _construct_git_url,
     _delete_orphaned_file,
     _excluded_set,
     _expand_paths,
@@ -665,11 +663,11 @@ class TestSyncMergeWithBase:
 
 
 class TestCloneAndResolveUpstreamWithTemplates:
-    """Tests for template bundle resolution path in _clone_and_resolve_upstream."""
+    """Tests for template bundle resolution path in RhizaTemplate.clone."""
 
     @patch("rhiza.commands._sync_helpers._get_head_sha")
-    @patch("rhiza.commands._sync_helpers.resolve_include_paths")
-    @patch("rhiza.commands._sync_helpers.load_bundles_from_clone")
+    @patch("rhiza.bundle_resolver.resolve_include_paths")
+    @patch("rhiza.bundle_resolver.load_bundles_from_clone")
     @patch("rhiza.commands._sync_helpers._update_sparse_checkout")
     @patch("rhiza.commands._sync_helpers._clone_template_repository")
     def test_bundle_resolution_path(
@@ -681,36 +679,33 @@ class TestCloneAndResolveUpstreamWithTemplates:
         mock_head_sha,
         tmp_path,
     ):
-        """_clone_and_resolve_upstream resolves bundle paths when template.templates is set."""
+        """RhizaTemplate.clone resolves bundle paths when templates is set."""
         from rhiza.subprocess_utils import get_git_executable
 
         git_executable = get_git_executable()
         git_env = os.environ.copy()
         git_env["GIT_TERMINAL_PROMPT"] = "0"
 
-        # Build a fake RhizaTemplate with templates set
-        template = MagicMock()
-        template.templates = ["core"]
+        # Build a real RhizaTemplate with templates set
+        template = RhizaTemplate(
+            template_repository="example/repo",
+            template_branch="main",
+            template_host="github",
+            templates=["core"],
+        )
 
         mock_bundles = MagicMock()
         mock_load_bundles.return_value = mock_bundles
         mock_resolve.return_value = ["Makefile", ".github"]
         mock_head_sha.return_value = "abc123def456"
 
-        upstream_dir, upstream_sha, resolved_paths = _clone_and_resolve_upstream(
-            template,
-            "https://github.com/example/repo.git",
-            "main",
-            [],
-            git_executable,
-            git_env,
-        )
+        upstream_dir, upstream_sha = template.clone(git_executable, git_env, branch="main")
 
         # Bundle resolution code path should have been taken
         mock_load_bundles.assert_called_once()
         mock_resolve.assert_called_once_with(template, mock_bundles)
         mock_update_sparse.assert_called_once()
-        assert resolved_paths == ["Makefile", ".github"]
+        assert template.include == ["Makefile", ".github"]
         assert upstream_sha == "abc123def456"
         shutil.rmtree(upstream_dir, ignore_errors=True)
 
@@ -1751,26 +1746,6 @@ class TestThreeWayMergeSyncMergeStrategy:
         assert "LICENSE" in lock_data["files"], "LICENSE must appear in the lock after restore"
 
 
-class TestConstructGitUrl:
-    """Tests for _construct_git_url."""
-
-    @pytest.mark.parametrize(
-        ("repo", "host", "expected"),
-        [
-            ("owner/repo", "github", "https://github.com/owner/repo.git"),
-            ("mygroup/myproject", "gitlab", "https://gitlab.com/mygroup/myproject.git"),
-        ],
-    )
-    def test_known_hosts(self, repo, host, expected):
-        """GitHub and GitLab hosts produce the correct HTTPS URL."""
-        assert _construct_git_url(repo, host) == expected
-
-    def test_invalid_host_raises(self):
-        """An unsupported template-host raises ValueError."""
-        with pytest.raises(ValueError, match="Unsupported template-host"):
-            _construct_git_url("owner/repo", "bitbucket")
-
-
 class TestHandleTargetBranch:
     """Tests for _handle_target_branch."""
 
@@ -1840,19 +1815,18 @@ class TestValidateAndLoadTemplate:
         rhiza_dir.mkdir(parents=True, exist_ok=True)
         (rhiza_dir / "template.yml").write_text(yaml.dump(data))
 
-    def test_valid_config_returns_tuple(self, tmp_path):
-        """A valid template.yml returns a 5-tuple."""
+    def test_valid_config_returns_template(self, tmp_path):
+        """A valid template.yml returns a RhizaTemplate with all fields set."""
         (tmp_path / ".git").mkdir()
         (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\n')
         self._write_template(
             tmp_path,
             {"template-repository": "owner/repo", "template-branch": "main", "include": [".github"]},
         )
-        result = _validate_and_load_template(tmp_path, "main")
-        _template, repo, branch, include, _exclude = result
-        assert repo == "owner/repo"
-        assert branch == "main"
-        assert ".github" in include
+        template = _validate_and_load_template(tmp_path, "main")
+        assert template.template_repository == "owner/repo"
+        assert template.template_branch == "main"
+        assert ".github" in template.include
 
     def test_missing_template_repository_raises(self, tmp_path):
         """A template.yml without template-repository raises RuntimeError."""
@@ -1913,7 +1887,7 @@ class TestValidateAndLoadTemplate:
         rhiza_dir.mkdir(parents=True)
         (rhiza_dir / "template.yml").write_text("template-repository: owner/repo\ntemplates:\n  - core\n  - tests\n")
 
-        template, _repo, _branch, _include, _excluded = _validate_and_load_template(tmp_path, "main")
+        template = _validate_and_load_template(tmp_path, "main")
 
         assert template.templates == ["core", "tests"]
 
@@ -1928,9 +1902,22 @@ class TestValidateAndLoadTemplate:
             "template-repository: owner/repo\ninclude:\n  - .github/\nexclude:\n  - .github/workflows/ci.yml\n"
         )
 
-        _template, _repo, _branch, _include, excluded = _validate_and_load_template(tmp_path, "main")
+        template = _validate_and_load_template(tmp_path, "main")
 
-        assert excluded == [".github/workflows/ci.yml"]
+        assert template.exclude == [".github/workflows/ci.yml"]
+
+    @patch("rhiza.commands.validate.validate")
+    def test_branch_fallback_applied_when_template_branch_unset(self, mock_validate, tmp_path):
+        """CLI branch is used as template_branch when template.yml has no ref."""
+        mock_validate.return_value = True
+
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        (rhiza_dir / "template.yml").write_text("template-repository: owner/repo\ninclude:\n  - Makefile\n")
+
+        template = _validate_and_load_template(tmp_path, "develop")
+
+        assert template.template_branch == "develop"
 
 
 class TestWarnAboutWorkflowFiles:

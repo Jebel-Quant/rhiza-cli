@@ -19,7 +19,7 @@ These tests exercise the five key behavioural guarantees of ``rhiza sync``:
 
 The tests use real git repositories (``git_project`` / ``git_setup``
 fixtures from ``conftest.py``) and real file-system operations.  Only
-``_clone_at_sha`` / ``_clone_and_resolve_upstream`` are mocked, since those
+``_clone_at_sha`` / ``RhizaTemplate.clone`` are mocked, since those
 helpers would otherwise attempt a network clone; the mocks simply populate
 the destination directory from a local "template vN" snapshot that the test
 itself builds.
@@ -45,7 +45,7 @@ from rhiza.commands._sync_helpers import (
     _sync_merge,
 )
 from rhiza.commands.sync import sync
-from rhiza.models import TemplateLock
+from rhiza.models import RhizaTemplate, TemplateLock
 
 # ---------------------------------------------------------------------------
 # Module-level helpers
@@ -554,9 +554,9 @@ class TestSyncE2EUpdatedTemplateYml:
 
     These tests exercise the full :func:`~rhiza.commands.sync.sync` entry-point
     (rather than ``_sync_merge`` directly) and mock only the network-touching
-    helper ``_clone_and_resolve_upstream``.  The ``_clone_at_sha`` helper is
-    additionally mocked for the second sync so that the 3-way-merge base
-    snapshot is populated correctly without a real git clone.
+    :meth:`~rhiza.models.RhizaTemplate.clone` method.  The ``_clone_at_sha``
+    helper is additionally mocked for the second sync so that the 3-way-merge
+    base snapshot is populated correctly without a real git clone.
     """
 
     @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
@@ -589,10 +589,10 @@ class TestSyncE2EUpdatedTemplateYml:
         (upstream_dir_v1 / "file_a.txt").write_text("content a\n")
         (upstream_dir_v1 / "file_b.txt").write_text("content b\n")
 
-        def upstream_v1(template, git_url, branch, include_paths, git_exe, git_env_):
-            return upstream_dir_v1, "sha_v1", include_paths
+        def clone_v1(git_exe, git_env_, branch="main"):
+            return upstream_dir_v1, "sha_v1"
 
-        with patch("rhiza.commands.sync._clone_and_resolve_upstream", side_effect=upstream_v1):
+        with patch.object(RhizaTemplate, "clone", side_effect=clone_v1):
             sync(target=project, branch="main", target_branch=None, strategy="merge")
 
         assert (project / "file_a.txt").exists()
@@ -620,8 +620,8 @@ class TestSyncE2EUpdatedTemplateYml:
         (upstream_dir_v2 / "file_b.txt").write_text("content b\n")
         (upstream_dir_v2 / "file_c.txt").write_text("content c\n")
 
-        def upstream_v2(template, git_url, branch, include_paths, git_exe, git_env_):
-            return upstream_dir_v2, "sha_v2", include_paths
+        def clone_v2(git_exe, git_env_, branch="main"):
+            return upstream_dir_v2, "sha_v2"
 
         def populate_base(git_url, sha, dest, include_paths, git_exe, git_env_):
             """Base snapshot contains only the files present at sha_v1."""
@@ -629,7 +629,7 @@ class TestSyncE2EUpdatedTemplateYml:
             (dest / "file_b.txt").write_text("content b\n")
 
         with (
-            patch("rhiza.commands.sync._clone_and_resolve_upstream", side_effect=upstream_v2),
+            patch.object(RhizaTemplate, "clone", side_effect=clone_v2),
             patch("rhiza.commands._sync_helpers._clone_at_sha", side_effect=populate_base),
         ):
             sync(target=project, branch="main", target_branch=None, strategy="merge")
@@ -670,10 +670,10 @@ class TestSyncE2EUpdatedTemplateYml:
         (upstream_dir_v1 / "file_a.txt").write_text("content a\n")
         (upstream_dir_v1 / "file_b.txt").write_text("content b\n")
 
-        def upstream_v1(template, git_url, branch, include_paths, git_exe, git_env_):
-            return upstream_dir_v1, "sha_v1", include_paths
+        def clone_v1(git_exe, git_env_, branch="main"):
+            return upstream_dir_v1, "sha_v1"
 
-        with patch("rhiza.commands.sync._clone_and_resolve_upstream", side_effect=upstream_v1):
+        with patch.object(RhizaTemplate, "clone", side_effect=clone_v1):
             sync(target=project, branch="main", target_branch=None, strategy="merge")
 
         assert (project / "file_a.txt").exists()
@@ -697,9 +697,9 @@ class TestSyncE2EUpdatedTemplateYml:
         upstream_dir_v2.mkdir()
         (upstream_dir_v2 / "file_a.txt").write_text("content a\n")
 
-        def upstream_v2(template, git_url, branch, include_paths, git_exe, git_env_):
-            # Only file_a.txt is in the updated include_paths from template.yml.
-            return upstream_dir_v2, "sha_v2", include_paths
+        def clone_v2(git_exe, git_env_, branch="main"):
+            # Only file_a.txt is in the updated include list from template.yml.
+            return upstream_dir_v2, "sha_v2"
 
         def populate_base(git_url, sha, dest, include_paths, git_exe, git_env_):
             # Orphan cleanup uses the lock's ``files`` field, not the diff,
@@ -707,7 +707,7 @@ class TestSyncE2EUpdatedTemplateYml:
             (dest / "file_a.txt").write_text("content a\n")
 
         with (
-            patch("rhiza.commands.sync._clone_and_resolve_upstream", side_effect=upstream_v2),
+            patch.object(RhizaTemplate, "clone", side_effect=clone_v2),
             patch("rhiza.commands._sync_helpers._clone_at_sha", side_effect=populate_base),
         ):
             sync(target=project, branch="main", target_branch=None, strategy="merge")
