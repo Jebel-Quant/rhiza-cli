@@ -6,11 +6,14 @@ and handles .rhiza/template.yml configuration.
 
 import os
 import shutil
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
 
+from rhiza.models._base import YamlSerializable, load_model
+from rhiza.models.bundle import RhizaBundles
 from rhiza.models.lock import TemplateLock
 from rhiza.models.template import RhizaTemplate
 
@@ -551,3 +554,119 @@ class TestRhizaTemplateSnapshot:
 
         assert "secrets.env" in excludes
         assert ".rhiza/template.yml" in excludes
+
+
+# ---------------------------------------------------------------------------
+# YamlSerializable Protocol and load_model helper
+# ---------------------------------------------------------------------------
+
+
+class TestYamlSerializableProtocol:
+    """Tests for the YamlSerializable Protocol defined in rhiza.models._base."""
+
+    def test_rhiza_template_satisfies_protocol(self):
+        """RhizaTemplate is a runtime-checkable instance of YamlSerializable."""
+        template = RhizaTemplate(template_repository="owner/repo")
+        assert isinstance(template, YamlSerializable)
+
+    def test_template_lock_satisfies_protocol(self):
+        """TemplateLock is a runtime-checkable instance of YamlSerializable."""
+        lock = TemplateLock(sha="abc123")
+        assert isinstance(lock, YamlSerializable)
+
+    def test_plain_class_does_not_satisfy_protocol(self):
+        """A class without from_yaml / to_yaml does not satisfy YamlSerializable."""
+
+        class NotSerializable:
+            pass
+
+        assert not isinstance(NotSerializable(), YamlSerializable)
+
+    def test_rhiza_bundles_satisfies_protocol(self, tmp_path):
+        """RhizaBundles is a runtime-checkable instance of YamlSerializable."""
+        bundles_file = tmp_path / "template-bundles.yml"
+        config = {"bundles": {"core": {"description": "Core"}}}
+        with open(bundles_file, "w") as f:
+            yaml.dump(config, f)
+        bundles = RhizaBundles.from_yaml(bundles_file)
+        assert isinstance(bundles, YamlSerializable)
+
+
+class TestLoadModel:
+    """Tests for the load_model generic helper."""
+
+    def test_load_model_returns_rhiza_template(self, tmp_path):
+        """load_model loads a RhizaTemplate and returns the correct type/values."""
+        template_file = tmp_path / "template.yml"
+        config = {"repository": "owner/repo", "ref": "main"}
+        with open(template_file, "w") as f:
+            yaml.dump(config, f)
+
+        result = load_model(RhizaTemplate, template_file)
+
+        assert isinstance(result, RhizaTemplate)
+        assert result.template_repository == "owner/repo"
+        assert result.template_branch == "main"
+
+    def test_load_model_returns_template_lock(self, tmp_path):
+        """load_model loads a TemplateLock and returns the correct type/values."""
+        lock = TemplateLock(sha="deadbeef", repo="owner/repo", host="github", ref="main")
+        lock_path = tmp_path / "template.lock"
+        lock.to_yaml(lock_path)
+
+        result = load_model(TemplateLock, lock_path)
+
+        assert isinstance(result, TemplateLock)
+        assert result.sha == "deadbeef"
+        assert result.repo == "owner/repo"
+
+    def test_load_model_returns_rhiza_bundles(self, tmp_path):
+        """load_model loads a RhizaBundles and returns the correct type/values."""
+        bundles_file = tmp_path / "template-bundles.yml"
+        config = {
+            "version": "1",
+            "bundles": {"core": {"description": "Core bundle", "files": ["Makefile"]}},
+        }
+        with open(bundles_file, "w") as f:
+            yaml.dump(config, f)
+
+        result = load_model(RhizaBundles, bundles_file)
+
+        assert isinstance(result, RhizaBundles)
+        assert result.version == "1"
+        assert "core" in result.bundles
+
+    def test_rhiza_bundles_to_yaml_round_trip(self, tmp_path):
+        """RhizaBundles.to_yaml followed by from_yaml preserves bundle data."""
+        from rhiza.models.bundle import BundleDefinition
+
+        original = RhizaBundles(
+            version="2",
+            bundles={
+                "core": BundleDefinition(
+                    name="core",
+                    description="Core files",
+                    files=["Makefile", "pyproject.toml"],
+                    workflows=[".github/workflows/ci.yml"],
+                    depends_on=[],
+                )
+            },
+        )
+        out_path = tmp_path / "template-bundles.yml"
+        original.to_yaml(out_path)
+        loaded = RhizaBundles.from_yaml(out_path)
+
+        assert loaded.version == "2"
+        assert "core" in loaded.bundles
+        assert loaded.bundles["core"].description == "Core files"
+        assert loaded.bundles["core"].files == ["Makefile", "pyproject.toml"]
+        assert loaded.bundles["core"].workflows == [".github/workflows/ci.yml"]
+
+    def test_load_model_raises_for_class_without_from_yaml(self):
+        """load_model raises TypeError when the class lacks from_yaml."""
+
+        class NoYaml:
+            pass
+
+        with pytest.raises(TypeError, match="NoYaml does not implement from_yaml"):
+            load_model(NoYaml, Path("irrelevant.yml"))
