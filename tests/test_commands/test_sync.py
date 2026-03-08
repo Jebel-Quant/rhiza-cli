@@ -670,13 +670,11 @@ class TestThreeWayMergeApplyDiff:
     - Conflicting changes → fallback to ``--reject``, returns False, .rej files created
     """
 
-    def test_upstream_modifies_existing_file(self, tmp_path, git_project, git_setup):
+    def test_upstream_modifies_existing_file(self, tmp_path, git_project, git_ctx):
         """Upstream changes a line in a committed file → clean apply, file updated."""
-        git_executable, git_env = git_setup
-
         # Commit the 'base' content into the project
         (git_project / "Makefile").write_text("install:\n\techo old\n")
-        _commit_all(git_project, git_executable, git_env)
+        _commit_all(git_project, git_ctx)
 
         # Snapshots: base identical to project, upstream has updated echo command
         base = tmp_path / "base"
@@ -686,19 +684,17 @@ class TestThreeWayMergeApplyDiff:
         (base / "Makefile").write_text("install:\n\techo old\n")
         (upstream / "Makefile").write_text("install:\n\techo new\n")
 
-        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
-        result = _apply_diff(diff, git_project, git_executable, git_env)
+        diff = _get_diff(base, upstream, git_ctx)
+        result = _apply_diff(diff, git_project, git_ctx)
 
         assert result is True
         assert "echo new" in (git_project / "Makefile").read_text()
 
-    def test_upstream_adds_new_file(self, tmp_path, git_project, git_setup):
+    def test_upstream_adds_new_file(self, tmp_path, git_project, git_ctx):
         """Upstream introduces a file that didn't exist in the base → file created."""
-        git_executable, git_env = git_setup
-
         # Start with an existing committed file (needed so git repo has at least one commit)
         (git_project / "README.md").write_text("# Project\n")
-        _commit_all(git_project, git_executable, git_env)
+        _commit_all(git_project, git_ctx)
 
         base = tmp_path / "base"
         base.mkdir()
@@ -707,20 +703,18 @@ class TestThreeWayMergeApplyDiff:
         # base has no new_tool.yml; upstream adds it
         (upstream / "new_tool.yml").write_text("version: 1\nenabled: true\n")
 
-        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
-        result = _apply_diff(diff, git_project, git_executable, git_env)
+        diff = _get_diff(base, upstream, git_ctx)
+        result = _apply_diff(diff, git_project, git_ctx)
 
         assert result is True
         assert (git_project / "new_tool.yml").exists()
         assert "enabled: true" in (git_project / "new_tool.yml").read_text()
 
-    def test_upstream_removes_a_file(self, tmp_path, git_project, git_setup):
+    def test_upstream_removes_a_file(self, tmp_path, git_project, git_ctx):
         """Upstream deletes a file that existed at base → file removed from project."""
-        git_executable, git_env = git_setup
-
         # Commit the file that will be deleted
         (git_project / "legacy_config.yml").write_text("old: setting\n")
-        _commit_all(git_project, git_executable, git_env)
+        _commit_all(git_project, git_ctx)
 
         base = tmp_path / "base"
         base.mkdir()
@@ -729,20 +723,18 @@ class TestThreeWayMergeApplyDiff:
         (base / "legacy_config.yml").write_text("old: setting\n")
         # upstream does NOT have the file → deletion diff
 
-        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
-        result = _apply_diff(diff, git_project, git_executable, git_env)
+        diff = _get_diff(base, upstream, git_ctx)
+        result = _apply_diff(diff, git_project, git_ctx)
 
         assert result is True
         assert not (git_project / "legacy_config.yml").exists()
 
-    def test_upstream_modifies_multiple_files(self, tmp_path, git_project, git_setup):
+    def test_upstream_modifies_multiple_files(self, tmp_path, git_project, git_ctx):
         """Upstream updates several files in one diff → all are patched cleanly."""
-        git_executable, git_env = git_setup
-
         (git_project / "ci.yml").write_text("steps:\n  - run: test-v1\n")
         (git_project / "lint.yml").write_text("steps:\n  - run: lint-v1\n")
         (git_project / "release.yml").write_text("steps:\n  - run: release-v1\n")
-        _commit_all(git_project, git_executable, git_env)
+        _commit_all(git_project, git_ctx)
 
         base = tmp_path / "base"
         base.mkdir()
@@ -756,21 +748,19 @@ class TestThreeWayMergeApplyDiff:
             (base / f).write_text(f"steps:\n  - run: {old}\n")
             (upstream / f).write_text(f"steps:\n  - run: {new}\n")
 
-        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
-        result = _apply_diff(diff, git_project, git_executable, git_env)
+        diff = _get_diff(base, upstream, git_ctx)
+        result = _apply_diff(diff, git_project, git_ctx)
 
         assert result is True
         assert "test-v2" in (git_project / "ci.yml").read_text()
         assert "lint-v2" in (git_project / "lint.yml").read_text()
         assert "release-v2" in (git_project / "release.yml").read_text()
 
-    def test_upstream_adds_lines_to_end_of_file(self, tmp_path, git_project, git_setup):
+    def test_upstream_adds_lines_to_end_of_file(self, tmp_path, git_project, git_ctx):
         """Upstream appends new make targets to an existing Makefile."""
-        git_executable, git_env = git_setup
-
         makefile_base = "install:\n\tpip install .\n"
         (git_project / "Makefile").write_text(makefile_base)
-        _commit_all(git_project, git_executable, git_env)
+        _commit_all(git_project, git_ctx)
 
         base = tmp_path / "base"
         base.mkdir()
@@ -779,21 +769,19 @@ class TestThreeWayMergeApplyDiff:
         (base / "Makefile").write_text(makefile_base)
         (upstream / "Makefile").write_text(makefile_base + "\ntest:\n\tpytest\n")
 
-        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
-        result = _apply_diff(diff, git_project, git_executable, git_env)
+        diff = _get_diff(base, upstream, git_ctx)
+        result = _apply_diff(diff, git_project, git_ctx)
 
         assert result is True
         content = (git_project / "Makefile").read_text()
         assert "pip install" in content
         assert "pytest" in content
 
-    def test_conflict_creates_rej_file_and_returns_false(self, tmp_path, git_project, git_setup):
+    def test_conflict_creates_rej_file_and_returns_false(self, tmp_path, git_project, git_ctx):
         """When local edits conflict with template update, .rej file is produced."""
-        git_executable, git_env = git_setup
-
         # Commit original
         (git_project / "settings.cfg").write_text("timeout = 30\n")
-        _commit_all(git_project, git_executable, git_env)
+        _commit_all(git_project, git_ctx)
 
         # User makes a local change to the SAME line
         (git_project / "settings.cfg").write_text("timeout = 99\n")
@@ -806,21 +794,19 @@ class TestThreeWayMergeApplyDiff:
         (base / "settings.cfg").write_text("timeout = 30\n")
         (upstream / "settings.cfg").write_text("timeout = 60\n")
 
-        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
-        result = _apply_diff(diff, git_project, git_executable, git_env)
+        diff = _get_diff(base, upstream, git_ctx)
+        result = _apply_diff(diff, git_project, git_ctx)
 
         # Apply cannot succeed — local file diverged from the context
         assert result is False
         # The .rej file should exist, marking the conflict
         assert (git_project / "settings.cfg.rej").exists()
 
-    def test_upstream_mixed_add_modify_delete(self, tmp_path, git_project, git_setup):
+    def test_upstream_mixed_add_modify_delete(self, tmp_path, git_project, git_ctx):
         """Upstream adds one file, modifies another, removes a third — all in one diff."""
-        git_executable, git_env = git_setup
-
         (git_project / "kept.yml").write_text("version: 1\n")
         (git_project / "gone.yml").write_text("deprecated: true\n")
-        _commit_all(git_project, git_executable, git_env)
+        _commit_all(git_project, git_ctx)
 
         base = tmp_path / "base"
         base.mkdir()
@@ -833,8 +819,8 @@ class TestThreeWayMergeApplyDiff:
         (upstream / "kept.yml").write_text("version: 2\n")
         (upstream / "new.yml").write_text("feature: true\n")
 
-        diff = _get_diff(base, upstream, GitContext(executable=git_executable, env=git_env))
-        result = _apply_diff(diff, git_project, git_executable, git_env)
+        diff = _get_diff(base, upstream, git_ctx)
+        result = _apply_diff(diff, git_project, git_ctx)
 
         assert result is True
         assert "version: 2" in (git_project / "kept.yml").read_text()
