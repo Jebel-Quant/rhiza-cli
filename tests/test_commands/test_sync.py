@@ -62,15 +62,15 @@ def _setup_project(tmp_path, include=None):
         yaml.dump(config, f)
 
 
-def _commit_all(project, git_executable, git_env, message="add files"):
+def _commit_all(project, git_ctx, message="add files"):
     """Stage all files in *project* and create a commit — test helper for git-based scenarios."""
-    subprocess.run([git_executable, "add", "."], cwd=project, check=True, capture_output=True, env=git_env)  # nosec B603
+    subprocess.run([git_ctx.executable, "add", "."], cwd=project, check=True, capture_output=True, env=git_ctx.env)  # nosec B603
     subprocess.run(  # nosec B603
-        [git_executable, "commit", "-m", message],
+        [git_ctx.executable, "commit", "-m", message],
         cwd=project,
         check=True,
         capture_output=True,
-        env=git_env,
+        env=git_ctx.env,
     )
 
 
@@ -568,9 +568,8 @@ class TestMergeWithBasePaths:
     """Tests for _merge_with_base helper."""
 
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
-    def test_merge_with_base_handles_clone_exception(self, mock_clone_at_sha, tmp_path, git_setup):
+    def test_merge_with_base_handles_clone_exception(self, mock_clone_at_sha, tmp_path, git_ctx):
         """Exception in _clone_at_sha is caught and logged."""
-        git_executable, git_env = git_setup
         mock_clone_at_sha.side_effect = RuntimeError("network error")
 
         upstream_snapshot = tmp_path / "upstream"
@@ -592,17 +591,15 @@ class TestMergeWithBasePaths:
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
             set(),
-            git_executable,
-            git_env,
+            git_ctx,
             TemplateLock(sha="newsha"),
         )
 
     @patch("rhiza.commands._sync_helpers._get_diff")
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
     @patch("rhiza.models.RhizaTemplate._prepare_snapshot")
-    def test_merge_with_base_no_diff(self, mock_prepare, mock_clone, mock_get_diff, tmp_path, git_setup):
+    def test_merge_with_base_no_diff(self, mock_prepare, mock_clone, mock_get_diff, tmp_path, git_ctx):
         """When diff is empty, lock is updated and function returns early."""
-        git_executable, git_env = git_setup
         mock_get_diff.return_value = ""  # empty diff → no changes
 
         upstream_snapshot = tmp_path / "upstream"
@@ -621,8 +618,7 @@ class TestMergeWithBasePaths:
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
             set(),
-            git_executable,
-            git_env,
+            git_ctx,
             TemplateLock(sha="newsha"),
         )
 
@@ -634,10 +630,9 @@ class TestMergeWithBasePaths:
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
     @patch("rhiza.models.RhizaTemplate._prepare_snapshot")
     def test_merge_with_base_clean_apply(
-        self, mock_prepare, mock_clone, mock_get_diff, mock_apply, tmp_path, git_project, git_setup
+        self, mock_prepare, mock_clone, mock_get_diff, mock_apply, tmp_path, git_project, git_ctx
     ):
         """When diff applies cleanly, success is logged."""
-        git_executable, git_env = git_setup
         mock_get_diff.return_value = (
             "diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new\n"
         )
@@ -656,8 +651,7 @@ class TestMergeWithBasePaths:
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
             set(),
-            git_executable,
-            git_env,
+            git_ctx,
             TemplateLock(sha="newsha"),
         )
 
@@ -1186,14 +1180,12 @@ class TestThreeWayMergeWithBase:
         RhizaTemplate._prepare_snapshot(base_clone, include_paths, excludes, base_snapshot)
 
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
-    def test_merge_applies_upstream_changes(self, mock_clone, tmp_path, git_project, git_setup):
+    def test_merge_applies_upstream_changes(self, mock_clone, tmp_path, git_project, git_ctx):
         """_merge_with_base applies diff(base→upstream) to the target cleanly."""
-        git_executable, git_env = git_setup
-
         # Commit base content in target
         (git_project / "pyproject.toml").write_text('[project]\nname = "myapp"\nversion = "0.1.0"\n')
         (git_project / "Makefile").write_text("test:\n\tpytest\n")
-        _commit_all(git_project, git_executable, git_env)
+        _commit_all(git_project, git_ctx)
 
         # base_snapshot == what was present at last sync
         base_snapshot = tmp_path / "base_snapshot"
@@ -1207,7 +1199,7 @@ class TestThreeWayMergeWithBase:
         (upstream_snapshot / "pyproject.toml").write_text('[project]\nname = "myapp"\nversion = "0.2.0"\n')
         (upstream_snapshot / "Makefile").write_text("test:\n\tpytest\n\nlint:\n\truff check .\n")
 
-        def populate_base_clone(sha, dest, include_paths, git_exe, git_env_):
+        def populate_base_clone(sha, dest, include_paths, git_ctx_):
             # Populate the clone directory so _prepare_snapshot can copy files
             (dest / "pyproject.toml").write_text('[project]\nname = "myapp"\nversion = "0.1.0"\n')
             (dest / "Makefile").write_text("test:\n\tpytest\n")
@@ -1222,8 +1214,7 @@ class TestThreeWayMergeWithBase:
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["pyproject.toml", "Makefile"]),
             set(),
-            git_executable,
-            git_env,
+            git_ctx,
             TemplateLock(sha="newsha"),
         )
 
@@ -1233,12 +1224,10 @@ class TestThreeWayMergeWithBase:
         assert "ruff check" in makefile, "lint target should be added"
 
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
-    def test_merge_no_changes_updates_lock_only(self, mock_clone, tmp_path, git_project, git_setup):
+    def test_merge_no_changes_updates_lock_only(self, mock_clone, tmp_path, git_project, git_ctx):
         """When base and upstream are identical, no files are modified but lock is updated."""
-        git_executable, git_env = git_setup
-
         (git_project / "ci.yml").write_text("on: push\n")
-        _commit_all(git_project, git_executable, git_env)
+        _commit_all(git_project, git_ctx)
         (git_project / ".rhiza").mkdir(exist_ok=True)
 
         identical_content = "on: push\n"
@@ -1249,7 +1238,7 @@ class TestThreeWayMergeWithBase:
         (base_snapshot / "ci.yml").write_text(identical_content)
         (upstream_snapshot / "ci.yml").write_text(identical_content)
 
-        def populate_base_clone(sha, dest, include_paths, git_exe, git_env_):
+        def populate_base_clone(sha, dest, include_paths, git_ctx_):
             (dest / "ci.yml").write_text(identical_content)
 
         mock_clone.side_effect = populate_base_clone
@@ -1262,8 +1251,7 @@ class TestThreeWayMergeWithBase:
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["ci.yml"]),
             set(),
-            git_executable,
-            git_env,
+            git_ctx,
             TemplateLock(sha="upstream_sha_abc"),
         )
 
@@ -1273,12 +1261,10 @@ class TestThreeWayMergeWithBase:
         assert _read_lock(git_project) == "upstream_sha_abc"
 
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
-    def test_merge_upstream_adds_new_file(self, mock_clone, tmp_path, git_project, git_setup):
+    def test_merge_upstream_adds_new_file(self, mock_clone, tmp_path, git_project, git_ctx):
         """_merge_with_base handles upstream adding a file that wasn't in base."""
-        git_executable, git_env = git_setup
-
         (git_project / "existing.yml").write_text("key: value\n")
-        _commit_all(git_project, git_executable, git_env)
+        _commit_all(git_project, git_ctx)
 
         base_snapshot = tmp_path / "base_snapshot"
         base_snapshot.mkdir()
@@ -1288,7 +1274,7 @@ class TestThreeWayMergeWithBase:
         (upstream_snapshot / "existing.yml").write_text("key: value\n")
         (upstream_snapshot / "new_workflow.yml").write_text("name: deploy\n")
 
-        def populate_base_clone(sha, dest, include_paths, git_exe, git_env_):
+        def populate_base_clone(sha, dest, include_paths, git_ctx_):
             (dest / "existing.yml").write_text("key: value\n")
 
         mock_clone.side_effect = populate_base_clone
@@ -1301,8 +1287,7 @@ class TestThreeWayMergeWithBase:
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["existing.yml"]),
             set(),
-            git_executable,
-            git_env,
+            git_ctx,
             TemplateLock(sha="newsha"),
         )
 
@@ -1310,13 +1295,11 @@ class TestThreeWayMergeWithBase:
         assert "deploy" in (git_project / "new_workflow.yml").read_text()
 
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
-    def test_merge_upstream_removes_file(self, mock_clone, tmp_path, git_project, git_setup):
+    def test_merge_upstream_removes_file(self, mock_clone, tmp_path, git_project, git_ctx):
         """_merge_with_base handles upstream removing a file from the template."""
-        git_executable, git_env = git_setup
-
         (git_project / "legacy.cfg").write_text("old: setting\n")
         (git_project / "main.cfg").write_text("current: setting\n")
-        _commit_all(git_project, git_executable, git_env)
+        _commit_all(git_project, git_ctx)
 
         base_snapshot = tmp_path / "base_snapshot"
         base_snapshot.mkdir()
@@ -1327,7 +1310,7 @@ class TestThreeWayMergeWithBase:
         # upstream removes legacy.cfg entirely
         (upstream_snapshot / "main.cfg").write_text("current: setting\n")
 
-        def populate_base_clone(sha, dest, include_paths, git_exe, git_env_):
+        def populate_base_clone(sha, dest, include_paths, git_ctx_):
             (dest / "legacy.cfg").write_text("old: setting\n")
             (dest / "main.cfg").write_text("current: setting\n")
 
@@ -1341,8 +1324,7 @@ class TestThreeWayMergeWithBase:
             base_snapshot,
             RhizaTemplate(template_repository="example/repo", include=["legacy.cfg", "main.cfg"]),
             set(),
-            git_executable,
-            git_env,
+            git_ctx,
             TemplateLock(sha="newsha"),
         )
 
@@ -1393,23 +1375,15 @@ class TestThreeWayMergeSyncMergeStrategy:
         mock_clone,
         tmp_path,
         project_with_template,
-        git_setup,
+        git_ctx,
     ):
         """On a subsequent sync (lock exists), the diff is applied via 3-way merge."""
-        git_executable, git_env = git_setup
         target = project_with_template
 
         # Commit a file that matches what was in the last sync
         makefile_v1 = "install:\n\tpip install .\n"
         (target / "Makefile").write_text(makefile_v1)
-        subprocess.run([git_executable, "add", "."], cwd=target, check=True, capture_output=True, env=git_env)
-        subprocess.run(
-            [git_executable, "commit", "-m", "add Makefile"],
-            cwd=target,
-            check=True,
-            capture_output=True,
-            env=git_env,
-        )
+        _commit_all(target, git_ctx)
 
         # Write a lock indicating we last synced at "base_sha"
         _write_lock(target, TemplateLock(sha="base_sha_123"))
@@ -1418,13 +1392,9 @@ class TestThreeWayMergeSyncMergeStrategy:
         upstream_snapshot = tmp_path / "upstream_snapshot"
         upstream_snapshot.mkdir()
         (upstream_snapshot / "Makefile").write_text(makefile_v1 + "\ntest:\n\tpytest\n")
-        [target.resolve().relative_to(target.resolve()) / "Makefile"]
 
         # base_snapshot is populated by the mock_clone side_effect
-        base_snapshot_holder = {}
-
-        def populate_base(sha, dest, include_paths, git_exe, git_env_):
-            base_snapshot_holder["dest"] = dest
+        def populate_base(sha, dest, include_paths, git_ctx_):
             (dest / "Makefile").write_text(makefile_v1)
 
         mock_clone.side_effect = populate_base
@@ -1437,8 +1407,7 @@ class TestThreeWayMergeSyncMergeStrategy:
             materialized=[Path("Makefile")],
             template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
             excludes=set(),
-            git_executable=git_executable,
-            git_env=git_env,
+            git_ctx=git_ctx,
             lock=TemplateLock(sha="upstream_sha_456"),
         )
 

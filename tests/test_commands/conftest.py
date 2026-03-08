@@ -8,34 +8,34 @@ Security Notes:
   full path is available at runtime.
 """
 
-import os
-import shutil
 import subprocess
 
 import pytest
 
-
-@pytest.fixture
-def git_setup():
-    """Return git executable and env."""
-    git = shutil.which("git")
-    if git is None:
-        pytest.skip("git not available")
-    env = os.environ.copy()
-    env["GIT_TERMINAL_PROMPT"] = "0"
-    return git, env
+from rhiza.models import GitContext
 
 
 @pytest.fixture
-def git_project(tmp_path, git_setup):
+def git_ctx():
+    """Return a GitContext for testing."""
+    return GitContext.default()
+
+
+@pytest.fixture
+def git_setup(git_ctx):
+    """Return git executable and env (legacy)."""
+    return git_ctx.executable, git_ctx.env
+
+
+@pytest.fixture
+def git_project(tmp_path, git_ctx):
     """Create a minimal git-initialised project directory."""
-    git_executable, git_env = git_setup
     project = tmp_path / "project"
     project.mkdir()
     for cmd in [
-        [git_executable, "init"],
-        [git_executable, "config", "user.email", "test@test.com"],
-        [git_executable, "config", "user.name", "Test"],
+        [git_ctx.executable, "init"],
+        [git_ctx.executable, "config", "user.email", "test@test.com"],
+        [git_ctx.executable, "config", "user.name", "Test"],
     ]:
-        subprocess.run(cmd, cwd=project, check=True, capture_output=True, env=git_env)  # nosec B603
+        subprocess.run(cmd, cwd=project, check=True, capture_output=True, env=git_ctx.env)  # nosec B603
     return project

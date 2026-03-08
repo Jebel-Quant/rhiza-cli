@@ -91,7 +91,7 @@ def _get_diff(repo0: Path, repo1: Path, git_ctx: GitContext) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _assert_git_status_clean(target: Path, git_executable: str, git_env: dict[str, str]) -> None:
+def _assert_git_status_clean(target: Path, git_ctx: GitContext) -> None:
     """Raise RuntimeError if the target repository has uncommitted changes.
 
     Runs ``git status --porcelain`` and raises if the output is non-empty,
@@ -99,18 +99,17 @@ def _assert_git_status_clean(target: Path, git_executable: str, git_env: dict[st
 
     Args:
         target: Path to the target repository.
-        git_executable: Path to git executable.
-        git_env: Environment variables for git commands.
+        git_ctx: Git context.
 
     Raises:
         RuntimeError: If the working tree has uncommitted changes.
     """
     result = subprocess.run(  # nosec B603  # noqa: S603
-        [git_executable, "status", "--porcelain"],
+        [git_ctx.executable, "status", "--porcelain"],
         cwd=target,
         capture_output=True,
         text=True,
-        env=git_env,
+        env=git_ctx.env,
     )
     if result.stdout.strip():
         logger.error("Working tree is not clean. Please commit or stash your changes before syncing.")
@@ -120,16 +119,13 @@ def _assert_git_status_clean(target: Path, git_executable: str, git_env: dict[st
         raise RuntimeError("Working tree is not clean. Please commit or stash your changes before syncing.")  # noqa: TRY003
 
 
-def _handle_target_branch(
-    target: Path, target_branch: str | None, git_executable: str, git_env: dict[str, str]
-) -> None:
+def _handle_target_branch(target: Path, target_branch: str | None, git_ctx: GitContext) -> None:
     """Handle target branch creation or checkout if specified.
 
     Args:
         target: Path to the target repository.
         target_branch: Optional branch name to create/checkout.
-        git_executable: Path to git executable.
-        git_env: Environment variables for git commands.
+        git_ctx: Git context.
     """
     if not target_branch:
         return
@@ -137,32 +133,32 @@ def _handle_target_branch(
     logger.info(f"Creating/checking out target branch: {target_branch}")
     try:
         result = subprocess.run(  # nosec B603  # noqa: S603
-            [git_executable, "rev-parse", "--verify", target_branch],
+            [git_ctx.executable, "rev-parse", "--verify", target_branch],
             cwd=target,
             capture_output=True,
             text=True,
-            env=git_env,
+            env=git_ctx.env,
         )
 
         if result.returncode == 0:
             logger.info(f"Branch '{target_branch}' exists, checking out...")
             subprocess.run(  # nosec B603  # noqa: S603
-                [git_executable, "checkout", target_branch],
+                [git_ctx.executable, "checkout", target_branch],
                 cwd=target,
                 check=True,
                 capture_output=True,
                 text=True,
-                env=git_env,
+                env=git_ctx.env,
             )
         else:
             logger.info(f"Creating new branch '{target_branch}'...")
             subprocess.run(  # nosec B603  # noqa: S603
-                [git_executable, "checkout", "-b", target_branch],
+                [git_ctx.executable, "checkout", "-b", target_branch],
                 cwd=target,
                 check=True,
                 capture_output=True,
                 text=True,
-                env=git_env,
+                env=git_ctx.env,
             )
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to create/checkout branch '{target_branch}'")
@@ -476,8 +472,7 @@ def _merge_file_fallback(
     target: Path,
     base_snapshot: Path,
     upstream_snapshot: Path,
-    git_executable: str,
-    git_env: dict[str, str],
+    git_ctx: GitContext,
 ) -> bool:
     """Apply *diff* file-by-file using ``git merge-file``.
 
@@ -493,8 +488,7 @@ def _merge_file_fallback(
         target: Path to the target repository.
         base_snapshot: Directory containing files at the previously-synced SHA.
         upstream_snapshot: Directory containing files at the new upstream SHA.
-        git_executable: Absolute path to git.
-        git_env: Environment variables for git commands.
+        git_ctx: Git context.
 
     Returns:
         True if every file merged cleanly, False if any conflicts remain.
@@ -538,7 +532,7 @@ def _merge_file_fallback(
 
         result = subprocess.run(  # nosec B603  # noqa: S603
             [
-                git_executable,
+                git_ctx.executable,
                 "merge-file",
                 "-L",
                 "ours",
@@ -551,7 +545,7 @@ def _merge_file_fallback(
                 str(upstream_file),
             ],
             capture_output=True,
-            env=git_env,
+            env=git_ctx.env,
         )
 
         if result.returncode > 0:
@@ -573,8 +567,7 @@ def _merge_file_fallback(
 def _apply_diff(
     diff: str,
     target: Path,
-    git_executable: str,
-    git_env: dict[str, str],
+    git_ctx: GitContext,
     base_snapshot: Path | None = None,
     upstream_snapshot: Path | None = None,
 ) -> bool:
@@ -590,8 +583,7 @@ def _apply_diff(
     Args:
         diff: Unified diff string.
         target: Path to the target repository.
-        git_executable: Absolute path to git.
-        git_env: Environment variables for git commands.
+        git_ctx: Git context.
         base_snapshot: Optional directory containing files at the base SHA.
         upstream_snapshot: Optional directory containing files at the upstream SHA.
 
@@ -603,12 +595,12 @@ def _apply_diff(
 
     try:
         subprocess.run(  # nosec B603  # noqa: S603
-            [git_executable, "apply", "-3"],
+            [git_ctx.executable, "apply", "-3"],
             input=diff.encode(),
             cwd=target,
             check=True,
             capture_output=True,
-            env=git_env,
+            env=git_ctx.env,
         )
     except subprocess.CalledProcessError as e:
         stderr = e.stderr.decode() if e.stderr else ""
@@ -619,19 +611,19 @@ def _apply_diff(
         # directly on file content and needs no shared git history.
         if "lacks the necessary blob" in stderr and base_snapshot is not None and upstream_snapshot is not None:
             logger.debug("git apply -3 lacks blob objects; switching to git merge-file fallback")
-            return _merge_file_fallback(diff, target, base_snapshot, upstream_snapshot, git_executable, git_env)
+            return _merge_file_fallback(diff, target, base_snapshot, upstream_snapshot, git_ctx)
 
         if stderr:
             logger.warning(f"3-way merge had conflicts:\n{stderr.strip()}")
         # Fall back to --reject for conflict files
         try:
             subprocess.run(  # nosec B603  # noqa: S603
-                [git_executable, "apply", "--reject"],
+                [git_ctx.executable, "apply", "--reject"],
                 input=diff.encode(),
                 cwd=target,
                 check=True,
                 capture_output=True,
-                env=git_env,
+                env=git_ctx.env,
             )
         except subprocess.CalledProcessError as e2:
             stderr2 = e2.stderr.decode() if e2.stderr else ""
@@ -694,8 +686,7 @@ def _sync_merge(
     materialized: list[Path],
     template: "RhizaTemplate",
     excludes: set[str],
-    git_executable: str,
-    git_env: dict[str, str],
+    git_ctx: GitContext,
     lock: TemplateLock,
 ) -> None:
     """Execute the merge strategy (cruft-style 3-way merge).
@@ -712,8 +703,7 @@ def _sync_merge(
         materialized: List of relative file paths.
         template: The :class:`~rhiza.models.RhizaTemplate` driving this sync.
         excludes: Set of relative paths to exclude.
-        git_executable: Absolute path to git.
-        git_env: Environment variables for git commands.
+        git_ctx: Git context.
         lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
     """
     # Snapshot the currently-tracked files before the merge runs.  The merge
@@ -733,8 +723,7 @@ def _sync_merge(
                 base_snapshot,
                 template,
                 excludes,
-                git_executable,
-                git_env,
+                git_ctx,
                 lock,
             )
         else:
@@ -774,8 +763,7 @@ def _merge_with_base(
     base_snapshot: Path,
     template: "RhizaTemplate",
     excludes: set[str],
-    git_executable: str,
-    git_env: dict[str, str],
+    git_ctx: GitContext,
     lock: TemplateLock,
 ) -> None:
     """Compute and apply the diff between base and upstream snapshots.
@@ -788,14 +776,13 @@ def _merge_with_base(
         base_snapshot: Directory to populate with the base snapshot.
         template: The :class:`~rhiza.models.RhizaTemplate` driving this sync.
         excludes: Set of relative paths to exclude.
-        git_executable: Absolute path to git.
-        git_env: Environment variables for git commands.
+        git_ctx: Git context.
         lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
     """
     logger.info(f"Cloning base snapshot at {base_sha[:12]}")
     base_clone = Path(tempfile.mkdtemp())
     try:
-        template._clone_at_sha(base_sha, base_clone, template.include, git_executable, git_env)
+        template._clone_at_sha(base_sha, base_clone, template.include, git_ctx)
         RhizaTemplate._prepare_snapshot(base_clone, template.include, excludes, base_snapshot)
     except Exception:
         logger.warning("Could not checkout base commit — treating all files as new")
@@ -803,7 +790,7 @@ def _merge_with_base(
         if base_clone.exists():
             shutil.rmtree(base_clone)
 
-    diff = _get_diff(base_snapshot, upstream_snapshot, GitContext(executable=git_executable, env=git_env))
+    diff = _get_diff(base_snapshot, upstream_snapshot, git_ctx)
 
     if not diff.strip():
         logger.success("Template unchanged since last sync — nothing to apply")
@@ -811,9 +798,7 @@ def _merge_with_base(
         return
 
     logger.info("Applying template changes via 3-way merge (cruft)...")
-    clean = _apply_diff(
-        diff, target, git_executable, git_env, base_snapshot=base_snapshot, upstream_snapshot=upstream_snapshot
-    )
+    clean = _apply_diff(diff, target, git_ctx, base_snapshot=base_snapshot, upstream_snapshot=upstream_snapshot)
 
     if clean:
         logger.success("All changes applied cleanly")
