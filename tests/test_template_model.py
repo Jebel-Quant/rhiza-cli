@@ -1,7 +1,8 @@
-"""Tests for the RhizaTemplate dataclass and related models.
+"""Tests for the RhizaTemplate dataclass.
 
 This module verifies that the RhizaTemplate dataclass correctly represents
-and handles .rhiza/template.yml configuration.
+and handles .rhiza/template.yml configuration, including serialisation,
+git URL construction, cloning, and snapshotting.
 """
 
 import os
@@ -13,26 +14,24 @@ import pytest
 import yaml
 
 from rhiza.models._base import YamlSerializable, load_model
-from rhiza.models.bundle import RhizaBundles
-from rhiza.models.lock import TemplateLock
 from rhiza.models.template import RhizaTemplate
 
 
 class TestRhizaTemplate:
     """Tests for the RhizaTemplate dataclass."""
 
-    def test_rhiza_template_from_yaml(self, tmp_path):
+    def test_rhiza_template_from_yaml(self, tmp_path, write_yaml):
         """Test loading RhizaTemplate from YAML with various field combinations."""
         # 1. Standard loading with 'template-repository', 'template-branch', and 'exclude'
-        template_file = tmp_path / "template_std.yml"
-        config = {
-            "template-repository": "custom/repo",
-            "template-branch": "dev",
-            "include": [".github", "Makefile"],
-            "exclude": [".github/workflows/docker.yml"],
-        }
-        with open(template_file, "w") as f:
-            yaml.dump(config, f)
+        template_file = write_yaml(
+            "template_std.yml",
+            {
+                "template-repository": "custom/repo",
+                "template-branch": "dev",
+                "include": [".github", "Makefile"],
+                "exclude": [".github/workflows/docker.yml"],
+            },
+        )
 
         template = RhizaTemplate.from_yaml(template_file)
         assert template.template_repository == "custom/repo"
@@ -43,16 +42,16 @@ class TestRhizaTemplate:
         assert template.language == "python"  # Default
 
         # 2. Loading with aliases 'repository' and 'ref', and custom host/language
-        template_file = tmp_path / "template_alt.yml"
-        config = {
-            "repository": "owner/repo",
-            "ref": "v1.0.0",
-            "template-host": "gitlab",
-            "language": "go",
-            "templates": ["core", "tests"],
-        }
-        with open(template_file, "w") as f:
-            yaml.dump(config, f)
+        template_file = write_yaml(
+            "template_alt.yml",
+            {
+                "repository": "owner/repo",
+                "ref": "v1.0.0",
+                "template-host": "gitlab",
+                "language": "go",
+                "templates": ["core", "tests"],
+            },
+        )
 
         template = RhizaTemplate.from_yaml(template_file)
         assert template.template_repository == "owner/repo"
@@ -62,15 +61,15 @@ class TestRhizaTemplate:
         assert template.templates == ["core", "tests"]
 
         # 3. Precedence: 'repository' over 'template-repository', 'ref' over 'template-branch'
-        template_file = tmp_path / "template_precedence.yml"
-        config = {
-            "repository": "correct/repo",
-            "template-repository": "wrong/repo",
-            "ref": "correct-branch",
-            "template-branch": "wrong-branch",
-        }
-        with open(template_file, "w") as f:
-            yaml.dump(config, f)
+        template_file = write_yaml(
+            "template_precedence.yml",
+            {
+                "repository": "correct/repo",
+                "template-repository": "wrong/repo",
+                "ref": "correct-branch",
+                "template-branch": "wrong-branch",
+            },
+        )
 
         template = RhizaTemplate.from_yaml(template_file)
         assert template.template_repository == "correct/repo"
@@ -218,18 +217,18 @@ class TestRhizaTemplate:
         # Test with dict - should return []
         assert _normalize_to_list({"key": "value"}) == []  # type: ignore[arg-type]
 
-    def test_rhiza_hybrid_mode(self, tmp_path):
+    def test_rhiza_hybrid_mode(self, tmp_path, write_yaml):
         """Test template.yml with both templates and include fields (loading and saving)."""
         # 1. Loading
-        template_file = tmp_path / "template.yml"
-        config = {
-            "template-repository": "jebel-quant/rhiza",
-            "template-branch": "main",
-            "templates": ["core", "tests"],
-            "include": [".custom", "extra/"],
-        }
-        with open(template_file, "w") as f:
-            yaml.dump(config, f)
+        template_file = write_yaml(
+            "template.yml",
+            {
+                "template-repository": "jebel-quant/rhiza",
+                "template-branch": "main",
+                "templates": ["core", "tests"],
+                "include": [".custom", "extra/"],
+            },
+        )
 
         template = RhizaTemplate.from_yaml(template_file)
         assert template.templates == ["core", "tests"]
@@ -242,121 +241,6 @@ class TestRhizaTemplate:
             config = yaml.safe_load(f)
         assert config["templates"] == ["core", "tests"]
         assert config["include"] == [".custom", "extra/"]
-
-
-class TestTemplateLock:
-    """Tests for the TemplateLock dataclass."""
-
-    def test_template_lock_to_yaml(self, tmp_path):
-        """Test TemplateLock serialization: defaults, omissions, parent dir, and formatting."""
-        # 1. Defaults and parent directory creation
-        lock = TemplateLock(sha="abc123")
-        lock_path = tmp_path / ".rhiza" / "template.lock"
-        lock.to_yaml(lock_path)
-        assert lock_path.exists()
-
-        data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
-        assert data["sha"] == "abc123"
-        assert data["repo"] == ""
-        assert data["host"] == "github"
-        assert data["ref"] == "main"
-        assert data["include"] == []
-        assert data["exclude"] == []
-        assert data["templates"] == []
-        assert data["files"] == []
-        assert "synced_at" not in data
-        assert "strategy" not in data
-
-        # 2. Professional formatting (header comment, document separator)
-        raw = lock_path.read_text(encoding="utf-8")
-        assert raw.startswith("# This file is automatically generated by rhiza. Do not edit it manually.\n---\n")
-
-        # 3. Non-defaults: all fields including synced_at and strategy
-        lock = TemplateLock(
-            sha="abc123def456",
-            repo="jebel-quant/rhiza",
-            host="gitlab",
-            ref="develop",
-            include=[".github/", ".rhiza/"],
-            exclude=["README.md"],
-            templates=["core"],
-            files=[".github/workflows/ci.yml"],
-            synced_at="2026-02-26T12:00:00Z",
-            strategy="merge",
-        )
-        lock.to_yaml(lock_path)
-        data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
-        assert data["sha"] == "abc123def456"
-        assert data["repo"] == "jebel-quant/rhiza"
-        assert data["host"] == "gitlab"
-        assert data["ref"] == "develop"
-        assert data["include"] == [".github/", ".rhiza/"]
-        assert data["exclude"] == ["README.md"]
-        assert data["templates"] == ["core"]
-        assert data["files"] == [".github/workflows/ci.yml"]
-        assert data["synced_at"] == "2026-02-26T12:00:00Z"
-        assert data["strategy"] == "merge"
-
-    def test_template_lock_from_yaml(self, tmp_path):
-        """Test TemplateLock deserialization: structured, legacy SHA, and missing fields."""
-        lock_path = tmp_path / "template.lock"
-
-        # 1. Structured format (full)
-        lock_path.write_text(
-            "sha: abc123def456\nrepo: jebel-quant/rhiza\nhost: github\nref: main\n"
-            "include:\n- .github/\n- .rhiza/\nexclude: []\ntemplates: []\n"
-            "files:\n- .github/workflows/ci.yml\n",
-            encoding="utf-8",
-        )
-        lock = TemplateLock.from_yaml(lock_path)
-        assert lock.sha == "abc123def456"
-        assert lock.repo == "jebel-quant/rhiza"
-        assert lock.include == [".github/", ".rhiza/"]
-        assert lock.files == [".github/workflows/ci.yml"]
-
-        # 2. Legacy plain-SHA format
-        lock_path.write_text("abc123def456\n", encoding="utf-8")
-        lock = TemplateLock.from_yaml(lock_path)
-        assert lock.sha == "abc123def456"
-        assert lock.repo == ""
-        assert lock.host == "github"  # default
-        assert lock.ref == "main"  # default
-
-        # 3. Missing optional fields in structured format
-        lock_path.write_text("sha: abc789\nhost: gitlab\n", encoding="utf-8")
-        lock = TemplateLock.from_yaml(lock_path)
-        assert lock.sha == "abc789"
-        assert lock.host == "gitlab"
-        assert lock.ref == "main"  # default fallback
-        assert lock.files == []
-        assert lock.synced_at == ""
-
-    def test_template_lock_round_trip(self, tmp_path):
-        """Test that to_yaml then from_yaml preserves all fields."""
-        original = TemplateLock(
-            sha="abc123def456",
-            repo="jebel-quant/rhiza",
-            host="gitlab",
-            ref="develop",
-            include=[".github/", ".rhiza/"],
-            exclude=["README.md"],
-            templates=["core"],
-            files=[".github/workflows/ci.yml"],
-            synced_at="2026-02-26T12:00:00Z",
-            strategy="merge",
-        )
-        lock_path = tmp_path / "template.lock"
-        original.to_yaml(lock_path)
-        loaded = TemplateLock.from_yaml(lock_path)
-        assert loaded == original
-
-    def test_template_lock_from_yaml_invalid_format(self, tmp_path):
-        """from_yaml raises TypeError when the lock data is neither str nor dict."""
-        lock_path = tmp_path / "template.lock"
-        lock_path.write_text("- item1\n- item2\n", encoding="utf-8")
-
-        with pytest.raises(TypeError, match=r"Invalid template\.lock format"):
-            TemplateLock.from_yaml(lock_path)
 
 
 class TestRhizaTemplateGitUrl:
@@ -557,22 +441,17 @@ class TestRhizaTemplateSnapshot:
 
 
 # ---------------------------------------------------------------------------
-# YamlSerializable Protocol and load_model helper
+# YamlSerializable Protocol — template-related checks
 # ---------------------------------------------------------------------------
 
 
 class TestYamlSerializableProtocol:
-    """Tests for the YamlSerializable Protocol defined in rhiza.models._base."""
+    """Tests for the YamlSerializable Protocol as it applies to RhizaTemplate."""
 
     def test_rhiza_template_satisfies_protocol(self):
         """RhizaTemplate is a runtime-checkable instance of YamlSerializable."""
         template = RhizaTemplate(template_repository="owner/repo")
         assert isinstance(template, YamlSerializable)
-
-    def test_template_lock_satisfies_protocol(self):
-        """TemplateLock is a runtime-checkable instance of YamlSerializable."""
-        lock = TemplateLock(sha="abc123")
-        assert isinstance(lock, YamlSerializable)
 
     def test_plain_class_does_not_satisfy_protocol(self):
         """A class without from_yaml / to_yaml does not satisfy YamlSerializable."""
@@ -582,85 +461,24 @@ class TestYamlSerializableProtocol:
 
         assert not isinstance(NotSerializable(), YamlSerializable)
 
-    def test_rhiza_bundles_satisfies_protocol(self, tmp_path):
-        """RhizaBundles is a runtime-checkable instance of YamlSerializable."""
-        bundles_file = tmp_path / "template-bundles.yml"
-        config = {"bundles": {"core": {"description": "Core"}}}
-        with open(bundles_file, "w") as f:
-            yaml.dump(config, f)
-        bundles = RhizaBundles.from_yaml(bundles_file)
-        assert isinstance(bundles, YamlSerializable)
+
+# ---------------------------------------------------------------------------
+# load_model helper — template-related checks
+# ---------------------------------------------------------------------------
 
 
 class TestLoadModel:
-    """Tests for the load_model generic helper."""
+    """Tests for the load_model generic helper as it applies to RhizaTemplate."""
 
-    def test_load_model_returns_rhiza_template(self, tmp_path):
+    def test_load_model_returns_rhiza_template(self, write_yaml):
         """load_model loads a RhizaTemplate and returns the correct type/values."""
-        template_file = tmp_path / "template.yml"
-        config = {"repository": "owner/repo", "ref": "main"}
-        with open(template_file, "w") as f:
-            yaml.dump(config, f)
+        template_file = write_yaml("template.yml", {"repository": "owner/repo", "ref": "main"})
 
         result = load_model(RhizaTemplate, template_file)
 
         assert isinstance(result, RhizaTemplate)
         assert result.template_repository == "owner/repo"
         assert result.template_branch == "main"
-
-    def test_load_model_returns_template_lock(self, tmp_path):
-        """load_model loads a TemplateLock and returns the correct type/values."""
-        lock = TemplateLock(sha="deadbeef", repo="owner/repo", host="github", ref="main")
-        lock_path = tmp_path / "template.lock"
-        lock.to_yaml(lock_path)
-
-        result = load_model(TemplateLock, lock_path)
-
-        assert isinstance(result, TemplateLock)
-        assert result.sha == "deadbeef"
-        assert result.repo == "owner/repo"
-
-    def test_load_model_returns_rhiza_bundles(self, tmp_path):
-        """load_model loads a RhizaBundles and returns the correct type/values."""
-        bundles_file = tmp_path / "template-bundles.yml"
-        config = {
-            "version": "1",
-            "bundles": {"core": {"description": "Core bundle", "files": ["Makefile"]}},
-        }
-        with open(bundles_file, "w") as f:
-            yaml.dump(config, f)
-
-        result = load_model(RhizaBundles, bundles_file)
-
-        assert isinstance(result, RhizaBundles)
-        assert result.version == "1"
-        assert "core" in result.bundles
-
-    def test_rhiza_bundles_to_yaml_round_trip(self, tmp_path):
-        """RhizaBundles.to_yaml followed by from_yaml preserves bundle data."""
-        from rhiza.models.bundle import BundleDefinition
-
-        original = RhizaBundles(
-            version="2",
-            bundles={
-                "core": BundleDefinition(
-                    name="core",
-                    description="Core files",
-                    files=["Makefile", "pyproject.toml"],
-                    workflows=[".github/workflows/ci.yml"],
-                    depends_on=[],
-                )
-            },
-        )
-        out_path = tmp_path / "template-bundles.yml"
-        original.to_yaml(out_path)
-        loaded = RhizaBundles.from_yaml(out_path)
-
-        assert loaded.version == "2"
-        assert "core" in loaded.bundles
-        assert loaded.bundles["core"].description == "Core files"
-        assert loaded.bundles["core"].files == ["Makefile", "pyproject.toml"]
-        assert loaded.bundles["core"].workflows == [".github/workflows/ci.yml"]
 
     def test_load_model_raises_for_class_without_from_yaml(self):
         """load_model raises TypeError when the class lacks from_yaml."""
