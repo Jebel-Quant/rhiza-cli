@@ -1,4 +1,4 @@
-"""Tests for the subprocess_utils module.
+"""Tests for the _git_utils module.
 
 Tests get_git_executable for normal operation and RuntimeError
 when git is not found in PATH.
