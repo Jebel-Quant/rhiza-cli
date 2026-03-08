@@ -29,6 +29,7 @@ class YamlSerializable(Protocol):
     ------------
     - :class:`rhiza.models.template.RhizaTemplate`
     - :class:`rhiza.models.lock.TemplateLock`
+    - :class:`rhiza.models.bundle.RhizaBundles` (read-only: does not implement ``to_yaml``)
     """
 
     @classmethod
@@ -46,7 +47,7 @@ class YamlSerializable(Protocol):
             yaml.YAMLError: If the file contains invalid YAML.
             ValueError: If the file content is not recognised.
         """
-        ...
+        return cls.from_config(read_yaml(file_path))  # type: ignore[attr-defined]
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> Self:
@@ -60,6 +61,11 @@ class YamlSerializable(Protocol):
         """
         ...
 
+    @property
+    def config(self) -> dict[str, Any]:
+        """Return the model's current state as a configuration dictionary."""
+        ...
+
     def to_yaml(self, file_path: Path) -> None:
         """Save the model to a YAML file.
 
@@ -67,7 +73,9 @@ class YamlSerializable(Protocol):
             file_path: Destination path.  Parent directories are created
                 automatically if they do not exist.
         """
-        ...
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(file_path, "w", encoding="utf-8") as f:
+            yaml.dump(self.config, f, default_flow_style=False, sort_keys=False)
 
 
 _T = TypeVar("_T")

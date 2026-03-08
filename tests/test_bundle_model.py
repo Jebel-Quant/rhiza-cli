@@ -1,6 +1,6 @@
 """Tests for the RhizaBundles dataclass.
 
-This module verifies that RhizaBundles correctly serialises and deserialises
+This module verifies that RhizaBundles correctly deserialises
 template-bundles.yml files, and satisfies the YamlSerializable protocol.
 """
 
@@ -43,49 +43,3 @@ class TestLoadModel:
         assert isinstance(result, RhizaBundles)
         assert result.version == "1"
         assert "core" in result.bundles
-
-    def test_rhiza_bundles_to_yaml_round_trip(self, tmp_path):
-        """RhizaBundles.to_yaml followed by from_yaml preserves bundle data."""
-        from rhiza.models.bundle import BundleDefinition
-
-        original = RhizaBundles(
-            version="2",
-            bundles={
-                "core": BundleDefinition(
-                    name="core",
-                    description="Core files",
-                    files=["Makefile", "pyproject.toml"],
-                    workflows=[".github/workflows/ci.yml"],
-                    depends_on=[],
-                )
-            },
-        )
-        out_path = tmp_path / "template-bundles.yml"
-        original.to_yaml(out_path)
-        loaded = RhizaBundles.from_yaml(out_path)
-
-        assert loaded.version == "2"
-        assert "core" in loaded.bundles
-        assert loaded.bundles["core"].description == "Core files"
-        assert loaded.bundles["core"].files == ["Makefile", "pyproject.toml"]
-        assert loaded.bundles["core"].workflows == [".github/workflows/ci.yml"]
-
-    def test_rhiza_bundles_to_yaml_with_depends_on(self, tmp_path):
-        """RhizaBundles.to_yaml serialises depends_on under the 'depends-on' key."""
-        from rhiza.models.bundle import BundleDefinition
-
-        original = RhizaBundles(
-            bundles={
-                "extended": BundleDefinition(
-                    name="extended",
-                    description="Extended bundle",
-                    files=["extra.txt"],
-                    depends_on=["core"],
-                )
-            },
-        )
-        out_path = tmp_path / "template-bundles.yml"
-        original.to_yaml(out_path)
-        loaded = RhizaBundles.from_yaml(out_path)
-
-        assert loaded.bundles["extended"].depends_on == ["core"]

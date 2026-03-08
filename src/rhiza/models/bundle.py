@@ -4,9 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
-
-from rhiza.models._base import read_yaml
+from rhiza.models._base import YamlSerializable
 from rhiza.models._git_utils import _normalize_to_list
 
 
@@ -34,7 +32,7 @@ class BundleDefinition:
 
 
 @dataclass
-class RhizaBundles:
+class RhizaBundles(YamlSerializable):
     """Represents the structure of template-bundles.yml.
 
     Attributes:
@@ -45,23 +43,27 @@ class RhizaBundles:
     version: str | None = None
     bundles: dict[str, BundleDefinition] = field(default_factory=dict)
 
-    @classmethod
-    def from_yaml(cls, file_path: Path) -> "RhizaBundles":
-        """Load RhizaBundles from a YAML file.
+    @property
+    def config(self) -> dict[str, Any]:
+        """Return the bundles' current state as a configuration dictionary."""
+        config: dict[str, Any] = {}
 
-        Args:
-            file_path: Path to the template-bundles.yml file.
+        if self.version is not None:
+            config["version"] = self.version
 
-        Returns:
-            The loaded bundles configuration.
+        bundles_dict: dict[str, Any] = {}
+        for name, bundle in self.bundles.items():
+            bundle_entry: dict[str, Any] = {"description": bundle.description}
+            if bundle.files:
+                bundle_entry["files"] = bundle.files
+            if bundle.workflows:
+                bundle_entry["workflows"] = bundle.workflows
+            if bundle.depends_on:
+                bundle_entry["depends-on"] = bundle.depends_on
+            bundles_dict[name] = bundle_entry
 
-        Raises:
-            FileNotFoundError: If the file does not exist.
-            yaml.YAMLError: If the YAML is malformed.
-            ValueError: If the file is empty or invalid.
-            TypeError: If bundle data has invalid types.
-        """
-        return cls.from_config(read_yaml(file_path))
+        config["bundles"] = bundles_dict
+        return config
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> "RhizaBundles":
@@ -190,33 +192,3 @@ class RhizaBundles:
         if not bundles_file.exists():
             return None
         return cls.from_yaml(bundles_file)
-
-    def to_yaml(self, file_path: Path) -> None:
-        """Save RhizaBundles to a YAML file.
-
-        Args:
-            file_path: Destination path.  Parent directories are created
-                automatically if they do not exist.
-        """
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        config: dict[str, Any] = {}
-
-        if self.version is not None:
-            config["version"] = self.version
-
-        bundles_dict: dict[str, Any] = {}
-        for name, bundle in self.bundles.items():
-            bundle_entry: dict[str, Any] = {"description": bundle.description}
-            if bundle.files:
-                bundle_entry["files"] = bundle.files
-            if bundle.workflows:
-                bundle_entry["workflows"] = bundle.workflows
-            if bundle.depends_on:
-                bundle_entry["depends-on"] = bundle.depends_on
-            bundles_dict[name] = bundle_entry
-
-        config["bundles"] = bundles_dict
-
-        with open(file_path, "w", encoding="utf-8") as f:
-            yaml.dump(config, f, default_flow_style=False, sort_keys=False)

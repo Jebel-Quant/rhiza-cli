@@ -65,7 +65,8 @@ def sync(
 
     # Synchronizes target with upstream template snapshot transactionally; cleans up resources
     try:
-        base_sha = TemplateLock.read_sha(target)
+        lock_path = target / ".rhiza" / "template.lock"
+        base_sha = TemplateLock.from_yaml(lock_path).config["sha"] if lock_path.exists() else None
 
         upstream_snapshot = Path(tempfile.mkdtemp())
         try:

@@ -74,7 +74,7 @@ class TestSyncCore:
         sync(tmp_path, "main", None, "merge")
 
         assert (tmp_path / "test.txt").read_text() == "template content\n"
-        assert TemplateLock.read_sha(tmp_path) == "first111"
+        assert TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock").config["sha"] == "first111"
 
     @patch("rhiza.commands.sync.shutil.rmtree")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
@@ -96,7 +96,7 @@ class TestSyncCore:
         sync(tmp_path, "main", None, "diff")
 
         assert (tmp_path / "test.txt").read_text() == "local content"
-        assert TemplateLock.read_sha(tmp_path) is None
+        assert not (tmp_path / ".rhiza" / "template.lock").exists()
 
     @patch("rhiza.commands.sync.shutil.rmtree")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
@@ -118,4 +118,4 @@ class TestSyncCore:
 
         sync(tmp_path, "main", None, "merge")
 
-        assert TemplateLock.read_sha(tmp_path) == "new222"
+        assert TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock").config["sha"] == "new222"

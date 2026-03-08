@@ -147,7 +147,7 @@ class TestSyncE2ETypicalWorkflow:
         assert (project / "README.md").exists()
         assert "pip install" in (project / "Makefile").read_text()
         assert "version = 1" in (project / "config.py").read_text()
-        assert TemplateLock.read_sha(project) == "sha_v1"
+        assert TemplateLock.from_yaml(project / ".rhiza" / "template.lock").config["sha"] == "sha_v1"
 
     @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
     def test_subsequent_sync_applies_template_changes(self, mock_warn, project, git_ctx, tmp_path):
@@ -243,7 +243,7 @@ class TestSyncE2ETypicalWorkflow:
         assert "feature" in (project / "new.yml").read_text()
 
         # Lock is updated to sha_v2.
-        assert TemplateLock.read_sha(project) == "sha_v2"
+        assert TemplateLock.from_yaml(project / ".rhiza" / "template.lock").config["sha"] == "sha_v2"
 
 
 # ---------------------------------------------------------------------------
@@ -310,7 +310,7 @@ class TestSyncE2EOrphanedFiles:
         assert (project / "file_a.txt").exists()
         assert not (project / "file_b.txt").exists(), "file_b.txt should be removed as an orphan"
 
-        assert TemplateLock.read_sha(project) == "sha_v2"
+        assert TemplateLock.from_yaml(project / ".rhiza" / "template.lock").config["sha"] == "sha_v2"
 
 
 # ---------------------------------------------------------------------------
@@ -480,7 +480,7 @@ class TestSyncE2EExcludedFiles:
         # file_b.txt should still have original content (not touched by sync).
         assert (project / "file_b.txt").read_text() == "content b\n"
 
-        assert TemplateLock.read_sha(project) == "sha_v2"
+        assert TemplateLock.from_yaml(project / ".rhiza" / "template.lock").config["sha"] == "sha_v2"
 
 
 # ---------------------------------------------------------------------------
@@ -534,8 +534,8 @@ class TestSyncE2EUpdatedTemplateYml:
 
         assert (project / "file_a.txt").exists()
         assert (project / "file_b.txt").exists()
-        assert TemplateLock.read_sha(project) == "sha_v1"
-
+        assert TemplateLock.from_yaml(project / ".rhiza" / "template.lock").config["sha"] == "sha_v1"
+        assert TemplateLock.from_yaml(project / ".rhiza" / "template.lock").config["sha"] == "sha_v1"
         _git_commit_all(project, git_ctx, "after sync 1")
 
         # ------------------------------------------------------------------
@@ -574,7 +574,7 @@ class TestSyncE2EUpdatedTemplateYml:
         assert (project / "file_a.txt").exists()
         assert (project / "file_b.txt").exists()
         assert (project / "file_c.txt").exists(), "file_c.txt must be added after it is included in template.yml"
-        assert TemplateLock.read_sha(project) == "sha_v2"
+        assert TemplateLock.from_yaml(project / ".rhiza" / "template.lock").config["sha"] == "sha_v2"
 
     @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
     def test_removing_include_entry_removes_orphaned_file(self, mock_warn, project, git_ctx, tmp_path):
@@ -613,7 +613,7 @@ class TestSyncE2EUpdatedTemplateYml:
 
         assert (project / "file_a.txt").exists()
         assert (project / "file_b.txt").exists()
-        assert TemplateLock.read_sha(project) == "sha_v1"
+        assert TemplateLock.from_yaml(project / ".rhiza" / "template.lock").config["sha"] == "sha_v1"
 
         _git_commit_all(project, git_ctx, "after sync 1")
 
