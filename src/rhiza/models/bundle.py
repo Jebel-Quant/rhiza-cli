@@ -6,6 +6,7 @@ from typing import Any
 
 import yaml
 
+from rhiza.models._base import read_yaml
 from rhiza.models._git_utils import _normalize_to_list
 
 
@@ -60,12 +61,21 @@ class RhizaBundles:
             ValueError: If the file is empty or invalid.
             TypeError: If bundle data has invalid types.
         """
-        with open(file_path) as f:
-            config = yaml.safe_load(f)
+        return cls.from_config(read_yaml(file_path))
 
-        if not config:
-            raise ValueError("Bundles file is empty")  # noqa: TRY003
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> "RhizaBundles":
+        """Create a RhizaBundles instance from a configuration dictionary.
 
+        Args:
+            config: Dictionary containing bundles configuration.
+
+        Returns:
+            A new RhizaBundles instance.
+
+        Raises:
+            TypeError: If bundle data has invalid types.
+        """
         version = config.get("version")
 
         bundles_config = config.get("bundles", {})

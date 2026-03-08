@@ -84,18 +84,6 @@ class TestStatusCommand:
         assert "python" in output
         assert "ci" in output
 
-    def test_status_handles_legacy_sha_lock(self, tmp_path, log_sink):
-        """Test that status works with legacy plain-SHA lock files."""
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True)
-        lock_file = rhiza_dir / "template.lock"
-        lock_file.write_text("deadbeef1234567890abcdef\n")
-
-        status(tmp_path)
-
-        output = "\n".join(log_sink)
-        assert "deadbeef1234" in output
-
 
 class TestStatusCli:
     """Tests for the `rhiza status` CLI entry point."""

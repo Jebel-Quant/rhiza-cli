@@ -90,7 +90,7 @@ class TestRhizaTemplate:
         template_file = tmp_path / "template.yml"
         template_file.write_text("")
 
-        with pytest.raises(ValueError, match="Template file is empty"):
+        with pytest.raises(ValueError, match="is empty"):
             RhizaTemplate.from_yaml(template_file)
 
     def test_rhiza_template_from_yaml_invalid_yaml(self, tmp_path):
@@ -473,14 +473,14 @@ class TestLoadModel:
         assert result.template_repository == "owner/repo"
         assert result.template_branch == "main"
 
-    def test_load_model_raises_for_class_without_from_yaml(self):
-        """load_model raises TypeError when the class lacks from_yaml."""
+    def test_load_model_raises_for_class_without_from_config(self):
+        """load_model raises TypeError when the class lacks from_config."""
 
-        class NoYaml:
+        class NoConfig:
             pass
 
-        with pytest.raises(TypeError, match="NoYaml does not implement from_yaml"):
-            load_model(NoYaml, Path("irrelevant.yml"))
+        with pytest.raises(TypeError, match="NoConfig does not implement from_config"):
+            load_model(NoConfig, Path("irrelevant.yml"))
 
 
 # ---------------------------------------------------------------------------

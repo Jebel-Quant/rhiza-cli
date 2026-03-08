@@ -181,7 +181,7 @@ bundles:
         bundles_file = tmp_path / "template-bundles.yml"
         bundles_file.write_text("")
 
-        with pytest.raises(ValueError, match="Bundles file is empty"):
+        with pytest.raises(ValueError, match="is empty"):
             RhizaBundles.from_yaml(bundles_file)
 
     def test_from_yaml_bundles_not_a_dict(self, tmp_path):

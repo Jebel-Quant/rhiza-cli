@@ -7,6 +7,7 @@ from typing import Any
 import yaml
 from loguru import logger
 
+from rhiza.models._base import read_yaml
 from rhiza.models._git_utils import _normalize_to_list
 from rhiza.models.template import GitHost
 
@@ -70,15 +71,10 @@ class TemplateLock:
             else:
                 logger.debug("fcntl not available - skipping advisory lock on read")
             content = fh.read().strip()
-        # Try structured YAML format first
-        try:
-            data = yaml.safe_load(content)
-            if isinstance(data, dict) and "sha" in data:
-                return str(data["sha"])
-        except yaml.YAMLError:
-            pass
-        # Legacy plain-SHA format
-        return content
+        data = yaml.safe_load(content)
+        if isinstance(data, dict) and "sha" in data:
+            return str(data["sha"])
+        return None
 
     @classmethod
     def from_yaml(cls, file_path: Path) -> "TemplateLock":
@@ -97,29 +93,29 @@ class TemplateLock:
             yaml.YAMLError: If the YAML is malformed.
             ValueError: If the file format is not recognised.
         """
-        with open(file_path, encoding="utf-8") as f:
-            content = f.read()
+        return cls.from_config(read_yaml(file_path))
 
-        data = yaml.safe_load(content)
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> "TemplateLock":
+        """Create a TemplateLock instance from a configuration dictionary.
 
-        # Legacy plain-SHA format: yaml.safe_load returns the SHA string directly.
-        if isinstance(data, str):
-            return cls(sha=data.strip())
+        Args:
+            config: Dictionary containing lock configuration.
 
-        if not isinstance(data, dict):
-            raise TypeError("Invalid template.lock format")  # noqa: TRY003
-
+        Returns:
+            A new TemplateLock instance.
+        """
         return cls(
-            sha=data.get("sha", ""),
-            repo=data.get("repo", ""),
-            host=data.get("host", GitHost.GITHUB),
-            ref=data.get("ref", "main"),
-            include=_normalize_to_list(data.get("include")),
-            exclude=_normalize_to_list(data.get("exclude")),
-            templates=_normalize_to_list(data.get("templates")),
-            files=_normalize_to_list(data.get("files")),
-            synced_at=data.get("synced_at", ""),
-            strategy=data.get("strategy", ""),
+            sha=config.get("sha", ""),
+            repo=config.get("repo", ""),
+            host=config.get("host", GitHost.GITHUB),
+            ref=config.get("ref", "main"),
+            include=_normalize_to_list(config.get("include")),
+            exclude=_normalize_to_list(config.get("exclude")),
+            templates=_normalize_to_list(config.get("templates")),
+            files=_normalize_to_list(config.get("files")),
+            synced_at=config.get("synced_at", ""),
+            strategy=config.get("strategy", ""),
         )
 
     def to_yaml(self, file_path: Path) -> None:

@@ -66,7 +66,7 @@ class TestTemplateLock:
         assert data["strategy"] == "merge"
 
     def test_template_lock_from_yaml(self, tmp_path):
-        """Test TemplateLock deserialization: structured, legacy SHA, and missing fields."""
+        """Test TemplateLock deserialization: structured format and missing fields."""
         lock_path = tmp_path / "template.lock"
 
         # 1. Structured format (full)
@@ -82,15 +82,7 @@ class TestTemplateLock:
         assert lock.include == [".github/", ".rhiza/"]
         assert lock.files == [".github/workflows/ci.yml"]
 
-        # 2. Legacy plain-SHA format
-        lock_path.write_text("abc123def456\n", encoding="utf-8")
-        lock = TemplateLock.from_yaml(lock_path)
-        assert lock.sha == "abc123def456"
-        assert lock.repo == ""
-        assert lock.host == "github"  # default
-        assert lock.ref == "main"  # default
-
-        # 3. Missing optional fields in structured format
+        # 2. Missing optional fields in structured format
         lock_path.write_text("sha: abc789\nhost: gitlab\n", encoding="utf-8")
         lock = TemplateLock.from_yaml(lock_path)
         assert lock.sha == "abc789"
@@ -119,11 +111,11 @@ class TestTemplateLock:
         assert loaded == original
 
     def test_template_lock_from_yaml_invalid_format(self, tmp_path):
-        """from_yaml raises TypeError when the lock data is neither str nor dict."""
+        """from_yaml raises TypeError when the lock data is not a dict."""
         lock_path = tmp_path / "template.lock"
         lock_path.write_text("- item1\n- item2\n", encoding="utf-8")
 
-        with pytest.raises(TypeError, match=r"Invalid template\.lock format"):
+        with pytest.raises(TypeError, match="does not contain a YAML mapping"):
             TemplateLock.from_yaml(lock_path)
 
 

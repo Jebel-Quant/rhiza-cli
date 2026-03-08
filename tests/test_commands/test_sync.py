@@ -156,13 +156,6 @@ class TestLockFile:
         data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
         assert sorted(data["files"]) == ["a.txt", "b.txt"]
 
-    def test_read_sha_legacy_plain_sha(self, tmp_path):
-        """Legacy plain-SHA lock files are still readable."""
-        lock_path = tmp_path / ".rhiza" / "template.lock"
-        lock_path.parent.mkdir(parents=True)
-        lock_path.write_text("abc123def456\n", encoding="utf-8")
-        assert TemplateLock.read_sha(tmp_path) == "abc123def456"
-
     def test_write_lock_no_tmp_file_left(self, tmp_path):
         """After _write_lock completes, no .tmp or .fd file should remain."""
         _write_lock(tmp_path, TemplateLock(sha="deadbeef12345678"))
@@ -194,17 +187,6 @@ class TestLockFile:
             _write_lock(tmp_path, TemplateLock(sha="cafebabe12345678"))
 
         assert TemplateLock.read_sha(tmp_path) == "cafebabe12345678"
-
-    def test_read_sha_falls_back_on_yaml_error(self, tmp_path):
-        """When yaml.safe_load raises YAMLError, TemplateLock.read_sha falls back to plain-SHA."""
-        lock_path = tmp_path / ".rhiza" / "template.lock"
-        lock_path.parent.mkdir(parents=True)
-        lock_path.write_text("abc123plainsha\n")
-
-        with patch("rhiza.models.lock.yaml.safe_load", side_effect=yaml.YAMLError("parse error")):
-            result = TemplateLock.read_sha(tmp_path)
-
-        assert result == "abc123plainsha"
 
 
 class TestApplyDiff:

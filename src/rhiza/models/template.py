@@ -11,6 +11,7 @@ from typing import Any
 
 import yaml
 
+from rhiza.models._base import read_yaml
 from rhiza.models._git_utils import GitContext, _log_git_stderr_errors, _normalize_to_list
 from rhiza.models.bundle import RhizaBundles
 
@@ -64,12 +65,18 @@ class RhizaTemplate:
             yaml.YAMLError: If the YAML is malformed.
             ValueError: If the file is empty.
         """
-        with open(file_path) as f:
-            config = yaml.safe_load(f)
+        return cls.from_config(read_yaml(file_path))
 
-        if not config:
-            raise ValueError("Template file is empty")  # noqa: TRY003
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> "RhizaTemplate":
+        """Create a RhizaTemplate instance from a configuration dictionary.
 
+        Args:
+            config: Dictionary containing template configuration.
+
+        Returns:
+            A new RhizaTemplate instance.
+        """
         # Support both 'repository' and 'template-repository' (repository takes precedence)
         # Empty or None values fall back to the alternative field
         template_repository = config.get("repository") or config.get("template-repository")
@@ -79,8 +86,8 @@ class RhizaTemplate:
         template_branch = config.get("ref") or config.get("template-branch")
 
         return cls(
-            template_repository=template_repository,
-            template_branch=template_branch,
+            template_repository=template_repository or "",
+            template_branch=template_branch or "",
             template_host=config.get("template-host", GitHost.GITHUB),
             language=config.get("language", "python"),
             include=_normalize_to_list(config.get("include")),
