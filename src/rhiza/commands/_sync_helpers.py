@@ -708,9 +708,9 @@ def _sync_merge(
         lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
     """
     # Snapshot the currently-tracked files before the merge runs.  The merge
-    # may write a new lock (e.g. on the "template unchanged" early-return path
-    # in _merge_with_base), so we must read the old state first to ensure
-    # orphan cleanup compares against the previous sync, not the new one.
+    # may write a new lock (e.g. on the "template unchanged" early-return path),
+    # so we must read the old state first to ensure orphan cleanup compares
+    # against the previous sync, not the new one.
     old_tracked_files = _read_previously_tracked_files(target)
 
     base_snapshot = Path(tempfile.mkdtemp())

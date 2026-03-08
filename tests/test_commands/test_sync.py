@@ -29,7 +29,6 @@ from rhiza.commands._sync_helpers import (
     _handle_target_branch,
     _log_git_stderr_errors,
     _merge_file_fallback,
-    _merge_with_base,
     _parse_diff_filenames,
     _read_lock,
     _read_previously_tracked_files,
@@ -486,7 +485,7 @@ class TestSyncMergeWithBase:
     def test_sync_merge_with_existing_base_sha(
         self, mock_sha, mock_mkdtemp, mock_clone, mock_clone_base, mock_rmtree, tmp_path
     ):
-        """Merge strategy calls _merge_with_base when a base SHA exists."""
+        """Merge strategy invokes the inlined base-snapshot logic when a base SHA exists."""
         _setup_project(tmp_path)
 
         # Write a lock so base_sha will be "oldsha" ≠ upstream
@@ -557,7 +556,7 @@ class TestCloneAndResolveUpstreamWithTemplates:
 
 
 class TestMergeWithBasePaths:
-    """Tests for _merge_with_base helper."""
+    """Tests for the inlined base-merge logic in _sync_merge."""
 
     @patch("rhiza.models.RhizaTemplate._clone_at_sha")
     def test_merge_with_base_handles_clone_exception(self, mock_clone_at_sha, tmp_path, git_setup):
@@ -569,18 +568,15 @@ class TestMergeWithBasePaths:
         upstream_snapshot.mkdir()
         (upstream_snapshot / "file.txt").write_text("upstream\n")
 
-        base_snapshot = tmp_path / "base"
-        base_snapshot.mkdir()
-
         target = tmp_path / "target"
         target.mkdir()
 
         # Should not raise — exception is caught and we fall through
-        _merge_with_base(
+        _sync_merge(
             target,
             upstream_snapshot,
             "oldsha",
-            base_snapshot,
+            [],
             RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
             git,
             TemplateLock(sha="newsha"),
@@ -597,17 +593,15 @@ class TestMergeWithBasePaths:
 
         upstream_snapshot = tmp_path / "upstream"
         upstream_snapshot.mkdir()
-        base_snapshot = tmp_path / "base"
-        base_snapshot.mkdir()
         target = tmp_path / "target"
         target.mkdir()
         (target / ".rhiza").mkdir()
 
-        _merge_with_base(
+        _sync_merge(
             target,
             upstream_snapshot,
             "oldsha",
-            base_snapshot,
+            [],
             RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
             git,
             TemplateLock(sha="newsha"),
@@ -633,14 +627,12 @@ class TestMergeWithBasePaths:
 
         upstream_snapshot = tmp_path / "upstream"
         upstream_snapshot.mkdir()
-        base_snapshot = tmp_path / "base"
-        base_snapshot.mkdir()
 
-        _merge_with_base(
+        _sync_merge(
             git_project,
             upstream_snapshot,
             "oldsha",
-            base_snapshot,
+            [],
             RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
             git,
             TemplateLock(sha="newsha"),
@@ -1154,10 +1146,10 @@ class TestMergeFileFallback:
 
 
 class TestThreeWayMergeWithBase:
-    """End-to-end tests for the _merge_with_base function.
+    """End-to-end tests for the inlined base-merge logic in _sync_merge.
 
     These tests exercise the complete merge pipeline:
-    ``_merge_with_base`` → ``get_diff`` → ``_apply_diff`` (``git apply -3``).
+    ``_sync_merge`` → ``get_diff`` → ``_apply_diff`` (``git apply -3``).
     ``_clone_at_sha`` is mocked to avoid network access; all other logic
     runs against real files and a real git repository.
     """
@@ -1177,12 +1169,6 @@ class TestThreeWayMergeWithBase:
         (git_project / "Makefile").write_text("test:\n\tpytest\n")
         _commit_all(git_project, git)
 
-        # base_snapshot == what was present at last sync
-        base_snapshot = tmp_path / "base_snapshot"
-        base_snapshot.mkdir()
-        (base_snapshot / "pyproject.toml").write_text('[project]\nname = "myapp"\nversion = "0.1.0"\n')
-        (base_snapshot / "Makefile").write_text("test:\n\tpytest\n")
-
         # upstream_snapshot == current template HEAD (bumped version, added lint target)
         upstream_snapshot = tmp_path / "upstream_snapshot"
         upstream_snapshot.mkdir()
@@ -1196,11 +1182,11 @@ class TestThreeWayMergeWithBase:
 
         mock_clone.side_effect = populate_base_clone
 
-        _merge_with_base(
+        _sync_merge(
             git_project,
             upstream_snapshot,
             "oldsha",
-            base_snapshot,
+            [Path("pyproject.toml"), Path("Makefile")],
             RhizaTemplate(template_repository="example/repo", include=["pyproject.toml", "Makefile"]),
             git,
             TemplateLock(sha="newsha"),
@@ -1221,11 +1207,8 @@ class TestThreeWayMergeWithBase:
         (git_project / ".rhiza").mkdir(exist_ok=True)
 
         identical_content = "on: push\n"
-        base_snapshot = tmp_path / "base_snapshot"
-        base_snapshot.mkdir()
         upstream_snapshot = tmp_path / "upstream_snapshot"
         upstream_snapshot.mkdir()
-        (base_snapshot / "ci.yml").write_text(identical_content)
         (upstream_snapshot / "ci.yml").write_text(identical_content)
 
         def populate_base_clone(sha, dest, include_paths, git):
@@ -1233,11 +1216,11 @@ class TestThreeWayMergeWithBase:
 
         mock_clone.side_effect = populate_base_clone
 
-        _merge_with_base(
+        _sync_merge(
             git_project,
             upstream_snapshot,
             "base_sha_xyz",
-            base_snapshot,
+            [Path("ci.yml")],
             RhizaTemplate(template_repository="example/repo", include=["ci.yml"]),
             git,
             TemplateLock(sha="upstream_sha_abc"),
@@ -1256,11 +1239,8 @@ class TestThreeWayMergeWithBase:
         (git_project / "existing.yml").write_text("key: value\n")
         _commit_all(git_project, git)
 
-        base_snapshot = tmp_path / "base_snapshot"
-        base_snapshot.mkdir()
         upstream_snapshot = tmp_path / "upstream_snapshot"
         upstream_snapshot.mkdir()
-        (base_snapshot / "existing.yml").write_text("key: value\n")
         (upstream_snapshot / "existing.yml").write_text("key: value\n")
         (upstream_snapshot / "new_workflow.yml").write_text("name: deploy\n")
 
@@ -1269,11 +1249,11 @@ class TestThreeWayMergeWithBase:
 
         mock_clone.side_effect = populate_base_clone
 
-        _merge_with_base(
+        _sync_merge(
             git_project,
             upstream_snapshot,
             "oldsha",
-            base_snapshot,
+            [Path("existing.yml"), Path("new_workflow.yml")],
             RhizaTemplate(template_repository="example/repo", include=["existing.yml"]),
             git,
             TemplateLock(sha="newsha"),
@@ -1291,13 +1271,8 @@ class TestThreeWayMergeWithBase:
         (git_project / "main.cfg").write_text("current: setting\n")
         _commit_all(git_project, git)
 
-        base_snapshot = tmp_path / "base_snapshot"
-        base_snapshot.mkdir()
         upstream_snapshot = tmp_path / "upstream_snapshot"
         upstream_snapshot.mkdir()
-        (base_snapshot / "legacy.cfg").write_text("old: setting\n")
-        (base_snapshot / "main.cfg").write_text("current: setting\n")
-        # upstream removes legacy.cfg entirely
         (upstream_snapshot / "main.cfg").write_text("current: setting\n")
 
         def populate_base_clone(sha, dest, include_paths, git):
@@ -1306,11 +1281,11 @@ class TestThreeWayMergeWithBase:
 
         mock_clone.side_effect = populate_base_clone
 
-        _merge_with_base(
+        _sync_merge(
             git_project,
             upstream_snapshot,
             "oldsha",
-            base_snapshot,
+            [Path("main.cfg")],
             RhizaTemplate(template_repository="example/repo", include=["legacy.cfg", "main.cfg"]),
             git,
             TemplateLock(sha="newsha"),

@@ -111,7 +111,7 @@ class TestSyncCore:
         clone_dir = _make_clone_dir(tmp_path, "upstream_clone", {"test.txt": "updated content\n"})
         snapshot_dir = _make_clone_dir(tmp_path, "upstream_snapshot", {})
         base_snapshot_dir = _make_clone_dir(tmp_path, "base_snapshot", {})
-        # _merge_with_base creates a 4th tempdir for the base_clone
+        # the inlined base_clone logic creates a 4th tempdir for the base_clone
         base_clone_dir = _make_clone_dir(tmp_path, "base_clone", {})
 
         mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir), str(base_clone_dir)]
