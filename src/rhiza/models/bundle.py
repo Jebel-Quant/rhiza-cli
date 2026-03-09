@@ -1,14 +1,13 @@
 """Bundle models for Rhiza configuration."""
 
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 from rhiza.models._base import YamlSerializable
 from rhiza.models._git_utils import _normalize_to_list
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class BundleDefinition:
     """Represents a single bundle from template-bundles.yml.
 
@@ -31,7 +30,7 @@ class BundleDefinition:
         return self.files + self.workflows
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class RhizaBundles(YamlSerializable):
     """Represents the structure of template-bundles.yml.
 
@@ -173,22 +172,3 @@ class RhizaBundles(YamlSerializable):
                     seen.add(path)
 
         return paths
-
-    @classmethod
-    def from_clone(cls, tmp_dir: Path) -> "RhizaBundles | None":
-        """Load .rhiza/template-bundles.yml from a cloned template repo.
-
-        Args:
-            tmp_dir: Path to the cloned template repository.
-
-        Returns:
-            RhizaBundles if template-bundles.yml exists, None otherwise.
-
-        Raises:
-            yaml.YAMLError: If template-bundles.yml is malformed.
-            ValueError: If template-bundles.yml is invalid.
-        """
-        bundles_file = tmp_dir / ".rhiza" / "template-bundles.yml"
-        if not bundles_file.exists():
-            return None
-        return cls.from_yaml(bundles_file)

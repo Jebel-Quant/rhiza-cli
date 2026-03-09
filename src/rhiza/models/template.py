@@ -21,7 +21,7 @@ class GitHost(StrEnum):
     GITLAB = "gitlab"
 
 
-@dataclass
+@dataclass(kw_only=True, frozen=True)
 class RhizaTemplate(YamlSerializable):
     """Represents the structure of .rhiza/template.yml.
 
@@ -47,6 +47,17 @@ class RhizaTemplate(YamlSerializable):
     include: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
     templates: list[str] = field(default_factory=list)
+    _files: list[str] = field(default_factory=list, init=False, repr=False, compare=False)
+
+    @property
+    def files(self) -> list[str]:
+        """Resolved file paths based on ``include`` and resolved ``templates``.
+
+        Before :meth:`clone` is called this returns ``include`` as-is.  After
+        ``clone`` resolves template bundle names to concrete paths this returns
+        those resolved paths instead.
+        """
+        return self._files if self._files else self.include
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> "RhizaTemplate":
@@ -265,7 +276,7 @@ class RhizaTemplate(YamlSerializable):
     def _clone_template_repository(
         self,
         tmp_dir: Path,
-        rhiza_branch: str,
+        branch: str,
         include_paths: list[str],
         git_ctx: GitContext,
         logger=None,
@@ -274,8 +285,8 @@ class RhizaTemplate(YamlSerializable):
 
         Args:
             tmp_dir: Temporary directory for cloning.
-            rhiza_branch: Branch to clone.
-            include_paths: Initial paths to include in sparse checkout.
+            branch: Branch to clone from the template repository.
+            include_paths: Paths to include in sparse checkout.
             git_ctx: Git context.
             logger: Optional logger; defaults to module logger.
         """
@@ -293,7 +304,7 @@ class RhizaTemplate(YamlSerializable):
                     "--filter=blob:none",
                     "--sparse",
                     "--branch",
-                    rhiza_branch,
+                    branch,
                     git_url,
                     str(tmp_dir),
                 ],
@@ -308,7 +319,7 @@ class RhizaTemplate(YamlSerializable):
             _log_git_stderr_errors(e.stderr)
             logger.exception("Please check that:")
             logger.exception("  - The repository exists and is accessible")
-            logger.exception(f"  - Branch '{rhiza_branch}' exists in the repository")
+            logger.exception(f"  - Branch '{branch}' exists in the repository")
             logger.exception("  - You have network access to the git hosting service")
             raise
 
@@ -357,7 +368,7 @@ class RhizaTemplate(YamlSerializable):
         Args:
             sha: Commit SHA to check out.
             dest: Target directory for the clone.
-            include_paths: Paths for sparse checkout.
+            include_paths: Paths to include in sparse checkout.
             git_ctx: Git context.
             logger: Optional logger; defaults to module logger.
         """
@@ -421,7 +432,7 @@ class RhizaTemplate(YamlSerializable):
             raise
 
     @classmethod
-    def from_project(cls, target: Path, branch: str = "main", logger=None) -> "RhizaTemplate":
+    def from_project(cls, target: Path, logger=None) -> "RhizaTemplate":
         """Validate and load a :class:`RhizaTemplate` from a project directory.
 
         Validates the project's ``template.yml`` via :func:`~rhiza.commands.validate.validate`,
@@ -431,8 +442,6 @@ class RhizaTemplate(YamlSerializable):
         Args:
             target: Path to the target repository (must contain ``.git`` and
                 ``.rhiza/template.yml``).
-            branch: The Rhiza template branch to use as a fallback when
-                ``template-branch`` is not set in ``template.yml``.
             logger: Optional logger; defaults to module logger.
 
         Returns:
@@ -454,9 +463,6 @@ class RhizaTemplate(YamlSerializable):
         if not template.template_repository:
             logger.error("template-repository is not configured in template.yml")
             raise RuntimeError("template-repository is required")  # noqa: TRY003
-
-        if not template.template_branch:
-            template.template_branch = branch
 
         if not template.templates and not template.include:
             logger.error("No templates or include paths found in template.yml")
@@ -483,43 +489,6 @@ class RhizaTemplate(YamlSerializable):
     # ------------------------------------------------------------------
     # Public clone / snapshot workflow methods
     # ------------------------------------------------------------------
-
-    def resolve_include_paths(self, bundles_config: "RhizaBundles | None") -> list[str]:
-        """Resolve template configuration to file paths.
-
-        Supports:
-        - Template-based mode (templates field)
-        - Path-based mode (include field)
-        - Hybrid mode (both templates and include)
-
-        Args:
-            bundles_config: The loaded bundles configuration, or None if not available.
-
-        Returns:
-            List of file paths to materialize.
-
-        Raises:
-            ValueError: If configuration is invalid or bundles.yml is missing.
-        """
-        paths: list[str] = []
-        if self.templates:
-            if not bundles_config:
-                msg = "Template uses templates but template-bundles.yml not found in template repository"
-                raise ValueError(msg)
-            paths.extend(bundles_config.resolve_to_paths(self.templates))
-        if self.include:
-            paths.extend(self.include)
-        if not paths:
-            msg = "Template configuration must specify either 'templates' or 'include'"
-            raise ValueError(msg)
-        seen: set[str] = set()
-        deduplicated: list[str] = []
-        for path in paths:
-            if path not in seen:
-                deduplicated.append(path)
-                seen.add(path)
-        return deduplicated
-
     def clone(self, git_ctx: GitContext, branch: str = "main", logger=None) -> tuple[Path, str]:
         """Clone the upstream template repository and resolve include paths.
 
@@ -551,17 +520,20 @@ class RhizaTemplate(YamlSerializable):
             raise ValueError("No templates or include paths found in template.yml")  # noqa: TRY003
 
         rhiza_branch = self.template_branch or branch
-        include_paths = self.include
-
+        include_paths = list(self.include)
         upstream_dir = Path(tempfile.mkdtemp())
-        initial_paths = [".rhiza"] if self.templates else include_paths
-        self._clone_template_repository(upstream_dir, rhiza_branch, initial_paths, git_ctx)
 
         if self.templates:
-            bundles_config = RhizaBundles.from_clone(upstream_dir)
-            resolved_paths = self.resolve_include_paths(bundles_config)
+            # Checkout .rhiza/template-bundles.yml from template_repository @ template_branch
+            self._clone_template_repository(upstream_dir, rhiza_branch, [".rhiza/template-bundles.yml"], git_ctx)
+
+            # Load template-bundles.yml, resolve bundle names to paths, update sparse checkout
+            bundles = RhizaBundles.from_yaml(upstream_dir / ".rhiza" / "template-bundles.yml")
+            resolved_paths = bundles.resolve_to_paths(self.templates)
             self._update_sparse_checkout(upstream_dir, resolved_paths, git_ctx)
-            self.include = resolved_paths
+            object.__setattr__(self, "include", resolved_paths)
+        else:
+            self._clone_template_repository(upstream_dir, rhiza_branch, include_paths, git_ctx)
 
         upstream_sha = self._get_head_sha(upstream_dir, git_ctx)
         logger.info(f"Upstream HEAD: {upstream_sha[:12]}")
@@ -592,5 +564,5 @@ class RhizaTemplate(YamlSerializable):
             full set of relative path strings that were skipped.
         """
         excludes = self._excluded_set(upstream_dir, self.exclude)
-        materialized = self._prepare_snapshot(upstream_dir, self.include, excludes, snapshot_dir)
+        materialized = self._prepare_snapshot(upstream_dir, self.files, excludes, snapshot_dir)
         return materialized, excludes

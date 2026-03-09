@@ -58,7 +58,7 @@ def sync(
     git_ctx.assert_status_clean(target)
     git_ctx.handle_target_branch(target, target_branch)
 
-    template = RhizaTemplate.from_project(target, branch)
+    template = RhizaTemplate.from_project(target)
 
     # Capture original include before clone() mutates it when templates: mode is used
     original_include = list(template.include)

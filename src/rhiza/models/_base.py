@@ -47,7 +47,7 @@ class YamlSerializable(Protocol):
             yaml.YAMLError: If the file contains invalid YAML.
             ValueError: If the file content is not recognised.
         """
-        return cls.from_config(read_yaml(file_path))  # type: ignore[attr-defined]
+        return cls.from_config(read_yaml(file_path))
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> Self:

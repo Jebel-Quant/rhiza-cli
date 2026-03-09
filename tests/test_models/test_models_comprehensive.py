@@ -539,20 +539,6 @@ class TestRhizaBundlesE2E:
         assert restored.bundles["core"].files == ["Makefile"]
         assert restored.bundles["ci"].depends_on == ["core"]
 
-    def test_from_clone_returns_none_when_missing(self, tmp_path):
-        """From clone returns none when missing."""
-        assert RhizaBundles.from_clone(tmp_path) is None
-
-    def test_from_clone_loads_when_present(self, tmp_path):
-        """From clone loads when present."""
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir()
-        b = RhizaBundles.from_config({"bundles": {"core": {"description": "Core"}}})
-        b.to_yaml(rhiza_dir / "template-bundles.yml")
-        loaded = RhizaBundles.from_clone(tmp_path)
-        assert loaded is not None
-        assert "core" in loaded.bundles
-
     def test_load_model_helper(self, tmp_path):
         """Load model helper."""
         b = RhizaBundles.from_config({"bundles": {"core": {"description": "Core"}}})
