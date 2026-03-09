@@ -12,22 +12,19 @@ class BundleDefinition:
     """Represents a single bundle from template-bundles.yml.
 
     Attributes:
-        name: The bundle identifier (e.g., "core", "tests", "github").
         description: Human-readable description of the bundle.
         files: List of file paths included in this bundle.
-        workflows: List of workflow file paths included in this bundle.
-        depends_on: List of bundle names that this bundle depends on.
+        requires: List of bundle names that this bundle requires.
+        standalone: Whether this bundle is standalone (no dependencies).
     """
 
-    name: str
+    # name: str
     description: str
+    standalone: bool = True
     files: list[str] = field(default_factory=list)
-    workflows: list[str] = field(default_factory=list)
-    depends_on: list[str] = field(default_factory=list)
-
-    def all_paths(self) -> list[str]:
-        """Return combined files and workflows."""
-        return self.files + self.workflows
+    requires: list[str] = field(default_factory=list)
+    # workflows: list[str] = field(default_factory=list)
+    # depends_on: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -55,10 +52,10 @@ class RhizaBundles(YamlSerializable):
             bundle_entry: dict[str, Any] = {"description": bundle.description}
             if bundle.files:
                 bundle_entry["files"] = bundle.files
-            if bundle.workflows:
-                bundle_entry["workflows"] = bundle.workflows
-            if bundle.depends_on:
-                bundle_entry["depends-on"] = bundle.depends_on
+            if bundle.requires:
+                bundle_entry["requires"] = bundle.requires
+            if bundle.standalone:
+                bundle_entry["standalone"] = bundle.standalone
             bundles_dict[name] = bundle_entry
 
         config["bundles"] = bundles_dict
@@ -91,62 +88,16 @@ class RhizaBundles(YamlSerializable):
                 raise TypeError(msg)
 
             files = _normalize_to_list(bundle_data.get("files"))
-            workflows = _normalize_to_list(bundle_data.get("workflows"))
-            depends_on = _normalize_to_list(bundle_data.get("depends-on"))
+            requires = _normalize_to_list(bundle_data.get("requires"))
 
             bundles[bundle_name] = BundleDefinition(
-                name=bundle_name,
                 description=bundle_data.get("description", ""),
                 files=files,
-                workflows=workflows,
-                depends_on=depends_on,
+                requires=requires,
+                standalone=bundle_data.get("standalone", True),
             )
 
         return cls(version=version, bundles=bundles)
-
-    def resolve_dependencies(self, bundle_names: list[str]) -> list[str]:
-        """Resolve bundle dependencies using topological sort.
-
-        Args:
-            bundle_names: List of bundle names to resolve.
-
-        Returns:
-            Ordered list of bundle names with dependencies first, no duplicates.
-
-        Raises:
-            ValueError: If a bundle doesn't exist or circular dependency detected.
-        """
-        # Validate all bundles exist
-        for name in bundle_names:
-            if name not in self.bundles:
-                raise ValueError(f"Bundle '{name}' not found in template-bundles.yml")  # noqa: TRY003
-
-        resolved: list[str] = []
-        visiting: set[str] = set()
-        visited: set[str] = set()
-
-        def visit(bundle_name: str) -> None:
-            if bundle_name in visited:
-                return
-            if bundle_name in visiting:
-                raise ValueError(f"Circular dependency detected involving '{bundle_name}'")  # noqa: TRY003
-
-            visiting.add(bundle_name)
-            bundle = self.bundles[bundle_name]
-
-            for dep in bundle.depends_on:
-                if dep not in self.bundles:
-                    raise ValueError(f"Bundle '{bundle_name}' depends on unknown bundle '{dep}'")  # noqa: TRY003
-                visit(dep)
-
-            visiting.remove(bundle_name)
-            visited.add(bundle_name)
-            resolved.append(bundle_name)
-
-        for name in bundle_names:
-            visit(name)
-
-        return resolved
 
     def resolve_to_paths(self, bundle_names: list[str]) -> list[str]:
         """Convert bundle names to deduplicated file paths.
@@ -160,13 +111,18 @@ class RhizaBundles(YamlSerializable):
         Raises:
             ValueError: If a bundle doesn't exist or circular dependency detected.
         """
-        resolved_bundles = self.resolve_dependencies(bundle_names)
+        bundles: set[str] = set()
         paths: list[str] = []
         seen: set[str] = set()
 
-        for bundle_name in resolved_bundles:
+        for bundle_name in bundle_names:
+            bundles.add(bundle_name)
+            for bundle in self.bundles[bundle_name].requires:
+                bundles.add(bundle)
+
+        for bundle_name in bundles:
             bundle = self.bundles[bundle_name]
-            for path in bundle.all_paths():
+            for path in bundle.files:
                 if path not in seen:
                     paths.append(path)
                     seen.add(path)

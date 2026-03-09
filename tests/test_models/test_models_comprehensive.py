@@ -465,20 +465,13 @@ class TestRhizaBundlesRoundTrip:
         b = RhizaBundles.from_config({"bundles": {"core": {"description": "Core", "files": ["Makefile"]}}})
         assert RhizaBundles.from_config(b.config) == b
 
-    def test_bundle_with_workflows(self):
-        """Bundle with workflows."""
-        b = RhizaBundles.from_config(
-            {"bundles": {"ci": {"description": "CI", "workflows": [".github/workflows/ci.yml"]}}}
-        )
-        assert RhizaBundles.from_config(b.config) == b
-
-    def test_bundle_with_depends_on(self):
+    def test_bundle_with_requires(self):
         """Bundle with depends on."""
         b = RhizaBundles.from_config(
             {
                 "bundles": {
                     "core": {"description": "Core"},
-                    "extended": {"description": "Extended", "depends-on": ["core"]},
+                    "extended": {"description": "Extended", "requires": ["core"]},
                 }
             }
         )
@@ -495,23 +488,6 @@ class TestRhizaBundlesRoundTrip:
         b = RhizaBundles.from_config({"bundles": {}})
         assert RhizaBundles.from_config(b.config).version is None
 
-    def test_bundle_definition_all_paths(self):
-        """Bundle definition all paths."""
-        b = RhizaBundles.from_config(
-            {
-                "bundles": {
-                    "full": {
-                        "description": "Full",
-                        "files": ["a.txt"],
-                        "workflows": ["b.yml"],
-                        "depends-on": ["core"],
-                    }
-                }
-            }
-        )
-        d = b.bundles["full"]
-        assert d.all_paths() == ["a.txt", "b.yml"]
-
 
 class TestRhizaBundlesE2E:
     """End-to-end: write YAML to disk, read it back."""
@@ -525,8 +501,9 @@ class TestRhizaBundlesE2E:
                     "core": {"description": "Core", "files": ["Makefile"]},
                     "ci": {
                         "description": "CI",
-                        "workflows": [".github/workflows/ci.yml"],
-                        "depends-on": ["core"],
+                        "requires": ["core"],
+                        "standalone": True,
+                        "files": [".github/workflows/ci.yml"],
                     },
                 },
             }
@@ -537,7 +514,7 @@ class TestRhizaBundlesE2E:
         assert restored.version == b.version
         assert set(restored.bundles.keys()) == set(b.bundles.keys())
         assert restored.bundles["core"].files == ["Makefile"]
-        assert restored.bundles["ci"].depends_on == ["core"]
+        assert restored.bundles["ci"].requires == ["core"]
 
     def test_load_model_helper(self, tmp_path):
         """Load model helper."""
@@ -573,7 +550,9 @@ class TestRhizaBundlesHypothesis:
         assert set(restored.bundles.keys()) == set(b.bundles.keys())
         for name in b.bundles:
             assert restored.bundles[name].files == b.bundles[name].files
-            assert restored.bundles[name].workflows == b.bundles[name].workflows
+            assert restored.bundles[name].requires == b.bundles[name].requires
+            assert restored.bundles[name].standalone == b.bundles[name].standalone
+            assert restored.bundles[name].description == b.bundles[name].description
 
     @given(cfg=_bundles_config_st)
     def test_yaml_round_trip(self, cfg):

@@ -8,7 +8,7 @@ from rhiza.models._base import YamlSerializable
 from rhiza.models._git_utils import _normalize_to_list
 
 if TYPE_CHECKING:
-    from rhiza.models.bundle import RhizaBundles
+    pass
 
 
 class GitHost(StrEnum):
@@ -129,14 +129,3 @@ class RhizaTemplate(YamlSerializable):
         if host == GitHost.GITLAB:
             return f"https://gitlab.com/{self.template_repository}.git"
         raise ValueError(f"Unsupported template-host: {host}. Must be 'github' or 'gitlab'.")  # noqa: TRY003
-
-    def resolve_include_paths(self, bundles: "RhizaBundles") -> list[str]:
-        """Resolve template bundle names to concrete include paths.
-
-        Args:
-            bundles: The loaded bundle definitions.
-
-        Returns:
-            List of file paths resolved from ``self.templates``.
-        """
-        return bundles.resolve_to_paths(self.templates)
