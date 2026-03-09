@@ -78,35 +78,13 @@ class RhizaTemplate(YamlSerializable):
         """Read template configuration from the template.yml file."""
         # Convert to dictionary with YAML-compatible keys
         config: dict[str, Any] = {}
-
-        # Only include repository if it's not None
-        if self.template_repository:
-            config["repository"] = self.template_repository
-
-        # Only include ref if it's not None
-        if self.template_branch:
-            config["ref"] = self.template_branch
-
-        # Only include template-host if it's not the default "github"
-        if self.template_host and self.template_host != GitHost.GITHUB:
-            config["template-host"] = str(self.template_host)
-
-        # Only include language if it's not the default "python"
-        if self.language and self.language != "python":
-            config["language"] = self.language
-
-        # Write templates if present
-        if self.templates:
-            config["templates"] = self.templates
-
-        # Write include if present (can coexist with templates)
-        if self.include:
-            config["include"] = self.include
-
-        # Only include exclude if it's not empty
-        if self.exclude:
-            config["exclude"] = self.exclude
-
+        config["repository"] = self.template_repository
+        config["ref"] = self.template_branch
+        config["template-host"] = str(self.template_host)
+        config["language"] = self.language
+        config["templates"] = self.templates
+        config["include"] = self.include
+        config["exclude"] = self.exclude
         return config
 
     @property

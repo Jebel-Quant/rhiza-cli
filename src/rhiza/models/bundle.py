@@ -23,8 +23,6 @@ class BundleDefinition:
     standalone: bool = True
     files: list[str] = field(default_factory=list)
     requires: list[str] = field(default_factory=list)
-    # workflows: list[str] = field(default_factory=list)
-    # depends_on: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True, kw_only=True)

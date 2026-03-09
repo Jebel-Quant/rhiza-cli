@@ -325,8 +325,7 @@ class TestInitCommand:
             config = yaml.safe_load(f)
 
         assert config["repository"] == "jebel-quant/rhiza"
-        # Language field should not be in config (it's the default)
-        assert "language" not in config
+        assert config["language"] == "python"
 
         # Verify Python-specific structure
         assert (tmp_path / "pyproject.toml").exists()

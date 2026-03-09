@@ -246,26 +246,26 @@ class TestRhizaTemplateRoundTrip:
         t = RhizaTemplate(template_host="gitlab")
         assert RhizaTemplate.from_config(t.config) == t
 
-    def test_github_host_is_omitted_from_config(self):
-        """Default github host should be omitted to keep the file minimal."""
+    def test_github_host_is_included_in_config(self):
+        """Default github host is included in config."""
         t = RhizaTemplate(template_host="github")
-        assert "template-host" not in t.config
+        assert t.config["template-host"] == "github"
 
     def test_gitlab_host_is_included_in_config(self):
         """Gitlab host is included in config."""
         assert RhizaTemplate(template_host="gitlab").config["template-host"] == "gitlab"
 
-    def test_python_language_is_omitted_from_config(self):
-        """Python language is omitted from config."""
-        assert "language" not in RhizaTemplate(language="python").config
+    def test_python_language_is_included_in_config(self):
+        """Python language is included in config."""
+        assert RhizaTemplate(language="python").config["language"] == "python"
 
     def test_non_default_language_is_included(self):
         """Non default language is included."""
         assert RhizaTemplate(language="go").config["language"] == "go"
 
-    def test_empty_repo_is_omitted(self):
-        """Empty repo is omitted."""
-        assert "repository" not in RhizaTemplate(template_repository="").config
+    def test_empty_repo_is_included_in_config(self):
+        """Empty repo is included in config."""
+        assert RhizaTemplate(template_repository="").config["repository"] == ""
 
     def test_nonempty_repo_is_included(self):
         """Nonempty repo is included."""
@@ -476,7 +476,7 @@ class TestRhizaBundlesRoundTrip:
             }
         )
         restored = RhizaBundles.from_config(b.config)
-        assert restored.bundles["extended"].depends_on == ["core"]
+        assert restored.bundles["extended"].requires == ["core"]
 
     def test_version_survives_round_trip(self):
         """Version survives round trip."""
