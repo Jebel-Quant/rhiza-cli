@@ -8,7 +8,7 @@ from rhiza.models._git_utils import _normalize_to_list
 from rhiza.models.template import GitHost
 
 
-@dataclass
+@dataclass(frozen=True)
 class TemplateLock(YamlSerializable):
     """Represents the structure of .rhiza/template.lock.
 
