@@ -8,7 +8,7 @@ from rhiza.models._base import YamlSerializable
 from rhiza.models._git_utils import _normalize_to_list
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class BundleDefinition:
     """Represents a single bundle from template-bundles.yml.
 
@@ -31,7 +31,7 @@ class BundleDefinition:
         return self.files + self.workflows
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class RhizaBundles(YamlSerializable):
     """Represents the structure of template-bundles.yml.
 
