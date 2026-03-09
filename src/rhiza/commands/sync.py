@@ -25,8 +25,120 @@ from pathlib import Path
 from loguru import logger
 
 from rhiza.models import GitContext, RhizaTemplate, TemplateLock
+from rhiza.models._git_utils import _excluded_set, _prepare_snapshot
 
 __all__ = ["sync"]
+
+
+def _load_template_from_project(target: Path) -> RhizaTemplate:
+    """Validate and load a :class:`RhizaTemplate` from a project directory.
+
+    Validates the project's ``template.yml`` via :func:`~rhiza.commands.validate.validate`,
+    then loads the configuration with :meth:`~rhiza.models.RhizaTemplate.from_yaml` and
+    checks that the required fields are present.
+
+    Args:
+        target: Path to the target repository (must contain ``.git`` and
+            ``.rhiza/template.yml``).
+
+    Returns:
+        The loaded and validated :class:`RhizaTemplate`.
+
+    Raises:
+        RuntimeError: If validation fails or required fields are missing.
+    """
+    from rhiza.commands.validate import validate
+
+    valid = validate(target)
+    if not valid:
+        logger.error(f"Rhiza template is invalid in: {target}")
+        logger.error("Please fix validation errors and try again")
+        raise RuntimeError("Rhiza template validation failed")  # noqa: TRY003
+
+    template_file = target / ".rhiza" / "template.yml"
+    template = RhizaTemplate.from_yaml(template_file)
+
+    if not template.template_repository:
+        logger.error("template-repository is not configured in template.yml")
+        raise RuntimeError("template-repository is required")  # noqa: TRY003
+
+    if not template.templates and not template.include:
+        logger.error("No templates or include paths found in template.yml")
+        logger.error("Add either 'templates' or 'include' list in template.yml")
+        raise RuntimeError("No templates or include paths found in template.yml")  # noqa: TRY003
+
+    if template.templates:
+        logger.info("Templates:")
+        for t in template.templates:
+            logger.info(f"  - {t}")
+
+    if template.include:
+        logger.info("Include paths:")
+        for p in template.include:
+            logger.info(f"  - {p}")
+
+    if template.exclude:
+        logger.info("Exclude paths:")
+        for p in template.exclude:
+            logger.info(f"  - {p}")
+
+    return template
+
+
+def _clone_template(
+    template: RhizaTemplate,
+    git_ctx: GitContext,
+    branch: str = "main",
+) -> tuple[Path, str, list[str]]:
+    """Clone the upstream template repository and resolve include paths.
+
+    Clones the template repository using sparse checkout.  When
+    ``templates`` are configured the corresponding bundle names are resolved
+    to file paths via :meth:`~rhiza.models.RhizaTemplate.resolve_include_paths`.
+
+    Args:
+        template: The template configuration.
+        git_ctx: Git context.
+        branch: Default branch to use when ``template_branch`` is not set
+            on the template.
+
+    Returns:
+        Tuple of ``(upstream_dir, upstream_sha, resolved_include)`` where
+        *upstream_dir* is a temporary directory containing the cloned repository
+        tree.  The caller is responsible for removing *upstream_dir* when done.
+
+    Raises:
+        ValueError: If ``template_repository`` is not set, the host is
+            unsupported, or no include paths / templates are configured.
+        subprocess.CalledProcessError: If a git operation fails.
+    """
+    from rhiza.models.bundle import RhizaBundles
+
+    if not template.template_repository:
+        raise ValueError("template_repository is not configured in template.yml")  # noqa: TRY003
+    if not template.templates and not template.include:
+        raise ValueError("No templates or include paths found in template.yml")  # noqa: TRY003
+
+    rhiza_branch = template.template_branch or branch
+    include_paths = list(template.include)
+    upstream_dir = Path(tempfile.mkdtemp())
+
+    if template.templates:
+        # Checkout .rhiza/template-bundles.yml from template_repository @ template_branch
+        git_ctx.clone_repository(template.git_url, upstream_dir, rhiza_branch, [".rhiza/template-bundles.yml"])
+
+        # Load template-bundles.yml, resolve bundle names to paths, update sparse checkout
+        bundles = RhizaBundles.from_yaml(upstream_dir / ".rhiza" / "template-bundles.yml")
+        resolved_paths = template.resolve_include_paths(bundles)
+        git_ctx.update_sparse_checkout(upstream_dir, resolved_paths)
+        include_paths = resolved_paths
+    else:
+        git_ctx.clone_repository(template.git_url, upstream_dir, rhiza_branch, include_paths)
+
+    upstream_sha = git_ctx.get_head_sha(upstream_dir)
+    logger.info(f"Upstream HEAD: {upstream_sha[:12]}")
+
+    return upstream_dir, upstream_sha, include_paths
 
 
 def sync(
@@ -58,13 +170,13 @@ def sync(
     git_ctx.assert_status_clean(target)
     git_ctx.handle_target_branch(target, target_branch)
 
-    template = RhizaTemplate.from_project(target)
+    template = _load_template_from_project(target)
 
-    # Capture original include before clone() mutates it when templates: mode is used
+    # Capture original include before resolving bundles (templates: mode)
     original_include = list(template.include)
 
     logger.info(f"Cloning {template.template_repository}@{template.template_branch} (upstream)")
-    upstream_dir, upstream_sha = template.clone(git_ctx, branch=branch)
+    upstream_dir, upstream_sha, resolved_include = _clone_template(template, git_ctx, branch=branch)
 
     # Synchronizes target with upstream template snapshot transactionally; cleans up resources
     try:
@@ -73,7 +185,8 @@ def sync(
 
         upstream_snapshot = Path(tempfile.mkdtemp())
         try:
-            materialized, excludes = template.snapshot(upstream_dir, upstream_snapshot)
+            excludes = _excluded_set(upstream_dir, template.exclude)
+            materialized = _prepare_snapshot(upstream_dir, resolved_include, excludes, upstream_snapshot)
             logger.info(f"Upstream: {len(materialized)} file(s) to consider")
             lock = TemplateLock(
                 sha=upstream_sha,
@@ -88,6 +201,11 @@ def sync(
                 strategy=strategy,
             )
 
+            # Build a resolved template view for merge operations (bundles → concrete paths)
+            import dataclasses
+
+            resolved_template = dataclasses.replace(template, include=resolved_include, templates=[])
+
             if strategy == "diff":
                 git_ctx.sync_diff(
                     target=target,
@@ -100,7 +218,7 @@ def sync(
                     upstream_sha=upstream_sha,
                     base_sha=base_sha,
                     materialized=materialized,
-                    template=template,
+                    template=resolved_template,
                     excludes=excludes,
                     lock=lock,
                 )
