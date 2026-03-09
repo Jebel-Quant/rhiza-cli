@@ -152,7 +152,7 @@ class TestResolveToPaths:
                     "ci": {
                         "description": "CI",
                         "files": ["Makefile"],
-                        "depends-on": ["core"],
+                        "requires": ["core"],
                     },
                 }
             }
