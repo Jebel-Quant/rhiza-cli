@@ -8,7 +8,7 @@ from rhiza.models._base import YamlSerializable
 from rhiza.models._git_utils import _normalize_to_list
 
 if TYPE_CHECKING:
-    from rhiza.models.bundle import RhizaBundles
+    pass
 
 
 class GitHost(StrEnum):
@@ -78,35 +78,13 @@ class RhizaTemplate(YamlSerializable):
         """Read template configuration from the template.yml file."""
         # Convert to dictionary with YAML-compatible keys
         config: dict[str, Any] = {}
-
-        # Only include repository if it's not None
-        if self.template_repository:
-            config["repository"] = self.template_repository
-
-        # Only include ref if it's not None
-        if self.template_branch:
-            config["ref"] = self.template_branch
-
-        # Only include template-host if it's not the default "github"
-        if self.template_host and self.template_host != GitHost.GITHUB:
-            config["template-host"] = str(self.template_host)
-
-        # Only include language if it's not the default "python"
-        if self.language and self.language != "python":
-            config["language"] = self.language
-
-        # Write templates if present
-        if self.templates:
-            config["templates"] = self.templates
-
-        # Write include if present (can coexist with templates)
-        if self.include:
-            config["include"] = self.include
-
-        # Only include exclude if it's not empty
-        if self.exclude:
-            config["exclude"] = self.exclude
-
+        config["repository"] = self.template_repository
+        config["ref"] = self.template_branch
+        config["template-host"] = str(self.template_host)
+        config["language"] = self.language
+        config["templates"] = self.templates
+        config["include"] = self.include
+        config["exclude"] = self.exclude
         return config
 
     @property
@@ -129,14 +107,3 @@ class RhizaTemplate(YamlSerializable):
         if host == GitHost.GITLAB:
             return f"https://gitlab.com/{self.template_repository}.git"
         raise ValueError(f"Unsupported template-host: {host}. Must be 'github' or 'gitlab'.")  # noqa: TRY003
-
-    def resolve_include_paths(self, bundles: "RhizaBundles") -> list[str]:
-        """Resolve template bundle names to concrete include paths.
-
-        Args:
-            bundles: The loaded bundle definitions.
-
-        Returns:
-            List of file paths resolved from ``self.templates``.
-        """
-        return bundles.resolve_to_paths(self.templates)

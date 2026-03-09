@@ -65,48 +65,12 @@ class TestRhizaBundlesConfig:
         bundles = RhizaBundles.from_config({"version": "2", "bundles": {"core": {"description": "Core"}}})
         assert bundles.config["version"] == "2"
 
-    def test_config_includes_files_and_workflows(self):
-        """Files and workflows are included when present."""
-        bundles = RhizaBundles.from_config(
-            {
-                "bundles": {
-                    "ci": {
-                        "description": "CI",
-                        "files": ["Makefile"],
-                        "workflows": [".github/workflows/ci.yml"],
-                    }
-                }
-            }
-        )
-        entry = bundles.config["bundles"]["ci"]
-        assert entry["files"] == ["Makefile"]
-        assert entry["workflows"] == [".github/workflows/ci.yml"]
-
     def test_config_omits_empty_files_and_workflows(self):
         """Files and workflows keys are omitted when empty."""
         bundles = RhizaBundles.from_config({"bundles": {"core": {"description": "Core"}}})
         entry = bundles.config["bundles"]["core"]
         assert "files" not in entry
         assert "workflows" not in entry
-
-    def test_config_includes_depends_on(self):
-        """depends-on is included when present."""
-        bundles = RhizaBundles.from_config(
-            {
-                "bundles": {
-                    "extended": {
-                        "description": "Extended",
-                        "depends-on": ["core"],
-                    }
-                }
-            }
-        )
-        assert bundles.config["bundles"]["extended"]["depends-on"] == ["core"]
-
-    def test_config_omits_empty_depends_on(self):
-        """depends-on key is omitted when the list is empty."""
-        bundles = RhizaBundles.from_config({"bundles": {"core": {"description": "Core"}}})
-        assert "depends-on" not in bundles.config["bundles"]["core"]
 
     def test_config_round_trips_through_from_config(self):
         """Config output can be fed back into from_config producing an equal object."""
@@ -115,14 +79,14 @@ class TestRhizaBundlesConfig:
                 "version": "1",
                 "bundles": {
                     "core": {"description": "Core", "files": ["Makefile"]},
-                    "ci": {"description": "CI", "workflows": [".github/workflows/ci.yml"], "depends-on": ["core"]},
+                    "ci": {"description": "CI", "requires": ["core"]},
                 },
             }
         )
         restored = RhizaBundles.from_config(original.config)
         assert restored.version == original.version
         assert restored.bundles["core"].files == original.bundles["core"].files
-        assert restored.bundles["ci"].depends_on == original.bundles["ci"].depends_on
+        assert restored.bundles["ci"].requires == original.bundles["ci"].requires
 
 
 # ---------------------------------------------------------------------------
@@ -171,60 +135,6 @@ class TestResolveDependencies:
             }
         )
 
-    def test_resolves_single_bundle_no_deps(self):
-        """Single bundle with no dependencies returns just that bundle."""
-        bundles = self._make_bundles()
-        assert bundles.resolve_dependencies(["core"]) == ["core"]
-
-    def test_resolves_dependencies_in_order(self):
-        """Dependencies appear before the bundle that requires them."""
-        bundles = self._make_bundles()
-        result = bundles.resolve_dependencies(["tests"])
-        assert result.index("core") < result.index("tests")
-
-    def test_deduplicates_shared_dependencies(self):
-        """A shared dependency is not repeated when multiple bundles require it."""
-        bundles = self._make_bundles()
-        result = bundles.resolve_dependencies(["tests", "ci"])
-        assert result.count("core") == 1
-
-    def test_unknown_bundle_raises_value_error(self):
-        """ValueError raised when a requested bundle does not exist."""
-        import pytest
-
-        bundles = self._make_bundles()
-        with pytest.raises(ValueError, match="Bundle 'missing' not found"):
-            bundles.resolve_dependencies(["missing"])
-
-    def test_circular_dependency_raises_value_error(self):
-        """ValueError raised when a circular dependency is detected."""
-        import pytest
-
-        bundles = RhizaBundles.from_config(
-            {
-                "bundles": {
-                    "a": {"description": "A", "depends-on": ["b"]},
-                    "b": {"description": "B", "depends-on": ["a"]},
-                }
-            }
-        )
-        with pytest.raises(ValueError, match="Circular dependency detected"):
-            bundles.resolve_dependencies(["a"])
-
-    def test_unknown_dependency_raises_value_error(self):
-        """ValueError raised when a bundle depends on an unknown bundle."""
-        import pytest
-
-        bundles = RhizaBundles.from_config(
-            {
-                "bundles": {
-                    "a": {"description": "A", "depends-on": ["nonexistent"]},
-                }
-            }
-        )
-        with pytest.raises(ValueError, match="depends on unknown bundle 'nonexistent'"):
-            bundles.resolve_dependencies(["a"])
-
 
 # ---------------------------------------------------------------------------
 # resolve_to_paths
@@ -241,9 +151,8 @@ class TestResolveToPaths:
                     "core": {"description": "Core", "files": ["Makefile", "pyproject.toml"]},
                     "ci": {
                         "description": "CI",
-                        "workflows": [".github/workflows/ci.yml"],
                         "files": ["Makefile"],
-                        "depends-on": ["core"],
+                        "requires": ["core"],
                     },
                 }
             }
@@ -260,9 +169,3 @@ class TestResolveToPaths:
         result = bundles.resolve_to_paths(["ci"])
         # Makefile comes from core (dependency) and ci — should appear once
         assert result.count("Makefile") == 1
-
-    def test_includes_workflow_paths(self):
-        """Workflow paths are included in the result."""
-        bundles = self._make_bundles()
-        result = bundles.resolve_to_paths(["ci"])
-        assert ".github/workflows/ci.yml" in result

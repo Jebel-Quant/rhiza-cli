@@ -147,8 +147,8 @@ class TestRhizaTemplate:
         assert "template-branch" not in config
 
     def test_rhiza_template_to_yaml_conditional_serialization(self, tmp_path):
-        """Test that to_yaml omits default fields and handles None/empty values."""
-        # 1. Defaults (host=github, language=python) are excluded
+        """Test that to_yaml includes all fields."""
+        # 1. Defaults (host=github, language=python) are included
         template = RhizaTemplate(
             template_repository="jebel-quant/rhiza",
             template_branch="main",
@@ -159,8 +159,8 @@ class TestRhizaTemplate:
         template.to_yaml(template_file)
         with open(template_file) as f:
             config = yaml.safe_load(f)
-        assert "template-host" not in config
-        assert "language" not in config
+        assert config["template-host"] == "github"
+        assert config["language"] == "python"
 
         # 2. Non-defaults (host=gitlab, language=go) are included
         template = RhizaTemplate(
@@ -176,24 +176,24 @@ class TestRhizaTemplate:
         assert config["template-host"] == "gitlab"
         assert config["language"] == "go"
 
-        # 3. Optional fields (templates, include, exclude) are only included if non-empty
+        # 3. Optional fields (templates, include, exclude) are always included
         template = RhizaTemplate(template_repository="owner/repo", include=["only"])
         template_file = tmp_path / "template_optional.yml"
         template.to_yaml(template_file)
         with open(template_file) as f:
             config = yaml.safe_load(f)
-        assert "include" in config
-        assert "templates" not in config
-        assert "exclude" not in config
+        assert config["include"] == ["only"]
+        assert config["templates"] == []
+        assert config["exclude"] == []
 
-        # 4. None values (repository, branch) are excluded
-        template = RhizaTemplate(template_repository=None, template_branch=None)
-        template_file = tmp_path / "template_none.yml"
+        # 4. Empty values (repository, branch) are included
+        template = RhizaTemplate(template_repository="", template_branch="")
+        template_file = tmp_path / "template_empty.yml"
         template.to_yaml(template_file)
         with open(template_file) as f:
             config = yaml.safe_load(f)
-        assert "repository" not in config
-        assert "ref" not in config
+        assert config["repository"] == ""
+        assert config["ref"] == ""
 
     def test_normalize_to_list_with_unexpected_type(self, tmp_path):
         """Test that _normalize_to_list handles unexpected types gracefully."""

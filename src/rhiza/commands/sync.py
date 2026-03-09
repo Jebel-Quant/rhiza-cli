@@ -129,7 +129,7 @@ def _clone_template(
 
         # Load template-bundles.yml, resolve bundle names to paths, update sparse checkout
         bundles = RhizaBundles.from_yaml(upstream_dir / ".rhiza" / "template-bundles.yml")
-        resolved_paths = template.resolve_include_paths(bundles)
+        resolved_paths = bundles.resolve_to_paths(template.templates)
         git_ctx.update_sparse_checkout(upstream_dir, resolved_paths)
         include_paths = resolved_paths
     else:
