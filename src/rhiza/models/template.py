@@ -44,13 +44,13 @@ class RhizaTemplate(YamlSerializable):
     template_branch: str = ""
     template_host: GitHost | str = GitHost.GITHUB
     language: str = "python"
-    include: list[Path] = field(default_factory=list)
-    exclude: list[Path] = field(default_factory=list)
+    include: list[str] = field(default_factory=list)
+    exclude: list[str] = field(default_factory=list)
     templates: list[str] = field(default_factory=list)
-    _files: list[Path] = field(default_factory=list, init=False, repr=False, compare=False)
+    _files: list[str] = field(default_factory=list, init=False, repr=False, compare=False)
 
     @property
-    def files(self) -> list[Path]:
+    def files(self) -> list[str]:
         """Resolved file paths based on ``include`` and resolved ``templates``.
 
         Before :meth:`clone` is called this returns ``include`` as-is.  After
@@ -149,7 +149,7 @@ class RhizaTemplate(YamlSerializable):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _expand_paths(base_dir: Path, paths: list[Path], logger=None) -> list[Path]:
+    def _expand_paths(base_dir: Path, paths: list[str], logger=None) -> list[Path]:
         """Expand file/directory paths relative to *base_dir* into individual files.
 
         Args:
@@ -194,8 +194,8 @@ class RhizaTemplate(YamlSerializable):
     @staticmethod
     def _prepare_snapshot(
         clone_dir: Path,
-        include_paths: list[Path],
-        excludes: set[Path],
+        include_paths: list[str],
+        excludes: set[str],
         snapshot_dir: Path,
     ) -> list[Path]:
         """Copy included (non-excluded) files from a clone into a snapshot directory.
