@@ -4,7 +4,8 @@ import logging
 import shutil
 import subprocess  # nosec B404
 import tempfile
-from dataclasses import dataclass, field
+from collections.abc import Sequence
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -21,7 +22,7 @@ class GitHost(StrEnum):
     GITLAB = "gitlab"
 
 
-@dataclass
+@dataclass(frozen=True)
 class RhizaTemplate(YamlSerializable):
     """Represents the structure of .rhiza/template.yml.
 
@@ -34,9 +35,9 @@ class RhizaTemplate(YamlSerializable):
             Defaults to "github" if not specified in the template file.
         language: The programming language of the project ("python", "go", etc.).
             Defaults to "python" if not specified in the template file.
-        include: List of paths to include from the template repository (path-based mode).
-        exclude: List of paths to exclude from the template repository (default: empty list).
-        templates: List of template names to include (template-based mode).
+        include: Tuple of paths to include from the template repository (path-based mode).
+        exclude: Tuple of paths to exclude from the template repository (default: empty tuple).
+        templates: Tuple of template names to include (template-based mode).
             Can be used together with include to merge paths.
     """
 
@@ -44,9 +45,9 @@ class RhizaTemplate(YamlSerializable):
     template_branch: str = ""
     template_host: GitHost | str = GitHost.GITHUB
     language: str = "python"
-    include: list[str] = field(default_factory=list)
-    exclude: list[str] = field(default_factory=list)
-    templates: list[str] = field(default_factory=list)
+    include: tuple[str, ...] = field(default_factory=tuple)
+    exclude: tuple[str, ...] = field(default_factory=tuple)
+    templates: tuple[str, ...] = field(default_factory=tuple)
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> "RhizaTemplate":
@@ -71,9 +72,9 @@ class RhizaTemplate(YamlSerializable):
             template_branch=template_branch or "",
             template_host=config.get("template-host", GitHost.GITHUB),
             language=config.get("language", "python"),
-            include=_normalize_to_list(config.get("include")),
-            exclude=_normalize_to_list(config.get("exclude")),
-            templates=_normalize_to_list(config.get("templates")),
+            include=tuple(_normalize_to_list(config.get("include"))),
+            exclude=tuple(_normalize_to_list(config.get("exclude"))),
+            templates=tuple(_normalize_to_list(config.get("templates"))),
         )
 
     @property
@@ -100,15 +101,15 @@ class RhizaTemplate(YamlSerializable):
 
         # Write templates if present
         if self.templates:
-            config["templates"] = self.templates
+            config["templates"] = list(self.templates)
 
         # Write include if present (can coexist with templates)
         if self.include:
-            config["include"] = self.include
+            config["include"] = list(self.include)
 
         # Only include exclude if it's not empty
         if self.exclude:
-            config["exclude"] = self.exclude
+            config["exclude"] = list(self.exclude)
 
         return config
 
@@ -138,7 +139,7 @@ class RhizaTemplate(YamlSerializable):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _expand_paths(base_dir: Path, paths: list[str], logger=None) -> list[Path]:
+    def _expand_paths(base_dir: Path, paths: Sequence[str], logger=None) -> list[Path]:
         """Expand file/directory paths relative to *base_dir* into individual files.
 
         Args:
@@ -163,7 +164,7 @@ class RhizaTemplate(YamlSerializable):
         return all_files
 
     @staticmethod
-    def _excluded_set(base_dir: Path, excluded_paths: list[str]) -> set[str]:
+    def _excluded_set(base_dir: Path, excluded_paths: Sequence[str]) -> set[str]:
         """Build a set of relative path strings that should be excluded.
 
         Args:
@@ -183,7 +184,7 @@ class RhizaTemplate(YamlSerializable):
     @staticmethod
     def _prepare_snapshot(
         clone_dir: Path,
-        include_paths: list[str],
+        include_paths: Sequence[str],
         excludes: set[str],
         snapshot_dir: Path,
     ) -> list[Path]:
@@ -211,7 +212,7 @@ class RhizaTemplate(YamlSerializable):
     @staticmethod
     def _update_sparse_checkout(
         tmp_dir: Path,
-        include_paths: list[str],
+        include_paths: Sequence[str],
         git_ctx: GitContext,
         logger=None,
     ) -> None:
@@ -266,7 +267,7 @@ class RhizaTemplate(YamlSerializable):
         self,
         tmp_dir: Path,
         rhiza_branch: str,
-        include_paths: list[str],
+        include_paths: Sequence[str],
         git_ctx: GitContext,
         logger=None,
     ) -> None:
@@ -348,7 +349,7 @@ class RhizaTemplate(YamlSerializable):
         self,
         sha: str,
         dest: Path,
-        include_paths: list[str],
+        include_paths: Sequence[str],
         git_ctx: GitContext,
         logger=None,
     ) -> None:
@@ -456,7 +457,7 @@ class RhizaTemplate(YamlSerializable):
             raise RuntimeError("template-repository is required")  # noqa: TRY003
 
         if not template.template_branch:
-            template.template_branch = branch
+            template = replace(template, template_branch=branch)
 
         if not template.templates and not template.include:
             logger.error("No templates or include paths found in template.yml")
@@ -520,12 +521,13 @@ class RhizaTemplate(YamlSerializable):
                 seen.add(path)
         return deduplicated
 
-    def clone(self, git_ctx: GitContext, branch: str = "main", logger=None) -> tuple[Path, str]:
+    def clone(self, git_ctx: GitContext, branch: str = "main", logger=None) -> tuple[Path, str, "RhizaTemplate"]:
         """Clone the upstream template repository and resolve include paths.
 
         Clones the template repository using sparse checkout.  When
         ``templates`` are configured the corresponding bundle names are resolved
-        to file paths and ``self.include`` is updated with the result.
+        to file paths and a new :class:`RhizaTemplate` with the updated
+        ``include`` field is returned alongside the upstream directory and SHA.
 
         Args:
             git_ctx: Git context.
@@ -534,8 +536,11 @@ class RhizaTemplate(YamlSerializable):
             logger: Optional logger; defaults to module logger.
 
         Returns:
-            Tuple of ``(upstream_dir, upstream_sha)`` where *upstream_dir* is a
-            temporary directory containing the cloned repository tree.  The
+            Tuple of ``(upstream_dir, upstream_sha, resolved_template)`` where
+            *upstream_dir* is a temporary directory containing the cloned
+            repository tree, *upstream_sha* is the HEAD commit SHA, and
+            *resolved_template* is a (possibly updated) :class:`RhizaTemplate`
+            whose ``include`` field reflects the resolved bundle paths.  The
             caller is responsible for removing *upstream_dir* when done.
 
         Raises:
@@ -554,19 +559,20 @@ class RhizaTemplate(YamlSerializable):
         include_paths = self.include
 
         upstream_dir = Path(tempfile.mkdtemp())
-        initial_paths = [".rhiza"] if self.templates else include_paths
+        initial_paths = [".rhiza"] if self.templates else list(include_paths)
         self._clone_template_repository(upstream_dir, rhiza_branch, initial_paths, git_ctx)
 
+        resolved_template: RhizaTemplate = self
         if self.templates:
             bundles_config = RhizaBundles.from_clone(upstream_dir)
             resolved_paths = self.resolve_include_paths(bundles_config)
             self._update_sparse_checkout(upstream_dir, resolved_paths, git_ctx)
-            self.include = resolved_paths
+            resolved_template = replace(self, include=tuple(resolved_paths))
 
         upstream_sha = self._get_head_sha(upstream_dir, git_ctx)
         logger.info(f"Upstream HEAD: {upstream_sha[:12]}")
 
-        return upstream_dir, upstream_sha
+        return upstream_dir, upstream_sha, resolved_template
 
     def snapshot(
         self,

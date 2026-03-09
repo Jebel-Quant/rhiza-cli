@@ -60,11 +60,8 @@ def sync(
 
     template = RhizaTemplate.from_project(target, branch)
 
-    # Capture original include before clone() mutates it when templates: mode is used
-    original_include = list(template.include)
-
     logger.info(f"Cloning {template.template_repository}@{template.template_branch} (upstream)")
-    upstream_dir, upstream_sha = template.clone(git_ctx, branch=branch)
+    upstream_dir, upstream_sha, resolved_template = template.clone(git_ctx, branch=branch)
 
     # Synchronizes target with upstream template snapshot transactionally; cleans up resources
     try:
@@ -73,16 +70,16 @@ def sync(
 
         upstream_snapshot = Path(tempfile.mkdtemp())
         try:
-            materialized, excludes = template.snapshot(upstream_dir, upstream_snapshot)
+            materialized, excludes = resolved_template.snapshot(upstream_dir, upstream_snapshot)
             logger.info(f"Upstream: {len(materialized)} file(s) to consider")
             lock = TemplateLock(
                 sha=upstream_sha,
-                repo=template.template_repository,
-                host=template.template_host,
-                ref=template.template_branch,
-                include=original_include,
-                exclude=template.exclude,
-                templates=template.templates,
+                repo=resolved_template.template_repository,
+                host=resolved_template.template_host,
+                ref=resolved_template.template_branch,
+                include=list(template.include),
+                exclude=list(resolved_template.exclude),
+                templates=list(resolved_template.templates),
                 files=[str(p) for p in materialized],
                 synced_at=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 strategy=strategy,
@@ -100,7 +97,7 @@ def sync(
                     upstream_sha=upstream_sha,
                     base_sha=base_sha,
                     materialized=materialized,
-                    template=template,
+                    template=resolved_template,
                     excludes=excludes,
                     lock=lock,
                 )

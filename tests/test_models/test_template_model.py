@@ -34,8 +34,8 @@ class TestRhizaTemplate:
         )
         assert template.template_repository == "custom/repo"
         assert template.template_branch == "dev"
-        assert template.include == [".github", "Makefile"]
-        assert template.exclude == [".github/workflows/docker.yml"]
+        assert template.include == (".github", "Makefile")
+        assert template.exclude == (".github/workflows/docker.yml",)
         assert template.template_host == "github"  # Default
         assert template.language == "python"  # Default
 
@@ -53,7 +53,7 @@ class TestRhizaTemplate:
         assert template.template_branch == "v1.0.0"
         assert template.template_host == "gitlab"
         assert template.language == "go"
-        assert template.templates == ["core", "tests"]
+        assert template.templates == ("core", "tests")
 
         # 3. Precedence: 'repository' over 'template-repository', 'ref' over 'template-branch'
         template = RhizaTemplate.from_config(
@@ -108,8 +108,8 @@ class TestRhizaTemplate:
         original = RhizaTemplate(
             template_repository="jebel-quant/rhiza",
             template_branch="main",
-            include=[".github", ".editorconfig", "Makefile"],
-            exclude=[".github/workflows/docker.yml"],
+            include=(".github", ".editorconfig", "Makefile"),
+            exclude=(".github/workflows/docker.yml",),
         )
         template_file = tmp_path / "template_basic.yml"
         original.to_yaml(template_file)
@@ -122,8 +122,8 @@ class TestRhizaTemplate:
             template_branch="main",
             template_host="gitlab",
             language="go",
-            templates=["core", "tests"],
-            include=[".gitlab-ci.yml"],
+            templates=("core", "tests"),
+            include=(".gitlab-ci.yml",),
         )
         template_file = tmp_path / "template_gitlab.yml"
         original.to_yaml(template_file)
@@ -223,8 +223,8 @@ class TestRhizaTemplate:
                 "include": [".custom", "extra/"],
             }
         )
-        assert template.templates == ["core", "tests"]
-        assert template.include == [".custom", "extra/"]
+        assert template.templates == ("core", "tests")
+        assert template.include == (".custom", "extra/")
 
         # 2. Saving
         output_file = tmp_path / "output.yml"
@@ -272,20 +272,21 @@ class TestRhizaTemplateClone:
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     def test_clone_returns_upstream_dir_and_sha(self, mock_clone, mock_head_sha):
-        """Clone returns (upstream_dir, upstream_sha) for a plain include-list template."""
+        """Clone returns (upstream_dir, upstream_sha, resolved_template) for a plain include-list template."""
         mock_head_sha.return_value = "abc123def456"
 
         template = RhizaTemplate(
             template_repository="owner/repo",
             template_branch="main",
             template_host="github",
-            include=["Makefile", ".github"],
+            include=("Makefile", ".github"),
         )
 
-        upstream_dir, upstream_sha = template.clone(GitContext.default(), branch="main")
+        upstream_dir, upstream_sha, resolved_template = template.clone(GitContext.default(), branch="main")
 
         assert upstream_dir.is_dir()
         assert upstream_sha == "abc123def456"
+        assert resolved_template is template
         mock_clone.assert_called_once()
         shutil.rmtree(upstream_dir, ignore_errors=True)
 
@@ -297,7 +298,7 @@ class TestRhizaTemplateClone:
     def test_clone_resolves_bundles_and_updates_include(
         self, mock_clone, mock_update_sparse, mock_load_bundles, mock_resolve, mock_head_sha
     ):
-        """Clone resolves bundle paths and updates self.include when templates are set."""
+        """Clone resolves bundle paths and returns an updated template when templates are set."""
         mock_bundles = MagicMock()
         mock_load_bundles.return_value = mock_bundles
         mock_resolve.return_value = ["Makefile", ".github"]
@@ -307,21 +308,24 @@ class TestRhizaTemplateClone:
             template_repository="owner/repo",
             template_branch="main",
             template_host="github",
-            templates=["core"],
+            templates=("core",),
         )
 
-        upstream_dir, upstream_sha = template.clone(GitContext.default(), branch="main")
+        upstream_dir, upstream_sha, resolved_template = template.clone(GitContext.default(), branch="main")
 
         mock_load_bundles.assert_called_once()
         mock_resolve.assert_called_once_with(mock_bundles)
         mock_update_sparse.assert_called_once()
-        assert template.include == ["Makefile", ".github"]
+        # original template is unchanged
+        assert template.include == ()
+        # resolved_template carries the new include paths
+        assert resolved_template.include == ("Makefile", ".github")
         assert upstream_sha == "deadbeef1234"
         shutil.rmtree(upstream_dir, ignore_errors=True)
 
     def test_clone_raises_when_no_repository(self):
         """Clone raises ValueError when template_repository is not set."""
-        template = RhizaTemplate(include=["Makefile"])
+        template = RhizaTemplate(include=("Makefile",))
         with pytest.raises(ValueError, match="template_repository is not configured"):
             template.clone(GitContext.default())
 
@@ -340,10 +344,10 @@ class TestRhizaTemplateClone:
         template = RhizaTemplate(
             template_repository="owner/repo",
             template_branch="develop",
-            include=["Makefile"],
+            include=("Makefile",),
         )
 
-        upstream_dir, upstream_sha = template.clone(GitContext.default(), branch="main")
+        upstream_dir, upstream_sha, _resolved_template = template.clone(GitContext.default(), branch="main")
 
         # The clone should use 'develop' (template_branch), not 'main' (default arg).
         mock_clone.assert_called_once()
@@ -369,7 +373,7 @@ class TestRhizaTemplateSnapshot:
 
         template = RhizaTemplate(
             template_repository="owner/repo",
-            include=["a.txt", "b.txt"],
+            include=("a.txt", "b.txt"),
         )
 
         materialized, _excludes = template.snapshot(upstream_dir, snapshot_dir)
@@ -390,8 +394,8 @@ class TestRhizaTemplateSnapshot:
 
         template = RhizaTemplate(
             template_repository="owner/repo",
-            include=["keep.txt", "skip.txt"],
-            exclude=["skip.txt"],
+            include=("keep.txt", "skip.txt"),
+            exclude=("skip.txt",),
         )
 
         materialized, excludes = template.snapshot(upstream_dir, snapshot_dir)
@@ -414,14 +418,47 @@ class TestRhizaTemplateSnapshot:
 
         template = RhizaTemplate(
             template_repository="owner/repo",
-            include=["secrets.env"],
-            exclude=["secrets.env"],
+            include=("secrets.env",),
+            exclude=("secrets.env",),
         )
 
         _, excludes = template.snapshot(upstream_dir, snapshot_dir)
 
         assert "secrets.env" in excludes
         assert ".rhiza/template.yml" in excludes
+
+
+# ---------------------------------------------------------------------------
+# Immutability
+# ---------------------------------------------------------------------------
+
+
+class TestRhizaTemplateImmutability:
+    """Tests asserting that RhizaTemplate instances are immutable (frozen=True)."""
+
+    def test_cannot_assign_include(self):
+        """Assigning to include raises FrozenInstanceError."""
+        from dataclasses import FrozenInstanceError
+
+        template = RhizaTemplate(template_repository="owner/repo", include=("Makefile",))
+        with pytest.raises(FrozenInstanceError):
+            template.include = ("other.txt",)  # type: ignore[misc]
+
+    def test_cannot_assign_exclude(self):
+        """Assigning to exclude raises FrozenInstanceError."""
+        from dataclasses import FrozenInstanceError
+
+        template = RhizaTemplate(template_repository="owner/repo", exclude=("skip.txt",))
+        with pytest.raises(FrozenInstanceError):
+            template.exclude = ()  # type: ignore[misc]
+
+    def test_cannot_assign_template_branch(self):
+        """Assigning to template_branch raises FrozenInstanceError."""
+        from dataclasses import FrozenInstanceError
+
+        template = RhizaTemplate(template_repository="owner/repo", template_branch="main")
+        with pytest.raises(FrozenInstanceError):
+            template.template_branch = "develop"  # type: ignore[misc]
 
 
 # ---------------------------------------------------------------------------
@@ -538,7 +575,7 @@ class TestCloneTemplateRepositorySuccess:
 
     def test_all_subprocess_calls_succeed(self, tmp_path):
         """When all three subprocess calls succeed, no exception is raised."""
-        template = RhizaTemplate(template_repository="owner/repo", include=[".github"])
+        template = RhizaTemplate(template_repository="owner/repo", include=(".github",))
         git_ctx = GitContext.default()
         ok = MagicMock(returncode=0, stdout="", stderr="")
         with patch("rhiza.models.template.subprocess.run", return_value=ok):
@@ -550,7 +587,7 @@ class TestCloneAtShaErrors:
 
     def test_clone_failure_reraises(self, tmp_path):
         """CalledProcessError from the clone step is logged and re-raised."""
-        template = RhizaTemplate(template_repository="owner/repo", include=[".github"])
+        template = RhizaTemplate(template_repository="owner/repo", include=(".github",))
         git_ctx = GitContext.default()
         err = subprocess.CalledProcessError(128, ["git", "clone"])
         err.stderr = "fatal: not found"
@@ -562,7 +599,7 @@ class TestCloneAtShaErrors:
 
     def test_sparse_checkout_failure_reraises(self, tmp_path):
         """CalledProcessError from the sparse-checkout step is logged and re-raised."""
-        template = RhizaTemplate(template_repository="owner/repo", include=[".github"])
+        template = RhizaTemplate(template_repository="owner/repo", include=(".github",))
         git_ctx = GitContext.default()
         ok = MagicMock(returncode=0, stdout="", stderr="")
         err = subprocess.CalledProcessError(1, ["git", "sparse-checkout"])
@@ -631,7 +668,7 @@ class TestFromProject:
         )
         with patch("rhiza.commands.validate.validate", return_value=True):
             template = RhizaTemplate.from_project(tmp_path)
-        assert template.templates == ["core"]
+        assert template.templates == ("core",)
 
     def test_exclude_list_is_logged(self, tmp_path):
         """from_project succeeds and returns template when exclude paths are configured."""
@@ -646,7 +683,7 @@ class TestFromProject:
         )
         with patch("rhiza.commands.validate.validate", return_value=True):
             template = RhizaTemplate.from_project(tmp_path)
-        assert template.exclude == ["secret.txt"]
+        assert template.exclude == ("secret.txt",)
 
 
 # ---------------------------------------------------------------------------

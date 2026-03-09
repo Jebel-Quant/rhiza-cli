@@ -526,10 +526,10 @@ class TestSyncE2EUpdatedTemplateYml:
         (upstream_dir_v1 / "file_a.txt").write_text("content a\n")
         (upstream_dir_v1 / "file_b.txt").write_text("content b\n")
 
-        def clone_v1(git_ctx_, branch="main"):
-            return upstream_dir_v1, "sha_v1"
+        def clone_v1(self_template, git_ctx_, branch="main"):
+            return upstream_dir_v1, "sha_v1", self_template
 
-        with patch.object(RhizaTemplate, "clone", side_effect=clone_v1):
+        with patch.object(RhizaTemplate, "clone", autospec=True, side_effect=clone_v1):
             sync(target=project, branch="main", target_branch=None, strategy="merge")
 
         assert (project / "file_a.txt").exists()
@@ -557,8 +557,8 @@ class TestSyncE2EUpdatedTemplateYml:
         (upstream_dir_v2 / "file_b.txt").write_text("content b\n")
         (upstream_dir_v2 / "file_c.txt").write_text("content c\n")
 
-        def clone_v2(git_ctx_, branch="main"):
-            return upstream_dir_v2, "sha_v2"
+        def clone_v2(self_template, git_ctx_, branch="main"):
+            return upstream_dir_v2, "sha_v2", self_template
 
         def populate_base(sha, dest, include_paths, git_ctx_):
             """Base snapshot contains only the files present at sha_v1."""
@@ -566,7 +566,7 @@ class TestSyncE2EUpdatedTemplateYml:
             (dest / "file_b.txt").write_text("content b\n")
 
         with (
-            patch.object(RhizaTemplate, "clone", side_effect=clone_v2),
+            patch.object(RhizaTemplate, "clone", autospec=True, side_effect=clone_v2),
             patch("rhiza.models.RhizaTemplate._clone_at_sha", side_effect=populate_base),
         ):
             sync(target=project, branch="main", target_branch=None, strategy="merge")
@@ -605,10 +605,10 @@ class TestSyncE2EUpdatedTemplateYml:
         (upstream_dir_v1 / "file_a.txt").write_text("content a\n")
         (upstream_dir_v1 / "file_b.txt").write_text("content b\n")
 
-        def clone_v1(git_ctx_, branch="main"):
-            return upstream_dir_v1, "sha_v1"
+        def clone_v1(self_template, git_ctx_, branch="main"):
+            return upstream_dir_v1, "sha_v1", self_template
 
-        with patch.object(RhizaTemplate, "clone", side_effect=clone_v1):
+        with patch.object(RhizaTemplate, "clone", autospec=True, side_effect=clone_v1):
             sync(target=project, branch="main", target_branch=None, strategy="merge")
 
         assert (project / "file_a.txt").exists()
@@ -632,9 +632,9 @@ class TestSyncE2EUpdatedTemplateYml:
         upstream_dir_v2.mkdir()
         (upstream_dir_v2 / "file_a.txt").write_text("content a\n")
 
-        def clone_v2(git_ctx_, branch="main"):
+        def clone_v2(self_template, git_ctx_, branch="main"):
             # Only file_a.txt is in the updated include list from template.yml.
-            return upstream_dir_v2, "sha_v2"
+            return upstream_dir_v2, "sha_v2", self_template
 
         def populate_base(sha, dest, include_paths, git_ctx_):
             # Orphan cleanup uses the lock's ``files`` field, not the diff,
@@ -642,7 +642,7 @@ class TestSyncE2EUpdatedTemplateYml:
             (dest / "file_a.txt").write_text("content a\n")
 
         with (
-            patch.object(RhizaTemplate, "clone", side_effect=clone_v2),
+            patch.object(RhizaTemplate, "clone", autospec=True, side_effect=clone_v2),
             patch("rhiza.models.RhizaTemplate._clone_at_sha", side_effect=populate_base),
         ):
             sync(target=project, branch="main", target_branch=None, strategy="merge")

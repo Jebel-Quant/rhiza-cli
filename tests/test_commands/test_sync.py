@@ -534,7 +534,7 @@ class TestCloneAndResolveUpstreamWithTemplates:
             template_repository="example/repo",
             template_branch="main",
             template_host="github",
-            templates=["core"],
+            templates=("core",),
         )
 
         mock_bundles = MagicMock()
@@ -542,13 +542,15 @@ class TestCloneAndResolveUpstreamWithTemplates:
         mock_resolve.return_value = ["Makefile", ".github"]
         mock_head_sha.return_value = "abc123def456"
 
-        upstream_dir, upstream_sha = template.clone(git_ctx, branch="main")
+        upstream_dir, upstream_sha, resolved_template = template.clone(git_ctx, branch="main")
 
         # Bundle resolution code path should have been taken
         mock_load_bundles.assert_called_once()
         mock_resolve.assert_called_once_with(mock_bundles)
         mock_update_sparse.assert_called_once()
-        assert template.include == ["Makefile", ".github"]
+        # original template is unchanged; resolved_template carries the new paths
+        assert template.include == ()
+        assert resolved_template.include == ("Makefile", ".github")
         assert upstream_sha == "abc123def456"
         shutil.rmtree(upstream_dir, ignore_errors=True)
 

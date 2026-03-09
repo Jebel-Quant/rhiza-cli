@@ -33,6 +33,7 @@ _safe_alpha = st.characters(
 _text = st.text(alphabet=_safe_alpha, min_size=0, max_size=40)
 _nonempty = st.text(alphabet=_safe_alpha, min_size=1, max_size=40)
 _path_list = st.lists(_nonempty, max_size=6)
+_path_tuple = _path_list.map(tuple)
 
 # ============================================================================
 # TemplateLock
@@ -222,9 +223,9 @@ _template_st = st.builds(
     template_branch=_text,
     template_host=st.sampled_from(["github", "gitlab"]),
     language=st.one_of(st.just("python"), _nonempty),
-    include=_path_list,
-    exclude=_path_list,
-    templates=st.lists(_nonempty, max_size=5),
+    include=_path_tuple,
+    exclude=_path_tuple,
+    templates=st.lists(_nonempty, max_size=5).map(tuple),
 )
 
 
@@ -273,12 +274,12 @@ class TestRhizaTemplateRoundTrip:
 
     def test_with_include_and_exclude(self):
         """With include and exclude."""
-        t = RhizaTemplate(include=["Makefile"], exclude=["secret.txt"])
+        t = RhizaTemplate(include=("Makefile",), exclude=("secret.txt",))
         assert RhizaTemplate.from_config(t.config) == t
 
     def test_with_templates(self):
         """With templates."""
-        t = RhizaTemplate(templates=["core", "tests"])
+        t = RhizaTemplate(templates=("core", "tests"))
         assert RhizaTemplate.from_config(t.config) == t
 
     def test_full_template_round_trip(self):
@@ -288,9 +289,9 @@ class TestRhizaTemplateRoundTrip:
             template_branch="develop",
             template_host="gitlab",
             language="go",
-            include=["Makefile"],
-            exclude=["secret.txt"],
-            templates=["core"],
+            include=("Makefile",),
+            exclude=("secret.txt",),
+            templates=("core",),
         )
         assert RhizaTemplate.from_config(t.config) == t
 
@@ -300,7 +301,7 @@ class TestRhizaTemplateE2E:
 
     def test_creates_parent_directories(self, tmp_path):
         """Creates parent directories."""
-        t = RhizaTemplate(template_repository="x/y", include=["Makefile"])
+        t = RhizaTemplate(template_repository="x/y", include=("Makefile",))
         path = tmp_path / ".rhiza" / "template.yml"
         t.to_yaml(path)
         assert path.exists()
@@ -312,9 +313,9 @@ class TestRhizaTemplateE2E:
             template_branch="main",
             template_host="gitlab",
             language="go",
-            include=["Makefile"],
-            exclude=["secret.txt"],
-            templates=["core"],
+            include=("Makefile",),
+            exclude=("secret.txt",),
+            templates=("core",),
         )
         path = tmp_path / "template.yml"
         t.to_yaml(path)
@@ -415,12 +416,12 @@ class TestRhizaTemplateHypothesis:
         assert restored.template_branch == branch
 
     @given(
-        include=_path_list,
-        exclude=_path_list,
-        templates=st.lists(_nonempty, max_size=5),
+        include=_path_tuple,
+        exclude=_path_tuple,
+        templates=st.lists(_nonempty, max_size=5).map(tuple),
     )
     def test_lists_survive_round_trip(self, include, exclude, templates):
-        """Lists survive round trip."""
+        """Tuple fields survive round trip."""
         t = RhizaTemplate(include=include, exclude=exclude, templates=templates)
         restored = RhizaTemplate.from_config(t.config)
         assert restored.include == include
