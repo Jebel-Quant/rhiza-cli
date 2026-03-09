@@ -154,7 +154,20 @@ class TestLockFile:
         _write_lock(tmp_path, lock)
         lock_path = tmp_path / ".rhiza" / "template.lock"
         data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
-        assert sorted(data["files"]) == ["a.txt", "b.txt"]
+        assert data["files"] == ["a.txt", "b.txt"]
+
+    def test_write_lock_files_sorted_alphabetically(self, tmp_path):
+        """Files in the lock are written in alphabetical order regardless of input order."""
+        for name in ["z.txt", "a.txt", "m.txt"]:
+            (tmp_path / name).write_text(name)
+        lock = TemplateLock(
+            sha="1234567890abcdef",
+            files=["z.txt", "a.txt", "m.txt"],
+        )
+        _write_lock(tmp_path, lock)
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+        data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+        assert data["files"] == ["a.txt", "m.txt", "z.txt"]
 
     def test_write_lock_no_tmp_file_left(self, tmp_path):
         """After _write_lock completes, no .tmp or .fd file should remain."""

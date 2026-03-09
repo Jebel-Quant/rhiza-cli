@@ -216,12 +216,13 @@ def _write_lock(target: Path, lock: TemplateLock) -> None:
     """
     # Filter the files list to only include paths that exist on disk so that
     # the lock never contains entries for files that are absent from the repo.
-    existing_files = [f for f in lock.files if (target / f).exists()]
+    # Always sort the resulting list alphabetically.
+    existing_files = sorted(f for f in lock.files if (target / f).exists())
     missing = sorted(set(lock.files) - set(existing_files))
     if missing:
         missing_str = ", ".join(missing)
         logger.warning(f"{len(missing)} file(s) in lock absent from target and excluded: {missing_str}")
-        lock = dataclasses.replace(lock, files=existing_files)
+    lock = dataclasses.replace(lock, files=existing_files)
 
     lock_path = target / LOCK_FILE
     tmp_path = Path(str(lock_path) + ".tmp")
