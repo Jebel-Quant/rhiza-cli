@@ -14,15 +14,29 @@ from loguru import logger
 from rhiza.models import RhizaTemplate
 
 
-def _create_rhiza_directory(target: Path) -> Path:
-    """Create .rhiza directory if it doesn't exist.
+def migrate(target: Path) -> None:
+    """Migrate project to use the new .rhiza folder structure.
+
+    This command performs the following actions:
+    1. Creates the `.rhiza/` directory in the project root
+    2. Moves template.yml from `.github/rhiza/` or `.github/` to `.rhiza/template.yml`
+    3. Moves `.rhiza.history` to `.rhiza/history` if it exists
+    4. Provides instructions for next steps
+
+    The `.rhiza/` folder will contain:
+    - `template.yml` - Template configuration (replaces `.github/rhiza/template.yml`)
+    - `history` - List of files managed by Rhiza templates (replaces `.rhiza.history`)
+    - Future: Additional state, cache, or metadata files
 
     Args:
-        target: Target repository path.
-
-    Returns:
-        Path to .rhiza directory.
+        target (Path): Path to the target repository.
     """
+    logger.warning("⚠️  The 'migrate' command is deprecated and will be removed in a future release.")
+    target = target.resolve()
+    logger.info(f"Migrating Rhiza structure in: {target}")
+    logger.info("This will create the .rhiza folder and migrate configuration files")
+
+    # Create .rhiza directory
     rhiza_dir = target / ".rhiza"
     if not rhiza_dir.exists():
         logger.info(f"Creating .rhiza directory at: {rhiza_dir.relative_to(target)}")
@@ -30,19 +44,8 @@ def _create_rhiza_directory(target: Path) -> Path:
         logger.success(f"✓ Created {rhiza_dir.relative_to(target)}")
     else:
         logger.debug(f".rhiza directory already exists at: {rhiza_dir.relative_to(target)}")
-    return rhiza_dir
 
-
-def _migrate_template_file(target: Path, rhiza_dir: Path) -> tuple[bool, list[str]]:
-    """Migrate template.yml from .github to .rhiza.
-
-    Args:
-        target: Target repository path.
-        rhiza_dir: Path to .rhiza directory.
-
-    Returns:
-        Tuple of (migration_performed, migrations_list).
-    """
+    # Migrate template file
     github_dir = target / ".github"
     new_template_file = rhiza_dir / "template.yml"
 
@@ -76,42 +79,20 @@ def _migrate_template_file(target: Path, rhiza_dir: Path) -> tuple[bool, list[st
             logger.warning("No existing template.yml file found in .github")
             logger.info("You may need to run 'rhiza init' to create a template configuration")
 
-    return template_migrated or new_template_file.exists(), migrations_performed
+    # Ensure .rhiza is in include list
+    if new_template_file.exists():
+        template = RhizaTemplate.from_yaml(new_template_file)
+        template_include = template.include or []
+        if ".rhiza" not in template_include:
+            logger.warning("The .rhiza folder is not included in your template.yml")
+            template_include.append(".rhiza")
+            logger.info("The .rhiza folder is added to your template.yml to ensure it's included in your repository")
+            template = dataclasses.replace(template, include=template_include)
+            template.to_yaml(new_template_file)
 
-
-def _ensure_rhiza_in_include(template_file: Path) -> None:
-    """Ensure .rhiza folder is in template.yml include list.
-
-    Args:
-        template_file: Path to template.yml file.
-    """
-    if not template_file.exists():
-        logger.debug("No template.yml present in .rhiza; skipping include update")
-        return
-
-    template = RhizaTemplate.from_yaml(template_file)
-    template_include = template.include or []
-    if ".rhiza" not in template_include:
-        logger.warning("The .rhiza folder is not included in your template.yml")
-        template_include.append(".rhiza")
-        logger.info("The .rhiza folder is added to your template.yml to ensure it's included in your repository")
-        template = dataclasses.replace(template, include=template_include)
-        template.to_yaml(template_file)
-
-
-def _migrate_history_file(target: Path, rhiza_dir: Path) -> list[str]:
-    """Migrate .rhiza.history to .rhiza/history.
-
-    Args:
-        target: Target repository path.
-        rhiza_dir: Path to .rhiza directory.
-
-    Returns:
-        List of migrations performed.
-    """
+    # Migrate history file
     old_history_file = target / ".rhiza.history"
     new_history_file = rhiza_dir / "history"
-    migrations_performed = []
 
     if old_history_file.exists():
         if new_history_file.exists():
@@ -130,15 +111,7 @@ def _migrate_history_file(target: Path, rhiza_dir: Path) -> list[str]:
         else:
             logger.debug("No existing .rhiza.history file to migrate")
 
-    return migrations_performed
-
-
-def _print_migration_summary(migrations_performed: list[str]) -> None:
-    """Print migration summary.
-
-    Args:
-        migrations_performed: List of migrations performed.
-    """
+    # Print summary
     logger.success("✓ Migration completed successfully")
 
     if migrations_performed:
@@ -160,43 +133,3 @@ def _print_migration_summary(migrations_performed: list[str]) -> None:
         "       git add .\n"
         '       git commit -m "chore: migrate to .rhiza folder structure"\n'
     )
-
-
-def migrate(target: Path) -> None:
-    """Migrate project to use the new .rhiza folder structure.
-
-    This command performs the following actions:
-    1. Creates the `.rhiza/` directory in the project root
-    2. Moves template.yml from `.github/rhiza/` or `.github/` to `.rhiza/template.yml`
-    3. Moves `.rhiza.history` to `.rhiza/history` if it exists
-    4. Provides instructions for next steps
-
-    The `.rhiza/` folder will contain:
-    - `template.yml` - Template configuration (replaces `.github/rhiza/template.yml`)
-    - `history` - List of files managed by Rhiza templates (replaces `.rhiza.history`)
-    - Future: Additional state, cache, or metadata files
-
-    Args:
-        target (Path): Path to the target repository.
-    """
-    logger.warning("⚠️  The 'migrate' command is deprecated and will be removed in a future release.")
-    target = target.resolve()
-    logger.info(f"Migrating Rhiza structure in: {target}")
-    logger.info("This will create the .rhiza folder and migrate configuration files")
-
-    # Create .rhiza directory
-    rhiza_dir = _create_rhiza_directory(target)
-
-    # Migrate template file
-    template_exists, template_migrations = _migrate_template_file(target, rhiza_dir)
-
-    # Ensure .rhiza is in include list
-    if template_exists:
-        _ensure_rhiza_in_include(rhiza_dir / "template.yml")
-
-    # Migrate history file
-    history_migrations = _migrate_history_file(target, rhiza_dir)
-
-    # Print summary
-    all_migrations = template_migrations + history_migrations
-    _print_migration_summary(all_migrations)

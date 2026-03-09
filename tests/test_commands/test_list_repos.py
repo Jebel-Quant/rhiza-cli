@@ -15,10 +15,6 @@ from typer.testing import CliRunner
 from rhiza.cli import app
 from rhiza.commands.list_repos import (
     _DEFAULT_TOPIC,
-    _format_date,
-    _render_table,
-    _RepoInfo,
-    _wrap_text,
     list_repos,
 )
 
@@ -48,114 +44,6 @@ _SAMPLE_ITEM_GO = {
     "description": "A collection of reusable configuration templates for modern Golang projects",
     "updated_at": "2026-03-02T12:15:20Z",
 }
-
-
-# ---------------------------------------------------------------------------
-# _format_date
-# ---------------------------------------------------------------------------
-
-
-class TestFormatDate:
-    """Tests for the _format_date helper."""
-
-    def test_iso_date_truncated_to_date(self):
-        """Verify that ISO 8601 timestamps are truncated to the date part."""
-        assert _format_date("2026-03-02T12:12:02Z") == "2026-03-02"
-
-    def test_empty_string_returns_empty(self):
-        """Verify that an empty string returns an empty string."""
-        assert _format_date("") == ""
-
-    def test_plain_date_string_unchanged(self):
-        """Verify that plain date strings are returned unchanged."""
-        assert _format_date("2026-03-02") == "2026-03-02"
-
-
-# ---------------------------------------------------------------------------
-# _wrap_text
-# ---------------------------------------------------------------------------
-
-
-class TestWrapText:
-    """Tests for the _wrap_text helper."""
-
-    def test_short_text_not_wrapped(self):
-        """Verify that short text does not get wrapped."""
-        assert _wrap_text("hello", 10) == ["hello"]
-
-    def test_empty_string_returns_one_empty_line(self):
-        """Verify that an empty string returns a single empty line."""
-        assert _wrap_text("", 20) == [""]
-
-    def test_long_text_wrapped_at_word_boundary(self):
-        """Verify that long text is wrapped at word boundaries within width limit."""
-        text = "A collection of reusable configuration templates for modern Python projects"
-        lines = _wrap_text(text, 30)
-        assert all(len(line) <= 30 for line in lines)
-        assert len(lines) > 1
-
-    def test_joined_lines_contain_all_words(self):
-        """Verify that wrapped lines when joined contain all original words."""
-        text = "one two three four five six seven eight nine ten"
-        lines = _wrap_text(text, 15)
-        assert " ".join(lines) == text
-
-
-# ---------------------------------------------------------------------------
-# _render_table
-# ---------------------------------------------------------------------------
-
-
-class TestRenderTable:
-    """Tests for the _render_table helper."""
-
-    def test_no_repos_returns_no_repositories_message(self):
-        """Verify that an empty list returns a 'No repositories found' message."""
-        assert _render_table([]) == "No repositories found."
-
-    def test_table_contains_repo_name(self):
-        """Verify that the rendered table contains the repository name."""
-        repos = [_RepoInfo("owner/repo", "A description", "2026-01-01T00:00:00Z")]
-        table = _render_table(repos)
-        assert "owner/repo" in table
-
-    def test_table_contains_description(self):
-        """Verify that the rendered table contains the repository description."""
-        repos = [_RepoInfo("owner/repo", "My unique description", "2026-01-01T00:00:00Z")]
-        table = _render_table(repos)
-        assert "My unique description" in table
-
-    def test_table_contains_date(self):
-        """Verify that the rendered table contains the update date."""
-        repos = [_RepoInfo("owner/repo", "desc", "2026-03-02T12:00:00Z")]
-        table = _render_table(repos)
-        assert "2026-03-02" in table
-
-    def test_table_has_header_row(self):
-        """Verify that the rendered table includes header row with column names."""
-        repos = [_RepoInfo("owner/repo", "desc", "2026-01-01")]
-        table = _render_table(repos)
-        assert "Repo" in table
-        assert "Description" in table
-        assert "Updated" in table
-
-    def test_table_has_box_drawing_characters(self):
-        """Verify that the rendered table contains box-drawing characters."""
-        repos = [_RepoInfo("owner/repo", "desc", "2026-01-01")]
-        table = _render_table(repos)
-        assert "┌" in table
-        assert "┘" in table
-        assert "│" in table
-
-    def test_multiple_repos_each_in_table(self):
-        """Verify that multiple repositories are each included in the rendered table."""
-        repos = [
-            _RepoInfo("org/repo-a", "Description A", "2026-01-01T00:00:00Z"),
-            _RepoInfo("org/repo-b", "Description B", "2026-02-01T00:00:00Z"),
-        ]
-        table = _render_table(repos)
-        assert "org/repo-a" in table
-        assert "org/repo-b" in table
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +88,7 @@ class TestListRepos:
         assert result is False
 
     def test_empty_items_returns_true_no_table(self, capsys):
-        """Verify that empty items return True and produce no table output."""
+        """Verify that empty items return True and produce no output."""
         mock_resp = _make_api_response([])
         with patch("urllib.request.urlopen", return_value=mock_resp):
             result = list_repos()

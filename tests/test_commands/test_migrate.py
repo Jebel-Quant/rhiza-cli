@@ -357,21 +357,6 @@ Makefile
         template_file = rhiza_dir / "template.yml"
         assert not template_file.exists()
 
-    def test_ensure_rhiza_in_include_with_no_template(self, tmp_path):
-        """Test _ensure_rhiza_in_include when template file doesn't exist."""
-        from rhiza.commands.migrate import _ensure_rhiza_in_include
-
-        # Create .rhiza directory but no template.yml
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True)
-        template_file = rhiza_dir / "template.yml"
-
-        # Call the function - it should handle gracefully
-        _ensure_rhiza_in_include(template_file)
-
-        # Verify no template.yml was created
-        assert not template_file.exists()
-
 
 class TestMigrateCLI:
     """Tests for the migrate CLI command."""

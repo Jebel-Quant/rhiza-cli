@@ -5,7 +5,6 @@ This module tests:
 - The cli.py Typer app and command wrappers
 """
 
-import shutil
 import subprocess
 import sys
 from unittest.mock import patch
@@ -164,55 +163,6 @@ class TestMainEntry:
         add_typer_mock.assert_called_once_with(mock_plugin_app, name="good_plugin")
 
 
-class TestSummariseCommand:
-    """Tests for the summarise command."""
-
-    def test_summarise_help(self):
-        """Test that summarise command help is available."""
-        result = subprocess.run(
-            [sys.executable, "-m", "rhiza", "summarise", "--help"],
-            capture_output=True,
-            text=True,
-        )
-        assert result.returncode == 0
-        assert "Generate a summary of staged changes" in result.stdout
-        assert "output" in result.stdout.lower()
-
-    def test_summarise_cli_wrapper_coverage(self, tmp_path):
-        """Test the CLI summarise command wrapper directly for coverage."""
-        from typer.testing import CliRunner
-
-        from rhiza.cli import app
-
-        # Create a temporary git repo
-        repo = tmp_path / "test_repo"
-        repo.mkdir()
-        git_cmd = shutil.which("git") or "git"
-        subprocess.run([git_cmd, "init"], cwd=repo, check=True)
-        subprocess.run([git_cmd, "config", "user.email", "test@test.com"], cwd=repo, check=True)
-        subprocess.run([git_cmd, "config", "user.name", "Test"], cwd=repo, check=True)
-
-        # Create template.yml
-        template_dir = repo / ".rhiza"
-        template_dir.mkdir()
-        template_file = template_dir / "template.yml"
-        template_file.write_text('template-repository: "test/repo"\ntemplate-branch: "custom-branch"\n')
-
-        # Create and stage a test file
-        test_file = repo / "test.txt"
-        test_file.write_text("test")
-        subprocess.run([git_cmd, "add", "."], cwd=repo, check=True)
-
-        runner = CliRunner()
-        result = runner.invoke(app, ["summarise", str(repo)])
-
-        assert result.exit_code == 0
-        assert "Template Synchronization" in result.stdout
-        assert "test/repo" in result.stdout
-        assert "custom-branch" in result.stdout
-        assert "files added" in result.stdout
-
-
 class TestCLIExceptionHandling:
     """Tests for exception-handling branches in CLI command wrappers."""
 
@@ -228,10 +178,4 @@ class TestCLIExceptionHandling:
         """Uninstall command exits with code 1 when RuntimeError is raised."""
         with patch("rhiza.cli.uninstall_cmd", side_effect=RuntimeError("uninstall failed")):
             result = self.runner.invoke(app, ["uninstall", str(tmp_path), "--force"])
-        assert result.exit_code == 1
-
-    def test_summarise_exits_with_code_1_on_runtime_error(self, tmp_path):
-        """Summarise command exits with code 1 when RuntimeError is raised."""
-        with patch("rhiza.cli.summarise_cmd", side_effect=RuntimeError("summarise failed")):
-            result = self.runner.invoke(app, ["summarise", str(tmp_path)])
         assert result.exit_code == 1

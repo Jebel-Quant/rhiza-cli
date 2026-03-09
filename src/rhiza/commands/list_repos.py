@@ -16,10 +16,8 @@ _GITHUB_SEARCH_URL = "https://api.github.com/search/repositories"
 _DEFAULT_TOPIC = "rhiza"
 _PER_PAGE = 50
 
-# Fixed column content widths (excluding 1-space padding on each side)
-_REPO_WIDTH = 20
+# Description column width used by init command for display truncation
 _DESC_WIDTH = 56
-_DATE_WIDTH = 10
 
 
 @dataclass
@@ -64,89 +62,11 @@ def _fetch_repos(topic: str = _DEFAULT_TOPIC) -> list[_RepoInfo]:
     ]
 
 
-def _format_date(iso_date: str) -> str:
-    """Format an ISO 8601 date string to YYYY-MM-DD.
-
-    Args:
-        iso_date: ISO 8601 date string (e.g. '2026-03-02T12:12:02Z').
-
-    Returns:
-        Date string in YYYY-MM-DD format, or empty string if input is empty.
-    """
-    if not iso_date:
-        return ""
-    return iso_date[:10]
-
-
-def _wrap_text(text: str, width: int) -> list[str]:
-    """Wrap text to fit within a given width, splitting on word boundaries.
-
-    Args:
-        text: The text to wrap.
-        width: Maximum line width in characters.
-
-    Returns:
-        List of lines, each at most *width* characters wide.
-    """
-    if not text:
-        return [""]
-    words = text.split()
-    lines: list[str] = []
-    current = ""
-    for word in words:
-        if current and len(current) + 1 + len(word) > width:
-            lines.append(current)
-            current = word
-        else:
-            current = f"{current} {word}".strip() if current else word
-    if current:
-        lines.append(current)
-    return lines or [""]
-
-
-def _render_table(repos: list[_RepoInfo]) -> str:
-    """Render a list of repositories as a formatted table.
-
-    Args:
-        repos: List of repository info objects to display.
-
-    Returns:
-        Formatted table string ready to print.
-    """
-    if not repos:
-        return "No repositories found."
-
-    rw, dw, uw = _REPO_WIDTH, _DESC_WIDTH, _DATE_WIDTH
-
-    top = f"┌{'─' * (rw + 2)}┬{'─' * (dw + 2)}┬{'─' * (uw + 2)}┐"
-    sep = f"├{'─' * (rw + 2)}┼{'─' * (dw + 2)}┼{'─' * (uw + 2)}┤"
-    bot = f"└{'─' * (rw + 2)}┴{'─' * (dw + 2)}┴{'─' * (uw + 2)}┘"
-
-    def cell_row(r: str, d: str, u: str) -> str:
-        return f"│ {r:<{rw}} │ {d:<{dw}} │ {u:<{uw}} │"
-
-    header = f"│ {'Repo':^{rw}} │ {'Description':^{dw}} │ {'Updated':^{uw}} │"
-
-    lines = [top, header, sep]
-    for i, repo in enumerate(repos):
-        if i > 0:
-            lines.append(sep)
-        desc_lines = _wrap_text(repo.description, dw)
-        date_str = _format_date(repo.updated_at)
-        for j, desc_line in enumerate(desc_lines):
-            if j == 0:
-                lines.append(cell_row(repo.full_name, desc_line, date_str))
-            else:
-                lines.append(cell_row("", desc_line, ""))
-    lines.append(bot)
-    return "\n".join(lines)
-
-
 def list_repos(topic: str = _DEFAULT_TOPIC) -> bool:
     """List GitHub repositories tagged with the given topic.
 
     Queries the GitHub Search API for repositories with the specified topic
-    and prints them in a formatted table.
+    and prints them in plain-text format.
 
     Args:
         topic: GitHub topic to search for (default: 'rhiza').
@@ -164,5 +84,7 @@ def list_repos(topic: str = _DEFAULT_TOPIC) -> bool:
         logger.info(f"No repositories found with topic '{topic}'.")
         return True
 
-    print(_render_table(repos))
+    for repo in repos:
+        date = repo.updated_at[:10] if repo.updated_at else ""
+        print(f"{repo.full_name}  -  {repo.description}  ({date})")
     return True
