@@ -821,19 +821,16 @@ def _log_git_stderr_errors(stderr: str | None) -> None:
                 logger.error(line)
 
 
-def _expand_paths(base_dir: Path, paths: list[str], _logger=None) -> list[Path]:
+def _expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
     """Expand file/directory paths relative to *base_dir* into individual files.
 
     Args:
         base_dir: Root directory to resolve against.
         paths: Relative path strings.
-        _logger: Optional logger; defaults to module logger.
 
     Returns:
         Flat list of file paths.
     """
-    _logger = _logger or logging.getLogger(__name__)
-
     all_files: list[Path] = []
     for p in paths:
         full = base_dir / p
@@ -842,7 +839,7 @@ def _expand_paths(base_dir: Path, paths: list[str], _logger=None) -> list[Path]:
         elif full.is_dir():
             all_files.extend(f for f in full.rglob("*") if f.is_file())
         else:
-            _logger.debug(f"Path not found in template repository: {p}")
+            logger.debug(f"Path not found in template repository: {p}")
     return all_files
 
 

@@ -30,7 +30,7 @@ from rhiza.models._git_utils import _excluded_set, _prepare_snapshot
 __all__ = ["sync"]
 
 
-def _load_template_from_project(target: Path, _logger=None) -> RhizaTemplate:
+def _load_template_from_project(target: Path) -> RhizaTemplate:
     """Validate and load a :class:`RhizaTemplate` from a project directory.
 
     Validates the project's ``template.yml`` via :func:`~rhiza.commands.validate.validate`,
@@ -40,7 +40,6 @@ def _load_template_from_project(target: Path, _logger=None) -> RhizaTemplate:
     Args:
         target: Path to the target repository (must contain ``.git`` and
             ``.rhiza/template.yml``).
-        _logger: Optional logger; defaults to module logger.
 
     Returns:
         The loaded and validated :class:`RhizaTemplate`.
@@ -50,40 +49,38 @@ def _load_template_from_project(target: Path, _logger=None) -> RhizaTemplate:
     """
     from rhiza.commands.validate import validate
 
-    _logger = _logger or logger
-
     valid = validate(target)
     if not valid:
-        _logger.error(f"Rhiza template is invalid in: {target}")
-        _logger.error("Please fix validation errors and try again")
+        logger.error(f"Rhiza template is invalid in: {target}")
+        logger.error("Please fix validation errors and try again")
         raise RuntimeError("Rhiza template validation failed")  # noqa: TRY003
 
     template_file = target / ".rhiza" / "template.yml"
     template = RhizaTemplate.from_yaml(template_file)
 
     if not template.template_repository:
-        _logger.error("template-repository is not configured in template.yml")
+        logger.error("template-repository is not configured in template.yml")
         raise RuntimeError("template-repository is required")  # noqa: TRY003
 
     if not template.templates and not template.include:
-        _logger.error("No templates or include paths found in template.yml")
-        _logger.error("Add either 'templates' or 'include' list in template.yml")
+        logger.error("No templates or include paths found in template.yml")
+        logger.error("Add either 'templates' or 'include' list in template.yml")
         raise RuntimeError("No templates or include paths found in template.yml")  # noqa: TRY003
 
     if template.templates:
-        _logger.info("Templates:")
+        logger.info("Templates:")
         for t in template.templates:
-            _logger.info(f"  - {t}")
+            logger.info(f"  - {t}")
 
     if template.include:
-        _logger.info("Include paths:")
+        logger.info("Include paths:")
         for p in template.include:
-            _logger.info(f"  - {p}")
+            logger.info(f"  - {p}")
 
     if template.exclude:
-        _logger.info("Exclude paths:")
+        logger.info("Exclude paths:")
         for p in template.exclude:
-            _logger.info(f"  - {p}")
+            logger.info(f"  - {p}")
 
     return template
 
@@ -92,7 +89,6 @@ def _clone_template(
     template: RhizaTemplate,
     git_ctx: GitContext,
     branch: str = "main",
-    _logger=None,
 ) -> tuple[Path, str, list[str]]:
     """Clone the upstream template repository and resolve include paths.
 
@@ -105,7 +101,6 @@ def _clone_template(
         git_ctx: Git context.
         branch: Default branch to use when ``template_branch`` is not set
             on the template.
-        _logger: Optional logger; defaults to module logger.
 
     Returns:
         Tuple of ``(upstream_dir, upstream_sha, resolved_include)`` where
@@ -118,8 +113,6 @@ def _clone_template(
         subprocess.CalledProcessError: If a git operation fails.
     """
     from rhiza.models.bundle import RhizaBundles
-
-    _logger = _logger or logger
 
     if not template.template_repository:
         raise ValueError("template_repository is not configured in template.yml")  # noqa: TRY003
@@ -143,7 +136,7 @@ def _clone_template(
         git_ctx.clone_repository(template.git_url, upstream_dir, rhiza_branch, include_paths)
 
     upstream_sha = git_ctx.get_head_sha(upstream_dir)
-    _logger.info(f"Upstream HEAD: {upstream_sha[:12]}")
+    logger.info(f"Upstream HEAD: {upstream_sha[:12]}")
 
     return upstream_dir, upstream_sha, include_paths
 
