@@ -33,6 +33,23 @@ LOCK_FILE = ".rhiza/template.lock"
 # ---------------------------------------------------------------------------
 
 
+def _load_lock_or_warn(target: Path) -> TemplateLock | None:
+    """Load the template.lock file, or log a warning and return None if missing.
+
+    Args:
+        target: Path to the target repository root.
+
+    Returns:
+        The loaded :class:`~rhiza.models.TemplateLock`, or ``None`` when the
+        lock file does not exist.
+    """
+    lock_path = (target / LOCK_FILE).resolve()
+    if not lock_path.exists():
+        logger.warning("No template.lock found — run `rhiza sync` first")
+        return None
+    return TemplateLock.from_yaml(lock_path)
+
+
 def _warn_about_workflow_files(materialized_files: list[Path]) -> None:
     """Warn if workflow files were materialized.
 
