@@ -21,7 +21,7 @@ class GitHost(StrEnum):
     GITLAB = "gitlab"
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class RhizaTemplate(YamlSerializable):
     """Represents the structure of .rhiza/template.yml.
 
