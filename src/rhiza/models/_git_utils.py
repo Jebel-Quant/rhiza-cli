@@ -1,5 +1,6 @@
 """Git utility helpers for Rhiza models."""
 
+import logging
 import os
 import shutil
 import subprocess  # nosec B404
@@ -491,6 +492,212 @@ class GitContext:
             if base_snapshot.exists():
                 shutil.rmtree(base_snapshot)
 
+    def update_sparse_checkout(
+        self,
+        tmp_dir: Path,
+        include_paths: list[str],
+        logger=None,
+    ) -> None:
+        """Update sparse-checkout paths in an already-cloned repository.
+
+        Args:
+            tmp_dir: Temporary directory with cloned repository.
+            include_paths: Paths to include in sparse checkout.
+            logger: Optional logger; defaults to module logger.
+        """
+        logger = logger or logging.getLogger(__name__)
+
+        try:
+            logger.debug(f"Updating sparse checkout paths: {include_paths}")
+            subprocess.run(  # nosec B603  # noqa: S603
+                [self.executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
+                cwd=tmp_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=self.env,
+            )
+            logger.debug("Sparse checkout paths updated")
+        except subprocess.CalledProcessError as e:
+            logger.exception("Failed to update sparse checkout paths")
+            _log_git_stderr_errors(e.stderr)
+            raise
+
+    def get_head_sha(self, repo_dir: Path) -> str:
+        """Return the HEAD commit SHA of a cloned repository.
+
+        Args:
+            repo_dir: Path to the git repository.
+
+        Returns:
+            The full HEAD SHA.
+        """
+        result = subprocess.run(  # nosec B603  # noqa: S603
+            [self.executable, "rev-parse", "HEAD"],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=self.env,
+        )
+        return result.stdout.strip()
+
+    def clone_repository(
+        self,
+        git_url: str,
+        tmp_dir: Path,
+        branch: str,
+        include_paths: list[str],
+        logger=None,
+    ) -> None:
+        """Clone template repository with sparse checkout.
+
+        Args:
+            git_url: URL of the repository to clone.
+            tmp_dir: Temporary directory for cloning.
+            branch: Branch to clone from the template repository.
+            include_paths: Paths to include in sparse checkout.
+            logger: Optional logger; defaults to module logger.
+        """
+        logger = logger or logging.getLogger(__name__)
+
+        try:
+            logger.debug("Executing git clone with sparse checkout")
+            subprocess.run(  # nosec B603  # noqa: S603
+                [
+                    self.executable,
+                    "clone",
+                    "--depth",
+                    "1",
+                    "--filter=blob:none",
+                    "--sparse",
+                    "--branch",
+                    branch,
+                    git_url,
+                    str(tmp_dir),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=self.env,
+            )
+            logger.debug("Git clone completed successfully")
+        except subprocess.CalledProcessError as e:
+            logger.exception(f"Failed to clone repository from {git_url}")
+            _log_git_stderr_errors(e.stderr)
+            logger.exception("Please check that:")
+            logger.exception("  - The repository exists and is accessible")
+            logger.exception(f"  - Branch '{branch}' exists in the repository")
+            logger.exception("  - You have network access to the git hosting service")
+            raise
+
+        try:
+            logger.debug("Initializing sparse checkout")
+            subprocess.run(  # nosec B603  # noqa: S603
+                [self.executable, "sparse-checkout", "init", "--cone"],
+                cwd=tmp_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=self.env,
+            )
+            logger.debug("Sparse checkout initialized")
+        except subprocess.CalledProcessError as e:
+            logger.exception("Failed to initialize sparse checkout")
+            _log_git_stderr_errors(e.stderr)
+            raise
+
+        try:
+            logger.debug(f"Setting sparse checkout paths: {include_paths}")
+            subprocess.run(  # nosec B603  # noqa: S603
+                [self.executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
+                cwd=tmp_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=self.env,
+            )
+            logger.debug("Sparse checkout paths configured")
+        except subprocess.CalledProcessError as e:
+            logger.exception("Failed to configure sparse checkout paths")
+            _log_git_stderr_errors(e.stderr)
+            raise
+
+    def clone_at_sha(
+        self,
+        git_url: str,
+        sha: str,
+        dest: Path,
+        include_paths: list[str],
+        logger=None,
+    ) -> None:
+        """Clone the template repository and checkout a specific commit.
+
+        Args:
+            git_url: URL of the repository to clone.
+            sha: Commit SHA to check out.
+            dest: Target directory for the clone.
+            include_paths: Paths to include in sparse checkout.
+            logger: Optional logger; defaults to module logger.
+        """
+        logger = logger or logging.getLogger(__name__)
+        try:
+            subprocess.run(  # nosec B603  # noqa: S603
+                [
+                    self.executable,
+                    "clone",
+                    "--filter=blob:none",
+                    "--sparse",
+                    "--no-checkout",
+                    git_url,
+                    str(dest),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=self.env,
+            )
+        except subprocess.CalledProcessError as e:
+            logger.exception(f"Failed to clone repository for base snapshot: {git_url}")
+            _log_git_stderr_errors(e.stderr)
+            raise
+
+        try:
+            subprocess.run(  # nosec B603  # noqa: S603
+                [self.executable, "sparse-checkout", "init", "--cone"],
+                cwd=dest,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=self.env,
+            )
+            subprocess.run(  # nosec B603  # noqa: S603
+                [self.executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
+                cwd=dest,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=self.env,
+            )
+        except subprocess.CalledProcessError as e:
+            logger.exception("Failed to configure sparse checkout for base snapshot")
+            _log_git_stderr_errors(e.stderr)
+            raise
+
+        try:
+            subprocess.run(  # nosec B603  # noqa: S603
+                [self.executable, "checkout", sha],
+                cwd=dest,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=self.env,
+            )
+        except subprocess.CalledProcessError as e:
+            logger.exception(f"Failed to checkout base commit {sha[:12]}")
+            _log_git_stderr_errors(e.stderr)
+            raise
+
     def _merge_with_base(
         self,
         target: Path,
@@ -515,13 +722,12 @@ class GitContext:
             lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
         """
         from rhiza.commands._sync_helpers import _write_lock
-        from rhiza.models import RhizaTemplate
 
         logger.info(f"Cloning base snapshot at {base_sha[:12]}")
         base_clone = Path(tempfile.mkdtemp())
         try:
-            template._clone_at_sha(base_sha, base_clone, template.include, self)
-            RhizaTemplate._prepare_snapshot(base_clone, template.include, excludes, base_snapshot)
+            self.clone_at_sha(template.git_url, base_sha, base_clone, template.include)
+            _prepare_snapshot(base_clone, template.include, excludes, base_snapshot)
         except Exception:
             logger.warning("Could not checkout base commit — treating all files as new")
         finally:
@@ -613,3 +819,74 @@ def _log_git_stderr_errors(stderr: str | None) -> None:
             line = line.strip()
             if line and (line.startswith("fatal:") or line.startswith("error:")):
                 logger.error(line)
+
+
+def _expand_paths(base_dir: Path, paths: list[str], _logger=None) -> list[Path]:
+    """Expand file/directory paths relative to *base_dir* into individual files.
+
+    Args:
+        base_dir: Root directory to resolve against.
+        paths: Relative path strings.
+        _logger: Optional logger; defaults to module logger.
+
+    Returns:
+        Flat list of file paths.
+    """
+    _logger = _logger or logging.getLogger(__name__)
+
+    all_files: list[Path] = []
+    for p in paths:
+        full = base_dir / p
+        if full.is_file():
+            all_files.append(full)
+        elif full.is_dir():
+            all_files.extend(f for f in full.rglob("*") if f.is_file())
+        else:
+            _logger.debug(f"Path not found in template repository: {p}")
+    return all_files
+
+
+def _excluded_set(base_dir: Path, excluded_paths: list[str]) -> set[str]:
+    """Build a set of relative path strings that should be excluded.
+
+    Args:
+        base_dir: Root of the template clone.
+        excluded_paths: User-configured exclude list.
+
+    Returns:
+        Set of relative path strings (always includes rhiza internals).
+    """
+    result: set[str] = set()
+    for f in _expand_paths(base_dir, excluded_paths):
+        result.add(str(f.relative_to(base_dir)))
+    result.add(".rhiza/template.yml")
+    result.add(".rhiza/history")
+    return result
+
+
+def _prepare_snapshot(
+    clone_dir: Path,
+    include_paths: list[str],
+    excludes: set[str],
+    snapshot_dir: Path,
+) -> list[Path]:
+    """Copy included (non-excluded) files from a clone into a snapshot directory.
+
+    Args:
+        clone_dir: Root of the template clone.
+        include_paths: Paths to include.
+        excludes: Set of relative paths to exclude.
+        snapshot_dir: Destination directory for the snapshot.
+
+    Returns:
+        List of relative file paths that were copied.
+    """
+    materialized: list[Path] = []
+    for f in _expand_paths(clone_dir, include_paths):
+        rel = str(f.relative_to(clone_dir))
+        if rel not in excludes:
+            dst = snapshot_dir / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, dst)
+            materialized.append(Path(rel))
+    return materialized
