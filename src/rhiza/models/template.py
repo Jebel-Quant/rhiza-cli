@@ -304,7 +304,7 @@ class RhizaTemplate(YamlSerializable):
                     "--filter=blob:none",
                     "--sparse",
                     "--branch",
-                    self.template_branch,
+                    branch,
                     git_url,
                     str(tmp_dir),
                 ],
@@ -319,7 +319,7 @@ class RhizaTemplate(YamlSerializable):
             _log_git_stderr_errors(e.stderr)
             logger.exception("Please check that:")
             logger.exception("  - The repository exists and is accessible")
-            logger.exception(f"  - Branch '{self.template_branch}' exists in the repository")
+            logger.exception(f"  - Branch '{branch}' exists in the repository")
             logger.exception("  - You have network access to the git hosting service")
             raise
 
@@ -489,43 +489,6 @@ class RhizaTemplate(YamlSerializable):
     # ------------------------------------------------------------------
     # Public clone / snapshot workflow methods
     # ------------------------------------------------------------------
-
-    def resolve_include_paths(self, bundles_config: "RhizaBundles | None") -> list[Path]:
-        """Resolve template configuration to file paths.
-
-        Supports:
-        - Template-based mode (templates field)
-        - Path-based mode (include field)
-        - Hybrid mode (both templates and include)
-
-        Args:
-            bundles_config: The loaded bundles configuration, or None if not available.
-
-        Returns:
-            List of file paths to materialize.
-
-        Raises:
-            ValueError: If configuration is invalid or bundles.yml is missing.
-        """
-        paths: list[Path] = []
-        if self.templates:
-            if not bundles_config:
-                msg = "Template uses templates but template-bundles.yml not found in template repository"
-                raise ValueError(msg)
-            paths.extend(bundles_config.resolve_to_paths(self.templates))
-        if self.include:
-            paths.extend(self.include)
-        if not paths:
-            msg = "Template configuration must specify either 'templates' or 'include'"
-            raise ValueError(msg)
-        seen: set[str] = set()
-        deduplicated: list[str] = []
-        for path in paths:
-            if path not in seen:
-                deduplicated.append(path)
-                seen.add(path)
-        return deduplicated
-
     def clone(self, git_ctx: GitContext, branch: str = "main", logger=None) -> tuple[Path, str]:
         """Clone the upstream template repository and resolve include paths.
 
@@ -561,12 +524,12 @@ class RhizaTemplate(YamlSerializable):
         upstream_dir = Path(tempfile.mkdtemp())
 
         if self.templates:
-            # Clone just .rhiza to load bundle definitions
-            self._clone_template_repository(upstream_dir, rhiza_branch, [".rhiza"], git_ctx)
+            # Checkout .rhiza/template-bundles.yml from template_repository @ template_branch
+            self._clone_template_repository(upstream_dir, rhiza_branch, [".rhiza/template-bundles.yml"], git_ctx)
 
-            # Load template-bundles.yml and resolve bundle names to paths
-            bundles_config = RhizaBundles.from_clone(upstream_dir)
-            resolved_paths = self.resolve_include_paths(bundles_config)
+            # Load template-bundles.yml, resolve bundle names to paths, update sparse checkout
+            bundles = RhizaBundles.from_yaml(upstream_dir / ".rhiza" / "template-bundles.yml")
+            resolved_paths = bundles.resolve_to_paths(self.templates)
             self._update_sparse_checkout(upstream_dir, resolved_paths, git_ctx)
             object.__setattr__(self, "include", resolved_paths)
         else:

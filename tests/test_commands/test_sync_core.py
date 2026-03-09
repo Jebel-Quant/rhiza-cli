@@ -142,7 +142,7 @@ class TestSyncCore:
 
     @patch("rhiza.commands.sync.shutil.rmtree")
     @patch("rhiza.models.RhizaTemplate._update_sparse_checkout")
-    @patch("rhiza.models.RhizaBundles.from_clone")
+    @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
@@ -151,7 +151,7 @@ class TestSyncCore:
         mock_sha,
         mock_mkdtemp,
         mock_clone,
-        mock_from_clone,
+        mock_from_yaml,
         mock_update_sparse,
         mock_rmtree,
         tmp_path,
@@ -163,7 +163,7 @@ class TestSyncCore:
         # Simulate bundle resolution: "core" resolves to ["Makefile", "pyproject.toml"]
         from rhiza.models.bundle import RhizaBundles
 
-        mock_from_clone.return_value = RhizaBundles.from_config(
+        mock_from_yaml.return_value = RhizaBundles.from_config(
             {"bundles": {"core": {"description": "Core", "files": ["Makefile", "pyproject.toml"]}}}
         )
 

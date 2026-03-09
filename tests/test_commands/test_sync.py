@@ -515,7 +515,7 @@ class TestCloneAndResolveUpstreamWithTemplates:
 
     @patch("rhiza.models.RhizaTemplate._get_head_sha")
     @patch("rhiza.models.RhizaTemplate.resolve_include_paths")
-    @patch("rhiza.models.RhizaBundles.from_clone")
+    @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
     @patch("rhiza.models.RhizaTemplate._update_sparse_checkout")
     @patch("rhiza.models.RhizaTemplate._clone_template_repository")
     def test_bundle_resolution_path(

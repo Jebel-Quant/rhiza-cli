@@ -289,36 +289,6 @@ class TestRhizaTemplateClone:
         mock_clone.assert_called_once()
         shutil.rmtree(upstream_dir, ignore_errors=True)
 
-    @patch("rhiza.models.RhizaTemplate._get_head_sha")
-    @patch("rhiza.models.RhizaTemplate.resolve_include_paths")
-    @patch("rhiza.models.RhizaBundles.from_clone")
-    @patch("rhiza.models.RhizaTemplate._update_sparse_checkout")
-    @patch("rhiza.models.RhizaTemplate._clone_template_repository")
-    def test_clone_resolves_bundles_and_updates_include(
-        self, mock_clone, mock_update_sparse, mock_load_bundles, mock_resolve, mock_head_sha
-    ):
-        """Clone resolves bundle paths and updates self.include when templates are set."""
-        mock_bundles = MagicMock()
-        mock_load_bundles.return_value = mock_bundles
-        mock_resolve.return_value = ["Makefile", ".github"]
-        mock_head_sha.return_value = "deadbeef1234"
-
-        template = RhizaTemplate(
-            template_repository="owner/repo",
-            template_branch="main",
-            template_host="github",
-            templates=["core"],
-        )
-
-        upstream_dir, upstream_sha = template.clone(GitContext.default(), branch="main")
-
-        mock_load_bundles.assert_called_once()
-        mock_resolve.assert_called_once_with(mock_bundles)
-        mock_update_sparse.assert_called_once()
-        assert template.include == ["Makefile", ".github"]
-        assert upstream_sha == "deadbeef1234"
-        shutil.rmtree(upstream_dir, ignore_errors=True)
-
     def test_clone_raises_when_no_repository(self):
         """Clone raises ValueError when template_repository is not set."""
         template = RhizaTemplate(include=["Makefile"])
@@ -649,62 +619,3 @@ class TestFromProject:
         with patch("rhiza.commands.validate.validate", return_value=True):
             template = RhizaTemplate.from_project(tmp_path)
         assert template.exclude == ["secret.txt"]
-
-
-# ---------------------------------------------------------------------------
-# resolve_include_paths
-# ---------------------------------------------------------------------------
-
-
-class TestResolveIncludePaths:
-    """Tests for RhizaTemplate.resolve_include_paths."""
-
-    def _make_template(self, **kwargs):
-        config = {"template-repository": "owner/repo", "template-branch": "main"}
-        config.update(kwargs)
-        return RhizaTemplate.from_config(config)
-
-    def _make_bundles(self):
-        from rhiza.models.bundle import RhizaBundles
-
-        return RhizaBundles.from_config(
-            {"bundles": {"core": {"description": "Core", "files": ["Makefile", "pyproject.toml"]}}}
-        )
-
-    def test_include_only_returns_include_paths(self):
-        """When only include is set, those paths are returned directly."""
-        template = self._make_template(include=["Makefile", "pyproject.toml"])
-        result = template.resolve_include_paths(None)
-        assert result == ["Makefile", "pyproject.toml"]
-
-    def test_templates_without_bundles_config_raises(self):
-        """ValueError raised when templates are configured but bundles_config is None."""
-        template = self._make_template(templates=["core"])
-        with pytest.raises(ValueError, match=r"template-bundles\.yml not found"):
-            template.resolve_include_paths(None)
-
-    def test_templates_resolved_via_bundles_config(self):
-        """Paths are resolved from bundles_config when templates are set."""
-        template = self._make_template(templates=["core"])
-        result = template.resolve_include_paths(self._make_bundles())
-        assert result == ["Makefile", "pyproject.toml"]
-
-    def test_hybrid_mode_combines_templates_and_include(self):
-        """Both templates and include paths are merged in hybrid mode."""
-        template = self._make_template(templates=["core"], include=["extra.txt"])
-        result = template.resolve_include_paths(self._make_bundles())
-        assert "Makefile" in result
-        assert "pyproject.toml" in result
-        assert "extra.txt" in result
-
-    def test_hybrid_mode_deduplicates_paths(self):
-        """A path listed in both templates and include appears only once."""
-        template = self._make_template(templates=["core"], include=["Makefile"])
-        result = template.resolve_include_paths(self._make_bundles())
-        assert result.count("Makefile") == 1
-
-    def test_no_paths_raises_value_error(self):
-        """ValueError raised when neither templates nor include yield any paths."""
-        template = self._make_template(include=[])
-        with pytest.raises(ValueError, match="must specify either 'templates' or 'include'"):
-            template.resolve_include_paths(None)
