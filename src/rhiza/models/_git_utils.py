@@ -6,13 +6,27 @@ import subprocess  # nosec B404
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from loguru import logger
 
 if TYPE_CHECKING:
     from rhiza.models.lock import TemplateLock
     from rhiza.models.template import RhizaTemplate
+
+
+class _DiffEntry(NamedTuple):
+    """Represents a single changed file entry parsed from a unified diff.
+
+    Attributes:
+        rel_path: Relative path of the changed file.
+        is_new: True when the file was added in the diff.
+        is_deleted: True when the file was removed in the diff.
+    """
+
+    rel_path: str
+    is_new: bool = False
+    is_deleted: bool = False
 
 
 @dataclass
@@ -188,42 +202,38 @@ class GitContext:
         src_prefix = "upstream-template-old/"
         dst_prefix = "upstream-template-new/"
 
-        results: list[tuple[str, bool, bool]] = []
-        is_new = False
-        is_deleted = False
+        results: list[_DiffEntry] = []
+        entry: _DiffEntry | None = None
         src_path: str | None = None
         dst_path: str | None = None
-        in_diff = False
-
-        def _flush() -> None:
-            rel = dst_path if not is_deleted else src_path
-            if rel:
-                results.append((rel, is_new, is_deleted))
 
         for line in diff.splitlines():
             if line.startswith("diff --git "):
-                if in_diff:
-                    _flush()
-                is_new = False
-                is_deleted = False
+                if entry is not None:
+                    rel = dst_path if not entry.is_deleted else src_path
+                    if rel:
+                        results.append(_DiffEntry(rel, entry.is_new, entry.is_deleted))
+                entry = _DiffEntry("")
                 src_path = None
                 dst_path = None
-                in_diff = True
-            elif line.startswith("new file mode"):
-                is_new = True
-            elif line.startswith("deleted file mode"):
-                is_deleted = True
-            elif line.startswith("--- "):
-                raw = line[4:].strip().strip('"').split("\t")[0]
-                if raw != "/dev/null" and raw.startswith(src_prefix):
-                    src_path = raw[len(src_prefix) :]
-            elif line.startswith("+++ "):
-                raw = line[4:].strip().strip('"').split("\t")[0]
-                if raw != "/dev/null" and raw.startswith(dst_prefix):
-                    dst_path = raw[len(dst_prefix) :]
+            elif entry is not None:
+                if line.startswith("new file mode"):
+                    entry = _DiffEntry(entry.rel_path, True, entry.is_deleted)
+                elif line.startswith("deleted file mode"):
+                    entry = _DiffEntry(entry.rel_path, entry.is_new, True)
+                elif line.startswith("--- "):
+                    raw = line[4:].strip().strip('"').split("\t")[0]
+                    if raw != "/dev/null" and raw.startswith(src_prefix):
+                        src_path = raw[len(src_prefix) :]
+                elif line.startswith("+++ "):
+                    raw = line[4:].strip().strip('"').split("\t")[0]
+                    if raw != "/dev/null" and raw.startswith(dst_prefix):
+                        dst_path = raw[len(dst_prefix) :]
 
-        if in_diff:
-            _flush()
+        if entry is not None:
+            rel = dst_path if not entry.is_deleted else src_path
+            if rel:
+                results.append(_DiffEntry(rel, entry.is_new, entry.is_deleted))
 
         return results
 
@@ -392,8 +402,8 @@ class GitContext:
                     "Some changes could not be applied cleanly. Check for *.rej files and resolve conflicts manually."
                 )
             return False
-        else:
-            return True
+
+        return True
 
     def _copy_files_to_target(self, snapshot_dir: Path, target: Path, materialized: list[Path]) -> None:
         """Copy all materialized files from a snapshot into the target project.
@@ -409,6 +419,34 @@ class GitContext:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
             logger.success(f"[COPY] {rel_path}")
+
+    def _first_sync(self, upstream_snapshot: Path, target: Path, materialized: list[Path]) -> None:
+        """Copy all upstream template files to target on the first sync.
+
+        Args:
+            upstream_snapshot: Path to the upstream snapshot directory.
+            target: Path to the target repository.
+            materialized: List of relative file paths to copy.
+        """
+        logger.info("First sync — copying all template files")
+        self._copy_files_to_target(upstream_snapshot, target, materialized)
+
+    def _restore_missing_files(self, upstream_snapshot: Path, target: Path, materialized: list[Path]) -> None:
+        """Restore template-managed files that are absent from the target.
+
+        Files tracked by the template may be missing when the template snapshot
+        was unchanged since the last sync (so no diff was applied) but the files
+        were never present or were manually deleted.
+
+        Args:
+            upstream_snapshot: Path to the upstream snapshot directory.
+            target: Path to the target repository.
+            materialized: List of relative file paths expected in target.
+        """
+        missing_from_target = [p for p in materialized if not (target / p).exists()]
+        if missing_from_target:
+            logger.info(f"Restoring {len(missing_from_target)} template file(s) missing from target")
+            self._copy_files_to_target(upstream_snapshot, target, missing_from_target)
 
     def sync_merge(
         self,
@@ -450,46 +488,29 @@ class GitContext:
         # orphan cleanup compares against the previous sync, not the new one.
         old_tracked_files = _read_previously_tracked_files(target)
 
-        base_snapshot = Path(tempfile.mkdtemp())
-        try:
-            if base_sha:
-                self._merge_with_base(
-                    target,
-                    upstream_snapshot,
-                    upstream_sha,
-                    base_sha,
-                    base_snapshot,
-                    template,
-                    excludes,
-                    lock,
-                )
-            else:
-                logger.info("First sync — copying all template files")
-                self._copy_files_to_target(upstream_snapshot, target, materialized)
-
-            # Restore any template-managed files that are absent from the target.
-            # This can happen when files tracked by the template do not exist in the
-            # downstream repository — for example when the template snapshot was
-            # unchanged since the last sync so no diff was applied, but the files
-            # were never present or were manually deleted.
-            missing_from_target = [p for p in materialized if not (target / p).exists()]
-            if missing_from_target:
-                logger.info(f"Restoring {len(missing_from_target)} template file(s) missing from target")
-                self._copy_files_to_target(upstream_snapshot, target, missing_from_target)
-
-            _warn_about_workflow_files(materialized)
-            _clean_orphaned_files(
+        if base_sha:
+            self._merge_with_base(
                 target,
-                materialized,
+                upstream_snapshot,
+                upstream_sha,
+                base_sha,
+                template=template,
                 excludes=excludes,
-                base_snapshot=base_snapshot,
-                previously_tracked_files=old_tracked_files if old_tracked_files else None,
+                lock=lock,
             )
-            _write_lock(target, lock)
-            logger.success(f"Sync complete — {len(materialized)} file(s) processed")
-        finally:
-            if base_snapshot.exists():
-                shutil.rmtree(base_snapshot)
+        else:
+            self._first_sync(upstream_snapshot, target, materialized)
+
+        self._restore_missing_files(upstream_snapshot, target, materialized)
+        _warn_about_workflow_files(materialized)
+        _clean_orphaned_files(
+            target,
+            materialized,
+            excludes=excludes,
+            previously_tracked_files=old_tracked_files if old_tracked_files else None,
+        )
+        _write_lock(target, lock)
+        logger.success(f"Sync complete — {len(materialized)} file(s) processed")
 
     def _merge_with_base(
         self,
@@ -497,51 +518,78 @@ class GitContext:
         upstream_snapshot: Path,
         upstream_sha: str,
         base_sha: str,
-        base_snapshot: Path,
-        template: "RhizaTemplate",
-        excludes: set[str],
-        lock: "TemplateLock",
+        base_snapshot: Path | None = None,
+        template: "RhizaTemplate | None" = None,
+        excludes: "set[str] | None" = None,
+        lock: "TemplateLock | None" = None,
     ) -> None:
         """Compute and apply the diff between base and upstream snapshots.
+
+        When *base_snapshot* is ``None`` (the default), a temporary directory is
+        created internally and cleaned up on return.  Callers may pass an
+        existing directory to reuse a pre-populated snapshot (e.g. in tests).
+
+        Note:
+            *template*, *excludes*, and *lock* are declared as optional only
+            because Python does not allow required positional parameters after
+            an optional one.  They must always be provided; omitting them raises
+            ``TypeError`` at runtime.
 
         Args:
             target: Path to the target repository.
             upstream_snapshot: Path to the upstream snapshot directory.
             upstream_sha: HEAD SHA of the upstream template.
             base_sha: Previously synced commit SHA.
-            base_snapshot: Directory to populate with the base snapshot.
+            base_snapshot: Optional directory to populate with the base snapshot.
+                Created and cleaned up internally when not provided.
             template: The :class:`~rhiza.models.RhizaTemplate` driving this sync.
-            excludes: Set of relative paths to exclude.
+                Must be provided.
+            excludes: Set of relative paths to exclude.  Must be provided.
             lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
+                Must be provided.
+
+        Raises:
+            TypeError: If *template* or *lock* is ``None``.
         """
+        if template is None:
+            raise TypeError("_merge_with_base requires a 'template' argument")  # noqa: TRY003
+        if lock is None:
+            raise TypeError("_merge_with_base requires a 'lock' argument")  # noqa: TRY003
         from rhiza.commands._sync_helpers import _write_lock
         from rhiza.models import RhizaTemplate
 
-        logger.info(f"Cloning base snapshot at {base_sha[:12]}")
-        base_clone = Path(tempfile.mkdtemp())
+        managed_base_snapshot = base_snapshot is None
+        if managed_base_snapshot:
+            base_snapshot = Path(tempfile.mkdtemp())
         try:
-            template._clone_at_sha(base_sha, base_clone, template.include, self)
-            RhizaTemplate._prepare_snapshot(base_clone, template.include, excludes, base_snapshot)
-        except Exception:
-            logger.warning("Could not checkout base commit — treating all files as new")
+            logger.info(f"Cloning base snapshot at {base_sha[:12]}")
+            base_clone = Path(tempfile.mkdtemp())
+            try:
+                template._clone_at_sha(base_sha, base_clone, template.include, self)
+                RhizaTemplate._prepare_snapshot(base_clone, template.include, excludes or set(), base_snapshot)
+            except Exception:
+                logger.warning("Could not checkout base commit — treating all files as new")
+            finally:
+                if base_clone.exists():
+                    shutil.rmtree(base_clone)
+
+            diff = self.get_diff(base_snapshot, upstream_snapshot)
+
+            if not diff.strip():
+                logger.success("Template unchanged since last sync — nothing to apply")
+                _write_lock(target, lock)
+                return
+
+            logger.info("Applying template changes via 3-way merge (cruft)...")
+            clean = self._apply_diff(diff, target, base_snapshot=base_snapshot, upstream_snapshot=upstream_snapshot)
+
+            if clean:
+                logger.success("All changes applied cleanly")
+            else:
+                logger.warning("Some changes had conflicts. Check for *.rej files and resolve manually.")
         finally:
-            if base_clone.exists():
-                shutil.rmtree(base_clone)
-
-        diff = self.get_diff(base_snapshot, upstream_snapshot)
-
-        if not diff.strip():
-            logger.success("Template unchanged since last sync — nothing to apply")
-            _write_lock(target, lock)
-            return
-
-        logger.info("Applying template changes via 3-way merge (cruft)...")
-        clean = self._apply_diff(diff, target, base_snapshot=base_snapshot, upstream_snapshot=upstream_snapshot)
-
-        if clean:
-            logger.success("All changes applied cleanly")
-        else:
-            logger.warning("Some changes had conflicts. Check for *.rej files and resolve manually.")
+            if managed_base_snapshot and base_snapshot.exists():
+                shutil.rmtree(base_snapshot)
 
 
 def _normalize_to_list(value: str | list[str] | None) -> list[str]:

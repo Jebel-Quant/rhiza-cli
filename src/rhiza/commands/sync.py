@@ -17,6 +17,7 @@ When no lock file exists (first sync), the command falls back to a simple
 copy and records the commit SHA.
 """
 
+import contextlib
 import datetime
 import shutil
 import tempfile
@@ -61,49 +62,43 @@ def sync(
     template = RhizaTemplate.from_project(target, branch)
 
     logger.info(f"Cloning {template.template_repository}@{template.template_branch} (upstream)")
-    upstream_dir, upstream_sha = template.clone(git_ctx, branch=branch)
 
-    # Synchronizes target with upstream template snapshot transactionally; cleans up resources
-    try:
+    with contextlib.ExitStack() as stack:
+        upstream_dir, upstream_sha = template.clone(git_ctx, branch=branch)
+        stack.callback(lambda: shutil.rmtree(upstream_dir) if upstream_dir.exists() else None)
+
         lock_path = target / ".rhiza" / "template.lock"
         base_sha = TemplateLock.from_yaml(lock_path).config["sha"] if lock_path.exists() else None
 
-        upstream_snapshot = Path(tempfile.mkdtemp())
-        try:
-            materialized, excludes = template.snapshot(upstream_dir, upstream_snapshot)
-            logger.info(f"Upstream: {len(materialized)} file(s) to consider")
-            lock = TemplateLock(
-                sha=upstream_sha,
-                repo=template.template_repository,
-                host=template.template_host,
-                ref=template.template_branch,
-                include=template.include,
-                exclude=template.exclude,
-                templates=template.templates,
-                files=[str(p) for p in materialized],
-                synced_at=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                strategy=strategy,
-            )
+        upstream_snapshot = Path(stack.enter_context(tempfile.TemporaryDirectory()))
+        materialized, excludes = template.snapshot(upstream_dir, upstream_snapshot)
+        logger.info(f"Upstream: {len(materialized)} file(s) to consider")
+        lock = TemplateLock(
+            sha=upstream_sha,
+            repo=template.template_repository,
+            host=template.template_host,
+            ref=template.template_branch,
+            include=template.include,
+            exclude=template.exclude,
+            templates=template.templates,
+            files=[str(p) for p in materialized],
+            synced_at=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            strategy=strategy,
+        )
 
-            if strategy == "diff":
-                git_ctx.sync_diff(
-                    target=target,
-                    upstream_snapshot=upstream_snapshot,
-                )
-            else:
-                git_ctx.sync_merge(
-                    target=target,
-                    upstream_snapshot=upstream_snapshot,
-                    upstream_sha=upstream_sha,
-                    base_sha=base_sha,
-                    materialized=materialized,
-                    template=template,
-                    excludes=excludes,
-                    lock=lock,
-                )
-        finally:
-            if upstream_snapshot.exists():
-                shutil.rmtree(upstream_snapshot)
-    finally:
-        if upstream_dir.exists():
-            shutil.rmtree(upstream_dir)
+        if strategy == "diff":
+            git_ctx.sync_diff(
+                target=target,
+                upstream_snapshot=upstream_snapshot,
+            )
+        else:
+            git_ctx.sync_merge(
+                target=target,
+                upstream_snapshot=upstream_snapshot,
+                upstream_sha=upstream_sha,
+                base_sha=base_sha,
+                materialized=materialized,
+                template=template,
+                excludes=excludes,
+                lock=lock,
+            )
