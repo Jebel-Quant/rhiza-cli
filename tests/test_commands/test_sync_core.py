@@ -6,6 +6,7 @@ Covers the five fundamental scenarios:
 3. Diff strategy       — no files modified, no lock written
 4. Subsequent merge    — lock SHA updated to new upstream SHA
 5. template.yml changed with same upstream SHA — re-sync triggered, files copied
+6. templates: mode — include: in lock contains original names, not resolved paths
 """
 
 from pathlib import Path
@@ -22,19 +23,38 @@ from rhiza.models import TemplateLock
 # ---------------------------------------------------------------------------
 
 
-def _setup_project(tmp_path: Path, include: list[str] | None = None) -> None:
-    """Create a minimal project with .git, pyproject.toml, and .rhiza/template.yml."""
-    (tmp_path / ".git").mkdir()
+def _write_template_yml(tmp_path: Path, config: dict) -> None:
+    """Write a template.yml config file to .rhiza/."""
+    (tmp_path / ".git").mkdir(exist_ok=True)
     (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\n')
     rhiza_dir = tmp_path / ".rhiza"
     rhiza_dir.mkdir(parents=True, exist_ok=True)
-    config = {
-        "template-repository": "jebel-quant/rhiza",
-        "template-branch": "main",
-        "include": include or ["test.txt"],
-    }
     with open(rhiza_dir / "template.yml", "w") as f:
         yaml.dump(config, f)
+
+
+def _setup_project(tmp_path: Path, include: list[str] | None = None) -> None:
+    """Create a minimal project with .git, pyproject.toml, and .rhiza/template.yml."""
+    _write_template_yml(
+        tmp_path,
+        {
+            "template-repository": "jebel-quant/rhiza",
+            "template-branch": "main",
+            "include": include or ["test.txt"],
+        },
+    )
+
+
+def _setup_project_with_templates(tmp_path: Path, templates: list[str]) -> None:
+    """Create a minimal project using templates: mode (bundle names, no include:)."""
+    _write_template_yml(
+        tmp_path,
+        {
+            "template-repository": "jebel-quant/rhiza",
+            "template-branch": "main",
+            "templates": templates,
+        },
+    )
 
 
 def _make_clone_dir(tmp_path: Path, name: str, files: dict[str, str]) -> Path:
@@ -119,3 +139,47 @@ class TestSyncCore:
         sync(tmp_path, "main", None, "merge")
 
         assert TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock").config["sha"] == "new222"
+
+    @patch("rhiza.commands.sync.shutil.rmtree")
+    @patch("rhiza.models.RhizaTemplate._update_sparse_checkout")
+    @patch("rhiza.models.RhizaBundles.from_clone")
+    @patch("rhiza.models.RhizaTemplate._clone_template_repository")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
+    @patch("rhiza.models.RhizaTemplate._get_head_sha")
+    def test_templates_mode_lock_include_contains_original_not_resolved(
+        self,
+        mock_sha,
+        mock_mkdtemp,
+        mock_clone,
+        mock_from_clone,
+        mock_update_sparse,
+        mock_rmtree,
+        tmp_path,
+    ):
+        """When templates: mode is used, include: in lock contains original bundle names, not resolved paths."""
+        _setup_project_with_templates(tmp_path, templates=["core"])
+        mock_sha.return_value = "abc123"
+
+        # Simulate bundle resolution: "core" resolves to ["Makefile", "pyproject.toml"]
+        from rhiza.models.bundle import RhizaBundles
+
+        mock_from_clone.return_value = RhizaBundles.from_config(
+            {"bundles": {"core": {"description": "Core", "files": ["Makefile", "pyproject.toml"]}}}
+        )
+
+        clone_dir = _make_clone_dir(tmp_path, "upstream_clone", {"Makefile": "all:\n\techo ok\n"})
+        snapshot_dir = _make_clone_dir(tmp_path, "upstream_snapshot", {})
+        base_snapshot_dir = _make_clone_dir(tmp_path, "base_snapshot", {})
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir)]
+
+        sync(tmp_path, "main", None, "merge")
+
+        lock = TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock")
+        # include: must be the original value from template.yml — empty because
+        # _setup_project_with_templates writes only templates:, no include: field.
+        # clone() resolves "core" to ["Makefile", "pyproject.toml"] and would mutate
+        # template.include; those resolved paths must NOT appear here.
+        assert lock.include == []
+        # The resolved file paths should appear in files: (materialized from snapshot)
+        assert "Makefile" in lock.files

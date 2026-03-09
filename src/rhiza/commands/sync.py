@@ -60,6 +60,9 @@ def sync(
 
     template = RhizaTemplate.from_project(target, branch)
 
+    # Capture original include before clone() mutates it when templates: mode is used
+    original_include = list(template.include)
+
     logger.info(f"Cloning {template.template_repository}@{template.template_branch} (upstream)")
     upstream_dir, upstream_sha = template.clone(git_ctx, branch=branch)
 
@@ -77,7 +80,7 @@ def sync(
                 repo=template.template_repository,
                 host=template.template_host,
                 ref=template.template_branch,
-                include=template.include,
+                include=original_include,
                 exclude=template.exclude,
                 templates=template.templates,
                 files=[str(p) for p in materialized],
