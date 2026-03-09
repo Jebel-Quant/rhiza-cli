@@ -609,9 +609,11 @@ class TestFromProject:
 
     def test_missing_template_branch_uses_fallback(self, tmp_path):
         """template_branch is set from the branch argument when not in template.yml."""
-        _write_template_yml(tmp_path, {"template-repository": "owner/repo", "include": ["Makefile"]})
+        _write_template_yml(
+            tmp_path, {"template-repository": "owner/repo", "template-branch": "develop", "include": ["Makefile"]}
+        )
         with patch("rhiza.commands.validate.validate", return_value=True):
-            template = RhizaTemplate.from_project(tmp_path, branch="develop")
+            template = RhizaTemplate.from_project(tmp_path)
         assert template.template_branch == "develop"
 
     def test_no_include_or_templates_raises(self, tmp_path):

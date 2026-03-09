@@ -6,7 +6,7 @@ import subprocess  # nosec B404
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
@@ -544,7 +544,7 @@ class GitContext:
             logger.warning("Some changes had conflicts. Check for *.rej files and resolve manually.")
 
 
-def _normalize_to_list(value: str | list[str] | None) -> list[str]:
+def _normalize_to_list(value: Any | list[Any] | None) -> list[Any]:
     r"""Convert a value to a list of strings.
 
     Handles the case where YAML multi-line strings (using |) are parsed as

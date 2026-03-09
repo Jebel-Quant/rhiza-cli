@@ -22,11 +22,11 @@ class BundleDefinition:
 
     name: str
     description: str
-    files: list[str] = field(default_factory=list)
+    files: list[Path] = field(default_factory=list)
     workflows: list[str] = field(default_factory=list)
     depends_on: list[str] = field(default_factory=list)
 
-    def all_paths(self) -> list[str]:
+    def all_paths(self) -> list[Path]:
         """Return combined files and workflows."""
         return self.files + self.workflows
 
@@ -149,7 +149,7 @@ class RhizaBundles(YamlSerializable):
 
         return resolved
 
-    def resolve_to_paths(self, bundle_names: list[str]) -> list[str]:
+    def resolve_to_paths(self, bundle_names: list[str]) -> list[Path]:
         """Convert bundle names to deduplicated file paths.
 
         Args:
@@ -162,8 +162,8 @@ class RhizaBundles(YamlSerializable):
             ValueError: If a bundle doesn't exist or circular dependency detected.
         """
         resolved_bundles = self.resolve_dependencies(bundle_names)
-        paths: list[str] = []
-        seen: set[str] = set()
+        paths: list[Path] = []
+        seen: set[Path] = set()
 
         for bundle_name in resolved_bundles:
             bundle = self.bundles[bundle_name]
