@@ -30,6 +30,19 @@ from rhiza.models._git_utils import _excluded_set, _prepare_snapshot
 __all__ = ["sync"]
 
 
+def _log_list(header: str, items: list[str]) -> None:
+    """Log a labelled list of items, if non-empty.
+
+    Args:
+        header: Label printed before the list.
+        items: Items to log; nothing is printed when the list is empty.
+    """
+    if items:
+        logger.info(f"{header}:")
+        for item in items:
+            logger.info(f"  - {item}")
+
+
 def _load_template_from_project(target: Path) -> RhizaTemplate:
     """Validate and load a :class:`RhizaTemplate` from a project directory.
 
@@ -67,20 +80,9 @@ def _load_template_from_project(target: Path) -> RhizaTemplate:
         logger.error("Add either 'templates' or 'include' list in template.yml")
         raise RuntimeError("No templates or include paths found in template.yml")  # noqa: TRY003
 
-    if template.templates:
-        logger.info("Templates:")
-        for t in template.templates:
-            logger.info(f"  - {t}")
-
-    if template.include:
-        logger.info("Include paths:")
-        for p in template.include:
-            logger.info(f"  - {p}")
-
-    if template.exclude:
-        logger.info("Exclude paths:")
-        for p in template.exclude:
-            logger.info(f"  - {p}")
+    _log_list("Templates", template.templates)
+    _log_list("Include paths", template.include)
+    _log_list("Exclude paths", template.exclude)
 
     return template
 

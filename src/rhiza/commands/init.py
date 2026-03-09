@@ -51,13 +51,13 @@ def _validate_git_host(git_host: str | None) -> GitHost | None:
     Raises:
         ValueError: If git_host is invalid.
     """
-    if git_host is not None:
-        git_host = git_host.lower()
-        if git_host not in GitHost._value2member_map_:
-            logger.error(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")
-            raise ValueError(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")  # noqa: TRY003
-        return GitHost(git_host)
-    return None
+    if git_host is None:
+        return None
+    try:
+        return GitHost(git_host.lower())
+    except ValueError:
+        logger.error(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")
+        raise ValueError(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'") from None  # noqa: TRY003
 
 
 def _check_template_repository_reachable(template_repository: str, git_host: GitHost | str = GitHost.GITHUB) -> bool:

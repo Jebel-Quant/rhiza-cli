@@ -11,9 +11,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from rhiza.models import TemplateLock
-
-LOCK_FILE = ".rhiza/template.lock"
+from rhiza.commands._sync_helpers import _load_lock_or_warn
 
 
 def _build_tree(paths: list[str]) -> dict:
@@ -66,12 +64,9 @@ def tree(target: Path) -> None:
     Args:
         target: Path to the target repository root.
     """
-    lock_path = (target / LOCK_FILE).resolve()
-    if not lock_path.exists():
-        logger.warning("No template.lock found — run `rhiza sync` first")
+    lock = _load_lock_or_warn(target)
+    if lock is None:
         return
-
-    lock = TemplateLock.from_yaml(lock_path)
 
     if not lock.files:
         logger.info("No files are tracked in template.lock")
