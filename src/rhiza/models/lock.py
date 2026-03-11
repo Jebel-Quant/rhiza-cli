@@ -4,27 +4,56 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from rhiza.models._base import YamlSerializable
 from rhiza.models._git_utils import _normalize_to_list
 from rhiza.models.template import GitHost
 
 
+class _LockDumper(yaml.Dumper):
+    """Custom YAML dumper for ``template.lock``.
+
+    Represents ``None`` leaf values as bare empty scalars so that file nodes
+    in the ``files`` tree are written without any trailing value:
+
+    .. code-block:: yaml
+
+        files:
+          .github:
+            workflows:
+              ci.yml:
+          Makefile:
+
+    rather than ``ci.yml: {}`` or ``ci.yml: null``.
+    """
+
+
+_LockDumper.add_representer(
+    type(None),
+    lambda dumper, _: dumper.represent_scalar("tag:yaml.org,2002:null", ""),
+)
+
+
 def _build_tree(paths: list[str]) -> dict:
-    """Build a nested dict representing the directory tree (used for display only).
+    """Build a nested dict representing the directory tree.
 
     Args:
         paths: List of file path strings.
 
     Returns:
-        A nested dictionary where keys are path components and leaf nodes
-        are empty dicts ``{}``.
+        A nested dictionary where keys are path components.  Directory nodes
+        are non-empty dicts; file (leaf) nodes have the value ``None``.
     """
     root: dict = {}
     for path in sorted(paths):
         parts = Path(path).parts
         node = root
-        for part in parts:
-            node = node.setdefault(part, {})
+        for i, part in enumerate(parts):
+            if i == len(parts) - 1:
+                node[part] = None  # file leaf
+            else:
+                node = node.setdefault(part, {})
     return root
 
 
@@ -32,7 +61,7 @@ def _flatten_tree(tree: dict, prefix: str = "") -> list[str]:
     """Flatten a nested tree dict back to a sorted, deduplicated list of file paths.
 
     A node is treated as a **directory** when its value is a non-empty dict;
-    everything else (``{}``, ``None``, a string, …) is treated as a **file**
+    everything else (``None``, ``{}``, a string, …) is treated as a **file**
     leaf.  This makes loading backward-compatible with any leaf value that
     may have been written by an older version.
 
@@ -66,7 +95,8 @@ class TemplateLock(YamlSerializable):
         exclude: List of paths excluded from the template.
         templates: List of template bundle names.
         files: List of file paths that were synced.  Persisted in
-            ``template.lock`` as a sorted flat list under the ``files:`` key.
+            ``template.lock`` as a nested directory tree under the
+            ``files:`` key; see :func:`_build_tree` and :func:`_flatten_tree`.
         synced_at: ISO 8601 UTC timestamp of when the sync was performed.
         strategy: The sync strategy used (e.g., "merge", "diff", "materialize").
     """
@@ -90,9 +120,9 @@ class TemplateLock(YamlSerializable):
     def from_config(cls, config: dict[str, Any]) -> "TemplateLock":
         """Create a TemplateLock instance from a configuration dictionary.
 
-        ``files`` may be stored as a flat list (current format) or as a nested
-        tree dict (legacy format from an older version).  Both are accepted so
-        that old lock files continue to load correctly.
+        ``files`` may be stored as a nested tree dict (current format) or as a
+        flat list (legacy format).  Both are accepted so that old lock files
+        continue to load correctly.
 
         Args:
             config: Dictionary containing lock configuration.
@@ -120,7 +150,8 @@ class TemplateLock(YamlSerializable):
     def config(self) -> dict[str, Any]:
         """Return the lock's current state as a configuration dictionary.
 
-        ``files`` is serialised as a sorted flat list.
+        ``files`` is serialised as a nested directory tree dict so that
+        ``template.lock`` is human-readable and self-describing.
         """
         config: dict[str, Any] = {
             "sha": self.sha,
@@ -130,10 +161,25 @@ class TemplateLock(YamlSerializable):
             "include": self.include,
             "exclude": self.exclude,
             "templates": self.templates,
-            "files": self.files,
+            "files": _build_tree(self.files),
         }
         if self.synced_at:
             config["synced_at"] = self.synced_at
         if self.strategy:
             config["strategy"] = self.strategy
         return config
+
+    def to_yaml(self, file_path: Path) -> None:
+        """Save the lock to a YAML file using :class:`_LockDumper`.
+
+        File leaf nodes in the ``files`` tree are written as bare keys with no
+        trailing value (e.g. ``Makefile:`` rather than ``Makefile: {}`` or
+        ``Makefile: null``).
+
+        Args:
+            file_path: Destination path.  Parent directories are created
+                automatically if they do not exist.
+        """
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(file_path, "w", encoding="utf-8") as f:
+            yaml.dump(self.config, f, Dumper=_LockDumper, default_flow_style=False, sort_keys=False)

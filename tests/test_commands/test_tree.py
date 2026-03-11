@@ -19,17 +19,17 @@ class TestBuildTree:
     def test_single_file_at_root(self):
         """Single root-level file produces a flat dict."""
         result = _build_tree(["Makefile"])
-        assert result == {"Makefile": {}}
+        assert result == {"Makefile": None}
 
     def test_nested_file(self):
         """Deeply nested path produces a nested dict."""
         result = _build_tree([".github/workflows/ci.yml"])
-        assert result == {".github": {"workflows": {"ci.yml": {}}}}
+        assert result == {".github": {"workflows": {"ci.yml": None}}}
 
     def test_multiple_files_same_dir(self):
         """Multiple files under the same directory share the parent node."""
         result = _build_tree(["src/a.py", "src/b.py"])
-        assert result == {"src": {"a.py": {}, "b.py": {}}}
+        assert result == {"src": {"a.py": None, "b.py": None}}
 
     def test_mixed_depth(self):
         """Files at different depths are all represented in the tree."""
