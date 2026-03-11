@@ -20,6 +20,8 @@ from rhiza.models.lock import _build_tree
 def _count_directories(tree: dict) -> int:
     """Count nodes with non-empty children (i.e. directories) in a tree.
 
+    A node is counted as a directory only when its value is a non-empty dict.
+
     Args:
         tree: Nested dict as returned by _build_tree.
 
@@ -28,7 +30,7 @@ def _count_directories(tree: dict) -> int:
     """
     count = 0
     for subtree in tree.values():
-        if subtree:
+        if isinstance(subtree, dict) and subtree:
             count += 1 + _count_directories(subtree)
     return count
 
@@ -36,13 +38,16 @@ def _count_directories(tree: dict) -> int:
 def _populate_rich_tree(node: RichTree, subtree: dict) -> None:
     """Recursively populate a Rich Tree node from a nested dict.
 
+    A node is treated as a directory (and recursed into) only when its value
+    is a non-empty dict; any other value marks it as a file leaf.
+
     Args:
         node: The parent Rich Tree node to add children to.
         subtree: Nested dict as returned by _build_tree.
     """
     for name, children in subtree.items():
         child = node.add(name)
-        if children:
+        if isinstance(children, dict) and children:
             _populate_rich_tree(child, children)
 
 

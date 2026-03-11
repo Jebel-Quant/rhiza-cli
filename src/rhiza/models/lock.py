@@ -17,7 +17,7 @@ def _build_tree(paths: list[str]) -> dict:
 
     Returns:
         A nested dictionary where keys are path components and leaf nodes
-        are empty dicts.
+        are empty dicts ``{}``.
     """
     root: dict = {}
     for path in sorted(paths):
@@ -31,6 +31,11 @@ def _build_tree(paths: list[str]) -> dict:
 def _flatten_tree(tree: dict, prefix: str = "") -> list[str]:
     """Flatten a nested tree dict back to a sorted, deduplicated list of file paths.
 
+    A node is treated as a **directory** when its value is a non-empty dict;
+    everything else (``{}``, ``None``, a string, …) is treated as a **file**
+    leaf.  This means the leaf value in ``template.lock`` can be anything —
+    only the key structure matters.
+
     Args:
         tree: Nested dict as returned by _build_tree.
         prefix: Path prefix accumulated during recursion.
@@ -43,7 +48,7 @@ def _flatten_tree(tree: dict, prefix: str = "") -> list[str]:
         # Use Path joining so that separator handling is correct even for
         # paths that start with '/' (e.g. the '/' root node on POSIX).
         full = str(Path(prefix) / name) if prefix else name
-        if children:
+        if isinstance(children, dict) and children:
             paths.extend(_flatten_tree(children, full))
         else:
             paths.append(full)
