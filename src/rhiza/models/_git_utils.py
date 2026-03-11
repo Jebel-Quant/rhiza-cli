@@ -168,9 +168,22 @@ class GitContext:
         """
         diff = self.get_diff(target, upstream_snapshot)
         if diff.strip():
-            logger.info(f"\n{diff}")
-            changes = diff.count("diff --git")
-            logger.info(f"{changes} file(s) would be changed")
+            file_entries = self._parse_diff_filenames(diff)
+            added = 0
+            modified = 0
+            deleted = 0
+            for rel_path, is_new, is_deleted in file_entries:
+                if is_new:
+                    logger.info(f"[ADD]    {rel_path}")
+                    added += 1
+                elif is_deleted:
+                    logger.info(f"[DELETE] {rel_path}")
+                    deleted += 1
+                else:
+                    logger.info(f"[MODIFY] {rel_path}")
+                    modified += 1
+            total = len(file_entries)
+            logger.info(f"{total} file(s) would be changed ({added} added, {modified} modified, {deleted} deleted)")
         else:
             logger.success("No differences found")
 

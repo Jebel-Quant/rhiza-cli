@@ -1918,3 +1918,77 @@ class TestApplyDiffBlobFallback:
 
 
 # ---------------------------------------------------------------------------
+
+
+class TestSyncDiffOutput:
+    """Tests for the structured per-file output of sync_diff."""
+
+    def test_sync_diff_logs_added_file(self, tmp_path, git_ctx, log_sink):
+        """sync_diff logs [ADD] for new files."""
+        target = tmp_path / "target"
+        target.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+
+        # upstream has a file that target does not → new file
+        (upstream / "new_file.txt").write_text("brand new\n")
+
+        git_ctx.sync_diff(target, upstream)
+
+        output = "\n".join(log_sink)
+        assert "[ADD]" in output
+        assert "new_file.txt" in output
+        assert "added" in output
+
+    def test_sync_diff_logs_deleted_file(self, tmp_path, git_ctx, log_sink):
+        """sync_diff logs [DELETE] for removed files."""
+        target = tmp_path / "target"
+        target.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+
+        # target has a file that upstream does not → deleted file
+        (target / "old_file.txt").write_text("will be gone\n")
+
+        git_ctx.sync_diff(target, upstream)
+
+        output = "\n".join(log_sink)
+        assert "[DELETE]" in output
+        assert "old_file.txt" in output
+        assert "deleted" in output
+
+    def test_sync_diff_logs_modified_file(self, tmp_path, git_ctx, log_sink):
+        """sync_diff logs [MODIFY] for changed files."""
+        target = tmp_path / "target"
+        target.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+
+        (target / "changed.txt").write_text("old content\n")
+        (upstream / "changed.txt").write_text("new content\n")
+
+        git_ctx.sync_diff(target, upstream)
+
+        output = "\n".join(log_sink)
+        assert "[MODIFY]" in output
+        assert "changed.txt" in output
+        assert "modified" in output
+
+    def test_sync_diff_summary_line(self, tmp_path, git_ctx, log_sink):
+        """sync_diff emits a summary line with counts."""
+        target = tmp_path / "target"
+        target.mkdir()
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+
+        (upstream / "new.txt").write_text("new\n")
+        (target / "changed.txt").write_text("old\n")
+        (upstream / "changed.txt").write_text("new\n")
+
+        git_ctx.sync_diff(target, upstream)
+
+        output = "\n".join(log_sink)
+        assert "file(s) would be changed" in output
+        assert "added" in output
+        assert "modified" in output
+        assert "deleted" in output

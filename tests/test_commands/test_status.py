@@ -47,6 +47,7 @@ class TestStatusCommand:
             "templates": [],
             "synced_at": "2025-01-01T00:00:00Z",
             "strategy": "merge",
+            "files": ["ci/test.yml", "docs/index.md"],
         }
         lock_file.write_text(yaml.dump(lock_data))
 
@@ -59,6 +60,7 @@ class TestStatusCommand:
         assert "2025-01-01T00:00:00Z" in output
         assert "merge" in output
         assert "ci/" in output
+        assert "2" in output  # file count
 
     def test_status_shows_templates_when_present(self, tmp_path, log_sink):
         """Test that status shows templates list when templates field is populated."""

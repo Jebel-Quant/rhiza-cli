@@ -9,7 +9,7 @@ import yaml
 from typer.testing import CliRunner
 
 from rhiza.cli import app
-from rhiza.commands.tree import _build_tree, _render_tree, tree
+from rhiza.commands.tree import _build_tree, _count_directories, _render_tree, tree
 
 
 class TestBuildTree:
@@ -103,7 +103,9 @@ class TestTreeCommand:
         assert ".rhiza" in output
         assert "template.yml" in output
         assert "Makefile" in output
-        assert "3 files managed by Rhiza" in output
+        assert "3 files" in output
+        assert "managed by Rhiza" in output
+        assert "owner/repo" in output
 
     def test_no_output_when_files_list_empty(self, tmp_path, capsys):
         """Lock file with no files → info message, no tree."""
@@ -134,7 +136,8 @@ class TestTreeCommand:
         tree(tmp_path)
 
         captured = capsys.readouterr()
-        assert "1 file managed by Rhiza" in captured.out
+        assert "1 file," in captured.out
+        assert "managed by Rhiza" in captured.out
         assert "1 files" not in captured.out
 
 
@@ -179,3 +182,86 @@ class TestTreeCommandCli:
         with patch("rhiza.cli.tree_cmd", side_effect=RuntimeError("boom")):
             result = self.runner.invoke(app, ["tree", str(tmp_path)])
         assert result.exit_code == 1
+
+
+class TestCountDirectories:
+    """Unit tests for the _count_directories helper."""
+
+    def test_no_directories(self):
+        """Flat list of root-level files has zero directories."""
+        node = {"Makefile": {}, "README.md": {}}
+        assert _count_directories(node) == 0
+
+    def test_single_directory(self):
+        """One directory containing a file counts as one directory."""
+        node = {"src": {"main.py": {}}}
+        assert _count_directories(node) == 1
+
+    def test_nested_directories(self):
+        """Deeply nested paths count each directory node separately."""
+        node = {".github": {"workflows": {"ci.yml": {}}}}
+        # .github and workflows are both directories
+        assert _count_directories(node) == 2
+
+    def test_mixed_files_and_dirs(self):
+        """Mix of root files and directories counts only directories."""
+        node = {
+            "Makefile": {},
+            ".github": {"workflows": {"ci.yml": {}}},
+            ".rhiza": {"template.yml": {}},
+        }
+        # .github, workflows, .rhiza
+        assert _count_directories(node) == 3
+
+
+class TestTreeHeaderAndFooter:
+    """Tests that the tree command outputs the header and updated footer."""
+
+    def test_displays_header_with_repo_and_sha(self, tmp_path, capsys):
+        """Tree output starts with a header containing repo and truncated sha."""
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        lock_data = {
+            "sha": "abc123def456",
+            "repo": "owner/repo",
+            "host": "github",
+            "ref": "main",
+            "include": [],
+            "exclude": [],
+            "templates": [],
+            "files": ["Makefile"],
+        }
+        (rhiza_dir / "template.lock").write_text(yaml.dump(lock_data))
+
+        tree(tmp_path)
+
+        output = capsys.readouterr().out
+        assert "owner/repo" in output
+        assert "abc123def456" in output
+
+    def test_displays_directory_count(self, tmp_path, capsys):
+        """Footer includes directory count alongside file count."""
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        lock_data = {
+            "sha": "abc123",
+            "repo": "owner/repo",
+            "host": "github",
+            "ref": "main",
+            "include": [],
+            "exclude": [],
+            "templates": [],
+            "files": [
+                ".github/workflows/ci.yml",
+                ".rhiza/template.yml",
+                "Makefile",
+            ],
+        }
+        (rhiza_dir / "template.lock").write_text(yaml.dump(lock_data))
+
+        tree(tmp_path)
+
+        output = capsys.readouterr().out
+        assert "3 files" in output
+        assert "directories" in output
+        assert "managed by Rhiza" in output

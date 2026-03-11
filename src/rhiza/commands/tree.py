@@ -14,6 +14,22 @@ from loguru import logger
 from rhiza.commands._sync_helpers import _load_lock_or_warn
 
 
+def _count_directories(tree: dict) -> int:
+    """Count nodes with non-empty children (i.e. directories) in a tree.
+
+    Args:
+        tree: Nested dict as returned by _build_tree.
+
+    Returns:
+        Integer count of directory nodes (nodes that have children).
+    """
+    count = 0
+    for subtree in tree.values():
+        if subtree:
+            count += 1 + _count_directories(subtree)
+    return count
+
+
 def _build_tree(paths: list[str]) -> dict:
     """Build a nested dict representing the directory tree.
 
@@ -72,12 +88,20 @@ def tree(target: Path) -> None:
         logger.info("No files are tracked in template.lock")
         return
 
-    tree = _build_tree(lock.files)
-    lines = _render_tree(tree)
+    header = f"{lock.repo} @ {lock.sha[:12]}"
+    if lock.ref:
+        header = f"{header} ({lock.ref})"
+    print(header)
+    print()
+
+    built_tree = _build_tree(lock.files)
+    lines = _render_tree(built_tree)
 
     print(".")
     for line in lines:
         print(line)
 
     file_count = len(lock.files)
-    print(f"\n{file_count} file{'s' if file_count != 1 else ''} managed by Rhiza")
+    dir_count = _count_directories(built_tree)
+    dir_label = "director" + ("ies" if dir_count != 1 else "y")
+    print(f"\n{file_count} file{'s' if file_count != 1 else ''}, {dir_count} {dir_label} managed by Rhiza")

@@ -11,6 +11,7 @@ Security Notes:
 import subprocess
 
 import pytest
+from loguru import logger
 
 from rhiza.models import GitContext
 
@@ -39,3 +40,12 @@ def git_project(tmp_path, git_ctx):
     ]:
         subprocess.run(cmd, cwd=project, check=True, capture_output=True, env=git_ctx.env)  # nosec B603
     return project
+
+
+@pytest.fixture
+def log_sink():
+    """Capture loguru output into a list for assertions."""
+    messages: list[str] = []
+    handler_id = logger.add(lambda msg: messages.append(msg), format="{message}", colorize=False)
+    yield messages
+    logger.remove(handler_id)

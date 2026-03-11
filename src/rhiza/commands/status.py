@@ -32,3 +32,5 @@ def status(target: Path) -> None:
         logger.info(f"Templates  : {', '.join(lock.templates)}")
     elif lock.include:
         logger.info(f"Include    : {', '.join(lock.include)}")
+    logger.info("---")
+    logger.info(f"Files      : {len(lock.files)}")
