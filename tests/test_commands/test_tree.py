@@ -9,7 +9,7 @@ import yaml
 from typer.testing import CliRunner
 
 from rhiza.cli import app
-from rhiza.commands.tree import _build_tree, _count_directories, _render_tree, tree
+from rhiza.commands.tree import _build_tree, _count_directories, tree
 
 
 class TestBuildTree:
@@ -35,31 +35,6 @@ class TestBuildTree:
         result = _build_tree(["Makefile", ".github/workflows/ci.yml"])
         assert ".github" in result
         assert "Makefile" in result
-
-
-class TestRenderTree:
-    """Unit tests for the _render_tree helper."""
-
-    def test_single_entry(self):
-        """A single entry uses the last-child connector."""
-        node = {"Makefile": {}}
-        lines = _render_tree(node)
-        assert lines == ["└── Makefile"]
-
-    def test_two_entries(self):
-        """First of two entries uses the branch connector."""
-        node = {"a.txt": {}, "b.txt": {}}
-        lines = _render_tree(node)
-        assert lines[0].startswith("├── ")
-        assert lines[1].startswith("└── ")
-
-    def test_nested_entries(self):
-        """Nested entries are indented under their parent."""
-        node = {".github": {"workflows": {"ci.yml": {}}}}
-        lines = _render_tree(node)
-        assert ".github" in lines[0]
-        assert "workflows" in lines[1]
-        assert "ci.yml" in lines[2]
 
 
 class TestTreeCommand:

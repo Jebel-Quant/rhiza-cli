@@ -10,6 +10,8 @@ the managed files in a tree-style view.
 from pathlib import Path
 
 from loguru import logger
+from rich.console import Console
+from rich.tree import Tree as RichTree
 
 from rhiza.commands._sync_helpers import _load_lock_or_warn
 
@@ -49,26 +51,17 @@ def _build_tree(paths: list[str]) -> dict:
     return root
 
 
-def _render_tree(tree: dict, prefix: str = "") -> list[str]:
-    """Render a nested directory tree as lines of text.
+def _populate_rich_tree(node: RichTree, subtree: dict) -> None:
+    """Recursively populate a Rich Tree node from a nested dict.
 
     Args:
-        tree: Nested dict as returned by _build_tree.
-        prefix: The current indentation prefix.
-
-    Returns:
-        List of formatted strings for display.
+        node: The parent Rich Tree node to add children to.
+        subtree: Nested dict as returned by _build_tree.
     """
-    lines: list[str] = []
-    entries = list(tree.items())
-    for index, (name, subtree) in enumerate(entries):
-        is_last = index == len(entries) - 1
-        connector = "└── " if is_last else "├── "
-        lines.append(f"{prefix}{connector}{name}")
-        if subtree:
-            extension = "    " if is_last else "│   "
-            lines.extend(_render_tree(subtree, prefix + extension))
-    return lines
+    for name, children in subtree.items():
+        child = node.add(name)
+        if children:
+            _populate_rich_tree(child, children)
 
 
 def tree(target: Path) -> None:
@@ -91,17 +84,19 @@ def tree(target: Path) -> None:
     header = f"{lock.repo} @ {lock.sha[:12]}"
     if lock.ref:
         header = f"{header} ({lock.ref})"
-    print(header)
-    print()
 
     built_tree = _build_tree(lock.files)
-    lines = _render_tree(built_tree)
-
-    print(".")
-    for line in lines:
-        print(line)
-
     file_count = len(lock.files)
     dir_count = _count_directories(built_tree)
     dir_label = "director" + ("ies" if dir_count != 1 else "y")
-    print(f"\n{file_count} file{'s' if file_count != 1 else ''}, {dir_count} {dir_label} managed by Rhiza")
+    footer = f"{file_count} file{'s' if file_count != 1 else ''}, {dir_count} {dir_label} managed by Rhiza"
+
+    console = Console()
+    console.print(header)
+    console.print()
+
+    rich_tree = RichTree(".")
+    _populate_rich_tree(rich_tree, built_tree)
+    console.print(rich_tree)
+    console.print()
+    console.print(footer)
