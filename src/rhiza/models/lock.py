@@ -10,7 +10,7 @@ from rhiza.models.template import GitHost
 
 
 def _build_tree(paths: list[str]) -> dict:
-    """Build a nested dict representing the directory tree.
+    """Build a nested dict representing the directory tree (used for display only).
 
     Args:
         paths: List of file path strings.
@@ -33,8 +33,8 @@ def _flatten_tree(tree: dict, prefix: str = "") -> list[str]:
 
     A node is treated as a **directory** when its value is a non-empty dict;
     everything else (``{}``, ``None``, a string, …) is treated as a **file**
-    leaf.  This means the leaf value in ``template.lock`` can be anything —
-    only the key structure matters.
+    leaf.  This makes loading backward-compatible with any leaf value that
+    may have been written by an older version.
 
     Args:
         tree: Nested dict as returned by _build_tree.
@@ -45,16 +45,11 @@ def _flatten_tree(tree: dict, prefix: str = "") -> list[str]:
     """
     paths: list[str] = []
     for name, children in tree.items():
-        # Use Path joining so that separator handling is correct even for
-        # paths that start with '/' (e.g. the '/' root node on POSIX).
         full = str(Path(prefix) / name) if prefix else name
         if isinstance(children, dict) and children:
             paths.extend(_flatten_tree(children, full))
         else:
             paths.append(full)
-    # Sort and deduplicate only at the top-level call to avoid redundant work
-    # on intermediate results.  Sorting at every recursion level is O(n log n)
-    # per level; a single sort at the end is O(N log N) total.
     return sorted(set(paths)) if not prefix else paths
 
 
@@ -71,8 +66,7 @@ class TemplateLock(YamlSerializable):
         exclude: List of paths excluded from the template.
         templates: List of template bundle names.
         files: List of file paths that were synced.  Persisted in
-            ``template.lock`` as a nested directory tree under the
-            ``files:`` key; see :func:`_build_tree` and :func:`_flatten_tree`.
+            ``template.lock`` as a sorted flat list under the ``files:`` key.
         synced_at: ISO 8601 UTC timestamp of when the sync was performed.
         strategy: The sync strategy used (e.g., "merge", "diff", "materialize").
     """
@@ -89,20 +83,16 @@ class TemplateLock(YamlSerializable):
     strategy: str = ""
 
     def __post_init__(self) -> None:
-        """Normalise ``files`` to a deduplicated, sorted list on construction.
-
-        Duplicates are silently dropped by :func:`_build_tree`, so removing
-        them here keeps the round-trip through the tree serialisation lossless.
-        """
+        """Normalise ``files`` to a deduplicated, sorted list on construction."""
         object.__setattr__(self, "files", sorted(set(self.files)))
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> "TemplateLock":
         """Create a TemplateLock instance from a configuration dictionary.
 
-        ``files`` may be stored as a nested tree dict (current format) or as a
-        flat list (legacy format written before this field was a tree).  Both
-        are accepted so that old lock files continue to load correctly.
+        ``files`` may be stored as a flat list (current format) or as a nested
+        tree dict (legacy format from an older version).  Both are accepted so
+        that old lock files continue to load correctly.
 
         Args:
             config: Dictionary containing lock configuration.
@@ -130,8 +120,7 @@ class TemplateLock(YamlSerializable):
     def config(self) -> dict[str, Any]:
         """Return the lock's current state as a configuration dictionary.
 
-        ``files`` is serialised as a nested directory tree dict so that
-        ``template.lock`` is human-readable and self-describing.
+        ``files`` is serialised as a sorted flat list.
         """
         config: dict[str, Any] = {
             "sha": self.sha,
@@ -141,7 +130,7 @@ class TemplateLock(YamlSerializable):
             "include": self.include,
             "exclude": self.exclude,
             "templates": self.templates,
-            "files": _build_tree(self.files),
+            "files": self.files,
         }
         if self.synced_at:
             config["synced_at"] = self.synced_at
