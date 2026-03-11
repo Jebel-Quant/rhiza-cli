@@ -9,7 +9,8 @@ import yaml
 from typer.testing import CliRunner
 
 from rhiza.cli import app
-from rhiza.commands.tree import _build_tree, _count_directories, tree
+from rhiza.commands.tree import _count_directories, tree
+from rhiza.models.lock import _build_tree
 
 
 class TestBuildTree:

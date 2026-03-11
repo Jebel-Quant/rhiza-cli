@@ -116,7 +116,7 @@ class TestLockFile:
         assert data["include"] == [".github/", ".rhiza/"]
         assert data["exclude"] == []
         assert data["templates"] == []
-        assert data["files"] == ["Makefile"]
+        assert data["files"] == {"Makefile": {}}
 
     def test_write_lock_filters_missing_files(self, tmp_path):
         """Files listed in the lock that don't exist in target are excluded."""
@@ -129,7 +129,7 @@ class TestLockFile:
         _write_lock(tmp_path, lock)
         lock_path = tmp_path / ".rhiza" / "template.lock"
         data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
-        assert data["files"] == ["exists.txt"]
+        assert data["files"] == {"exists.txt": {}}
 
     def test_write_lock_empty_files_when_all_missing(self, tmp_path):
         """When no listed files exist on disk the saved files list is empty."""
@@ -140,7 +140,7 @@ class TestLockFile:
         _write_lock(tmp_path, lock)
         lock_path = tmp_path / ".rhiza" / "template.lock"
         data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
-        assert data["files"] == []
+        assert data["files"] == {}
 
     def test_write_lock_preserves_all_existing_files(self, tmp_path):
         """When all listed files exist on disk none are filtered out."""
@@ -153,7 +153,7 @@ class TestLockFile:
         _write_lock(tmp_path, lock)
         lock_path = tmp_path / ".rhiza" / "template.lock"
         data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
-        assert data["files"] == ["a.txt", "b.txt"]
+        assert data["files"] == {"a.txt": {}, "b.txt": {}}
 
     def test_write_lock_files_sorted_alphabetically(self, tmp_path):
         """Files in the lock are written in alphabetical order regardless of input order."""
@@ -166,7 +166,8 @@ class TestLockFile:
         _write_lock(tmp_path, lock)
         lock_path = tmp_path / ".rhiza" / "template.lock"
         data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
-        assert data["files"] == ["a.txt", "m.txt", "z.txt"]
+        # files is serialised as a tree dict; verify all three appear and are sorted.
+        assert list(data["files"].keys()) == ["a.txt", "m.txt", "z.txt"]
 
     def test_write_lock_no_tmp_file_left(self, tmp_path):
         """After _write_lock completes, no .tmp or .fd file should remain."""

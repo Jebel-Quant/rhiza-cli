@@ -31,7 +31,8 @@ class TestTemplateLock:
         assert data["include"] == []
         assert data["exclude"] == []
         assert data["templates"] == []
-        assert data["files"] == []
+        # Empty files list is serialised as an empty tree dict.
+        assert data["files"] == {}
         assert "synced_at" not in data
         assert "strategy" not in data
 
@@ -61,7 +62,8 @@ class TestTemplateLock:
         assert data["include"] == [".github/", ".rhiza/"]
         assert data["exclude"] == ["README.md"]
         assert data["templates"] == ["core"]
-        assert data["files"] == [".github/workflows/ci.yml"]
+        # files is serialised as a nested tree dict.
+        assert data["files"] == {".github": {"workflows": {"ci.yml": {}}}}
         assert data["synced_at"] == "2026-02-26T12:00:00Z"
         assert data["strategy"] == "merge"
 
@@ -69,11 +71,11 @@ class TestTemplateLock:
         """Test TemplateLock deserialization: structured format and missing fields."""
         lock_path = tmp_path / "template.lock"
 
-        # 1. Structured format (full)
+        # 1. New tree-dict format under files:
         lock_path.write_text(
             "sha: abc123def456\nrepo: jebel-quant/rhiza\nhost: github\nref: main\n"
             "include:\n- .github/\n- .rhiza/\nexclude: []\ntemplates: []\n"
-            "files:\n- .github/workflows/ci.yml\n",
+            "files:\n  .github:\n    workflows:\n      ci.yml: {}\n",
             encoding="utf-8",
         )
         lock = TemplateLock.from_yaml(lock_path)
@@ -82,7 +84,17 @@ class TestTemplateLock:
         assert lock.include == [".github/", ".rhiza/"]
         assert lock.files == [".github/workflows/ci.yml"]
 
-        # 2. Missing optional fields in structured format
+        # 2. Legacy flat-list format is still accepted (backward compat).
+        lock_path.write_text(
+            "sha: abc123def456\nrepo: jebel-quant/rhiza\nhost: github\nref: main\n"
+            "include:\n- .github/\n- .rhiza/\nexclude: []\ntemplates: []\n"
+            "files:\n- .github/workflows/ci.yml\n",
+            encoding="utf-8",
+        )
+        lock = TemplateLock.from_yaml(lock_path)
+        assert lock.files == [".github/workflows/ci.yml"]
+
+        # 3. Missing optional fields in structured format
         lock_path.write_text("sha: abc789\nhost: gitlab\n", encoding="utf-8")
         lock = TemplateLock.from_yaml(lock_path)
         assert lock.sha == "abc789"

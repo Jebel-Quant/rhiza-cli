@@ -14,6 +14,7 @@ from rich.console import Console
 from rich.tree import Tree as RichTree
 
 from rhiza.commands._sync_helpers import _load_lock_or_warn
+from rhiza.models.lock import _build_tree
 
 
 def _count_directories(tree: dict) -> int:
@@ -30,25 +31,6 @@ def _count_directories(tree: dict) -> int:
         if subtree:
             count += 1 + _count_directories(subtree)
     return count
-
-
-def _build_tree(paths: list[str]) -> dict:
-    """Build a nested dict representing the directory tree.
-
-    Args:
-        paths: List of file path strings.
-
-    Returns:
-        A nested dictionary where keys are path components and leaf nodes
-        are empty dicts.
-    """
-    root: dict = {}
-    for path in sorted(paths):
-        parts = Path(path).parts
-        node = root
-        for part in parts:
-            node = node.setdefault(part, {})
-    return root
 
 
 def _populate_rich_tree(node: RichTree, subtree: dict) -> None:
