@@ -71,11 +71,11 @@ class TestTemplateLock:
         """Test TemplateLock deserialization: structured format and missing fields."""
         lock_path = tmp_path / "template.lock"
 
-        # 1. Current tree-dict format under files:
+        # 1. Current explicit-key format (? key — no colon after file names).
         lock_path.write_text(
             "sha: abc123def456\nrepo: jebel-quant/rhiza\nhost: github\nref: main\n"
             "include:\n- .github/\n- .rhiza/\nexclude: []\ntemplates: []\n"
-            "files:\n  .github:\n    workflows:\n      ci.yml:\n",
+            "files:\n  .github:\n    workflows:\n      ? ci.yml\n",
             encoding="utf-8",
         )
         lock = TemplateLock.from_yaml(lock_path)
@@ -84,7 +84,17 @@ class TestTemplateLock:
         assert lock.include == [".github/", ".rhiza/"]
         assert lock.files == [".github/workflows/ci.yml"]
 
-        # 2. Legacy flat-list format is still accepted (backward compat).
+        # 2. Legacy bare-key format (ci.yml: — no value) is still accepted.
+        lock_path.write_text(
+            "sha: abc123def456\nrepo: jebel-quant/rhiza\nhost: github\nref: main\n"
+            "include:\n- .github/\n- .rhiza/\nexclude: []\ntemplates: []\n"
+            "files:\n  .github:\n    workflows:\n      ci.yml:\n",
+            encoding="utf-8",
+        )
+        lock = TemplateLock.from_yaml(lock_path)
+        assert lock.files == [".github/workflows/ci.yml"]
+
+        # 3. Legacy flat-list format is still accepted (backward compat).
         lock_path.write_text(
             "sha: abc123def456\nrepo: jebel-quant/rhiza\nhost: github\nref: main\n"
             "include:\n- .github/\n- .rhiza/\nexclude: []\ntemplates: []\n"
