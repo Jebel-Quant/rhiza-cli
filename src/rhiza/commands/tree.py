@@ -10,52 +10,76 @@ the managed files in a tree-style view.
 from pathlib import Path
 
 from loguru import logger
-from rich.console import Console
-from rich.tree import Tree as RichTree
 
 from rhiza.commands._sync_helpers import _load_lock_or_warn
-from rhiza.models.lock import _build_tree
+
+
+def _build_tree(paths: list[str]) -> dict:
+    """Build a nested dict representing the directory tree.
+
+    Each path component is a key.  File leaves end up as empty dicts (``{}``)
+    because no children are ever added after the final path component.
+    Directory nodes always have at least one child (a non-empty dict) because
+    they are populated by the paths that pass through them.  This means the
+    truthiness of a node's value reliably distinguishes files (``{}`` — falsy)
+    from directories (non-empty dict — truthy) when traversing the tree.
+
+    Args:
+        paths: List of file path strings.
+
+    Returns:
+        A nested dictionary where keys are path components, directory nodes
+        are non-empty dicts, and file leaf nodes are empty dicts.
+    """
+    root: dict = {}
+    for path in sorted(paths):
+        parts = Path(path).parts
+        node = root
+        for part in parts:
+            node = node.setdefault(part, {})
+    return root
 
 
 def _count_directories(tree: dict) -> int:
-    """Count nodes with non-empty children (i.e. directories) in a tree.
-
-    A node is counted as a directory only when its value is a non-empty dict.
+    """Count directory nodes (nodes with non-empty children) in a tree.
 
     Args:
         tree: Nested dict as returned by _build_tree.
 
     Returns:
-        Integer count of directory nodes (nodes that have children).
+        Integer count of directory nodes.
     """
     count = 0
-    for subtree in tree.values():
-        if isinstance(subtree, dict) and subtree:
-            count += 1 + _count_directories(subtree)
+    for children in tree.values():
+        if children:
+            count += 1 + _count_directories(children)
     return count
 
 
-def _populate_rich_tree(node: RichTree, subtree: dict) -> None:
-    """Recursively populate a Rich Tree node from a nested dict.
+def _print_tree(node: dict, indent: int = 0) -> None:
+    """Print a nested directory tree as indented text.
 
-    A node is treated as a directory (and recursed into) only when its value
-    is a non-empty dict; any other value marks it as a file leaf.
+    Directory entries are printed with a trailing ``/`` and their children
+    are indented by two spaces per level.  File entries (leaf nodes with an
+    empty dict value) are printed as plain names.
 
     Args:
-        node: The parent Rich Tree node to add children to.
-        subtree: Nested dict as returned by _build_tree.
+        node: Nested dict as returned by :func:`_build_tree`.
+        indent: Current indentation level (two spaces per level).
     """
-    for name, children in subtree.items():
-        child = node.add(name)
-        if isinstance(children, dict) and children:
-            _populate_rich_tree(child, children)
+    for name, children in node.items():
+        if children:
+            print("  " * indent + name + "/")
+            _print_tree(children, indent + 1)
+        else:
+            print("  " * indent + name)
 
 
 def tree(target: Path) -> None:
     """Display files managed by Rhiza in a tree-style view.
 
-    Reads .rhiza/template.lock and prints the list of managed files as a
-    directory tree, similar to the Unix ``tree`` command.
+    Reads .rhiza/template.lock and prints the list of managed files as an
+    indented directory tree.  Directories are shown with a trailing ``/``.
 
     Args:
         target: Path to the target repository root.
@@ -78,12 +102,8 @@ def tree(target: Path) -> None:
     dir_label = "director" + ("ies" if dir_count != 1 else "y")
     footer = f"{file_count} file{'s' if file_count != 1 else ''}, {dir_count} {dir_label} managed by Rhiza"
 
-    console = Console()
-    console.print(header)
-    console.print()
-
-    rich_tree = RichTree(".")
-    _populate_rich_tree(rich_tree, built_tree)
-    console.print(rich_tree)
-    console.print()
-    console.print(footer)
+    print(header)
+    print()
+    _print_tree(built_tree)
+    print()
+    print(footer)

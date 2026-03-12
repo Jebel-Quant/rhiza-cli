@@ -31,8 +31,8 @@ class TestTemplateLock:
         assert data["include"] == []
         assert data["exclude"] == []
         assert data["templates"] == []
-        # Empty files list is serialised as an empty tree dict.
-        assert data["files"] == {}
+        # Empty files list is serialised as an empty list.
+        assert data["files"] == []
         assert "synced_at" not in data
         assert "strategy" not in data
 
@@ -62,20 +62,20 @@ class TestTemplateLock:
         assert data["include"] == [".github/", ".rhiza/"]
         assert data["exclude"] == ["README.md"]
         assert data["templates"] == ["core"]
-        # files is serialised as a nested tree dict; bare-key leaves load as None.
-        assert data["files"] == {".github": {"workflows": {"ci.yml": None}}}
+        # files is serialised as a flat sorted list.
+        assert data["files"] == [".github/workflows/ci.yml"]
         assert data["synced_at"] == "2026-02-26T12:00:00Z"
         assert data["strategy"] == "merge"
 
     def test_template_lock_from_yaml(self, tmp_path):
-        """Test TemplateLock deserialization: structured format and missing fields."""
+        """Test TemplateLock deserialization: flat-list format and missing fields."""
         lock_path = tmp_path / "template.lock"
 
-        # 1. Current explicit-key format (? key — no colon after file names).
+        # 1. Current flat-list format.
         lock_path.write_text(
             "sha: abc123def456\nrepo: jebel-quant/rhiza\nhost: github\nref: main\n"
             "include:\n- .github/\n- .rhiza/\nexclude: []\ntemplates: []\n"
-            "files:\n  .github:\n    workflows:\n      ? ci.yml\n",
+            "files:\n- .github/workflows/ci.yml\n",
             encoding="utf-8",
         )
         lock = TemplateLock.from_yaml(lock_path)
@@ -84,27 +84,7 @@ class TestTemplateLock:
         assert lock.include == [".github/", ".rhiza/"]
         assert lock.files == [".github/workflows/ci.yml"]
 
-        # 2. Legacy bare-key format (ci.yml: — no value) is still accepted.
-        lock_path.write_text(
-            "sha: abc123def456\nrepo: jebel-quant/rhiza\nhost: github\nref: main\n"
-            "include:\n- .github/\n- .rhiza/\nexclude: []\ntemplates: []\n"
-            "files:\n  .github:\n    workflows:\n      ci.yml:\n",
-            encoding="utf-8",
-        )
-        lock = TemplateLock.from_yaml(lock_path)
-        assert lock.files == [".github/workflows/ci.yml"]
-
-        # 3. Legacy flat-list format is still accepted (backward compat).
-        lock_path.write_text(
-            "sha: abc123def456\nrepo: jebel-quant/rhiza\nhost: github\nref: main\n"
-            "include:\n- .github/\n- .rhiza/\nexclude: []\ntemplates: []\n"
-            "files:\n- .github/workflows/ci.yml\n",
-            encoding="utf-8",
-        )
-        lock = TemplateLock.from_yaml(lock_path)
-        assert lock.files == [".github/workflows/ci.yml"]
-
-        # 3. Missing optional fields in structured format
+        # 2. Missing optional fields
         lock_path.write_text("sha: abc789\nhost: gitlab\n", encoding="utf-8")
         lock = TemplateLock.from_yaml(lock_path)
         assert lock.sha == "abc789"

@@ -9,8 +9,7 @@ import yaml
 from typer.testing import CliRunner
 
 from rhiza.cli import app
-from rhiza.commands.tree import _count_directories, tree
-from rhiza.models.lock import _build_tree
+from rhiza.commands.tree import _build_tree, _count_directories, tree
 
 
 class TestBuildTree:
@@ -19,23 +18,37 @@ class TestBuildTree:
     def test_single_file_at_root(self):
         """Single root-level file produces a flat dict."""
         result = _build_tree(["Makefile"])
-        assert result == {"Makefile": None}
+        assert result == {"Makefile": {}}
 
     def test_nested_file(self):
         """Deeply nested path produces a nested dict."""
         result = _build_tree([".github/workflows/ci.yml"])
-        assert result == {".github": {"workflows": {"ci.yml": None}}}
+        assert result == {".github": {"workflows": {"ci.yml": {}}}}
 
     def test_multiple_files_same_dir(self):
         """Multiple files under the same directory share the parent node."""
         result = _build_tree(["src/a.py", "src/b.py"])
-        assert result == {"src": {"a.py": None, "b.py": None}}
+        assert result == {"src": {"a.py": {}, "b.py": {}}}
 
     def test_mixed_depth(self):
         """Files at different depths are all represented in the tree."""
         result = _build_tree(["Makefile", ".github/workflows/ci.yml"])
         assert ".github" in result
         assert "Makefile" in result
+
+    def test_print_tree_output(self, capsys):
+        """_print_tree renders directories with trailing slash and files without."""
+        from rhiza.commands.tree import _print_tree
+
+        tree = _build_tree(["Makefile", ".github/workflows/ci.yml"])
+        _print_tree(tree)
+        lines = capsys.readouterr().out.splitlines()
+        # Directories always end with '/'
+        assert any(line.rstrip() == ".github/" for line in lines)
+        assert any(line.rstrip() == "  workflows/" for line in lines)
+        # Files never end with '/'
+        assert any(line.rstrip() == "Makefile" for line in lines)
+        assert any(line.rstrip() == "    ci.yml" for line in lines)
 
 
 class TestTreeCommand:
