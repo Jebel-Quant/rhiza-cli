@@ -10,49 +10,34 @@ the managed files in a tree-style view.
 from pathlib import Path
 
 from loguru import logger
+from rich.console import Console
+from rich.tree import Tree
 
 from rhiza.commands._sync_helpers import _load_lock_or_warn
 
 
-def _build_tree(paths: list[str]) -> dict:
-    """Build a nested dict representing the directory tree.
+def _build_rich_tree(paths: list[str]) -> Tree:
+    """Build a Rich Tree from a list of file paths.
 
     Args:
         paths: List of file path strings.
 
     Returns:
-        A nested dictionary where keys are path components and leaf nodes
-        are empty dicts.
+        A Rich Tree rooted at ".".
     """
-    root: dict = {}
+    rich_tree = Tree(".")
+    node_cache: dict = {}
     for path in sorted(paths):
         parts = Path(path).parts
-        node = root
+        parent: Tree = rich_tree
+        current_path: tuple = ()
         for part in parts:
-            node = node.setdefault(part, {})
-    return root
-
-
-def _render_tree(tree: dict, prefix: str = "") -> list[str]:
-    """Render a nested directory tree as lines of text.
-
-    Args:
-        tree: Nested dict as returned by _build_tree.
-        prefix: The current indentation prefix.
-
-    Returns:
-        List of formatted strings for display.
-    """
-    lines: list[str] = []
-    entries = list(tree.items())
-    for index, (name, subtree) in enumerate(entries):
-        is_last = index == len(entries) - 1
-        connector = "└── " if is_last else "├── "
-        lines.append(f"{prefix}{connector}{name}")
-        if subtree:
-            extension = "    " if is_last else "│   "
-            lines.extend(_render_tree(subtree, prefix + extension))
-    return lines
+            key = (*current_path, part)
+            if key not in node_cache:
+                node_cache[key] = parent.add(part)
+            parent = node_cache[key]
+            current_path = key
+    return rich_tree
 
 
 def tree(target: Path) -> None:
@@ -72,12 +57,9 @@ def tree(target: Path) -> None:
         logger.info("No files are tracked in template.lock")
         return
 
-    tree = _build_tree(lock.files)
-    lines = _render_tree(tree)
-
-    print(".")
-    for line in lines:
-        print(line)
+    rich_tree = _build_rich_tree(lock.files)
+    console = Console()
+    console.print(rich_tree)
 
     file_count = len(lock.files)
-    print(f"\n{file_count} file{'s' if file_count != 1 else ''} managed by Rhiza")
+    console.print(f"\n{file_count} file{'s' if file_count != 1 else ''} managed by Rhiza")
