@@ -7,6 +7,44 @@ from rhiza.models._base import YamlSerializable
 from rhiza.models._git_utils import _normalize_to_list
 
 
+def _flatten_files(value: Any, prefix: str = "") -> list[str]:
+    """Flatten a nested dict/list file structure into a list of path strings.
+
+    When a dict is encountered, its keys become path components (folder names).
+    When a list is encountered, each item is treated as a filename, optionally
+    prefixed by the current path.
+
+    Args:
+        value: A list of filenames, a nested dict mapping folder names to
+            further nested structures, or a single filename string.
+        prefix: Path prefix to prepend to each resolved filename.
+
+    Returns:
+        A flat list of file path strings.
+
+    Examples:
+        >>> _flatten_files(["aapl.parquet", "msft.parquet"])
+        ['aapl.parquet', 'msft.parquet']
+        >>> _flatten_files({"data": {"prices": ["aapl.parquet"]}})
+        ['data/prices/aapl.parquet']
+        >>> _flatten_files({"config": ["model.yaml"]})
+        ['config/model.yaml']
+    """
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [f"{prefix}/{item}" if prefix else str(item) for item in value if item]
+    if isinstance(value, dict):
+        paths: list[str] = []
+        for key, subvalue in value.items():
+            new_prefix = f"{prefix}/{key}" if prefix else str(key)
+            paths.extend(_flatten_files(subvalue, new_prefix))
+        return paths
+    if isinstance(value, str) and value:
+        return [f"{prefix}/{value}" if prefix else value]
+    return []
+
+
 @dataclass(frozen=True, kw_only=True)
 class BundleDefinition:
     """Represents a single bundle from template-bundles.yml.
@@ -85,7 +123,8 @@ class RhizaBundles(YamlSerializable):
                 msg = f"Bundle '{bundle_name}' must be a dictionary"
                 raise TypeError(msg)
 
-            files = _normalize_to_list(bundle_data.get("files"))
+            raw_files = bundle_data.get("files")
+            files = _flatten_files(raw_files) if isinstance(raw_files, dict) else _normalize_to_list(raw_files)
             requires = _normalize_to_list(bundle_data.get("requires"))
 
             bundles[bundle_name] = BundleDefinition(

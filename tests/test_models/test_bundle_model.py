@@ -5,7 +5,7 @@ template-bundles.yml files, and satisfies the YamlSerializable protocol.
 """
 
 from rhiza.models._base import YamlSerializable, load_model
-from rhiza.models.bundle import RhizaBundles
+from rhiza.models.bundle import RhizaBundles, _flatten_files
 
 # ---------------------------------------------------------------------------
 # YamlSerializable Protocol — bundle-related check
@@ -169,3 +169,140 @@ class TestResolveToPaths:
         result = bundles.resolve_to_paths(["ci"])
         # Makefile comes from core (dependency) and ci — should appear once
         assert result.count("Makefile") == 1
+
+
+# ---------------------------------------------------------------------------
+# _flatten_files helper
+# ---------------------------------------------------------------------------
+
+
+class TestFlattenFiles:
+    """Tests for the _flatten_files helper function."""
+
+    def test_none_returns_empty_list(self):
+        """None returns an empty list."""
+        assert _flatten_files(None) == []
+
+    def test_flat_list_unchanged(self):
+        """A plain list of filenames is returned as-is."""
+        assert _flatten_files(["aapl.parquet", "msft.parquet"]) == ["aapl.parquet", "msft.parquet"]
+
+    def test_single_level_dict(self):
+        """A single-level dict maps keys to folder prefixes."""
+        result = _flatten_files({"config": ["model.yaml"]})
+        assert result == ["config/model.yaml"]
+
+    def test_two_level_nested_dict(self):
+        """Two-level nesting produces concatenated path components."""
+        result = _flatten_files({"data": {"prices": ["aapl.parquet", "msft.parquet"]}})
+        assert result == ["data/prices/aapl.parquet", "data/prices/msft.parquet"]
+
+    def test_multiple_top_level_keys(self):
+        """Multiple top-level dict keys each produce their own path prefix."""
+        result = _flatten_files(
+            {
+                "data": {
+                    "prices": ["aapl.parquet", "msft.parquet"],
+                    "futures": ["es.parquet", "nq.parquet"],
+                },
+                "config": ["model.yaml"],
+            }
+        )
+        assert "data/prices/aapl.parquet" in result
+        assert "data/prices/msft.parquet" in result
+        assert "data/futures/es.parquet" in result
+        assert "data/futures/nq.parquet" in result
+        assert "config/model.yaml" in result
+        assert len(result) == 5
+
+    def test_string_value_treated_as_filename(self):
+        """A bare string value under a dict key is treated as a single file."""
+        result = _flatten_files({"config": "model.yaml"})
+        assert result == ["config/model.yaml"]
+
+    def test_empty_dict_returns_empty_list(self):
+        """An empty dict produces no paths."""
+        assert _flatten_files({}) == []
+
+    def test_empty_list_returns_empty_list(self):
+        """An empty list produces no paths."""
+        assert _flatten_files([]) == []
+
+    def test_unknown_type_returns_empty_list(self):
+        """An unrecognized value type returns an empty list."""
+        assert _flatten_files(42) == []
+
+
+# ---------------------------------------------------------------------------
+# Nested files format in from_config
+# ---------------------------------------------------------------------------
+
+
+class TestNestedFilesInFromConfig:
+    """Tests for nested dict files format in RhizaBundles.from_config."""
+
+    def test_nested_files_are_flattened(self):
+        """Nested files dict is flattened to a list of paths."""
+        bundles = RhizaBundles.from_config(
+            {
+                "bundles": {
+                    "data": {
+                        "description": "Data bundle",
+                        "files": {
+                            "data": {
+                                "prices": ["aapl.parquet", "msft.parquet"],
+                                "futures": ["es.parquet", "nq.parquet"],
+                            },
+                            "config": ["model.yaml"],
+                        },
+                    }
+                }
+            }
+        )
+        files = bundles.bundles["data"].files
+        assert "data/prices/aapl.parquet" in files
+        assert "data/prices/msft.parquet" in files
+        assert "data/futures/es.parquet" in files
+        assert "data/futures/nq.parquet" in files
+        assert "config/model.yaml" in files
+        assert len(files) == 5
+
+    def test_flat_list_still_works(self):
+        """Existing flat list format continues to work unchanged."""
+        bundles = RhizaBundles.from_config(
+            {"bundles": {"core": {"description": "Core", "files": ["Makefile", "pyproject.toml"]}}}
+        )
+        assert bundles.bundles["core"].files == ["Makefile", "pyproject.toml"]
+
+    def test_nested_files_resolve_to_paths(self):
+        """resolve_to_paths works correctly with paths flattened from nested format."""
+        bundles = RhizaBundles.from_config(
+            {
+                "bundles": {
+                    "quant": {
+                        "description": "Quant bundle",
+                        "files": {
+                            "data": {"prices": ["aapl.parquet"]},
+                        },
+                    }
+                }
+            }
+        )
+        paths = bundles.resolve_to_paths(["quant"])
+        assert paths == ["data/prices/aapl.parquet"]
+
+    def test_nested_files_round_trip_via_config(self):
+        """After flattening, round-trip through config preserves the flat paths."""
+        original = RhizaBundles.from_config(
+            {
+                "bundles": {
+                    "data": {
+                        "description": "Data bundle",
+                        "files": {"data": {"prices": ["aapl.parquet"]}},
+                    }
+                }
+            }
+        )
+        # Serialise and re-parse: flat list is stored and emitted as flat list
+        restored = RhizaBundles.from_config(original.config)
+        assert restored.bundles["data"].files == ["data/prices/aapl.parquet"]
