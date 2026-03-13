@@ -1002,3 +1002,44 @@ class TestValidateCustomTemplatePath:
             external_missing = Path(unrelated_dir) / "nonexistent" / "template.yml"
             result = validate(git_path, template_file=external_missing)
         assert result is False
+
+    def test_cli_path_to_template_option_uses_custom_directory(self, git_path, tmp_path):
+        """CLI --path-to-template passes template.yml from the given directory."""
+        (git_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+
+        custom_dir = tmp_path / "custom-rhiza"
+        custom_dir.mkdir()
+        (custom_dir / "template.yml").write_text("template-repository: owner/repo\ninclude:\n  - .github\n")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli.app,
+            ["validate", str(git_path), "--path-to-template", str(custom_dir)],
+        )
+        assert result.exit_code == 0
+
+    def test_cli_path_to_template_missing_file_exits_nonzero(self, git_path, tmp_path):
+        """CLI --path-to-template exits with code 1 when template.yml is absent."""
+        (git_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+
+        empty_dir = tmp_path / "empty"
+        empty_dir.mkdir()
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli.app,
+            ["validate", str(git_path), "--path-to-template", str(empty_dir)],
+        )
+        assert result.exit_code == 1
+
+    def test_cli_path_to_template_dot_uses_project_root(self, git_path):
+        """CLI --path-to-template <TARGET> resolves template.yml from the project root."""
+        (git_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+        (git_path / "template.yml").write_text("template-repository: owner/repo\ninclude:\n  - .github\n")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli.app,
+            ["validate", str(git_path), "--path-to-template", str(git_path)],
+        )
+        assert result.exit_code == 0

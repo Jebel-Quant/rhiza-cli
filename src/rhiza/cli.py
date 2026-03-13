@@ -307,6 +307,17 @@ def validate(
             help="Target git repository (defaults to current directory)",
         ),
     ] = Path("."),
+    path_to_template: Annotated[
+        Path | None,
+        typer.Option(
+            "--path-to-template",
+            help=(
+                "Directory containing template.yml "
+                "(defaults to <TARGET>/.rhiza). "
+                "Use '.' to keep the file in the project root."
+            ),
+        ),
+    ] = None,
 ) -> None:
     r"""Validate Rhiza template configuration.
 
@@ -328,8 +339,13 @@ def validate(
         rhiza validate
         rhiza validate /path/to/project
         rhiza validate ..
+        rhiza validate --path-to-template /custom/rhiza
+        rhiza validate --path-to-template .
     """
-    if not validate_cmd(target):
+    template_file = None
+    if path_to_template is not None:
+        template_file = path_to_template / "template.yml"
+    if not validate_cmd(target, template_file=template_file):
         raise typer.Exit(code=1)
 
 
