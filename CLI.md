@@ -57,6 +57,7 @@ rhiza init [OPTIONS] [TARGET]
 - `--git-host <host>` - Target Git hosting platform (github or gitlab)
 - `--template-repository <owner/repo>` - Custom template repository (default: jebel-quant/rhiza)
 - `--template-branch <branch>` - Custom template branch (default: main)
+- `--path-to-template <directory>` - Directory where `template.yml` will be created (default: `<TARGET>/.rhiza`). Use `.` to keep the file in the project root.
 
 **Examples:**
 ```bash
@@ -66,6 +67,8 @@ rhiza init --git-host gitlab                        # Use GitLab CI configuratio
 rhiza init --template-repository myorg/my-templates # Use custom template repository
 rhiza init --template-repository myorg/my-templates --template-branch develop  # Custom repo and branch
 rhiza init ..                                       # Initialize parent directory
+rhiza init --path-to-template /custom/rhiza         # Custom template directory
+rhiza init --path-to-template .                     # Template in project root
 ```
 
 ---

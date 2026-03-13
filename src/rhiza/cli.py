@@ -137,6 +137,17 @@ def init(
         "--template-branch",
         help="Custom template branch. Defaults to 'main'.",
     ),
+    path_to_template: Annotated[
+        Path | None,
+        typer.Option(
+            "--path-to-template",
+            help=(
+                "Directory where template.yml will be created "
+                "(defaults to <TARGET>/.rhiza). "
+                "Use '.' to keep the file in the project root."
+            ),
+        ),
+    ] = None,
 ) -> None:
     r"""Initialize or validate .rhiza/template.yml.
 
@@ -161,7 +172,12 @@ def init(
       rhiza init --template-repository myorg/my-templates --template-branch develop
       rhiza init /path/to/project
       rhiza init .. --language go
+      rhiza init --path-to-template /custom/rhiza
+      rhiza init --path-to-template .
     """
+    template_file = None
+    if path_to_template is not None:
+        template_file = path_to_template / "template.yml"
     if not init_cmd(
         target,
         project_name=project_name,
@@ -171,6 +187,7 @@ def init(
         language=language,
         template_repository=template_repository,
         template_branch=template_branch,
+        template_file=template_file,
     ):
         raise typer.Exit(code=1)
 

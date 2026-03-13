@@ -199,12 +199,26 @@ def _get_default_templates_for_host(git_host: GitHost | str) -> list[str]:
         return [*common, "github"]
 
 
+def _display_path(path: Path, target: Path) -> Path:
+    """Return *path* relative to *target* when possible, otherwise the absolute path.
+
+    Args:
+        path: Path to display.
+        target: Base directory used as the reference point.
+
+    Returns:
+        A relative or absolute Path suitable for log messages.
+    """
+    return path.relative_to(target) if path.is_relative_to(target) else path
+
+
 def _create_template_file(
     target: Path,
     git_host: GitHost | str,
     language: str = "python",
     template_repository: str | None = None,
     template_branch: str | None = None,
+    template_file: Path | None = None,
 ) -> None:
     """Create default template.yml file.
 
@@ -214,14 +228,18 @@ def _create_template_file(
         language: Programming language for the project (default: python).
         template_repository: Custom template repository (format: owner/repo).
         template_branch: Custom template branch.
+        template_file: Optional explicit path to write template.yml.  When
+            ``None`` the default ``<target>/.rhiza/template.yml`` is used.
     """
-    rhiza_dir = target / ".rhiza"
-    template_file = rhiza_dir / "template.yml"
+    if template_file is None:
+        rhiza_dir = target / ".rhiza"
+        template_file = rhiza_dir / "template.yml"
 
     if template_file.exists():
         return
 
-    logger.info("Creating default .rhiza/template.yml")
+    template_file.parent.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Creating default {_display_path(template_file, target)}")
     logger.debug("Using default template configuration")
 
     # Use custom template repository/branch if provided, otherwise use language defaults
@@ -251,7 +269,7 @@ def _create_template_file(
     logger.debug(f"Writing default template to: {template_file}")
     default_template.to_yaml(template_file)
 
-    logger.success("✓ Created .rhiza/template.yml")
+    logger.success(f"✓ Created {_display_path(template_file, target)}")
     logger.info("""
 Next steps:
   1. Review and customize .rhiza/template.yml to match your project needs
@@ -363,6 +381,7 @@ def init(
     language: str = "python",
     template_repository: str | None = None,
     template_branch: str | None = None,
+    template_file: Path | None = None,
 ) -> bool:
     """Initialize or validate .rhiza/template.yml in the target repository.
 
@@ -381,6 +400,8 @@ def init(
         template_repository: Custom template repository (format: owner/repo).
             Defaults to 'jebel-quant/rhiza' for Python or 'jebel-quant/rhiza-go' for Go.
         template_branch: Custom template branch. Defaults to 'main'.
+        template_file: Optional explicit path to write template.yml.  When
+            ``None`` the default ``<target>/.rhiza/template.yml`` is used.
 
     Returns:
         bool: True if validation passes, False otherwise.
@@ -391,7 +412,8 @@ def init(
     logger.info(f"Initializing Rhiza configuration in: {target}")
     logger.info(f"Project language: {language}")
 
-    # Create .rhiza directory
+    # Create .rhiza directory (always; project structure lives there regardless of
+    # where template.yml is placed)
     rhiza_dir = target / ".rhiza"
     logger.debug(f"Ensuring directory exists: {rhiza_dir}")
     rhiza_dir.mkdir(parents=True, exist_ok=True)
@@ -402,8 +424,8 @@ def init(
 
     # When no template repository is specified and no config file exists yet,
     # offer the user an interactive selection from discovered rhiza repos.
-    template_yml = target / ".rhiza" / "template.yml"
-    if template_repository is None and not template_yml.exists():
+    resolved_template_file = template_file if template_file is not None else target / ".rhiza" / "template.yml"
+    if template_repository is None and not resolved_template_file.exists():
         template_repository = _prompt_template_repository()
 
     # Validate template repository reachability early if a custom one is specified
@@ -411,7 +433,7 @@ def init(
         return False
 
     # Create template file with language
-    _create_template_file(target, git_host, language, template_repository, template_branch)
+    _create_template_file(target, git_host, language, template_repository, template_branch, template_file)
 
     # Bootstrap project structure based on language
     if language == "python":
@@ -438,4 +460,4 @@ def init(
 
     # Validate the template file
     logger.debug("Validating template configuration")
-    return validate(target)
+    return validate(target, template_file=template_file)

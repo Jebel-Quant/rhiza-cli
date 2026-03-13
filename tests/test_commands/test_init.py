@@ -745,3 +745,61 @@ class TestPromptTemplateRepository:
         with open(template_file) as f:
             config = yaml.safe_load(f)
         assert config["repository"] == "org/selected-repo"
+
+
+class TestInitCustomTemplatePath:
+    """Tests for the --path-to-template option on init."""
+
+    def test_init_creates_template_in_custom_directory(self, tmp_path):
+        """init() writes template.yml to the custom directory when template_file is given."""
+        (tmp_path / ".git").mkdir()
+        (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+        custom_dir = tmp_path / "my-rhiza"
+        custom_dir.mkdir()
+        custom_file = custom_dir / "template.yml"
+
+        result = init(tmp_path, git_host="github", template_file=custom_file)
+        assert result is True
+        assert custom_file.exists()
+        # Default .rhiza/template.yml must NOT have been created.
+        assert not (tmp_path / ".rhiza" / "template.yml").exists()
+
+    def test_init_creates_parent_directory_for_custom_file(self, tmp_path):
+        """init() creates parent directories for the custom template_file path."""
+        (tmp_path / ".git").mkdir()
+        (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+        custom_file = tmp_path / "deep" / "nested" / "template.yml"
+
+        result = init(tmp_path, git_host="github", template_file=custom_file)
+        assert result is True
+        assert custom_file.exists()
+
+    def test_init_skips_prompt_when_custom_template_yml_exists(self, tmp_path):
+        """init() skips the interactive prompt when the custom template file already exists."""
+        custom_dir = tmp_path / "my-rhiza"
+        custom_dir.mkdir()
+        custom_file = custom_dir / "template.yml"
+        custom_file.write_text("repository: org/existing\nref: main\ninclude:\n  - .github\n")
+
+        prompt_mock = MagicMock(return_value=None)
+        with patch("rhiza.commands.init._prompt_template_repository", prompt_mock):
+            init(tmp_path, git_host="github", template_file=custom_file)
+        prompt_mock.assert_not_called()
+
+    def test_cli_path_to_template_creates_template_in_custom_directory(self, tmp_path):
+        """CLI --path-to-template writes template.yml to the given directory."""
+        import subprocess as sp
+
+        sp.run(["git", "init", str(tmp_path)], capture_output=True)  # nosec B603 B607
+        (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+        custom_dir = tmp_path / "custom-rhiza"
+        custom_dir.mkdir()
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli.app,
+            ["init", str(tmp_path), "--git-host", "github", "--path-to-template", str(custom_dir)],
+        )
+        assert result.exit_code == 0
+        assert (custom_dir / "template.yml").exists()
+        assert not (tmp_path / ".rhiza" / "template.yml").exists()
