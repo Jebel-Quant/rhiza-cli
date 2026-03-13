@@ -35,6 +35,8 @@ class RhizaTemplate(YamlSerializable):
         exclude: List of paths to exclude from the template repository (default: empty list).
         templates: List of template names to include (template-based mode).
             Can be used together with include to merge paths.
+        template_bundles_path: Path to the bundle definitions file inside the upstream
+            template repository. Defaults to ``.rhiza/template-bundles.yml``.
     """
 
     template_repository: str = ""
@@ -44,6 +46,7 @@ class RhizaTemplate(YamlSerializable):
     include: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
     templates: list[str] = field(default_factory=list)
+    template_bundles_path: str = ".rhiza/template-bundles.yml"
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> "RhizaTemplate":
@@ -71,6 +74,7 @@ class RhizaTemplate(YamlSerializable):
             include=_normalize_to_list(config.get("include")),
             exclude=_normalize_to_list(config.get("exclude")),
             templates=_normalize_to_list(config.get("templates")),
+            template_bundles_path=config.get("template-bundles-path", ".rhiza/template-bundles.yml"),
         )
 
     @property
@@ -85,6 +89,8 @@ class RhizaTemplate(YamlSerializable):
         config["templates"] = self.templates
         config["include"] = self.include
         config["exclude"] = self.exclude
+        if self.template_bundles_path != ".rhiza/template-bundles.yml":
+            config["template-bundles-path"] = self.template_bundles_path
         return config
 
     @property

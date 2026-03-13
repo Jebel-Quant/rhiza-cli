@@ -236,6 +236,37 @@ class TestRhizaTemplate:
         assert config["templates"] == ["core", "tests"]
         assert config["include"] == [".custom", "extra/"]
 
+    def test_default_template_bundles_path(self):
+        """template_bundles_path defaults to .rhiza/template-bundles.yml."""
+        template = RhizaTemplate.from_config({"template-repository": "owner/repo", "templates": ["core"]})
+        assert template.template_bundles_path == ".rhiza/template-bundles.yml"
+
+    def test_custom_template_bundles_path_round_trips(self, tmp_path):
+        """A custom template-bundles-path is loaded, preserved, and serialised."""
+        template = RhizaTemplate.from_config(
+            {
+                "template-repository": "owner/repo",
+                "templates": ["core"],
+                "template-bundles-path": "tooling/my-bundles.yml",
+            }
+        )
+        assert template.template_bundles_path == "tooling/my-bundles.yml"
+
+        output_file = tmp_path / "output.yml"
+        template.to_yaml(output_file)
+        with open(output_file) as f:
+            config = yaml.safe_load(f)
+        assert config["template-bundles-path"] == "tooling/my-bundles.yml"
+
+    def test_default_template_bundles_path_not_serialised(self, tmp_path):
+        """The default template-bundles-path is not written to YAML (keeps config minimal)."""
+        template = RhizaTemplate.from_config({"template-repository": "owner/repo", "templates": ["core"]})
+        output_file = tmp_path / "output.yml"
+        template.to_yaml(output_file)
+        with open(output_file) as f:
+            config = yaml.safe_load(f)
+        assert "template-bundles-path" not in config
+
 
 class TestRhizaTemplateGitUrl:
     """Tests for the RhizaTemplate.git_url property."""

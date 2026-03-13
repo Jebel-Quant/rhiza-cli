@@ -129,14 +129,17 @@ def _clone_template(
     upstream_dir = Path(tempfile.mkdtemp())
 
     if template.templates:
-        # Checkout .rhiza/template-bundles.yml from template_repository @ template_branch
-        git_ctx.clone_repository(template.git_url, upstream_dir, rhiza_branch, [".rhiza/template-bundles.yml"])
+        # Checkout the bundle definitions file from template_repository @ template_branch
+        bundles_path = template.template_bundles_path
+        git_ctx.clone_repository(template.git_url, upstream_dir, rhiza_branch, [bundles_path])
 
-        # Load template-bundles.yml, resolve bundle names to paths, update sparse checkout
-        bundles = RhizaBundles.from_yaml(upstream_dir / ".rhiza" / "template-bundles.yml")
+        # Load bundle definitions, resolve bundle names to paths, update sparse checkout
+        bundles = RhizaBundles.from_yaml(upstream_dir / bundles_path)
         resolved_paths = bundles.resolve_to_paths(template.templates)
-        git_ctx.update_sparse_checkout(upstream_dir, resolved_paths)
-        include_paths = resolved_paths
+        # Merge resolved bundle paths with any explicit include: paths (hybrid mode)
+        merged_paths = list(dict.fromkeys(resolved_paths + include_paths))
+        git_ctx.update_sparse_checkout(upstream_dir, merged_paths)
+        include_paths = merged_paths
     else:
         git_ctx.clone_repository(template.git_url, upstream_dir, rhiza_branch, include_paths)
 
