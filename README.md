@@ -165,6 +165,7 @@ rhiza init [OPTIONS] [TARGET]
 - `--git-host <host>` - Target Git hosting platform (github or gitlab). Determines which CI/CD files to include. If not provided, will prompt interactively.
 - `--template-repository <owner/repo>` - Custom template repository (format: owner/repo). Defaults to 'jebel-quant/rhiza'.
 - `--template-branch <branch>` - Custom template branch. Defaults to 'main'.
+- `--path-to-template <directory>` - Directory where `template.yml` will be created (defaults to `<TARGET>/.rhiza`). Use `.` to keep the file in the project root.
 
 **Description:**
 
@@ -192,6 +193,12 @@ rhiza init --template-repository myorg/my-templates --template-branch develop
 
 # Initialize in parent directory
 rhiza init ..
+
+# Create template.yml in a custom directory
+rhiza init --path-to-template /custom/rhiza
+
+# Create template.yml in the project root
+rhiza init --path-to-template .
 ```
 
 **Output:**
@@ -401,12 +408,16 @@ Validate Rhiza template configuration.
 **Usage:**
 
 ```bash
-rhiza validate [TARGET]
+rhiza validate [TARGET] [OPTIONS]
 ```
 
 **Arguments:**
 
 - `TARGET` - Target git repository directory (defaults to current directory)
+
+**Options:**
+
+- `--path-to-template DIRECTORY` - Directory containing `template.yml` (defaults to `<TARGET>/.rhiza`). Use `.` to keep the file in the project root.
 
 **Description:**
 
@@ -430,6 +441,12 @@ rhiza validate /path/to/project
 
 # Validate parent directory
 rhiza validate ..
+
+# Validate using a custom template directory
+rhiza validate --path-to-template /custom/rhiza
+
+# Validate with template.yml in the project root
+rhiza validate --path-to-template .
 ```
 
 **Exit codes:**
