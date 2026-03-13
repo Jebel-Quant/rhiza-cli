@@ -33,17 +33,21 @@ LOCK_FILE = ".rhiza/template.lock"
 # ---------------------------------------------------------------------------
 
 
-def _load_lock_or_warn(target: Path) -> TemplateLock | None:
+def _load_lock_or_warn(target: Path, lock_file: Path | None = None) -> TemplateLock | None:
     """Load the template.lock file, or log a warning and return None if missing.
 
     Args:
         target: Path to the target repository root.
+        lock_file: Optional explicit path to the lock file.  When ``None`` the
+            default ``<target>/.rhiza/template.lock`` is used.
 
     Returns:
         The loaded :class:`~rhiza.models.TemplateLock`, or ``None`` when the
         lock file does not exist.
     """
-    lock_path = (target / LOCK_FILE).resolve()
+    if lock_file is None:
+        lock_file = target / LOCK_FILE
+    lock_path = lock_file.resolve()
     if not lock_path.exists():
         logger.warning("No template.lock found — run `rhiza sync` first")
         return None
@@ -78,7 +82,11 @@ def _files_from_snapshot(snapshot_dir: Path) -> set[Path]:
     return {f.relative_to(snapshot_dir) for f in snapshot_dir.rglob("*") if f.is_file()}
 
 
-def _read_previously_tracked_files(target: Path, base_snapshot: Path | None = None) -> set[Path]:
+def _read_previously_tracked_files(
+    target: Path,
+    base_snapshot: Path | None = None,
+    lock_file: Path | None = None,
+) -> set[Path]:
     """Return the set of files tracked by the last sync.
 
     Resolution order:
@@ -93,12 +101,15 @@ def _read_previously_tracked_files(target: Path, base_snapshot: Path | None = No
             the previously-synced SHA.  When the lock file has no ``files``
             entry this snapshot is used to reconstruct the tracked-file list,
             avoiding an extra network fetch.
+        lock_file: Optional explicit path to the lock file.  When ``None`` the
+            default ``<target>/.rhiza/template.lock`` is used.
 
     Returns:
         Set of previously tracked file paths (relative to target), or an empty
         set when no tracking information is found.
     """
-    lock_file = target / ".rhiza" / "template.lock"
+    if lock_file is None:
+        lock_file = target / ".rhiza" / "template.lock"
     if lock_file.exists():
         try:
             lock = TemplateLock.from_yaml(lock_file)
@@ -157,6 +168,7 @@ def _clean_orphaned_files(
     base_snapshot: Path | None = None,
     excludes: set[str] | None = None,
     previously_tracked_files: set[Path] | None = None,
+    lock_file: Path | None = None,
 ) -> None:
     """Clean up files that are no longer maintained by template.
 
@@ -179,9 +191,13 @@ def _clean_orphaned_files(
             tracked by the previous sync.  When supplied this takes precedence
             over reading from the on-disk lock file, which allows callers to
             snapshot the old state before the lock is overwritten by the merge.
+        lock_file: Optional explicit path to the lock file.  When ``None`` the
+            default ``<target>/.rhiza/template.lock`` is used.
     """
     if previously_tracked_files is None:
-        previously_tracked_files = _read_previously_tracked_files(target, base_snapshot=base_snapshot)
+        previously_tracked_files = _read_previously_tracked_files(
+            target, base_snapshot=base_snapshot, lock_file=lock_file
+        )
     if not previously_tracked_files:
         return
 
@@ -214,7 +230,7 @@ def _clean_orphaned_files(
 # ---------------------------------------------------------------------------
 
 
-def _write_lock(target: Path, lock: TemplateLock) -> None:
+def _write_lock(target: Path, lock: TemplateLock, lock_file: Path | None = None) -> None:
     """Persist the lock data to the YAML lock file.
 
     Writes to a ``.tmp`` sibling file first, then replaces the real lock file
@@ -230,6 +246,8 @@ def _write_lock(target: Path, lock: TemplateLock) -> None:
     Args:
         target: Path to the target repository.
         lock: The :class:`~rhiza.models.TemplateLock` to record.
+        lock_file: Optional explicit path for the lock file.  When ``None`` the
+            default ``<target>/.rhiza/template.lock`` is used.
     """
     # Filter the files list to only include paths that exist on disk so that
     # the lock never contains entries for files that are absent from the repo.
@@ -241,7 +259,7 @@ def _write_lock(target: Path, lock: TemplateLock) -> None:
         logger.warning(f"{len(missing)} file(s) in lock absent from target and excluded: {missing_str}")
     lock = dataclasses.replace(lock, files=existing_files)
 
-    lock_path = target / LOCK_FILE
+    lock_path = lock_file if lock_file is not None else target / LOCK_FILE
     tmp_path = Path(str(lock_path) + ".tmp")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     # Acquire an exclusive advisory lock via a dedicated lock-fd file so that
@@ -259,4 +277,4 @@ def _write_lock(target: Path, lock: TemplateLock) -> None:
         # Best-effort cleanup of the fd file; failures here are non-critical.
         with contextlib.suppress(OSError):
             lock_fd_path.unlink(missing_ok=True)
-    logger.info(f"Updated {LOCK_FILE} -> {lock.sha[:12]}")
+    logger.info(f"Updated {lock_path.name} -> {lock.sha[:12]}")

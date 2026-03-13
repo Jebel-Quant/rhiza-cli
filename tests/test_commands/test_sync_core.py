@@ -7,6 +7,8 @@ Covers the five fundamental scenarios:
 4. Subsequent merge    — lock SHA updated to new upstream SHA
 5. template.yml changed with same upstream SHA — re-sync triggered, files copied
 6. templates: mode — include: in lock contains original names, not resolved paths
+7. hybrid mode — templates: resolved paths merged with explicit include: paths
+8. custom template-bundles-path — bundle definitions file fetched from custom location
 """
 
 from pathlib import Path
@@ -183,3 +185,105 @@ class TestSyncCore:
         assert lock.include == []
         # The resolved file paths should appear in files: (materialized from snapshot)
         assert "Makefile" in lock.files
+
+    @patch("rhiza.commands.sync.shutil.rmtree")
+    @patch("rhiza.models._git_utils.GitContext.update_sparse_checkout")
+    @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
+    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
+    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    def test_hybrid_mode_merges_bundle_and_include_paths(
+        self,
+        mock_sha,
+        mock_mkdtemp,
+        mock_clone,
+        mock_from_yaml,
+        mock_update_sparse,
+        mock_rmtree,
+        tmp_path,
+    ):
+        """Hybrid mode: resolved bundle paths and explicit include: paths are both synced."""
+        _write_template_yml(
+            tmp_path,
+            {
+                "template-repository": "jebel-quant/rhiza",
+                "template-branch": "main",
+                "templates": ["core"],
+                "include": ["extra.txt"],
+            },
+        )
+        mock_sha.return_value = "hybrid1"
+
+        from rhiza.models.bundle import RhizaBundles
+
+        mock_from_yaml.return_value = RhizaBundles.from_config(
+            {"bundles": {"core": {"description": "Core", "files": ["Makefile"]}}}
+        )
+
+        clone_dir = _make_clone_dir(
+            tmp_path, "upstream_clone", {"Makefile": "all:\n\techo ok\n", "extra.txt": "extra\n"}
+        )
+        snapshot_dir = _make_clone_dir(tmp_path, "upstream_snapshot", {})
+        base_snapshot_dir = _make_clone_dir(tmp_path, "base_snapshot", {})
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir)]
+
+        sync(tmp_path, "main", None, "merge")
+
+        # update_sparse_checkout must have received both the resolved bundle path and the
+        # explicit include: path — i.e. hybrid mode is correctly merged.
+        call_args = mock_update_sparse.call_args
+        merged = call_args[0][1]  # second positional arg is the paths list
+        assert "Makefile" in merged
+        assert "extra.txt" in merged
+
+    @patch("rhiza.commands.sync.shutil.rmtree")
+    @patch("rhiza.models._git_utils.GitContext.update_sparse_checkout")
+    @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
+    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
+    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    def test_custom_template_bundles_path_is_used(
+        self,
+        mock_sha,
+        mock_mkdtemp,
+        mock_clone,
+        mock_from_yaml,
+        mock_update_sparse,
+        mock_rmtree,
+        tmp_path,
+    ):
+        """When template-bundles-path is set, the custom path is fetched instead of the default."""
+        custom_bundles_path = "tooling/my-bundles.yml"
+        _write_template_yml(
+            tmp_path,
+            {
+                "template-repository": "jebel-quant/rhiza",
+                "template-branch": "main",
+                "templates": ["core"],
+                "template-bundles-path": custom_bundles_path,
+            },
+        )
+        mock_sha.return_value = "custom1"
+
+        from rhiza.models.bundle import RhizaBundles
+
+        mock_from_yaml.return_value = RhizaBundles.from_config(
+            {"bundles": {"core": {"description": "Core", "files": ["Makefile"]}}}
+        )
+
+        clone_dir = _make_clone_dir(tmp_path, "upstream_clone", {"Makefile": "all:\n\techo ok\n"})
+        snapshot_dir = _make_clone_dir(tmp_path, "upstream_snapshot", {})
+        base_snapshot_dir = _make_clone_dir(tmp_path, "base_snapshot", {})
+
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir)]
+
+        sync(tmp_path, "main", None, "merge")
+
+        # clone_repository must have been called with the custom bundles path, not the default
+        first_clone_call = mock_clone.call_args_list[0]
+        sparse_paths_arg = first_clone_call[0][3]  # fourth positional arg is sparse paths
+        assert sparse_paths_arg == [custom_bundles_path]
+        # from_yaml must have been called with a path ending in the custom bundles path
+        from_yaml_path = mock_from_yaml.call_args[0][0]
+        assert str(from_yaml_path).endswith(custom_bundles_path)

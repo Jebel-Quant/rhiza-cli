@@ -43,7 +43,7 @@ def _log_list(header: str, items: list[str]) -> None:
             logger.info(f"  - {item}")
 
 
-def _load_template_from_project(target: Path) -> RhizaTemplate:
+def _load_template_from_project(target: Path, template_file: Path | None = None) -> RhizaTemplate:
     """Validate and load a :class:`RhizaTemplate` from a project directory.
 
     Validates the project's ``template.yml`` via :func:`~rhiza.commands.validate.validate`,
@@ -53,6 +53,8 @@ def _load_template_from_project(target: Path) -> RhizaTemplate:
     Args:
         target: Path to the target repository (must contain ``.git`` and
             ``.rhiza/template.yml``).
+        template_file: Optional explicit path to the template file.  When
+            ``None`` the default ``<target>/.rhiza/template.yml`` is used.
 
     Returns:
         The loaded and validated :class:`RhizaTemplate`.
@@ -62,13 +64,14 @@ def _load_template_from_project(target: Path) -> RhizaTemplate:
     """
     from rhiza.commands.validate import validate
 
-    valid = validate(target)
+    valid = validate(target, template_file=template_file)
     if not valid:
         logger.error(f"Rhiza template is invalid in: {target}")
         logger.error("Please fix validation errors and try again")
         raise RuntimeError("Rhiza template validation failed")  # noqa: TRY003
 
-    template_file = target / ".rhiza" / "template.yml"
+    if template_file is None:
+        template_file = target / ".rhiza" / "template.yml"
     template = RhizaTemplate.from_yaml(template_file)
 
     if not template.template_repository:
@@ -126,14 +129,17 @@ def _clone_template(
     upstream_dir = Path(tempfile.mkdtemp())
 
     if template.templates:
-        # Checkout .rhiza/template-bundles.yml from template_repository @ template_branch
-        git_ctx.clone_repository(template.git_url, upstream_dir, rhiza_branch, [".rhiza/template-bundles.yml"])
+        # Checkout the bundle definitions file from template_repository @ template_branch
+        bundles_path = template.template_bundles_path
+        git_ctx.clone_repository(template.git_url, upstream_dir, rhiza_branch, [bundles_path])
 
-        # Load template-bundles.yml, resolve bundle names to paths, update sparse checkout
-        bundles = RhizaBundles.from_yaml(upstream_dir / ".rhiza" / "template-bundles.yml")
+        # Load bundle definitions, resolve bundle names to paths, update sparse checkout
+        bundles = RhizaBundles.from_yaml(upstream_dir / bundles_path)
         resolved_paths = bundles.resolve_to_paths(template.templates)
-        git_ctx.update_sparse_checkout(upstream_dir, resolved_paths)
-        include_paths = resolved_paths
+        # Merge resolved bundle paths with any explicit include: paths (hybrid mode)
+        merged_paths = list(dict.fromkeys(resolved_paths + include_paths))
+        git_ctx.update_sparse_checkout(upstream_dir, merged_paths)
+        include_paths = merged_paths
     else:
         git_ctx.clone_repository(template.git_url, upstream_dir, rhiza_branch, include_paths)
 
@@ -148,6 +154,8 @@ def sync(
     branch: str,
     target_branch: str | None,
     strategy: str,
+    template_file: Path | None = None,
+    lock_file: Path | None = None,
 ) -> None:
     """Sync Rhiza templates using cruft-style diff/merge.
 
@@ -161,6 +169,10 @@ def sync(
         target_branch: Optional branch name to create/checkout in the target.
         strategy: Sync strategy -- ``"merge"`` for 3-way merge,
             or ``"diff"`` for dry-run showing what would change.
+        template_file: Optional explicit path to the ``template.yml`` file.
+            When ``None`` the default ``<target>/.rhiza/template.yml`` is used.
+        lock_file: Optional explicit path for the output lock file.  When
+            ``None`` the default ``<target>/.rhiza/template.lock`` is used.
     """
     target = target.resolve()
     logger.info(f"Target repository: {target}")
@@ -172,7 +184,7 @@ def sync(
     git_ctx.assert_status_clean(target)
     git_ctx.handle_target_branch(target, target_branch)
 
-    template = _load_template_from_project(target)
+    template = _load_template_from_project(target, template_file=template_file)
 
     # Capture original include before resolving bundles (templates: mode)
     original_include = list(template.include)
@@ -182,7 +194,7 @@ def sync(
 
     # Synchronizes target with upstream template snapshot transactionally; cleans up resources
     try:
-        lock_path = target / ".rhiza" / "template.lock"
+        lock_path = lock_file if lock_file is not None else target / ".rhiza" / "template.lock"
         base_sha = TemplateLock.from_yaml(lock_path).config["sha"] if lock_path.exists() else None
 
         upstream_snapshot = Path(tempfile.mkdtemp())
@@ -223,6 +235,7 @@ def sync(
                     template=resolved_template,
                     excludes=excludes,
                     lock=lock,
+                    lock_file=lock_file,
                 )
         finally:
             if upstream_snapshot.exists():
