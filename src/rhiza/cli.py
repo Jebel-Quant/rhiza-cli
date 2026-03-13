@@ -199,6 +199,21 @@ def sync(
         "-s",
         help="Sync strategy: 'merge' (3-way merge preserving local changes) or 'diff' (dry-run showing changes)",
     ),
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            "-c",
+            help="Path to the template.yml configuration file (defaults to <TARGET>/.rhiza/template.yml)",
+        ),
+    ] = None,
+    lock_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--lock-file",
+            help="Path for the output lock file (defaults to <TARGET>/.rhiza/template.lock)",
+        ),
+    ] = None,
 ) -> None:
     r"""Sync templates using diff/merge, preserving local customisations.
 
@@ -235,12 +250,14 @@ def sync(
         rhiza sync --strategy diff
         rhiza sync --branch develop
         rhiza sync --target-branch feature/update-templates
+        rhiza sync --config /path/to/my-template.yml
+        rhiza sync --config /path/to/my-template.yml --lock-file /path/to/my.lock
     """
     if strategy not in ("merge", "diff"):
         typer.echo(f"Unknown strategy: {strategy}. Must be 'merge' or 'diff'.")
         raise typer.Exit(code=1)
     with _exit_on_error(subprocess.CalledProcessError, RuntimeError, ValueError):
-        sync_cmd(target, branch, target_branch, strategy)
+        sync_cmd(target, branch, target_branch, strategy, template_file=config, lock_file=lock_file)
 
 
 @app.command()

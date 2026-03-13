@@ -421,6 +421,7 @@ class GitContext:
         template: "RhizaTemplate",
         excludes: set[str],
         lock: "TemplateLock",
+        lock_file: "Path | None" = None,
     ) -> None:
         """Execute the merge strategy (cruft-style 3-way merge).
 
@@ -437,6 +438,8 @@ class GitContext:
             template: The :class:`~rhiza.models.RhizaTemplate` driving this sync.
             excludes: Set of relative paths to exclude.
             lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
+            lock_file: Optional explicit path for the lock file.  When ``None``
+                the default ``<target>/.rhiza/template.lock`` is used.
         """
         from rhiza.commands._sync_helpers import (
             _clean_orphaned_files,
@@ -449,7 +452,7 @@ class GitContext:
         # may write a new lock (e.g. on the "template unchanged" early-return path
         # in _merge_with_base), so we must read the old state first to ensure
         # orphan cleanup compares against the previous sync, not the new one.
-        old_tracked_files = _read_previously_tracked_files(target)
+        old_tracked_files = _read_previously_tracked_files(target, lock_file=lock_file)
 
         base_snapshot = Path(tempfile.mkdtemp())
         try:
@@ -463,6 +466,7 @@ class GitContext:
                     template,
                     excludes,
                     lock,
+                    lock_file=lock_file,
                 )
             else:
                 logger.info("First sync — copying all template files")
@@ -485,8 +489,9 @@ class GitContext:
                 excludes=excludes,
                 base_snapshot=base_snapshot,
                 previously_tracked_files=old_tracked_files if old_tracked_files else None,
+                lock_file=lock_file,
             )
-            _write_lock(target, lock)
+            _write_lock(target, lock, lock_file=lock_file)
             logger.success(f"Sync complete — {len(materialized)} file(s) processed")
         finally:
             if base_snapshot.exists():
@@ -708,6 +713,7 @@ class GitContext:
         template: "RhizaTemplate",
         excludes: set[str],
         lock: "TemplateLock",
+        lock_file: "Path | None" = None,
     ) -> None:
         """Compute and apply the diff between base and upstream snapshots.
 
@@ -720,6 +726,8 @@ class GitContext:
             template: The :class:`~rhiza.models.RhizaTemplate` driving this sync.
             excludes: Set of relative paths to exclude.
             lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
+            lock_file: Optional explicit path for the lock file.  When ``None``
+                the default ``<target>/.rhiza/template.lock`` is used.
         """
         from rhiza.commands._sync_helpers import _write_lock
 
@@ -738,7 +746,7 @@ class GitContext:
 
         if not diff.strip():
             logger.success("Template unchanged since last sync — nothing to apply")
-            _write_lock(target, lock)
+            _write_lock(target, lock, lock_file=lock_file)
             return
 
         logger.info("Applying template changes via 3-way merge (cruft)...")

@@ -651,3 +651,256 @@ class TestSyncE2EUpdatedTemplateYml:
         assert not (project / "file_b.txt").exists(), (
             "file_b.txt must be removed after it is dropped from template.yml include:"
         )
+
+
+# ---------------------------------------------------------------------------
+# 6. Custom template file and lock file paths
+# ---------------------------------------------------------------------------
+
+
+class TestSyncE2ECustomPaths:
+    """End-to-end tests for custom template.yml and lock file paths.
+
+    These tests verify that users can point ``rhiza sync`` to a custom
+    location for both the ``template.yml`` configuration file and the
+    output ``template.lock`` file, independently of the default
+    ``<target>/.rhiza/`` directory.
+    """
+
+    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    def test_custom_template_file_is_read(self, mock_warn, project, git_ctx, tmp_path):
+        """sync() reads the template config from a custom path when --config is given.
+
+        A template.yml placed *outside* the default ``.rhiza/`` directory is
+        picked up correctly and drives the sync.
+        """
+        # Write a custom template.yml at an arbitrary path.
+        custom_config_dir = tmp_path / "config"
+        custom_config_dir.mkdir()
+        custom_template = custom_config_dir / "my-template.yml"
+        custom_template.write_text(
+            "template-repository: jebel-quant/rhiza\ntemplate-branch: main\ninclude:\n  - special.txt\n"
+        )
+
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (upstream / "special.txt").write_text("from custom template\n")
+
+        def clone_upstream(template, git_ctx_, branch="main"):
+            return upstream, "sha_custom", list(template.include)
+
+        with patch("rhiza.commands.sync._clone_template", side_effect=clone_upstream):
+            sync(
+                target=project,
+                branch="main",
+                target_branch=None,
+                strategy="merge",
+                template_file=custom_template,
+            )
+
+        assert (project / "special.txt").exists()
+        assert (project / "special.txt").read_text() == "from custom template\n"
+        # Lock is written to the default location.
+        assert (project / ".rhiza" / "template.lock").exists()
+        assert TemplateLock.from_yaml(project / ".rhiza" / "template.lock").config["sha"] == "sha_custom"
+
+    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    def test_custom_lock_file_path_is_written(self, mock_warn, project, git_ctx, tmp_path):
+        """sync() writes the lock file to a custom path when --lock-file is given.
+
+        The default ``.rhiza/template.lock`` must *not* be created; instead the
+        lock must appear at the user-supplied path.
+        """
+        custom_lock = tmp_path / "locks" / "my-project.lock"
+
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (upstream / "Makefile").write_text("install:\n\tpip install .\n")
+
+        def clone_upstream(template, git_ctx_, branch="main"):
+            return upstream, "sha_lockpath", list(template.include)
+
+        with patch("rhiza.commands.sync._clone_template", side_effect=clone_upstream):
+            sync(
+                target=project,
+                branch="main",
+                target_branch=None,
+                strategy="merge",
+                lock_file=custom_lock,
+            )
+
+        # Lock must appear at the custom path.
+        assert custom_lock.exists(), "lock file must be written to the custom path"
+        assert TemplateLock.from_yaml(custom_lock).config["sha"] == "sha_lockpath"
+        # Default lock location must NOT have been created.
+        assert not (project / ".rhiza" / "template.lock").exists()
+
+    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    def test_custom_template_file_and_lock_file_together(self, mock_warn, project, git_ctx, tmp_path):
+        """sync() honours both --config and --lock-file simultaneously.
+
+        Using a custom template.yml *and* a custom lock path in the same
+        invocation must produce a lock that reflects the custom template's
+        include list and is written to the custom path.
+        """
+        # Custom template pointing to a different include list.
+        custom_config_dir = tmp_path / "cfg"
+        custom_config_dir.mkdir()
+        custom_template = custom_config_dir / "alt-template.yml"
+        custom_template.write_text(
+            "template-repository: jebel-quant/rhiza\ntemplate-branch: main\ninclude:\n  - alt.txt\n"
+        )
+
+        custom_lock = tmp_path / "alt.lock"
+
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (upstream / "alt.txt").write_text("alternative template file\n")
+
+        def clone_upstream(template, git_ctx_, branch="main"):
+            return upstream, "sha_alt", list(template.include)
+
+        with patch("rhiza.commands.sync._clone_template", side_effect=clone_upstream):
+            sync(
+                target=project,
+                branch="main",
+                target_branch=None,
+                strategy="merge",
+                template_file=custom_template,
+                lock_file=custom_lock,
+            )
+
+        # Custom template file was used: alt.txt must be synced.
+        assert (project / "alt.txt").exists()
+        assert (project / "alt.txt").read_text() == "alternative template file\n"
+
+        # Custom lock path was used.
+        assert custom_lock.exists(), "lock must be at the custom path"
+        lock = TemplateLock.from_yaml(custom_lock)
+        assert lock.config["sha"] == "sha_alt"
+
+        # Default lock must NOT have been created.
+        assert not (project / ".rhiza" / "template.lock").exists()
+
+    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    def test_subsequent_sync_reads_custom_lock(self, mock_warn, project, git_ctx, tmp_path):
+        """A second sync with a custom lock path correctly reads the previous SHA.
+
+        After a first sync that wrote a custom lock, a second sync at the same
+        custom path must detect the existing lock and use it as the base for
+        incremental updates.
+        """
+        custom_lock = tmp_path / "custom.lock"
+
+        # Update template.yml to include data.txt.
+        (project / ".rhiza" / "template.yml").write_text(
+            "template-repository: jebel-quant/rhiza\ntemplate-branch: main\ninclude:\n  - data.txt\n"
+        )
+        _git_commit_all(project, git_ctx, "use data.txt in template.yml")
+
+        # ------------------------------------------------------------------
+        # First sync — no existing lock
+        # ------------------------------------------------------------------
+        upstream_v1 = tmp_path / "upstream_v1"
+        upstream_v1.mkdir()
+        (upstream_v1 / "data.txt").write_text("version 1\n")
+
+        def clone_v1(template, git_ctx_, branch="main"):
+            return upstream_v1, "sha_v1", list(template.include)
+
+        with patch("rhiza.commands.sync._clone_template", side_effect=clone_v1):
+            sync(
+                target=project,
+                branch="main",
+                target_branch=None,
+                strategy="merge",
+                lock_file=custom_lock,
+            )
+
+        assert (project / "data.txt").read_text() == "version 1\n"
+        assert TemplateLock.from_yaml(custom_lock).config["sha"] == "sha_v1"
+        _git_commit_all(project, git_ctx, "after first sync")
+
+        # ------------------------------------------------------------------
+        # Second sync — custom lock already exists, template unchanged
+        # ------------------------------------------------------------------
+        upstream_v2 = tmp_path / "upstream_v2"
+        upstream_v2.mkdir()
+        (upstream_v2 / "data.txt").write_text("version 2\n")
+
+        def clone_v2(template, git_ctx_, branch="main"):
+            return upstream_v2, "sha_v2", list(template.include)
+
+        def populate_base(git_url, sha, dest, include_paths):
+            (dest / "data.txt").write_text("version 1\n")
+
+        with (
+            patch("rhiza.commands.sync._clone_template", side_effect=clone_v2),
+            patch("rhiza.models._git_utils.GitContext.clone_at_sha", side_effect=populate_base),
+        ):
+            sync(
+                target=project,
+                branch="main",
+                target_branch=None,
+                strategy="merge",
+                lock_file=custom_lock,
+            )
+
+        assert (project / "data.txt").read_text() == "version 2\n"
+        assert TemplateLock.from_yaml(custom_lock).config["sha"] == "sha_v2"
+
+    def test_cli_sync_custom_config_option(self, project, git_ctx, tmp_path):
+        """The --config CLI option is wired through to the sync command."""
+        from typer.testing import CliRunner
+
+        from rhiza.cli import app
+
+        custom_config_dir = tmp_path / "cfg"
+        custom_config_dir.mkdir()
+        custom_template = custom_config_dir / "template.yml"
+        custom_template.write_text(
+            "template-repository: jebel-quant/rhiza\ntemplate-branch: main\ninclude:\n  - cli_test.txt\n"
+        )
+
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (upstream / "cli_test.txt").write_text("cli driven\n")
+
+        def clone_upstream(template, git_ctx_, branch="main"):
+            return upstream, "sha_cli", list(template.include)
+
+        runner = CliRunner()
+        with patch("rhiza.commands.sync._clone_template", side_effect=clone_upstream):
+            result = runner.invoke(
+                app,
+                ["sync", str(project), "--config", str(custom_template)],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert (project / "cli_test.txt").exists()
+
+    def test_cli_sync_custom_lock_file_option(self, project, git_ctx, tmp_path):
+        """The --lock-file CLI option is wired through to the sync command."""
+        from typer.testing import CliRunner
+
+        from rhiza.cli import app
+
+        custom_lock = tmp_path / "custom.lock"
+
+        upstream = tmp_path / "upstream"
+        upstream.mkdir()
+        (upstream / "Makefile").write_text("install:\n\tpip install .\n")
+
+        def clone_upstream(template, git_ctx_, branch="main"):
+            return upstream, "sha_locktest", list(template.include)
+
+        runner = CliRunner()
+        with patch("rhiza.commands.sync._clone_template", side_effect=clone_upstream):
+            result = runner.invoke(
+                app,
+                ["sync", str(project), "--lock-file", str(custom_lock)],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert custom_lock.exists(), "lock must be at the custom path"
+        assert TemplateLock.from_yaml(custom_lock).config["sha"] == "sha_locktest"
