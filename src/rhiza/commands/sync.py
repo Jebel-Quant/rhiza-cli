@@ -17,6 +17,7 @@ When no lock file exists (first sync), the command falls back to a simple
 copy and records the commit SHA.
 """
 
+import dataclasses
 import datetime
 import shutil
 import tempfile
@@ -28,6 +29,8 @@ from rhiza.models import GitContext, RhizaTemplate, TemplateLock
 from rhiza.models._git_utils import _excluded_set, _prepare_snapshot
 
 __all__ = ["sync"]
+
+_DEFAULT_BUNDLES_PATH = ".rhiza/template-bundles.yml"
 
 
 def _log_list(header: str, items: list[str]) -> None:
@@ -73,6 +76,18 @@ def _load_template_from_project(target: Path, template_file: Path | None = None)
     if template_file is None:
         template_file = target / ".rhiza" / "template.yml"
     template = RhizaTemplate.from_yaml(template_file)
+
+    # When template_bundles_path is at its default and the template file is not at
+    # the default location, derive the bundles path from the template file's directory
+    # relative to the project root so that --path-to-template works consistently.
+    if template.template_bundles_path == _DEFAULT_BUNDLES_PATH:
+        try:
+            relative_dir = template_file.resolve().parent.relative_to(target)
+            derived = str(relative_dir / "template-bundles.yml")
+            if derived != _DEFAULT_BUNDLES_PATH:
+                template = dataclasses.replace(template, template_bundles_path=derived)
+        except ValueError:
+            pass  # template_file is outside target root; keep default
 
     if not template.template_repository:
         logger.error("template-repository is not configured in template.yml")
@@ -216,8 +231,6 @@ def sync(
             )
 
             # Build a resolved template view for merge operations (bundles → concrete paths)
-            import dataclasses
-
             resolved_template = dataclasses.replace(template, include=resolved_include, templates=[])
 
             if strategy == "diff":
