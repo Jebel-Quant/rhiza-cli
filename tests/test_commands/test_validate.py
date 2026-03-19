@@ -4,6 +4,9 @@ This module verifies that `validate` checks `.rhiza/template.yml` and that
 the Typer CLI entry `rhiza validate` behaves as expected across scenarios.
 """
 
+import tempfile
+from pathlib import Path
+
 import pytest
 import yaml
 from typer.testing import CliRunner
@@ -961,3 +964,82 @@ class TestValidateHelperFunctions:
         # Should succeed but with warnings
         result = validate(git_path)
         assert result is True
+
+
+class TestValidateCustomTemplatePath:
+    """Tests for the validate() template_file parameter."""
+
+    def test_validate_with_custom_template_file_outside_target(self, git_path, tmp_path):
+        """validate() accepts a template file path outside the target directory.
+
+        When the template file is at a path that cannot be made relative to
+        *target*, validate() still displays and uses it correctly.
+        """
+        # Create a valid Python project structure.
+        (git_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+
+        # Write the template file *outside* git_path.
+        external_config = tmp_path / "external" / "template.yml"
+        external_config.parent.mkdir(parents=True)
+        external_config.write_text("template-repository: owner/repo\ninclude:\n  - .github\n")
+
+        result = validate(git_path, template_file=external_config)
+        assert result is True
+
+    def test_validate_fails_when_custom_template_file_missing_and_outside_target(self, git_path):
+        """validate() reports the correct path when a custom template file is missing.
+
+        When the template file lies outside *target* the ValueError branch in
+        the path display logic (lines 75-76 in validate.py) is exercised.
+        """
+        # Create a valid Python project structure.
+        (git_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+
+        # Use a path in a completely unrelated temp directory (not a subpath of
+        # git_path) so that Path.relative_to() raises ValueError, which exercises
+        # lines 75-76 in validate.py.
+        with tempfile.TemporaryDirectory() as unrelated_dir:
+            external_missing = Path(unrelated_dir) / "nonexistent" / "template.yml"
+            result = validate(git_path, template_file=external_missing)
+        assert result is False
+
+    def test_cli_path_to_template_option_uses_custom_directory(self, git_path, tmp_path):
+        """CLI --path-to-template passes template.yml from the given directory."""
+        (git_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+
+        custom_dir = tmp_path / "custom-rhiza"
+        custom_dir.mkdir()
+        (custom_dir / "template.yml").write_text("template-repository: owner/repo\ninclude:\n  - .github\n")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli.app,
+            ["validate", str(git_path), "--path-to-template", str(custom_dir)],
+        )
+        assert result.exit_code == 0
+
+    def test_cli_path_to_template_missing_file_exits_nonzero(self, git_path, tmp_path):
+        """CLI --path-to-template exits with code 1 when template.yml is absent."""
+        (git_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+
+        empty_dir = tmp_path / "empty"
+        empty_dir.mkdir()
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli.app,
+            ["validate", str(git_path), "--path-to-template", str(empty_dir)],
+        )
+        assert result.exit_code == 1
+
+    def test_cli_path_to_template_dot_uses_project_root(self, git_path):
+        """CLI --path-to-template <TARGET> resolves template.yml from the project root."""
+        (git_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+        (git_path / "template.yml").write_text("template-repository: owner/repo\ninclude:\n  - .github\n")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli.app,
+            ["validate", str(git_path), "--path-to-template", str(git_path)],
+        )
+        assert result.exit_code == 0

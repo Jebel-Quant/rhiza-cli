@@ -57,6 +57,7 @@ rhiza init [OPTIONS] [TARGET]
 - `--git-host <host>` - Target Git hosting platform (github or gitlab)
 - `--template-repository <owner/repo>` - Custom template repository (default: jebel-quant/rhiza)
 - `--template-branch <branch>` - Custom template branch (default: main)
+- `--path-to-template <directory>` - Directory where `template.yml` will be created (default: `<TARGET>/.rhiza`). Use `.` to keep the file in the project root.
 
 **Examples:**
 ```bash
@@ -66,6 +67,8 @@ rhiza init --git-host gitlab                        # Use GitLab CI configuratio
 rhiza init --template-repository myorg/my-templates # Use custom template repository
 rhiza init --template-repository myorg/my-templates --template-branch develop  # Custom repo and branch
 rhiza init ..                                       # Initialize parent directory
+rhiza init --path-to-template /custom/rhiza         # Custom template directory
+rhiza init --path-to-template .                     # Template in project root
 ```
 
 ---
@@ -158,11 +161,14 @@ rhiza migrate /path/to/project   # Migrate specific directory
 
 **Syntax:**
 ```bash
-rhiza validate [TARGET]
+rhiza validate [TARGET] [OPTIONS]
 ```
 
 **Parameters:**
 - `TARGET` - Repository directory to validate (default: current directory)
+
+**Options:**
+- `--path-to-template DIRECTORY` - Directory containing `template.yml` (default: `<TARGET>/.rhiza`). Use `.` to keep the file in the project root.
 
 **Exit Codes:**
 - `0` - Validation passed
@@ -170,9 +176,11 @@ rhiza validate [TARGET]
 
 **Examples:**
 ```bash
-rhiza validate                    # Validate current directory
-rhiza validate /path/to/project   # Validate specific directory
-rhiza validate ..                 # Validate parent directory
+rhiza validate                                      # Validate current directory
+rhiza validate /path/to/project                     # Validate specific directory
+rhiza validate ..                                   # Validate parent directory
+rhiza validate --path-to-template /custom/rhiza     # Custom template directory
+rhiza validate --path-to-template .                 # Template in project root
 ```
 
 **Validation Checks:**

@@ -6,60 +6,49 @@ behaves as expected across scenarios.
 """
 
 import yaml
+from rich.tree import Tree as RichTree
 from typer.testing import CliRunner
 
 from rhiza.cli import app
-from rhiza.commands.tree import _build_tree, _render_tree, tree
+from rhiza.commands.tree import _build_rich_tree, tree
 
 
-class TestBuildTree:
-    """Unit tests for the _build_tree helper."""
+class TestBuildRichTree:
+    """Unit tests for the _build_rich_tree helper."""
 
     def test_single_file_at_root(self):
-        """Single root-level file produces a flat dict."""
-        result = _build_tree(["Makefile"])
-        assert result == {"Makefile": {}}
+        """Single root-level file produces a tree with one child."""
+        result = _build_rich_tree(["Makefile"])
+        assert isinstance(result, RichTree)
+        assert len(result.children) == 1
+        assert result.children[0].label == "Makefile"
 
     def test_nested_file(self):
-        """Deeply nested path produces a nested dict."""
-        result = _build_tree([".github/workflows/ci.yml"])
-        assert result == {".github": {"workflows": {"ci.yml": {}}}}
+        """Deeply nested path produces nested tree nodes."""
+        result = _build_rich_tree([".github/workflows/ci.yml"])
+        assert len(result.children) == 1
+        github_node = result.children[0]
+        assert github_node.label == ".github"
+        workflows_node = github_node.children[0]
+        assert workflows_node.label == "workflows"
+        assert workflows_node.children[0].label == "ci.yml"
 
     def test_multiple_files_same_dir(self):
         """Multiple files under the same directory share the parent node."""
-        result = _build_tree(["src/a.py", "src/b.py"])
-        assert result == {"src": {"a.py": {}, "b.py": {}}}
+        result = _build_rich_tree(["src/a.py", "src/b.py"])
+        assert len(result.children) == 1
+        src_node = result.children[0]
+        assert src_node.label == "src"
+        child_labels = [c.label for c in src_node.children]
+        assert "a.py" in child_labels
+        assert "b.py" in child_labels
 
     def test_mixed_depth(self):
         """Files at different depths are all represented in the tree."""
-        result = _build_tree(["Makefile", ".github/workflows/ci.yml"])
-        assert ".github" in result
-        assert "Makefile" in result
-
-
-class TestRenderTree:
-    """Unit tests for the _render_tree helper."""
-
-    def test_single_entry(self):
-        """A single entry uses the last-child connector."""
-        node = {"Makefile": {}}
-        lines = _render_tree(node)
-        assert lines == ["└── Makefile"]
-
-    def test_two_entries(self):
-        """First of two entries uses the branch connector."""
-        node = {"a.txt": {}, "b.txt": {}}
-        lines = _render_tree(node)
-        assert lines[0].startswith("├── ")
-        assert lines[1].startswith("└── ")
-
-    def test_nested_entries(self):
-        """Nested entries are indented under their parent."""
-        node = {".github": {"workflows": {"ci.yml": {}}}}
-        lines = _render_tree(node)
-        assert ".github" in lines[0]
-        assert "workflows" in lines[1]
-        assert "ci.yml" in lines[2]
+        result = _build_rich_tree(["Makefile", ".github/workflows/ci.yml"])
+        top_labels = [c.label for c in result.children]
+        assert ".github" in top_labels
+        assert "Makefile" in top_labels
 
 
 class TestTreeCommand:

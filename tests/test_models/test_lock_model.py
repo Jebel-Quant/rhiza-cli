@@ -1,0 +1,154 @@
+"""Tests for the TemplateLock dataclass.
+
+This module verifies that TemplateLock correctly serialises and deserialises
+.rhiza/template.lock files, handles legacy plain-SHA format, and satisfies
+the YamlSerializable protocol.
+"""
+
+import pytest
+import yaml
+
+from rhiza.models._base import YamlSerializable, load_model
+from rhiza.models.lock import TemplateLock
+
+
+class TestTemplateLock:
+    """Tests for the TemplateLock dataclass."""
+
+    def test_template_lock_to_yaml(self, tmp_path):
+        """Test TemplateLock serialization: defaults, omissions, parent dir, and formatting."""
+        # 1. Defaults and parent directory creation
+        lock = TemplateLock(sha="abc123")
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+        lock.to_yaml(lock_path)
+        assert lock_path.exists()
+
+        data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+        assert data["sha"] == "abc123"
+        assert data["repo"] == ""
+        assert data["host"] == "github"
+        assert data["ref"] == "main"
+        assert data["include"] == []
+        assert data["exclude"] == []
+        assert data["templates"] == []
+        assert data["files"] == []
+        assert "synced_at" not in data
+        assert "strategy" not in data
+
+        # 2. File is valid YAML (parseable)
+        raw = lock_path.read_text(encoding="utf-8")
+        assert yaml.safe_load(raw) is not None
+
+        # 3. Non-defaults: all fields including synced_at and strategy
+        lock = TemplateLock(
+            sha="abc123def456",
+            repo="jebel-quant/rhiza",
+            host="gitlab",
+            ref="develop",
+            include=[".github/", ".rhiza/"],
+            exclude=["README.md"],
+            templates=["core"],
+            files=[".github/workflows/ci.yml"],
+            synced_at="2026-02-26T12:00:00Z",
+            strategy="merge",
+        )
+        lock.to_yaml(lock_path)
+        data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+        assert data["sha"] == "abc123def456"
+        assert data["repo"] == "jebel-quant/rhiza"
+        assert data["host"] == "gitlab"
+        assert data["ref"] == "develop"
+        assert data["include"] == [".github/", ".rhiza/"]
+        assert data["exclude"] == ["README.md"]
+        assert data["templates"] == ["core"]
+        assert data["files"] == [".github/workflows/ci.yml"]
+        assert data["synced_at"] == "2026-02-26T12:00:00Z"
+        assert data["strategy"] == "merge"
+
+    def test_template_lock_from_yaml(self, tmp_path):
+        """Test TemplateLock deserialization: structured format and missing fields."""
+        lock_path = tmp_path / "template.lock"
+
+        # 1. Structured format (full)
+        lock_path.write_text(
+            "sha: abc123def456\nrepo: jebel-quant/rhiza\nhost: github\nref: main\n"
+            "include:\n- .github/\n- .rhiza/\nexclude: []\ntemplates: []\n"
+            "files:\n- .github/workflows/ci.yml\n",
+            encoding="utf-8",
+        )
+        lock = TemplateLock.from_yaml(lock_path)
+        assert lock.sha == "abc123def456"
+        assert lock.repo == "jebel-quant/rhiza"
+        assert lock.include == [".github/", ".rhiza/"]
+        assert lock.files == [".github/workflows/ci.yml"]
+
+        # 2. Missing optional fields in structured format
+        lock_path.write_text("sha: abc789\nhost: gitlab\n", encoding="utf-8")
+        lock = TemplateLock.from_yaml(lock_path)
+        assert lock.sha == "abc789"
+        assert lock.host == "gitlab"
+        assert lock.ref == "main"  # default fallback
+        assert lock.files == []
+        assert lock.synced_at == ""
+
+    def test_template_lock_round_trip(self, tmp_path):
+        """Test that to_yaml then from_yaml preserves all fields."""
+        original = TemplateLock(
+            sha="abc123def456",
+            repo="jebel-quant/rhiza",
+            host="gitlab",
+            ref="develop",
+            include=[".github/", ".rhiza/"],
+            exclude=["README.md"],
+            templates=["core"],
+            files=[".github/workflows/ci.yml"],
+            synced_at="2026-02-26T12:00:00Z",
+            strategy="merge",
+        )
+        lock_path = tmp_path / "template.lock"
+        original.to_yaml(lock_path)
+        loaded = TemplateLock.from_yaml(lock_path)
+        assert loaded == original
+
+    def test_template_lock_from_yaml_invalid_format(self, tmp_path):
+        """from_yaml raises TypeError when the lock data is not a dict."""
+        lock_path = tmp_path / "template.lock"
+        lock_path.write_text("- item1\n- item2\n", encoding="utf-8")
+
+        with pytest.raises(TypeError, match="does not contain a YAML mapping"):
+            TemplateLock.from_yaml(lock_path)
+
+
+# ---------------------------------------------------------------------------
+# YamlSerializable Protocol — lock-related check
+# ---------------------------------------------------------------------------
+
+
+class TestYamlSerializableProtocol:
+    """Tests for the YamlSerializable Protocol as it applies to TemplateLock."""
+
+    def test_template_lock_satisfies_protocol(self):
+        """TemplateLock is a runtime-checkable instance of YamlSerializable."""
+        lock = TemplateLock(sha="abc123")
+        assert isinstance(lock, YamlSerializable)
+
+
+# ---------------------------------------------------------------------------
+# load_model helper — lock-related check
+# ---------------------------------------------------------------------------
+
+
+class TestLoadModel:
+    """Tests for the load_model generic helper as it applies to TemplateLock."""
+
+    def test_load_model_returns_template_lock(self, tmp_path):
+        """load_model loads a TemplateLock and returns the correct type/values."""
+        lock = TemplateLock(sha="deadbeef", repo="owner/repo", host="github", ref="main")
+        lock_path = tmp_path / "template.lock"
+        lock.to_yaml(lock_path)
+
+        result = load_model(TemplateLock, lock_path)
+
+        assert isinstance(result, TemplateLock)
+        assert result.sha == "deadbeef"
+        assert result.repo == "owner/repo"

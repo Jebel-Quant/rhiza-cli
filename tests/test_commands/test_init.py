@@ -325,8 +325,7 @@ class TestInitCommand:
             config = yaml.safe_load(f)
 
         assert config["repository"] == "jebel-quant/rhiza"
-        # Language field should not be in config (it's the default)
-        assert "language" not in config
+        assert config["language"] == "python"
 
         # Verify Python-specific structure
         assert (tmp_path / "pyproject.toml").exists()
@@ -564,8 +563,7 @@ class TestCheckTemplateRepositoryReachable:
     """Tests for the _check_template_repository_reachable function."""
 
     @patch("rhiza.commands.init.subprocess.run")
-    @patch("rhiza.commands.init.get_git_executable", return_value="/usr/bin/git")
-    def test_reachable_repository_returns_true(self, mock_git_exec, mock_run):
+    def test_reachable_repository_returns_true(self, mock_run):
         """Test that a reachable repository returns True."""
         mock_run.return_value = MagicMock(returncode=0)
         result = _check_template_repository_reachable("myorg/my-templates", "github")
@@ -575,16 +573,14 @@ class TestCheckTemplateRepositoryReachable:
         assert "https://github.com/myorg/my-templates" in args
 
     @patch("rhiza.commands.init.subprocess.run")
-    @patch("rhiza.commands.init.get_git_executable", return_value="/usr/bin/git")
-    def test_unreachable_repository_returns_false(self, mock_git_exec, mock_run):
+    def test_unreachable_repository_returns_false(self, mock_run):
         """Test that an unreachable repository returns False."""
         mock_run.return_value = MagicMock(returncode=128)
         result = _check_template_repository_reachable("typo/nonexistent", "github")
         assert result is False
 
     @patch("rhiza.commands.init.subprocess.run")
-    @patch("rhiza.commands.init.get_git_executable", return_value="/usr/bin/git")
-    def test_gitlab_host_uses_gitlab_url(self, mock_git_exec, mock_run):
+    def test_gitlab_host_uses_gitlab_url(self, mock_run):
         """Test that gitlab host uses gitlab.com URL."""
         mock_run.return_value = MagicMock(returncode=0)
         _check_template_repository_reachable("myorg/my-templates", "gitlab")
@@ -592,17 +588,16 @@ class TestCheckTemplateRepositoryReachable:
         assert "https://gitlab.com/myorg/my-templates" in args
 
     @patch("rhiza.commands.init.subprocess.run")
-    @patch("rhiza.commands.init.get_git_executable", return_value="/usr/bin/git")
-    def test_timeout_returns_false(self, mock_git_exec, mock_run):
+    def test_timeout_returns_false(self, mock_run):
         """Test that a timeout returns False."""
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=30)
         result = _check_template_repository_reachable("myorg/my-templates", "github")
         assert result is False
 
-    @patch("rhiza.commands.init.get_git_executable")
-    def test_git_not_found_returns_true(self, mock_git_exec):
+    @patch("rhiza.commands.init.GitContext")
+    def test_git_not_found_returns_true(self, mock_git_ctx_cls):
         """Test that missing git executable returns True (don't block init)."""
-        mock_git_exec.side_effect = RuntimeError("git not found")
+        mock_git_ctx_cls.default.side_effect = RuntimeError("git not found")
         result = _check_template_repository_reachable("myorg/my-templates", "github")
         assert result is True
 
@@ -750,3 +745,61 @@ class TestPromptTemplateRepository:
         with open(template_file) as f:
             config = yaml.safe_load(f)
         assert config["repository"] == "org/selected-repo"
+
+
+class TestInitCustomTemplatePath:
+    """Tests for the --path-to-template option on init."""
+
+    def test_init_creates_template_in_custom_directory(self, tmp_path):
+        """init() writes template.yml to the custom directory when template_file is given."""
+        (tmp_path / ".git").mkdir()
+        (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+        custom_dir = tmp_path / "my-rhiza"
+        custom_dir.mkdir()
+        custom_file = custom_dir / "template.yml"
+
+        result = init(tmp_path, git_host="github", template_file=custom_file)
+        assert result is True
+        assert custom_file.exists()
+        # Default .rhiza/template.yml must NOT have been created.
+        assert not (tmp_path / ".rhiza" / "template.yml").exists()
+
+    def test_init_creates_parent_directory_for_custom_file(self, tmp_path):
+        """init() creates parent directories for the custom template_file path."""
+        (tmp_path / ".git").mkdir()
+        (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+        custom_file = tmp_path / "deep" / "nested" / "template.yml"
+
+        result = init(tmp_path, git_host="github", template_file=custom_file)
+        assert result is True
+        assert custom_file.exists()
+
+    def test_init_skips_prompt_when_custom_template_yml_exists(self, tmp_path):
+        """init() skips the interactive prompt when the custom template file already exists."""
+        custom_dir = tmp_path / "my-rhiza"
+        custom_dir.mkdir()
+        custom_file = custom_dir / "template.yml"
+        custom_file.write_text("repository: org/existing\nref: main\ninclude:\n  - .github\n")
+
+        prompt_mock = MagicMock(return_value=None)
+        with patch("rhiza.commands.init._prompt_template_repository", prompt_mock):
+            init(tmp_path, git_host="github", template_file=custom_file)
+        prompt_mock.assert_not_called()
+
+    def test_cli_path_to_template_creates_template_in_custom_directory(self, tmp_path):
+        """CLI --path-to-template writes template.yml to the given directory."""
+        import subprocess as sp
+
+        sp.run(["git", "init", str(tmp_path)], capture_output=True)  # nosec B603 B607
+        (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+        custom_dir = tmp_path / "custom-rhiza"
+        custom_dir.mkdir()
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli.app,
+            ["init", str(tmp_path), "--git-host", "github", "--path-to-template", str(custom_dir)],
+        )
+        assert result.exit_code == 0
+        assert (custom_dir / "template.yml").exists()
+        assert not (tmp_path / ".rhiza" / "template.yml").exists()

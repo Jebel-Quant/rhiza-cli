@@ -19,8 +19,7 @@ from loguru import logger
 
 from rhiza.commands.list_repos import _DESC_WIDTH, _fetch_repos
 from rhiza.commands.validate import validate
-from rhiza.models import RhizaTemplate
-from rhiza.subprocess_utils import get_git_executable
+from rhiza.models import GitContext, GitHost, RhizaTemplate
 
 
 def _normalize_package_name(name: str) -> str:
@@ -40,27 +39,28 @@ def _normalize_package_name(name: str) -> str:
     return name
 
 
-def _validate_git_host(git_host: str | None) -> str | None:
+def _validate_git_host(git_host: str | None) -> GitHost | None:
     """Validate git_host parameter.
 
     Args:
         git_host: Git hosting platform.
 
     Returns:
-        Validated git_host or None.
+        Validated GitHost enum value or None.
 
     Raises:
         ValueError: If git_host is invalid.
     """
-    if git_host is not None:
-        git_host = git_host.lower()
-        if git_host not in ["github", "gitlab"]:
-            logger.error(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")
-            raise ValueError(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")  # noqa: TRY003
-    return git_host
+    if git_host is None:
+        return None
+    try:
+        return GitHost(git_host.lower())
+    except ValueError:
+        logger.error(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")
+        raise ValueError(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'") from None  # noqa: TRY003
 
 
-def _check_template_repository_reachable(template_repository: str, git_host: str = "github") -> bool:
+def _check_template_repository_reachable(template_repository: str, git_host: GitHost | str = GitHost.GITHUB) -> bool:
     """Check if the template repository is reachable via git ls-remote.
 
     Args:
@@ -71,19 +71,20 @@ def _check_template_repository_reachable(template_repository: str, git_host: str
         True if the repository is reachable, False otherwise.
     """
     host_urls = {
-        "github": "https://github.com",
-        "gitlab": "https://gitlab.com",
+        GitHost.GITHUB: "https://github.com",
+        GitHost.GITLAB: "https://gitlab.com",
     }
     base_url = host_urls.get(git_host, "https://github.com")
     repo_url = f"{base_url}/{template_repository}"
 
     logger.debug(f"Checking reachability of template repository: {repo_url}")
     try:
-        git = get_git_executable()
+        git_ctx = GitContext.default()
         result = subprocess.run(  # nosec B603  # noqa: S603
-            [git, "ls-remote", "--exit-code", repo_url],
+            [git_ctx.executable, "ls-remote", "--exit-code", repo_url],
             capture_output=True,
             timeout=30,
+            env=git_ctx.env,
         )
         if result.returncode == 0:
             logger.success(f"Template repository is reachable: {template_repository}")
@@ -101,11 +102,11 @@ def _check_template_repository_reachable(template_repository: str, git_host: str
         return True  # Don't block init if git is unavailable
 
 
-def _prompt_git_host() -> str:
+def _prompt_git_host() -> GitHost:
     """Prompt user for git hosting platform.
 
     Returns:
-        Git hosting platform choice.
+        Git hosting platform choice as a GitHost enum value.
     """
     if sys.stdin.isatty():
         logger.info("Where will your project be hosted?")
@@ -115,7 +116,7 @@ def _prompt_git_host() -> str:
             default="github",
         ).lower()
 
-        while git_host not in ["github", "gitlab"]:
+        while git_host not in GitHost._value2member_map_:
             logger.warning(f"Invalid choice: {git_host}. Please choose 'github' or 'gitlab'")
             git_host = typer.prompt(
                 "Target Git hosting platform (github/gitlab)",
@@ -126,7 +127,7 @@ def _prompt_git_host() -> str:
         git_host = "github"
         logger.debug("Non-interactive mode detected, defaulting to github")
 
-    return str(git_host)
+    return GitHost(git_host)
 
 
 def _prompt_template_repository() -> str | None:
@@ -182,7 +183,7 @@ def _prompt_template_repository() -> str | None:
         return None
 
 
-def _get_default_templates_for_host(git_host: str) -> list[str]:
+def _get_default_templates_for_host(git_host: GitHost | str) -> list[str]:
     """Get default templates based on git hosting platform.
 
     Args:
@@ -192,18 +193,32 @@ def _get_default_templates_for_host(git_host: str) -> list[str]:
         List of template names.
     """
     common = ["core", "tests", "book", "marimo", "presentation"]
-    if git_host == "gitlab":
+    if git_host == GitHost.GITLAB:
         return [*common, "gitlab"]
     else:
         return [*common, "github"]
 
 
+def _display_path(path: Path, target: Path) -> Path:
+    """Return *path* relative to *target* when possible, otherwise the absolute path.
+
+    Args:
+        path: Path to display.
+        target: Base directory used as the reference point.
+
+    Returns:
+        A relative or absolute Path suitable for log messages.
+    """
+    return path.relative_to(target) if path.is_relative_to(target) else path
+
+
 def _create_template_file(
     target: Path,
-    git_host: str,
+    git_host: GitHost | str,
     language: str = "python",
     template_repository: str | None = None,
     template_branch: str | None = None,
+    template_file: Path | None = None,
 ) -> None:
     """Create default template.yml file.
 
@@ -213,14 +228,18 @@ def _create_template_file(
         language: Programming language for the project (default: python).
         template_repository: Custom template repository (format: owner/repo).
         template_branch: Custom template branch.
+        template_file: Optional explicit path to write template.yml.  When
+            ``None`` the default ``<target>/.rhiza/template.yml`` is used.
     """
-    rhiza_dir = target / ".rhiza"
-    template_file = rhiza_dir / "template.yml"
+    if template_file is None:
+        rhiza_dir = target / ".rhiza"
+        template_file = rhiza_dir / "template.yml"
 
     if template_file.exists():
         return
 
-    logger.info("Creating default .rhiza/template.yml")
+    template_file.parent.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Creating default {_display_path(template_file, target)}")
     logger.debug("Using default template configuration")
 
     # Use custom template repository/branch if provided, otherwise use language defaults
@@ -250,7 +269,7 @@ def _create_template_file(
     logger.debug(f"Writing default template to: {template_file}")
     default_template.to_yaml(template_file)
 
-    logger.success("✓ Created .rhiza/template.yml")
+    logger.success(f"✓ Created {_display_path(template_file, target)}")
     logger.info("""
 Next steps:
   1. Review and customize .rhiza/template.yml to match your project needs
@@ -362,6 +381,7 @@ def init(
     language: str = "python",
     template_repository: str | None = None,
     template_branch: str | None = None,
+    template_file: Path | None = None,
 ) -> bool:
     """Initialize or validate .rhiza/template.yml in the target repository.
 
@@ -380,6 +400,8 @@ def init(
         template_repository: Custom template repository (format: owner/repo).
             Defaults to 'jebel-quant/rhiza' for Python or 'jebel-quant/rhiza-go' for Go.
         template_branch: Custom template branch. Defaults to 'main'.
+        template_file: Optional explicit path to write template.yml.  When
+            ``None`` the default ``<target>/.rhiza/template.yml`` is used.
 
     Returns:
         bool: True if validation passes, False otherwise.
@@ -390,7 +412,8 @@ def init(
     logger.info(f"Initializing Rhiza configuration in: {target}")
     logger.info(f"Project language: {language}")
 
-    # Create .rhiza directory
+    # Create .rhiza directory (always; project structure lives there regardless of
+    # where template.yml is placed)
     rhiza_dir = target / ".rhiza"
     logger.debug(f"Ensuring directory exists: {rhiza_dir}")
     rhiza_dir.mkdir(parents=True, exist_ok=True)
@@ -401,8 +424,8 @@ def init(
 
     # When no template repository is specified and no config file exists yet,
     # offer the user an interactive selection from discovered rhiza repos.
-    template_yml = target / ".rhiza" / "template.yml"
-    if template_repository is None and not template_yml.exists():
+    resolved_template_file = template_file if template_file is not None else target / ".rhiza" / "template.yml"
+    if template_repository is None and not resolved_template_file.exists():
         template_repository = _prompt_template_repository()
 
     # Validate template repository reachability early if a custom one is specified
@@ -410,7 +433,7 @@ def init(
         return False
 
     # Create template file with language
-    _create_template_file(target, git_host, language, template_repository, template_branch)
+    _create_template_file(target, git_host, language, template_repository, template_branch, template_file)
 
     # Bootstrap project structure based on language
     if language == "python":
@@ -437,4 +460,4 @@ def init(
 
     # Validate the template file
     logger.debug("Validating template configuration")
-    return validate(target)
+    return validate(target, template_file=template_file)

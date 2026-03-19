@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rhiza"
-version = "0.11.12"
+version = "0.13.2"
 description = "Reusable configuration templates for modern Python projects"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -30,12 +30,13 @@ dependencies = [
     "typer>=0.20.0",
     "PyYAML>=6.0.3,<7",
     "jinja2>=3.1.0",
+    "rich>=14.3.3",
 ]
 
 [project.urls]
 Homepage = "https://github.com/jebel-quant/rhiza-cli"
 Repository = "https://github.com/jebel-quant/rhiza-cli"
-Issues = "https://github.com/jebel-quant/rhiza/issues-cli"
+Issues = "https://github.com/jebel-quant/rhiza-cli/issues-cli"
 
 [project.optional-dependencies]
 tools = ["rhiza-tools>=0.1.2"]
@@ -56,4 +57,9 @@ rhiza = "rhiza.__main__:app"
 
 [tool.deptry.per_rule_ignores]
 DEP002 = ["rhiza-tools"]
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.151.9",
+]
 

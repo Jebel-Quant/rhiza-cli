@@ -9,11 +9,7 @@ to the command module's public API.
 import contextlib
 import dataclasses
 import os
-import shutil
-import subprocess  # nosec B404
-import tempfile
 from pathlib import Path
-from re import sub
 
 try:
     import fcntl
@@ -22,18 +18,9 @@ try:
 except ImportError:  # pragma: no cover - Windows
     _FCNTL_AVAILABLE = False
 
-import yaml
 from loguru import logger
 
-from rhiza.models import RhizaTemplate, TemplateLock
-from rhiza.subprocess_utils import get_git_executable
-
-# ---------------------------------------------------------------------------
-# Diff prefix constants
-# ---------------------------------------------------------------------------
-
-_DIFF_SRC_PREFIX = "upstream-template-old"
-_DIFF_DST_PREFIX = "upstream-template-new"
+from rhiza.models import TemplateLock
 
 # ---------------------------------------------------------------------------
 # Lock-file constant
@@ -42,301 +29,29 @@ _DIFF_DST_PREFIX = "upstream-template-new"
 LOCK_FILE = ".rhiza/template.lock"
 
 
-def _get_diff(repo0: Path, repo1: Path) -> str:
-    """Compute the raw diff between two directory trees using ``git diff --no-index``."""
-    git = get_git_executable()
-    repo0_str = repo0.resolve().as_posix()
-    repo1_str = repo1.resolve().as_posix()
-    result = subprocess.run(  # nosec B603  # noqa: S603
-        [
-            git,
-            "-c",
-            "diff.noprefix=",
-            "diff",
-            "--no-index",
-            "--relative",
-            "--binary",
-            f"--src-prefix={_DIFF_SRC_PREFIX}/",
-            f"--dst-prefix={_DIFF_DST_PREFIX}/",
-            "--no-ext-diff",
-            "--no-color",
-            repo0_str,
-            repo1_str,
-        ],
-        cwd=repo0_str,
-        capture_output=True,
-    )
-    diff = result.stdout.decode()
-    for repo in [repo0_str, repo1_str]:
-        repo_nix = sub("/[a-z]:", "", repo)
-        diff = diff.replace(f"{_DIFF_SRC_PREFIX}{repo_nix}", _DIFF_SRC_PREFIX).replace(
-            f"{_DIFF_DST_PREFIX}{repo_nix}", _DIFF_DST_PREFIX
-        )
-    diff = diff.replace(repo0_str + "/", "").replace(repo1_str + "/", "")
-    return diff
-
-
-# ---------------------------------------------------------------------------
 # Shared template helpers
 # ---------------------------------------------------------------------------
 
 
-def _log_git_stderr_errors(stderr: str | None) -> None:
-    """Extract and log only relevant error messages from git stderr.
+def _load_lock_or_warn(target: Path, lock_file: Path | None = None) -> TemplateLock | None:
+    """Load the template.lock file, or log a warning and return None if missing.
 
     Args:
-        stderr: Git command stderr output.
-    """
-    if stderr:
-        for line in stderr.strip().split("\n"):
-            line = line.strip()
-            if line and (line.startswith("fatal:") or line.startswith("error:")):
-                logger.error(line)
-
-
-def _assert_git_status_clean(target: Path, git_executable: str, git_env: dict[str, str]) -> None:
-    """Raise RuntimeError if the target repository has uncommitted changes.
-
-    Runs ``git status --porcelain`` and raises if the output is non-empty,
-    preventing a sync from running on a dirty working tree.
-
-    Args:
-        target: Path to the target repository.
-        git_executable: Path to git executable.
-        git_env: Environment variables for git commands.
-
-    Raises:
-        RuntimeError: If the working tree has uncommitted changes.
-    """
-    result = subprocess.run(  # nosec B603  # noqa: S603
-        [git_executable, "status", "--porcelain"],
-        cwd=target,
-        capture_output=True,
-        text=True,
-        env=git_env,
-    )
-    if result.stdout.strip():
-        logger.error("Working tree is not clean. Please commit or stash your changes before syncing.")
-        logger.error("Uncommitted changes:")
-        for line in result.stdout.strip().splitlines():
-            logger.error(f"  {line}")
-        raise RuntimeError("Working tree is not clean. Please commit or stash your changes before syncing.")  # noqa: TRY003
-
-
-def _handle_target_branch(
-    target: Path, target_branch: str | None, git_executable: str, git_env: dict[str, str]
-) -> None:
-    """Handle target branch creation or checkout if specified.
-
-    Args:
-        target: Path to the target repository.
-        target_branch: Optional branch name to create/checkout.
-        git_executable: Path to git executable.
-        git_env: Environment variables for git commands.
-    """
-    if not target_branch:
-        return
-
-    logger.info(f"Creating/checking out target branch: {target_branch}")
-    try:
-        result = subprocess.run(  # nosec B603  # noqa: S603
-            [git_executable, "rev-parse", "--verify", target_branch],
-            cwd=target,
-            capture_output=True,
-            text=True,
-            env=git_env,
-        )
-
-        if result.returncode == 0:
-            logger.info(f"Branch '{target_branch}' exists, checking out...")
-            subprocess.run(  # nosec B603  # noqa: S603
-                [git_executable, "checkout", target_branch],
-                cwd=target,
-                check=True,
-                capture_output=True,
-                text=True,
-                env=git_env,
-            )
-        else:
-            logger.info(f"Creating new branch '{target_branch}'...")
-            subprocess.run(  # nosec B603  # noqa: S603
-                [git_executable, "checkout", "-b", target_branch],
-                cwd=target,
-                check=True,
-                capture_output=True,
-                text=True,
-                env=git_env,
-            )
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to create/checkout branch '{target_branch}'")
-        _log_git_stderr_errors(e.stderr)
-        logger.error("Please ensure you have no uncommitted changes or conflicts")
-        raise
-
-
-def _validate_and_load_template(target: Path, branch: str = "main") -> RhizaTemplate:
-    """Validate configuration and load template settings.
-
-    Args:
-        target: Path to the target repository.
-        branch: The Rhiza template branch to use as a fallback when
-            ``template-branch`` is not set in ``template.yml``.
+        target: Path to the target repository root.
+        lock_file: Optional explicit path to the lock file.  When ``None`` the
+            default ``<target>/.rhiza/template.lock`` is used.
 
     Returns:
-        The loaded and validated :class:`~rhiza.models.RhizaTemplate`.
+        The loaded :class:`~rhiza.models.TemplateLock`, or ``None`` when the
+        lock file does not exist.
     """
-    from rhiza.commands.validate import validate
-
-    valid = validate(target)
-    if not valid:
-        logger.error(f"Rhiza template is invalid in: {target}")
-        logger.error("Please fix validation errors and try again")
-        raise RuntimeError("Rhiza template validation failed")  # noqa: TRY003
-
-    template_file = target / ".rhiza" / "template.yml"
-    template = RhizaTemplate.from_yaml(template_file)
-
-    if not template.template_repository:
-        logger.error("template-repository is not configured in template.yml")
-        raise RuntimeError("template-repository is required")  # noqa: TRY003
-
-    # Apply CLI branch as fallback when template.yml has no ref.
-    if not template.template_branch:
-        template.template_branch = branch
-
-    if not template.templates and not template.include:
-        logger.error("No templates or include paths found in template.yml")
-        logger.error("Add either 'templates' or 'include' list in template.yml")
-        raise RuntimeError("No templates or include paths found in template.yml")  # noqa: TRY003
-
-    if template.templates:
-        logger.info("Templates:")
-        for t in template.templates:
-            logger.info(f"  - {t}")
-
-    if template.include:
-        logger.info("Include paths:")
-        for p in template.include:
-            logger.info(f"  - {p}")
-
-    if template.exclude:
-        logger.info("Exclude paths:")
-        for p in template.exclude:
-            logger.info(f"  - {p}")
-
-    return template
-
-
-def _update_sparse_checkout(
-    tmp_dir: Path,
-    include_paths: list[str],
-    git_executable: str,
-    git_env: dict[str, str],
-) -> None:
-    """Update sparse checkout paths in an already-cloned repository.
-
-    Args:
-        tmp_dir: Temporary directory with cloned repository.
-        include_paths: Paths to include in sparse checkout.
-        git_executable: Path to git executable.
-        git_env: Environment variables for git commands.
-    """
-    try:
-        logger.debug(f"Updating sparse checkout paths: {include_paths}")
-        subprocess.run(  # nosec B603  # noqa: S603
-            [git_executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
-            cwd=tmp_dir,
-            check=True,
-            capture_output=True,
-            text=True,
-            env=git_env,
-        )
-        logger.debug("Sparse checkout paths updated")
-    except subprocess.CalledProcessError as e:
-        logger.error("Failed to update sparse checkout paths")
-        _log_git_stderr_errors(e.stderr)
-        raise
-
-
-def _clone_template_repository(
-    tmp_dir: Path,
-    git_url: str,
-    rhiza_branch: str,
-    include_paths: list[str],
-    git_executable: str,
-    git_env: dict[str, str],
-) -> None:
-    """Clone template repository with sparse checkout.
-
-    Args:
-        tmp_dir: Temporary directory for cloning.
-        git_url: Git repository URL.
-        rhiza_branch: Branch to clone.
-        include_paths: Initial paths to include in sparse checkout.
-        git_executable: Path to git executable.
-        git_env: Environment variables for git commands.
-    """
-    try:
-        logger.debug("Executing git clone with sparse checkout")
-        subprocess.run(  # nosec B603  # noqa: S603
-            [
-                git_executable,
-                "clone",
-                "--depth",
-                "1",
-                "--filter=blob:none",
-                "--sparse",
-                "--branch",
-                rhiza_branch,
-                git_url,
-                str(tmp_dir),
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-            env=git_env,
-        )
-        logger.debug("Git clone completed successfully")
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to clone repository from {git_url}")
-        _log_git_stderr_errors(e.stderr)
-        logger.error("Please check that:")
-        logger.error("  - The repository exists and is accessible")
-        logger.error(f"  - Branch '{rhiza_branch}' exists in the repository")
-        logger.error("  - You have network access to the git hosting service")
-        raise
-
-    try:
-        logger.debug("Initializing sparse checkout")
-        subprocess.run(  # nosec B603  # noqa: S603
-            [git_executable, "sparse-checkout", "init", "--cone"],
-            cwd=tmp_dir,
-            check=True,
-            capture_output=True,
-            text=True,
-            env=git_env,
-        )
-        logger.debug("Sparse checkout initialized")
-    except subprocess.CalledProcessError as e:
-        logger.error("Failed to initialize sparse checkout")
-        _log_git_stderr_errors(e.stderr)
-        raise
-
-    try:
-        logger.debug(f"Setting sparse checkout paths: {include_paths}")
-        subprocess.run(  # nosec B603  # noqa: S603
-            [git_executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
-            cwd=tmp_dir,
-            check=True,
-            capture_output=True,
-            text=True,
-            env=git_env,
-        )
-        logger.debug("Sparse checkout paths configured")
-    except subprocess.CalledProcessError as e:
-        logger.error("Failed to configure sparse checkout paths")
-        _log_git_stderr_errors(e.stderr)
-        raise
+    if lock_file is None:
+        lock_file = target / LOCK_FILE
+    lock_path = lock_file.resolve()
+    if not lock_path.exists():
+        logger.warning("No template.lock found — run `rhiza sync` first")
+        return None
+    return TemplateLock.from_yaml(lock_path)
 
 
 def _warn_about_workflow_files(materialized_files: list[Path]) -> None:
@@ -367,7 +82,11 @@ def _files_from_snapshot(snapshot_dir: Path) -> set[Path]:
     return {f.relative_to(snapshot_dir) for f in snapshot_dir.rglob("*") if f.is_file()}
 
 
-def _read_previously_tracked_files(target: Path, base_snapshot: Path | None = None) -> set[Path]:
+def _read_previously_tracked_files(
+    target: Path,
+    base_snapshot: Path | None = None,
+    lock_file: Path | None = None,
+) -> set[Path]:
     """Return the set of files tracked by the last sync.
 
     Resolution order:
@@ -382,12 +101,15 @@ def _read_previously_tracked_files(target: Path, base_snapshot: Path | None = No
             the previously-synced SHA.  When the lock file has no ``files``
             entry this snapshot is used to reconstruct the tracked-file list,
             avoiding an extra network fetch.
+        lock_file: Optional explicit path to the lock file.  When ``None`` the
+            default ``<target>/.rhiza/template.lock`` is used.
 
     Returns:
         Set of previously tracked file paths (relative to target), or an empty
         set when no tracking information is found.
     """
-    lock_file = target / ".rhiza" / "template.lock"
+    if lock_file is None:
+        lock_file = target / ".rhiza" / "template.lock"
     if lock_file.exists():
         try:
             lock = TemplateLock.from_yaml(lock_file)
@@ -446,6 +168,7 @@ def _clean_orphaned_files(
     base_snapshot: Path | None = None,
     excludes: set[str] | None = None,
     previously_tracked_files: set[Path] | None = None,
+    lock_file: Path | None = None,
 ) -> None:
     """Clean up files that are no longer maintained by template.
 
@@ -468,9 +191,13 @@ def _clean_orphaned_files(
             tracked by the previous sync.  When supplied this takes precedence
             over reading from the on-disk lock file, which allows callers to
             snapshot the old state before the lock is overwritten by the merge.
+        lock_file: Optional explicit path to the lock file.  When ``None`` the
+            default ``<target>/.rhiza/template.lock`` is used.
     """
     if previously_tracked_files is None:
-        previously_tracked_files = _read_previously_tracked_files(target, base_snapshot=base_snapshot)
+        previously_tracked_files = _read_previously_tracked_files(
+            target, base_snapshot=base_snapshot, lock_file=lock_file
+        )
     if not previously_tracked_files:
         return
 
@@ -503,41 +230,7 @@ def _clean_orphaned_files(
 # ---------------------------------------------------------------------------
 
 
-def _read_lock(target: Path) -> str | None:
-    """Read the last-synced commit SHA from the lock file.
-
-    Handles both the structured YAML format and the legacy plain-SHA format.
-    Uses an exclusive advisory lock (via ``fcntl.flock``) when available so
-    that two concurrent ``rhiza sync`` processes cannot read a partially-written
-    file.  Falls back silently on platforms without ``fcntl`` (e.g. Windows).
-
-    Args:
-        target: Path to the target repository.
-
-    Returns:
-        The commit SHA string or ``None`` when no lock exists.
-    """
-    lock_path = target / LOCK_FILE
-    if not lock_path.exists():
-        return None
-    with lock_path.open(encoding="utf-8") as fh:
-        if _FCNTL_AVAILABLE:
-            fcntl.flock(fh, fcntl.LOCK_EX)
-        else:
-            logger.debug("fcntl not available - skipping advisory lock on read")
-        content = fh.read().strip()
-    # Try structured YAML format first
-    try:
-        data = yaml.safe_load(content)
-        if isinstance(data, dict) and "sha" in data:
-            return data["sha"]
-    except yaml.YAMLError:
-        pass
-    # Legacy plain-SHA format
-    return content
-
-
-def _write_lock(target: Path, lock: TemplateLock) -> None:
+def _write_lock(target: Path, lock: TemplateLock, lock_file: Path | None = None) -> None:
     """Persist the lock data to the YAML lock file.
 
     Writes to a ``.tmp`` sibling file first, then replaces the real lock file
@@ -553,17 +246,20 @@ def _write_lock(target: Path, lock: TemplateLock) -> None:
     Args:
         target: Path to the target repository.
         lock: The :class:`~rhiza.models.TemplateLock` to record.
+        lock_file: Optional explicit path for the lock file.  When ``None`` the
+            default ``<target>/.rhiza/template.lock`` is used.
     """
     # Filter the files list to only include paths that exist on disk so that
     # the lock never contains entries for files that are absent from the repo.
-    existing_files = [f for f in lock.files if (target / f).exists()]
+    # Always sort the resulting list alphabetically.
+    existing_files = sorted(f for f in lock.files if (target / f).exists())
     missing = sorted(set(lock.files) - set(existing_files))
     if missing:
         missing_str = ", ".join(missing)
         logger.warning(f"{len(missing)} file(s) in lock absent from target and excluded: {missing_str}")
-        lock = dataclasses.replace(lock, files=existing_files)
+    lock = dataclasses.replace(lock, files=existing_files)
 
-    lock_path = target / LOCK_FILE
+    lock_path = lock_file if lock_file is not None else target / LOCK_FILE
     tmp_path = Path(str(lock_path) + ".tmp")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     # Acquire an exclusive advisory lock via a dedicated lock-fd file so that
@@ -581,604 +277,4 @@ def _write_lock(target: Path, lock: TemplateLock) -> None:
         # Best-effort cleanup of the fd file; failures here are non-critical.
         with contextlib.suppress(OSError):
             lock_fd_path.unlink(missing_ok=True)
-    logger.info(f"Updated {LOCK_FILE} -> {lock.sha[:12]}")
-
-
-# ---------------------------------------------------------------------------
-# Git helpers
-# ---------------------------------------------------------------------------
-
-
-def _get_head_sha(repo_dir: Path, git_executable: str, git_env: dict[str, str]) -> str:
-    """Return the HEAD commit SHA of a cloned repository.
-
-    Args:
-        repo_dir: Path to the git repository.
-        git_executable: Absolute path to git.
-        git_env: Environment variables for git commands.
-
-    Returns:
-        The full HEAD SHA.
-    """
-    result = subprocess.run(  # nosec B603  # noqa: S603
-        [git_executable, "rev-parse", "HEAD"],
-        cwd=repo_dir,
-        capture_output=True,
-        text=True,
-        check=True,
-        env=git_env,
-    )
-    return result.stdout.strip()
-
-
-def _clone_at_sha(
-    git_url: str,
-    sha: str,
-    dest: Path,
-    include_paths: list[str],
-    git_executable: str,
-    git_env: dict[str, str],
-) -> None:
-    """Clone a repository and checkout a specific commit.
-
-    Args:
-        git_url: Remote URL to clone from.
-        sha: Commit SHA to check out.
-        dest: Target directory for the clone.
-        include_paths: Paths for sparse checkout.
-        git_executable: Absolute path to git.
-        git_env: Environment variables for git commands.
-    """
-    try:
-        subprocess.run(  # nosec B603  # noqa: S603
-            [
-                git_executable,
-                "clone",
-                "--filter=blob:none",
-                "--sparse",
-                "--no-checkout",
-                git_url,
-                str(dest),
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-            env=git_env,
-        )
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to clone repository for base snapshot: {git_url}")
-        _log_git_stderr_errors(e.stderr)
-        raise
-
-    # Init sparse checkout and set paths
-    try:
-        subprocess.run(  # nosec B603  # noqa: S603
-            [git_executable, "sparse-checkout", "init", "--cone"],
-            cwd=dest,
-            check=True,
-            capture_output=True,
-            text=True,
-            env=git_env,
-        )
-        subprocess.run(  # nosec B603  # noqa: S603
-            [git_executable, "sparse-checkout", "set", "--skip-checks", *include_paths],
-            cwd=dest,
-            check=True,
-            capture_output=True,
-            text=True,
-            env=git_env,
-        )
-    except subprocess.CalledProcessError as e:
-        logger.error("Failed to configure sparse checkout for base snapshot")
-        _log_git_stderr_errors(e.stderr)
-        raise
-
-    # Checkout the specific SHA
-    try:
-        subprocess.run(  # nosec B603  # noqa: S603
-            [git_executable, "checkout", sha],
-            cwd=dest,
-            check=True,
-            capture_output=True,
-            text=True,
-            env=git_env,
-        )
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to checkout base commit {sha[:12]}")
-        _log_git_stderr_errors(e.stderr)
-        raise
-
-
-# ---------------------------------------------------------------------------
-# Expand helpers (shared logic with materialize)
-# ---------------------------------------------------------------------------
-
-
-def _expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
-    """Expand file/directory paths relative to *base_dir* into individual files.
-
-    Args:
-        base_dir: Root directory to resolve against.
-        paths: Relative path strings.
-
-    Returns:
-        Flat list of file paths.
-    """
-    all_files: list[Path] = []
-    for p in paths:
-        full = base_dir / p
-        if full.is_file():
-            all_files.append(full)
-        elif full.is_dir():
-            all_files.extend(f for f in full.rglob("*") if f.is_file())
-        else:
-            logger.debug(f"Path not found in template repository: {p}")
-    return all_files
-
-
-def _excluded_set(base_dir: Path, excluded_paths: list[str]) -> set[str]:
-    """Build a set of relative path strings that should be excluded.
-
-    Args:
-        base_dir: Root of the template clone.
-        excluded_paths: User-configured exclude list.
-
-    Returns:
-        Set of relative path strings.
-    """
-    result: set[str] = set()
-    for f in _expand_paths(base_dir, excluded_paths):
-        result.add(str(f.relative_to(base_dir)))
-
-    # Always exclude template config and history
-    result.add(".rhiza/template.yml")
-    result.add(".rhiza/history")
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Cruft-based diff / patch helpers
-# ---------------------------------------------------------------------------
-
-
-def _prepare_snapshot(
-    clone_dir: Path,
-    include_paths: list[str],
-    excludes: set[str],
-    snapshot_dir: Path,
-) -> list[Path]:
-    """Copy included (non-excluded) files from a clone into a clean snapshot directory.
-
-    This creates a flat directory tree suitable for ``git diff --no-index``.
-
-    Args:
-        clone_dir: Root of the template clone.
-        include_paths: Paths to include.
-        excludes: Set of relative paths to exclude.
-        snapshot_dir: Destination directory for the snapshot.
-
-    Returns:
-        List of relative file paths that were copied.
-    """
-    materialized: list[Path] = []
-    # Copies included files to snapshot excluding specified paths
-    for f in _expand_paths(clone_dir, include_paths):
-        rel = str(f.relative_to(clone_dir))
-        if rel not in excludes:
-            dst = snapshot_dir / rel
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(f, dst)
-            materialized.append(Path(rel))
-    return materialized
-
-
-def _parse_diff_filenames(diff: str) -> list[tuple[str, bool, bool]]:
-    """Parse a unified diff produced by :func:`_get_diff` into file entries.
-
-    Each entry is ``(rel_path, is_new, is_deleted)`` where *rel_path* is the
-    path relative to both snapshot directories.
-
-    Args:
-        diff: Unified diff string from :func:`_get_diff`.
-
-    Returns:
-        List of ``(rel_path, is_new, is_deleted)`` tuples, one per changed file.
-    """
-    src_prefix = f"{_DIFF_SRC_PREFIX}/"
-    dst_prefix = f"{_DIFF_DST_PREFIX}/"
-
-    results: list[tuple[str, bool, bool]] = []
-    is_new = False
-    is_deleted = False
-    src_path: str | None = None
-    dst_path: str | None = None
-    in_diff = False
-
-    def _flush() -> None:
-        rel = dst_path if not is_deleted else src_path
-        if rel:
-            results.append((rel, is_new, is_deleted))
-
-    for line in diff.splitlines():
-        if line.startswith("diff --git "):
-            if in_diff:
-                _flush()
-            is_new = False
-            is_deleted = False
-            src_path = None
-            dst_path = None
-            in_diff = True
-        elif line.startswith("new file mode"):
-            is_new = True
-        elif line.startswith("deleted file mode"):
-            is_deleted = True
-        elif line.startswith("--- "):
-            raw = line[4:].strip().strip('"').split("\t")[0]
-            if raw != "/dev/null" and raw.startswith(src_prefix):
-                src_path = raw[len(src_prefix) :]
-        elif line.startswith("+++ "):
-            raw = line[4:].strip().strip('"').split("\t")[0]
-            if raw != "/dev/null" and raw.startswith(dst_prefix):
-                dst_path = raw[len(dst_prefix) :]
-
-    if in_diff:
-        _flush()
-
-    return results
-
-
-def _merge_file_fallback(
-    diff: str,
-    target: Path,
-    base_snapshot: Path,
-    upstream_snapshot: Path,
-    git_executable: str,
-    git_env: dict[str, str],
-) -> bool:
-    """Apply *diff* file-by-file using ``git merge-file``.
-
-    Unlike ``git apply -3``, ``git merge-file`` works directly on the file
-    contents from *base_snapshot* and *upstream_snapshot*, so it does not
-    require the template's blob objects to exist in the target repository.
-
-    Conflict markers (``<<<<<<<`` / ``=======`` / ``>>>>>>>``) are left in
-    place for manual resolution when both sides changed the same region.
-
-    Args:
-        diff: Unified diff string (used only for file-list parsing).
-        target: Path to the target repository.
-        base_snapshot: Directory containing files at the previously-synced SHA.
-        upstream_snapshot: Directory containing files at the new upstream SHA.
-        git_executable: Absolute path to git.
-        git_env: Environment variables for git commands.
-
-    Returns:
-        True if every file merged cleanly, False if any conflicts remain.
-    """
-    file_entries = _parse_diff_filenames(diff)
-    all_clean = True
-    conflict_files: list[str] = []
-
-    for rel_path, is_new, is_deleted in file_entries:
-        target_file = target / rel_path
-        upstream_file = upstream_snapshot / rel_path
-        base_file = base_snapshot / rel_path
-
-        if is_new:
-            if upstream_file.exists():
-                target_file.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(upstream_file, target_file)
-                logger.debug(f"[merge-file] Added: {rel_path}")
-            continue
-
-        if is_deleted:
-            if target_file.exists():
-                target_file.unlink()
-                logger.debug(f"[merge-file] Deleted: {rel_path}")
-            continue
-
-        # Modified file — attempt a 3-way merge using the on-disk snapshots.
-        if not target_file.exists():
-            if upstream_file.exists():
-                target_file.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(upstream_file, target_file)
-                logger.debug(f"[merge-file] Created (missing in target): {rel_path}")
-            continue
-
-        if not base_file.exists() or not upstream_file.exists():
-            # Cannot 3-way-merge without both sides; just take upstream.
-            if upstream_file.exists():
-                shutil.copy2(upstream_file, target_file)
-                logger.debug(f"[merge-file] Overwrite (no base): {rel_path}")
-            continue
-
-        result = subprocess.run(  # nosec B603  # noqa: S603
-            [
-                git_executable,
-                "merge-file",
-                "-L",
-                "ours",
-                "-L",
-                "base",
-                "-L",
-                "upstream",
-                str(target_file),
-                str(base_file),
-                str(upstream_file),
-            ],
-            capture_output=True,
-            env=git_env,
-        )
-
-        if result.returncode > 0:
-            conflict_files.append(rel_path)
-            all_clean = False
-            logger.warning(f"[merge-file] Conflict in {rel_path} — resolve markers manually")
-        elif result.returncode < 0:
-            logger.warning(f"[merge-file] Error merging {rel_path}: {result.stderr.decode().strip()}")
-            all_clean = False
-        else:
-            logger.debug(f"[merge-file] Clean merge: {rel_path}")
-
-    if conflict_files:
-        logger.warning(f"{len(conflict_files)} file(s) have conflict markers to resolve: " + ", ".join(conflict_files))
-
-    return all_clean
-
-
-def _apply_diff(
-    diff: str,
-    target: Path,
-    git_executable: str,
-    git_env: dict[str, str],
-    base_snapshot: Path | None = None,
-    upstream_snapshot: Path | None = None,
-) -> bool:
-    """Apply a diff to the target project using ``git apply -3`` (3-way merge).
-
-    When ``git apply -3`` fails because the template's blob objects are absent
-    from the target repository *and* both *base_snapshot* and
-    *upstream_snapshot* are provided, falls back to :func:`_merge_file_fallback`
-    which uses ``git merge-file`` on the on-disk snapshot files instead.
-
-    Otherwise falls back to ``git apply --reject``.
-
-    Args:
-        diff: Unified diff string.
-        target: Path to the target repository.
-        git_executable: Absolute path to git.
-        git_env: Environment variables for git commands.
-        base_snapshot: Optional directory containing files at the base SHA.
-        upstream_snapshot: Optional directory containing files at the upstream SHA.
-
-    Returns:
-        True if the diff applied cleanly, False if there were conflicts.
-    """
-    if not diff.strip():
-        return True
-
-    try:
-        subprocess.run(  # nosec B603  # noqa: S603
-            [git_executable, "apply", "-3"],
-            input=diff.encode(),
-            cwd=target,
-            check=True,
-            capture_output=True,
-            env=git_env,
-        )
-    except subprocess.CalledProcessError as e:
-        stderr = e.stderr.decode() if e.stderr else ""
-
-        # git apply -3 cannot do a real 3-way merge when the template blobs are
-        # not present in the target repository's object store.  If we have the
-        # snapshot directories on disk, use git merge-file instead — it works
-        # directly on file content and needs no shared git history.
-        if "lacks the necessary blob" in stderr and base_snapshot is not None and upstream_snapshot is not None:
-            logger.debug("git apply -3 lacks blob objects; switching to git merge-file fallback")
-            return _merge_file_fallback(diff, target, base_snapshot, upstream_snapshot, git_executable, git_env)
-
-        if stderr:
-            logger.warning(f"3-way merge had conflicts:\n{stderr.strip()}")
-        # Fall back to --reject for conflict files
-        try:
-            subprocess.run(  # nosec B603  # noqa: S603
-                [git_executable, "apply", "--reject"],
-                input=diff.encode(),
-                cwd=target,
-                check=True,
-                capture_output=True,
-                env=git_env,
-            )
-        except subprocess.CalledProcessError as e2:
-            stderr2 = e2.stderr.decode() if e2.stderr else ""
-            if stderr2:
-                logger.warning(stderr2.strip())
-            logger.warning(
-                "Some changes could not be applied cleanly. Check for *.rej files and resolve conflicts manually."
-            )
-        return False
-    else:
-        return True
-
-
-# ---------------------------------------------------------------------------
-# Strategy implementations
-# ---------------------------------------------------------------------------
-
-
-def _copy_files_to_target(snapshot_dir: Path, target: Path, materialized: list[Path]) -> None:
-    """Copy all materialized files from a snapshot into the target project.
-
-    Args:
-        snapshot_dir: Directory containing the snapshot files.
-        target: Path to the target repository.
-        materialized: List of relative file paths to copy.
-    """
-    for rel_path in sorted(materialized):
-        src = snapshot_dir / rel_path
-        dst = target / rel_path
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
-        logger.success(f"[COPY] {rel_path}")
-
-
-def _sync_diff(target: Path, upstream_snapshot: Path) -> None:
-    """Execute the diff (dry-run) strategy.
-
-    Shows what would change without modifying any files.
-
-    Args:
-        target: Path to the target repository.
-        upstream_snapshot: Path to the upstream snapshot directory.
-    """
-    diff = _get_diff(target, upstream_snapshot)
-    if diff.strip():
-        logger.info(f"\n{diff}")
-        changes = diff.count("diff --git")
-        logger.info(f"{changes} file(s) would be changed")
-    else:
-        logger.success("No differences found")
-
-
-def _sync_merge(
-    target: Path,
-    upstream_snapshot: Path,
-    upstream_sha: str,
-    base_sha: str | None,
-    materialized: list[Path],
-    include_paths: list[str],
-    excludes: set[str],
-    git_url: str,
-    git_executable: str,
-    git_env: dict[str, str],
-    lock: TemplateLock,
-    rhiza_repo: str = "",
-    rhiza_branch: str = "",
-) -> None:
-    """Execute the merge strategy (cruft-style 3-way merge).
-
-    When a base SHA exists, computes the diff between base and upstream
-    snapshots and applies it via ``git apply -3``.  On first sync (no base),
-    falls back to a simple copy.
-
-    Args:
-        target: Path to the target repository.
-        upstream_snapshot: Path to the upstream snapshot directory.
-        upstream_sha: HEAD SHA of the upstream template.
-        base_sha: Previously synced commit SHA, or None for first sync.
-        materialized: List of relative file paths.
-        include_paths: Paths to include from the template.
-        excludes: Set of relative paths to exclude.
-        git_url: Remote URL of the template repository.
-        git_executable: Absolute path to git.
-        git_env: Environment variables for git commands.
-        lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
-        rhiza_repo: Template repository name (unused, kept for compatibility).
-        rhiza_branch: Template branch name (unused, kept for compatibility).
-    """
-    # Snapshot the currently-tracked files before the merge runs.  The merge
-    # may write a new lock (e.g. on the "template unchanged" early-return path
-    # in _merge_with_base), so we must read the old state first to ensure
-    # orphan cleanup compares against the previous sync, not the new one.
-    old_tracked_files = _read_previously_tracked_files(target)
-
-    base_snapshot = Path(tempfile.mkdtemp())
-    try:
-        if base_sha:
-            _merge_with_base(
-                target,
-                upstream_snapshot,
-                upstream_sha,
-                base_sha,
-                base_snapshot,
-                include_paths,
-                excludes,
-                git_url,
-                git_executable,
-                git_env,
-                lock,
-            )
-        else:
-            logger.info("First sync — copying all template files")
-            _copy_files_to_target(upstream_snapshot, target, materialized)
-
-        # Restore any template-managed files that are absent from the target.
-        # This can happen when files tracked by the template do not exist in the
-        # downstream repository — for example when the template snapshot was
-        # unchanged since the last sync so no diff was applied, but the files
-        # were never present or were manually deleted.
-        missing_from_target = [p for p in materialized if not (target / p).exists()]
-        if missing_from_target:
-            logger.info(f"Restoring {len(missing_from_target)} template file(s) missing from target")
-            _copy_files_to_target(upstream_snapshot, target, missing_from_target)
-
-        _warn_about_workflow_files(materialized)
-        _clean_orphaned_files(
-            target,
-            materialized,
-            excludes=excludes,
-            base_snapshot=base_snapshot,
-            previously_tracked_files=old_tracked_files if old_tracked_files else None,
-        )
-        _write_lock(target, lock)
-        logger.success(f"Sync complete — {len(materialized)} file(s) processed")
-    finally:
-        if base_snapshot.exists():
-            shutil.rmtree(base_snapshot)
-
-
-def _merge_with_base(
-    target: Path,
-    upstream_snapshot: Path,
-    upstream_sha: str,
-    base_sha: str,
-    base_snapshot: Path,
-    include_paths: list[str],
-    excludes: set[str],
-    git_url: str,
-    git_executable: str,
-    git_env: dict[str, str],
-    lock: TemplateLock,
-) -> None:
-    """Compute and apply the diff between base and upstream snapshots.
-
-    Args:
-        target: Path to the target repository.
-        upstream_snapshot: Path to the upstream snapshot directory.
-        upstream_sha: HEAD SHA of the upstream template.
-        base_sha: Previously synced commit SHA.
-        base_snapshot: Directory to populate with the base snapshot.
-        include_paths: Paths to include from the template.
-        excludes: Set of relative paths to exclude.
-        git_url: Remote URL of the template repository.
-        git_executable: Absolute path to git.
-        git_env: Environment variables for git commands.
-        lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
-    """
-    logger.info(f"Cloning base snapshot at {base_sha[:12]}")
-    base_clone = Path(tempfile.mkdtemp())
-    try:
-        _clone_at_sha(git_url, base_sha, base_clone, include_paths, git_executable, git_env)
-        _prepare_snapshot(base_clone, include_paths, excludes, base_snapshot)
-    except Exception:
-        logger.warning("Could not checkout base commit — treating all files as new")
-    finally:
-        if base_clone.exists():
-            shutil.rmtree(base_clone)
-
-    diff = _get_diff(base_snapshot, upstream_snapshot)
-
-    if not diff.strip():
-        logger.success("Template unchanged since last sync — nothing to apply")
-        _write_lock(target, lock)
-        return
-
-    logger.info("Applying template changes via 3-way merge (cruft)...")
-    clean = _apply_diff(
-        diff, target, git_executable, git_env, base_snapshot=base_snapshot, upstream_snapshot=upstream_snapshot
-    )
-
-    if clean:
-        logger.success("All changes applied cleanly")
-    else:
-        logger.warning("Some changes had conflicts. Check for *.rej files and resolve manually.")
+    logger.info(f"Updated {lock_path.name} -> {lock.sha[:12]}")

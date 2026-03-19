@@ -12,7 +12,6 @@ template configuration.
 - Template materialization with selective include/exclude support.
 - Configuration validation (syntax and basic semantics).
 - Multi-host support (GitHub and GitLab).
-- Non-destructive updates by default, with an explicit `--force` flag.
 
 ## Quick start
 
@@ -29,15 +28,15 @@ Validate your configuration:
 rhiza validate
 ```
 
-Customize `.rhiza/template.yml`, then materialize templates into your project:
+Customize `.rhiza/template.yml`, then sync templates into your project:
 
 ```bash
-rhiza materialize
+rhiza sync
 ```
 
 ## Main modules
 
-- `rhiza.commands` — Core command implementations (init, materialize, validate).
+- `rhiza.commands` — Core command implementations (init, sync, validate).
 - `rhiza.models` — Data models and schemas for template configuration.
 
 ## Documentation

@@ -5,10 +5,13 @@ Commands are thin wrappers around implementations in `rhiza.commands.*`.
 """
 
 import subprocess  # nosec B404
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated
 
 import typer
+import yaml
 
 from rhiza import __version__
 from rhiza.commands import init as init_cmd
@@ -20,7 +23,22 @@ from rhiza.commands.summarise import summarise as summarise_cmd
 from rhiza.commands.sync import sync as sync_cmd
 from rhiza.commands.tree import tree as tree_cmd
 from rhiza.commands.uninstall import uninstall as uninstall_cmd
-from rhiza.commands.welcome import welcome as welcome_cmd
+
+
+@contextmanager
+def _exit_on_error(*exc_types: type[BaseException]) -> Iterator[None]:
+    """Context manager that catches specified exceptions and exits with code 1.
+
+    Args:
+        *exc_types: Exception types to catch. Defaults to catching Exception
+            if none are provided.
+    """
+    _types: tuple[type[BaseException], ...] = exc_types if exc_types else (Exception,)
+    try:
+        yield
+    except _types:
+        raise typer.Exit(code=1) from None
+
 
 app = typer.Typer(
     help=(
@@ -119,6 +137,17 @@ def init(
         "--template-branch",
         help="Custom template branch. Defaults to 'main'.",
     ),
+    path_to_template: Annotated[
+        Path | None,
+        typer.Option(
+            "--path-to-template",
+            help=(
+                "Directory where template.yml will be created "
+                "(defaults to <TARGET>/.rhiza). "
+                "Use '.' to keep the file in the project root."
+            ),
+        ),
+    ] = None,
 ) -> None:
     r"""Initialize or validate .rhiza/template.yml.
 
@@ -143,7 +172,12 @@ def init(
       rhiza init --template-repository myorg/my-templates --template-branch develop
       rhiza init /path/to/project
       rhiza init .. --language go
+      rhiza init --path-to-template /custom/rhiza
+      rhiza init --path-to-template .
     """
+    template_file = None
+    if path_to_template is not None:
+        template_file = path_to_template / "template.yml"
     if not init_cmd(
         target,
         project_name=project_name,
@@ -153,53 +187,9 @@ def init(
         language=language,
         template_repository=template_repository,
         template_branch=template_branch,
+        template_file=template_file,
     ):
         raise typer.Exit(code=1)
-
-
-@app.command(deprecated=True)
-def materialize(
-    target: Annotated[
-        Path,
-        typer.Argument(
-            exists=True,
-            file_okay=False,
-            dir_okay=True,
-            help="Target git repository (defaults to current directory)",
-        ),
-    ] = Path("."),
-    branch: str = typer.Option("main", "--branch", "-b", help="Rhiza branch to use"),
-    target_branch: str = typer.Option(
-        None,
-        "--target-branch",
-        "--checkout-branch",
-        help="Create and checkout a new branch in the target repository for changes",
-    ),
-    force: bool = typer.Option(False, "--force", "-y", help="Overwrite existing files"),
-) -> None:
-    r"""[Deprecated] Use ``rhiza sync`` instead.
-
-    This command is deprecated. ``rhiza sync`` now handles all use cases:
-
-    \b
-    - rhiza sync              # first time → copies everything, writes lock
-    - rhiza sync              # subsequent → 3-way merge preserving local changes
-    - rhiza sync --strategy diff       # dry-run showing what would change
-
-    Examples:
-        rhiza sync
-        rhiza sync --branch develop
-        rhiza sync --target-branch feature/update-templates
-    """
-    typer.echo(
-        "DeprecationWarning: `rhiza materialize` is deprecated and will be removed in a future release. "
-        "Use `rhiza sync` instead.",
-        err=True,
-    )
-    try:
-        sync_cmd(target, branch, target_branch, "merge")
-    except (subprocess.CalledProcessError, RuntimeError, ValueError):
-        raise typer.Exit(code=1) from None
 
 
 @app.command()
@@ -226,6 +216,17 @@ def sync(
         "-s",
         help="Sync strategy: 'merge' (3-way merge preserving local changes) or 'diff' (dry-run showing changes)",
     ),
+    path_to_template: Annotated[
+        Path | None,
+        typer.Option(
+            "--path-to-template",
+            help=(
+                "Directory containing template.yml and where template.lock will be written "
+                "(defaults to <TARGET>/.rhiza). "
+                "Use '.' to keep both files in the project root."
+            ),
+        ),
+    ] = None,
 ) -> None:
     r"""Sync templates using diff/merge, preserving local customisations.
 
@@ -262,14 +263,18 @@ def sync(
         rhiza sync --strategy diff
         rhiza sync --branch develop
         rhiza sync --target-branch feature/update-templates
+        rhiza sync --path-to-template /custom/rhiza
+        rhiza sync --path-to-template .
     """
     if strategy not in ("merge", "diff"):
         typer.echo(f"Unknown strategy: {strategy}. Must be 'merge' or 'diff'.")
         raise typer.Exit(code=1)
-    try:
-        sync_cmd(target, branch, target_branch, strategy)
-    except (subprocess.CalledProcessError, RuntimeError, ValueError):
-        raise typer.Exit(code=1) from None
+    template_file = lock_file = None
+    if path_to_template is not None:
+        template_file = path_to_template / "template.yml"
+        lock_file = path_to_template / "template.lock"
+    with _exit_on_error(subprocess.CalledProcessError, RuntimeError, ValueError):
+        sync_cmd(target, branch, target_branch, strategy, template_file=template_file, lock_file=lock_file)
 
 
 @app.command()
@@ -282,10 +287,8 @@ def status(
     ] = Path("."),
 ) -> None:
     """Show the current sync status from template.lock."""
-    try:
+    with _exit_on_error(FileNotFoundError, ValueError, TypeError, yaml.YAMLError):
         status_cmd(target.resolve())
-    except Exception:
-        raise typer.Exit(code=1) from None
 
 
 @app.command()
@@ -306,10 +309,8 @@ def tree(
         rhiza tree
         rhiza tree /path/to/project
     """
-    try:
+    with _exit_on_error(FileNotFoundError, ValueError, TypeError, yaml.YAMLError):
         tree_cmd(target.resolve())
-    except Exception:
-        raise typer.Exit(code=1) from None
 
 
 @app.command()
@@ -323,6 +324,17 @@ def validate(
             help="Target git repository (defaults to current directory)",
         ),
     ] = Path("."),
+    path_to_template: Annotated[
+        Path | None,
+        typer.Option(
+            "--path-to-template",
+            help=(
+                "Directory containing template.yml "
+                "(defaults to <TARGET>/.rhiza). "
+                "Use '.' to keep the file in the project root."
+            ),
+        ),
+    ] = None,
 ) -> None:
     r"""Validate Rhiza template configuration.
 
@@ -344,8 +356,13 @@ def validate(
         rhiza validate
         rhiza validate /path/to/project
         rhiza validate ..
+        rhiza validate --path-to-template /custom/rhiza
+        rhiza validate --path-to-template .
     """
-    if not validate_cmd(target):
+    template_file = None
+    if path_to_template is not None:
+        template_file = path_to_template / "template.yml"
+    if not validate_cmd(target, template_file=template_file):
         raise typer.Exit(code=1)
 
 
@@ -383,19 +400,6 @@ def migrate(
         rhiza migrate /path/to/project
     """
     migrate_cmd(target)
-
-
-@app.command()
-def welcome() -> None:
-    r"""Display a friendly welcome message and explain what Rhiza is.
-
-    Shows a welcome message, explains Rhiza's purpose, key features,
-    and provides guidance on getting started with the tool.
-
-    Examples:
-        rhiza welcome
-    """
-    welcome_cmd()
 
 
 @app.command(name="list")
@@ -463,10 +467,8 @@ def uninstall(
         rhiza uninstall /path/to/project
         rhiza uninstall /path/to/project -y
     """
-    try:
+    with _exit_on_error(RuntimeError):
         uninstall_cmd(target, force)
-    except RuntimeError:
-        raise typer.Exit(code=1) from None
 
 
 @app.command()
@@ -513,7 +515,5 @@ def summarise(
         rhiza summarise --output pr-body.md
         gh pr create --title "chore: Sync with rhiza" --body-file pr-body.md
     """
-    try:
+    with _exit_on_error(RuntimeError):
         summarise_cmd(target, output)
-    except RuntimeError:
-        raise typer.Exit(code=1) from None

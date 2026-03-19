@@ -75,13 +75,8 @@ def get_staged_changes(repo_path: Path) -> dict[str, list[str]]:
     return changes
 
 
-def _get_config_files() -> set[str]:
-    """Get set of known configuration files.
-
-    Returns:
-        Set of configuration file names
-    """
-    return {
+_CONFIG_FILES: frozenset[str] = frozenset(
+    {
         "Makefile",
         "ruff.toml",
         "pytest.ini",
@@ -91,6 +86,7 @@ def _get_config_files() -> set[str]:
         "renovate.json",
         ".python-version",
     }
+)
 
 
 def _categorize_by_directory(first_dir: str, filepath: str) -> str | None:
@@ -148,7 +144,7 @@ def _categorize_single_file(filepath: str) -> str:
     if filepath.endswith(".md"):
         return "Documentation"
 
-    if filepath in _get_config_files():
+    if filepath in _CONFIG_FILES:
         return "Configuration Files"
 
     return "Other"

@@ -11,6 +11,7 @@ import yaml
 from loguru import logger
 
 from rhiza.language_validators import get_validator_registry
+from rhiza.models.template import GitHost
 
 
 def _check_git_repository(target: Path) -> bool:
@@ -54,19 +55,26 @@ def _check_project_structure(target: Path, language: str) -> bool:
     return validator.validate_project_structure(target)
 
 
-def _check_template_file_exists(target: Path) -> tuple[bool, Path]:
+def _check_template_file_exists(target: Path, template_file: Path | None = None) -> tuple[bool, Path]:
     """Check if template file exists.
 
     Args:
         target: Path to project.
+        template_file: Optional explicit path to the template file.  When
+            ``None`` the default ``<target>/.rhiza/template.yml`` is used.
 
     Returns:
         Tuple of (exists, template_file_path).
     """
-    template_file = target / ".rhiza" / "template.yml"
+    if template_file is None:
+        template_file = target / ".rhiza" / "template.yml"
 
     if not template_file.exists():
-        logger.error(f"No template file found at: {template_file.relative_to(target)}")
+        try:
+            display_path = template_file.relative_to(target)
+        except ValueError:
+            display_path = template_file
+        logger.error(f"No template file found at: {display_path}")
         logger.error("The template configuration must be in the .rhiza folder.")
         logger.info("")
         logger.info("To fix this:")
@@ -77,7 +85,11 @@ def _check_template_file_exists(target: Path) -> tuple[bool, Path]:
         logger.info("  the old location → .rhiza/template.yml")
         return False, template_file
 
-    logger.success(f"Template file exists: {template_file.relative_to(target)}")
+    try:
+        display_path = template_file.relative_to(target)
+    except ValueError:
+        display_path = template_file
+    logger.success(f"Template file exists: {display_path}")
     return True, template_file
 
 
@@ -318,7 +330,7 @@ def _validate_host_field(config: dict[str, Any]) -> None:
     if not isinstance(host, str):
         logger.warning(f"template-host should be a string, got {type(host).__name__}: {host}")
         logger.warning("Must be 'github' or 'gitlab'")
-    elif host not in ("github", "gitlab"):
+    elif host not in GitHost._value2member_map_:
         logger.warning(f"template-host should be 'github' or 'gitlab', got: {host}")
         logger.warning("Other hosts are not currently supported")
     else:
@@ -383,7 +395,7 @@ def _validate_optional_fields(config: dict[str, Any]) -> None:
     _validate_exclude_field(config)
 
 
-def validate(target: Path) -> bool:
+def validate(target: Path, template_file: Path | None = None) -> bool:
     """Validate template.yml configuration in the target repository.
 
     Performs authoritative validation of the template configuration:
@@ -396,6 +408,8 @@ def validate(target: Path) -> bool:
 
     Args:
         target: Path to the target Git repository directory.
+        template_file: Optional explicit path to the template file.  When
+            ``None`` the default ``<target>/.rhiza/template.yml`` is used.
 
     Returns:
         True if validation passes, False otherwise.
@@ -408,7 +422,7 @@ def validate(target: Path) -> bool:
         return False
 
     # Check for template file first to get the language
-    exists, template_file = _check_template_file_exists(target)
+    exists, template_file = _check_template_file_exists(target, template_file)
     if not exists:
         return False
 

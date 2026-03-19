@@ -5,6 +5,7 @@ the new `.rhiza/` folder structure for storing Rhiza state and configuration fil
 separate from `.github/` which contains GitHub-specific configurations.
 """
 
+import dataclasses
 import shutil
 from pathlib import Path
 
@@ -94,7 +95,7 @@ def _ensure_rhiza_in_include(template_file: Path) -> None:
         logger.warning("The .rhiza folder is not included in your template.yml")
         template_include.append(".rhiza")
         logger.info("The .rhiza folder is added to your template.yml to ensure it's included in your repository")
-        template.include = template_include
+        template = dataclasses.replace(template, include=template_include)
         template.to_yaml(template_file)
 
 
