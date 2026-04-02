@@ -68,6 +68,18 @@ def _remove_files(files_to_remove: list[Path], target: Path) -> tuple[int, int, 
             full_path.unlink()
             logger.success(f"[DEL] {file_path}")
             removed_count += 1
+        except PermissionError:
+            # On Windows, read-only files must be made writable before deletion
+            try:
+                import stat
+
+                full_path.chmod(full_path.stat().st_mode | stat.S_IWRITE)
+                full_path.unlink()
+                logger.success(f"[DEL] {file_path}")
+                removed_count += 1
+            except Exception as e:
+                logger.error(f"Failed to delete {file_path}: {e}")
+                error_count += 1
         except Exception as e:
             logger.error(f"Failed to delete {file_path}: {e}")
             error_count += 1

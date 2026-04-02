@@ -83,7 +83,7 @@ def _load_template_from_project(target: Path, template_file: Path | None = None)
     if template.template_bundles_path == _DEFAULT_BUNDLES_PATH:
         try:
             relative_dir = template_file.resolve().parent.relative_to(target)
-            derived = str(relative_dir / "template-bundles.yml")
+            derived = (relative_dir / "template-bundles.yml").as_posix()
             if derived != _DEFAULT_BUNDLES_PATH:
                 template = dataclasses.replace(template, template_bundles_path=derived)
         except ValueError:

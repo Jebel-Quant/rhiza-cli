@@ -300,7 +300,7 @@ class TestSyncCore:
         assert sparse_paths_arg == [custom_bundles_path]
         # from_yaml must have been called with a path ending in the custom bundles path
         from_yaml_path = mock_from_yaml.call_args[0][0]
-        assert str(from_yaml_path).endswith(custom_bundles_path)
+        assert Path(from_yaml_path).as_posix().endswith(custom_bundles_path)
 
 
 # ---------------------------------------------------------------------------
@@ -367,7 +367,7 @@ class TestSyncPathToTemplateBundlesDerived:
         assert sparse_paths_arg == ["my-rhiza/template-bundles.yml"]
         # from_yaml must have been called with a path ending in the derived bundles path
         from_yaml_path = mock_from_yaml.call_args[0][0]
-        assert str(from_yaml_path).endswith("my-rhiza/template-bundles.yml")
+        assert Path(from_yaml_path).as_posix().endswith("my-rhiza/template-bundles.yml")
 
     @patch("rhiza.commands.sync.shutil.rmtree")
     @patch("rhiza.models._git_utils.GitContext.update_sparse_checkout")

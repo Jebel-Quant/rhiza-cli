@@ -353,7 +353,7 @@ class TestSummariseCommand:
 
         # Verify file was created
         assert output_file.exists()
-        content = output_file.read_text()
+        content = output_file.read_text(encoding="utf-8")
         assert "Template Synchronization" in content
 
     def test_summarise_non_git_repo(self, tmp_path):
