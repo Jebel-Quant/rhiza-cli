@@ -402,7 +402,7 @@ def summarise(target: Path, output: Path | None = None) -> None:
     # Output the description
     if output:
         output_path = output.resolve()
-        output_path.write_text(description)
+        output_path.write_text(description, encoding="utf-8")
         logger.success(f"PR description written to {output_path}")
     else:
         # Print to stdout
