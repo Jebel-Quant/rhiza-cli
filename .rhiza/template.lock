@@ -1,7 +1,7 @@
-sha: 8fa3c9b166c1c21f1a2752c77913f55c66213dce
+sha: 93b9e88eebbbac47470293f6052ec978c8dc78ba
 repo: jebel-quant/rhiza
 host: github
-ref: v0.8.20
+ref: v0.9.0
 include: []
 exclude: []
 templates:
@@ -39,6 +39,8 @@ files:
 - .rhiza/.env
 - .rhiza/.gitignore
 - .rhiza/.rhiza-version
+- .rhiza/CODE_OF_CONDUCT.md
+- .rhiza/CONTRIBUTING.md
 - .rhiza/assets/rhiza-logo.svg
 - .rhiza/docs/ASSETS.md
 - .rhiza/docs/CONFIG.md
@@ -65,7 +67,6 @@ files:
 - .rhiza/requirements/tools.txt
 - .rhiza/rhiza.mk
 - .rhiza/semgrep.yml
-- .rhiza/templates/minibook/custom.html.jinja2
 - .rhiza/tests/README.md
 - .rhiza/tests/api/conftest.py
 - .rhiza/tests/api/test_gh_aw_targets.py
@@ -96,13 +97,10 @@ files:
 - .rhiza/tests/sync/test_rhiza_version.py
 - .rhiza/tests/test_utils.py
 - .rhiza/tests/utils/test_git_repo_fixture.py
-- CODE_OF_CONDUCT.md
-- CONTRIBUTING.md
 - LICENSE
 - Makefile
 - SECURITY.md
 - docs/ARCHITECTURE.md
-- docs/BOOK.md
 - docs/CUSTOMIZATION.md
 - docs/DEMO.md
 - docs/GLOSSARY.md
@@ -112,5 +110,5 @@ files:
 - pytest.ini
 - renovate.json
 - ruff.toml
-synced_at: '2026-04-02T06:29:37Z'
+synced_at: '2026-04-03T11:27:12Z'
 strategy: merge
