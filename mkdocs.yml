@@ -1,0 +1,69 @@
+site_name: Rhiza CLI
+site_description: Reusable configuration templates for modern Python projects
+site_url: https://jebel-quant.github.io/rhiza-cli/
+repo_url: https://github.com/jebel-quant/rhiza-cli
+repo_name: jebel-quant/rhiza-cli
+edit_uri: edit/main/
+
+docs_dir: .
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: README.md
+  - Getting Started: GETTING_STARTED.md
+  - CLI Reference: CLI.md
+  - Usage Guide: USAGE.md
+  - Guides:
+      - Architecture: docs/ARCHITECTURE.md
+      - Authentication: docs/AUTHENTICATION.md
+      - Customization: docs/CUSTOMIZATION.md
+      - Testing: docs/TESTS.md
+      - Quick Reference: docs/QUICK_REFERENCE.md
+  - Reference:
+      - Glossary: docs/GLOSSARY.md
+      - Security: docs/SECURITY.md
+      - Demo: docs/DEMO.md
+  - Decisions:
+      - Overview: docs/adr/README.md
+      - ADR-0001 — Inline get_diff: docs/adr/0001-inline-get-diff-instead-of-cruft.md
+      - ADR-0002 — Repository/ref keys: docs/adr/0002-repository-ref-as-canonical-keys.md
+      - ADR-0003 — Lock file concurrency: docs/adr/0003-lock-file-concurrency.md
