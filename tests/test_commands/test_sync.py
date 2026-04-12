@@ -444,6 +444,17 @@ class TestSyncCLI:
         assert result.exit_code == 0
         mock_sync.assert_called_once()
 
+    @patch("rhiza.cli.sync_cmd")
+    def test_sync_cli_exits_with_error_on_conflict(self, mock_sync, tmp_path):
+        """CLI should exit with code 1 when sync raises RuntimeError due to conflicts."""
+        mock_sync.side_effect = RuntimeError("Sync completed with merge conflicts")
+        result = self.runner.invoke(
+            cli.app,
+            ["sync", str(tmp_path)],
+        )
+        assert result.exit_code == 1
+        mock_sync.assert_called_once()
+
 
 class TestApplyDiffConflict:
     """Tests for conflict-handling branch in _apply_diff."""
@@ -587,7 +598,7 @@ class TestMergeWithBasePaths:
         base_snapshot = tmp_path / "base"
         base_snapshot.mkdir()
 
-        git_ctx._merge_with_base(
+        result = git_ctx._merge_with_base(
             git_project,
             upstream_snapshot,
             "newsha",
@@ -598,6 +609,39 @@ class TestMergeWithBasePaths:
             TemplateLock(sha="newsha"),
         )
 
+        assert result is True
+        mock_apply.assert_called_once()
+
+    @patch("rhiza.models._git_utils.GitContext._apply_diff")
+    @patch("rhiza.models._git_utils.GitContext.get_diff")
+    @patch("rhiza.models._git_utils.GitContext.clone_at_sha")
+    @patch("rhiza.models._git_utils._prepare_snapshot")
+    def test_merge_with_base_conflict_returns_false(
+        self, mock_prepare, mock_clone, mock_get_diff, mock_apply, tmp_path, git_project, git_ctx
+    ):
+        """When diff has conflicts, _merge_with_base returns False."""
+        mock_get_diff.return_value = (
+            "diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new\n"
+        )
+        mock_apply.return_value = False  # conflict
+
+        upstream_snapshot = tmp_path / "upstream"
+        upstream_snapshot.mkdir()
+        base_snapshot = tmp_path / "base"
+        base_snapshot.mkdir()
+
+        result = git_ctx._merge_with_base(
+            git_project,
+            upstream_snapshot,
+            "newsha",
+            "oldsha",
+            base_snapshot,
+            RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
+            set(),
+            TemplateLock(sha="newsha"),
+        )
+
+        assert result is False
         mock_apply.assert_called_once()
 
 

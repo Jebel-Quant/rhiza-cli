@@ -69,7 +69,12 @@ jobs:
           RHIZA_VERSION="${{ steps.rhiza-version.outputs.version }}"
 
           echo "Running rhiza sync with version >=${RHIZA_VERSION}"
-          uvx "rhiza>=${RHIZA_VERSION}" sync .
+          if ! uvx "rhiza>=${RHIZA_VERSION}" sync .; then
+            echo "::error::Rhiza sync failed with conflicts"
+            echo "::error::Conflict markers or .rej files have been created"
+            echo "::error::Please resolve conflicts manually in your local repository"
+            exit 1
+          fi
 
           if git diff --quiet; then
             echo "No changes detected after template sync"
@@ -146,7 +151,12 @@ jobs:
 
           RHIZA_VERSION="${{ steps.rhiza-version.outputs.version }}"
 
-          uvx "rhiza>=${RHIZA_VERSION}" sync .
+          if ! uvx "rhiza>=${RHIZA_VERSION}" sync .; then
+            echo "::error::Rhiza sync failed with conflicts"
+            echo "::error::Conflict markers or .rej files have been created"
+            echo "::error::Please resolve conflicts manually in your local repository"
+            exit 1
+          fi
 
           git add -A
 

@@ -239,7 +239,7 @@ def sync(
                     upstream_snapshot=upstream_snapshot,
                 )
             else:
-                git_ctx.sync_merge(
+                clean = git_ctx.sync_merge(
                     target=target,
                     upstream_snapshot=upstream_snapshot,
                     upstream_sha=upstream_sha,
@@ -250,6 +250,12 @@ def sync(
                     lock=lock,
                     lock_file=lock_file,
                 )
+                if not clean:
+                    logger.error("Sync completed with conflicts")
+                    logger.error("Conflict markers or .rej files have been created")
+                    logger.error("Please resolve conflicts manually before committing")
+                    msg = "Sync completed with merge conflicts"
+                    raise RuntimeError(msg)
         finally:
             if upstream_snapshot.exists():
                 shutil.rmtree(upstream_snapshot)
