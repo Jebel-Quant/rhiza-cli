@@ -31,7 +31,7 @@ class TestSummariseCommand:
         return repo
 
     def test_summarise_default_config(self, git_repo, capsys):
-        """Test summarise with default configuration (missing template.yml)."""
+        """Test summarise with default configuration (missing template.yml / template.lock)."""
         git_cmd = shutil.which("git") or "git"
 
         # Create and stage a file
@@ -45,11 +45,12 @@ class TestSummariseCommand:
         captured = capsys.readouterr()
         output = captured.out
 
-        # Verify default template info is used
-        assert "jebel-quant/rhiza" in output
-        assert "main" in output
+        # With no template.yml or lock, no hardcoded repo name should appear as the template reference
+        assert "Template: `jebel-quant/rhiza" not in output
         assert "files added" in output
         assert "Change Summary" in output
+        # Generic message shown when template is not configured
+        assert "upstream template" in output
 
     def test_summarise_custom_config(self, git_repo, capsys):
         """Test summarise with custom template.yml configuration."""
@@ -475,3 +476,353 @@ class TestSummariseCommand:
         # Empty path should be categorized as "Other"
         result = _categorize_single_file("")
         assert result == "Other"
+
+    # ------------------------------------------------------------------
+    # Tests for template.lock-based template info
+    # ------------------------------------------------------------------
+
+    def test_summarise_reads_template_from_lock_file(self, git_repo, capsys):
+        """Test that template info is read from template.lock when present."""
+        git_cmd = shutil.which("git") or "git"
+
+        rhiza_dir = git_repo / ".rhiza"
+        rhiza_dir.mkdir()
+        lock_file = rhiza_dir / "template.lock"
+        lock_file.write_text(
+            "sha: abc123\nrepo: my-org/my-lock-template\nref: v3.0\nsynced_at: '2024-06-01T10:00:00Z'\n"
+        )
+
+        test_file = git_repo / "file.txt"
+        test_file.write_text("content")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+
+        summarise(git_repo)
+
+        output = capsys.readouterr().out
+        assert "my-org/my-lock-template" in output
+        assert "v3.0" in output
+
+    def test_summarise_lock_takes_priority_over_template_yml(self, git_repo, capsys):
+        """Lock file should take priority over template.yml for template info."""
+        git_cmd = shutil.which("git") or "git"
+
+        rhiza_dir = git_repo / ".rhiza"
+        rhiza_dir.mkdir()
+        # Write template.yml pointing at one repo…
+        (rhiza_dir / "template.yml").write_text(
+            'template-repository: "yml-org/yml-template"\ntemplate-branch: "yml-branch"\n'
+        )
+        # …and template.lock pointing at a different one
+        (rhiza_dir / "template.lock").write_text(
+            "sha: abc123\nrepo: lock-org/lock-template\nref: lock-branch\nsynced_at: '2024-06-01T10:00:00Z'\n"
+        )
+
+        test_file = git_repo / "file.txt"
+        test_file.write_text("content")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+
+        summarise(git_repo)
+
+        output = capsys.readouterr().out
+        assert "lock-org/lock-template" in output
+        assert "yml-org/yml-template" not in output
+
+    def test_summarise_lock_synced_at_used_for_last_sync(self, git_repo, capsys):
+        """synced_at from template.lock should appear as last sync date."""
+        git_cmd = shutil.which("git") or "git"
+
+        rhiza_dir = git_repo / ".rhiza"
+        rhiza_dir.mkdir()
+        (rhiza_dir / "template.lock").write_text(
+            "sha: abc123\nrepo: my-org/test-template\nref: main\nsynced_at: '2025-01-15T08:30:00Z'\n"
+        )
+
+        test_file = git_repo / "file.txt"
+        test_file.write_text("content")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+
+        summarise(git_repo)
+
+        output = capsys.readouterr().out
+        assert "2025-01-15T08:30:00Z" in output
+
+    def test_get_template_info_uses_ref_key(self, git_repo):
+        """get_template_info should support the 'repository'/'ref' key format."""
+        from rhiza.commands.summarise import get_template_info
+
+        rhiza_dir = git_repo / ".rhiza"
+        rhiza_dir.mkdir()
+        (rhiza_dir / "template.yml").write_text("repository: my-org/alt-template\nref: alt-branch\n")
+
+        repo, branch = get_template_info(git_repo)
+        assert repo == "my-org/alt-template"
+        assert branch == "alt-branch"
+
+    def test_get_template_info_returns_empty_strings_when_missing(self, git_repo):
+        """get_template_info should return empty strings when no config exists."""
+        from rhiza.commands.summarise import get_template_info
+
+        repo, branch = get_template_info(git_repo)
+        assert repo == ""
+        assert branch == ""
+
+    # ------------------------------------------------------------------
+    # Tests for get_last_sync_date with dynamic template name
+    # ------------------------------------------------------------------
+
+    def test_get_last_sync_date_uses_template_short_name(self, git_repo):
+        """get_last_sync_date should find sync commit using template short name."""
+        from unittest.mock import patch
+
+        from rhiza.commands.summarise import get_last_sync_date
+
+        with patch("rhiza.commands.summarise.run_git_command") as mock_git:
+            mock_git.return_value = "2025-03-01T12:00:00+00:00"
+
+            result = get_last_sync_date(git_repo, template_repo="my-org/my-template")
+
+            # Should have called git log with the short name 'my-template'
+            assert result == "2025-03-01T12:00:00+00:00"
+            call_args = mock_git.call_args[0][0]
+            assert "my-template" in call_args
+
+    def test_get_last_sync_date_lock_takes_priority(self, git_repo):
+        """synced_at from template.lock takes priority over git log."""
+        from rhiza.commands.summarise import get_last_sync_date
+
+        rhiza_dir = git_repo / ".rhiza"
+        rhiza_dir.mkdir()
+        (rhiza_dir / "template.lock").write_text("sha: abc\nrepo: x/y\nref: main\nsynced_at: '2024-12-01T00:00:00Z'\n")
+
+        result = get_last_sync_date(git_repo, template_repo="x/y")
+        assert result == "2024-12-01T00:00:00Z"
+
+    # ------------------------------------------------------------------
+    # Tests for new output options
+    # ------------------------------------------------------------------
+
+    def test_summarise_no_header(self, git_repo, capsys):
+        """--no-header suppresses the header block."""
+        git_cmd = shutil.which("git") or "git"
+
+        test_file = git_repo / "test.txt"
+        test_file.write_text("content")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+
+        summarise(git_repo, include_header=False)
+
+        output = capsys.readouterr().out
+        assert "Template Synchronization" not in output
+        assert "upstream template" not in output
+        # Summary stats should still appear
+        assert "files added" in output
+
+    def test_summarise_no_footer(self, git_repo, capsys):
+        """--no-footer suppresses the footer block."""
+        git_cmd = shutil.which("git") or "git"
+
+        test_file = git_repo / "test.txt"
+        test_file.write_text("content")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+
+        summarise(git_repo, include_footer=False)
+
+        output = capsys.readouterr().out
+        assert "Generated by" not in output
+        assert "Sync date" not in output
+
+    def test_summarise_no_categories(self, git_repo, capsys):
+        """--no-categories shows a flat file list instead of grouped categories."""
+        git_cmd = shutil.which("git") or "git"
+
+        test_file = git_repo / "test.txt"
+        test_file.write_text("content")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+
+        summarise(git_repo, include_categories=False)
+
+        output = capsys.readouterr().out
+        assert "Changed Files" in output
+        # Category headings should not appear
+        assert "Changes by Category" not in output
+
+    def test_summarise_format_json(self, git_repo, capsys):
+        """--format json outputs valid JSON."""
+        import json
+
+        git_cmd = shutil.which("git") or "git"
+
+        test_file = git_repo / "test.txt"
+        test_file.write_text("content")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+
+        summarise(git_repo, output_format="json")
+
+        output = capsys.readouterr().out
+        data = json.loads(output)
+        assert "changes" in data
+        assert "categories" in data
+        assert "template_repo" in data
+        assert "sync_date" in data
+
+    def test_summarise_format_plain(self, git_repo, capsys):
+        """--format plain outputs plain text without markdown."""
+        git_cmd = shutil.which("git") or "git"
+
+        test_file = git_repo / "test.txt"
+        test_file.write_text("content")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+
+        summarise(git_repo, output_format="plain")
+
+        output = capsys.readouterr().out
+        assert "Template Synchronization" in output
+        # No markdown syntax
+        assert "##" not in output
+        assert "**" not in output
+
+    def test_summarise_custom_title(self, git_repo, capsys):
+        """--title overrides the default section heading."""
+        git_cmd = shutil.which("git") or "git"
+
+        test_file = git_repo / "test.txt"
+        test_file.write_text("content")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+
+        summarise(git_repo, title="## My Custom Title")
+
+        output = capsys.readouterr().out
+        assert "My Custom Title" in output
+        assert "Template Synchronization" not in output
+
+    def test_summarise_compare_ref(self, git_repo, capsys):
+        """--compare diffs against a git ref instead of staged changes."""
+        git_cmd = shutil.which("git") or "git"
+
+        # Make an initial commit
+        test_file = git_repo / "existing.txt"
+        test_file.write_text("original")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "commit", "-m", "initial"], cwd=git_repo, check=True)
+
+        # Make an unstaged change
+        test_file.write_text("modified content")
+
+        # With --compare HEAD the unstaged change should appear in output
+        summarise(git_repo, compare_ref="HEAD")
+
+        output = capsys.readouterr().out
+        assert "files" in output.lower() or "modified" in output.lower() or "Change Summary" in output
+
+    def test_summarise_jinja2_template(self, git_repo, tmp_path, capsys):
+        """--template renders output using a custom Jinja2 template."""
+        git_cmd = shutil.which("git") or "git"
+
+        test_file = git_repo / "feature.py"
+        test_file.write_text("def f(): pass")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+
+        # Create a minimal Jinja2 template
+        jinja_tmpl = tmp_path / "custom.md.j2"
+        jinja_tmpl.write_text("CUSTOM: {{ template_repo }} added={{ changes.added | length }}")
+
+        summarise(git_repo, jinja2_template=jinja_tmpl)
+
+        output = capsys.readouterr().out
+        assert "CUSTOM:" in output
+        assert "added=1" in output
+
+    # ------------------------------------------------------------------
+    # Tests for categorisation improvements
+    # ------------------------------------------------------------------
+
+    def test_summarise_categorises_src_directory(self, git_repo, capsys):
+        """Files under src/ should be categorised as 'Source Code'."""
+        git_cmd = shutil.which("git") or "git"
+
+        src_dir = git_repo / "src" / "mypackage"
+        src_dir.mkdir(parents=True)
+        (src_dir / "module.py").write_text("x = 1")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+
+        summarise(git_repo)
+
+        output = capsys.readouterr().out
+        assert "Source Code" in output
+
+    def test_summarise_categorises_docs_directory(self, git_repo, capsys):
+        """Files under docs/ should be categorised as 'Documentation'."""
+        git_cmd = shutil.which("git") or "git"
+
+        docs_dir = git_repo / "docs"
+        docs_dir.mkdir()
+        (docs_dir / "guide.md").write_text("# Guide")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+
+        summarise(git_repo)
+
+        output = capsys.readouterr().out
+        assert "Documentation" in output
+
+    # ------------------------------------------------------------------
+    # Tests for CLI new options
+    # ------------------------------------------------------------------
+
+    def test_cli_summarise_no_header_flag(self, git_repo):
+        """CLI --no-header flag suppresses the header."""
+        git_cmd = shutil.which("git") or "git"
+
+        test_file = git_repo / "test.txt"
+        test_file.write_text("content")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["summarise", str(git_repo), "--no-header"])
+
+        assert result.exit_code == 0
+        assert "Template Synchronization" not in result.stdout
+
+    def test_cli_summarise_format_json(self, git_repo):
+        """CLI --format json outputs valid JSON."""
+        import json
+
+        git_cmd = shutil.which("git") or "git"
+
+        test_file = git_repo / "test.txt"
+        test_file.write_text("content")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["summarise", str(git_repo), "--format", "json"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert "changes" in data
+
+    def test_cli_summarise_format_plain(self, git_repo):
+        """CLI --format plain outputs plain text."""
+        git_cmd = shutil.which("git") or "git"
+
+        test_file = git_repo / "test.txt"
+        test_file.write_text("content")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["summarise", str(git_repo), "--format", "plain"])
+
+        assert result.exit_code == 0
+        assert "##" not in result.stdout
+
+    def test_cli_summarise_title_option(self, git_repo):
+        """CLI --title overrides the section heading."""
+        git_cmd = shutil.which("git") or "git"
+
+        test_file = git_repo / "test.txt"
+        test_file.write_text("content")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["summarise", str(git_repo), "--title", "Custom Heading"])
+
+        assert result.exit_code == 0
+        assert "Custom Heading" in result.stdout
