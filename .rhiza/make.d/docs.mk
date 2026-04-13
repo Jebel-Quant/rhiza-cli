@@ -25,7 +25,11 @@ mkdocs-build:: install-uv ## build MkDocs documentation site
 	@printf "${BLUE}[INFO] Building MkDocs site...${RESET}\n"
 	@if [ -f "$(MKDOCS_CONFIG)" ]; then \
 	  rm -rf "$(MKDOCS_OUTPUT)"; \
+<<<<<<< ours
 	  MKDOCS_TMP="$$(mktemp -d)"; \
+=======
+	  MKDOCS_OUTPUT_ABS="$$(pwd)/$(MKDOCS_OUTPUT)"; \
+>>>>>>> theirs
 	  ${UVX_BIN} --with "mkdocs-material<10.0" --with "pymdown-extensions>=10.0" --with "mkdocs<2.0" $(MKDOCS_EXTRA_PACKAGES) mkdocs build \
 	    -f "$(MKDOCS_CONFIG)" \
 	    -d "$$MKDOCS_TMP"; \
