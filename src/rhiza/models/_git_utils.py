@@ -422,7 +422,7 @@ class GitContext:
         excludes: set[str],
         lock: "TemplateLock",
         lock_file: "Path | None" = None,
-    ) -> None:
+    ) -> bool:
         """Execute the merge strategy (cruft-style 3-way merge).
 
         When a base SHA exists, computes the diff between base and upstream
@@ -440,6 +440,9 @@ class GitContext:
             lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
             lock_file: Optional explicit path for the lock file.  When ``None``
                 the default ``<target>/.rhiza/template.lock`` is used.
+
+        Returns:
+            True if all changes applied cleanly, False if any conflicts remain.
         """
         from rhiza.commands._sync_helpers import (
             _clean_orphaned_files,
@@ -455,9 +458,10 @@ class GitContext:
         old_tracked_files = _read_previously_tracked_files(target, lock_file=lock_file)
 
         base_snapshot = Path(tempfile.mkdtemp())
+        clean = True
         try:
             if base_sha:
-                self._merge_with_base(
+                clean = self._merge_with_base(
                     target,
                     upstream_snapshot,
                     upstream_sha,
@@ -496,6 +500,8 @@ class GitContext:
         finally:
             if base_snapshot.exists():
                 shutil.rmtree(base_snapshot)
+
+        return clean
 
     def update_sparse_checkout(
         self,
@@ -714,7 +720,7 @@ class GitContext:
         excludes: set[str],
         lock: "TemplateLock",
         lock_file: "Path | None" = None,
-    ) -> None:
+    ) -> bool:
         """Compute and apply the diff between base and upstream snapshots.
 
         Args:
@@ -728,6 +734,9 @@ class GitContext:
             lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
             lock_file: Optional explicit path for the lock file.  When ``None``
                 the default ``<target>/.rhiza/template.lock`` is used.
+
+        Returns:
+            True if all changes applied cleanly, False if any conflicts remain.
         """
         from rhiza.commands._sync_helpers import _write_lock
 
@@ -747,7 +756,7 @@ class GitContext:
         if not diff.strip():
             logger.success("Template unchanged since last sync — nothing to apply")
             _write_lock(target, lock, lock_file=lock_file)
-            return
+            return True
 
         logger.info("Applying template changes via 3-way merge (cruft)...")
         clean = self._apply_diff(diff, target, base_snapshot=base_snapshot, upstream_snapshot=upstream_snapshot)
@@ -756,6 +765,8 @@ class GitContext:
             logger.success("All changes applied cleanly")
         else:
             logger.warning("Some changes had conflicts. Check for *.rej files and resolve manually.")
+
+        return clean
 
 
 def _normalize_to_list(value: Any | list[Any] | None) -> list[Any]:

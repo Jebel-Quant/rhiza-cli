@@ -134,15 +134,23 @@ class TestSyncCore:
         assert (tmp_path / "test.txt").read_text() == "local content"
         assert not (tmp_path / ".rhiza" / "template.lock").exists()
 
+    @patch("rhiza.models._git_utils.GitContext._apply_diff")
+    @patch("rhiza.models._git_utils.GitContext.get_diff")
     @patch("rhiza.commands.sync.shutil.rmtree")
     @patch("rhiza.models._git_utils.GitContext.clone_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
     @patch("rhiza.models._git_utils.GitContext.get_head_sha")
-    def test_subsequent_merge_updates_lock_sha(self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path):
+    def test_subsequent_merge_updates_lock_sha(
+        self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, mock_get_diff, mock_apply, tmp_path
+    ):
         """When upstream has a newer SHA, merge updates the lock to the new SHA."""
         _setup_project(tmp_path)
         _write_lock(tmp_path, TemplateLock(sha="old111"))
         mock_sha.return_value = "new222"
+        mock_get_diff.return_value = (
+            "diff --git a/test.txt b/test.txt\n--- a/test.txt\n+++ b/test.txt\n@@ -1 +1 @@\n-old\n+new\n"
+        )
+        mock_apply.return_value = True  # Clean merge, no conflicts
 
         clone_dir = _make_clone_dir(tmp_path, "upstream_clone", {"test.txt": "updated content\n"})
         snapshot_dir = _make_clone_dir(tmp_path, "upstream_snapshot", {})
