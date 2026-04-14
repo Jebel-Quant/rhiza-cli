@@ -7,7 +7,7 @@ repo_url: https://github.com/jebel-quant/rhiza-cli
 repo_name: jebel-quant/rhiza-cli
 edit_uri: edit/main/
 
-docs_dir: .  # always set explicitly — base resolves relative to docs/mkdocs-base.yml
+docs_dir: docs  # must not be '.' (project root) — _book would then be inside docs_dir, which MkDocs rejects
 
 theme:
   palette:
@@ -54,17 +54,12 @@ markdown_extensions:
       alternate_style: true
 
 nav:
-  - Home: README.md
-  - Getting Started: GETTING_STARTED.md
-  - CLI Reference: CLI.md
-  - Usage Guide: USAGE.md
+  - Home: index.md
   - Guides:
-      - Authentication: docs/AUTHENTICATION.md
-      - Testing: docs/development/TESTS.md
-  - Reference:
-      - Security: SECURITY.md
+      - Authentication: AUTHENTICATION.md
+      - Testing: development/TESTS.md
   - Decisions:
-      - Overview: docs/adr/README.md
-      - ADR-0001 — Inline get_diff: docs/adr/0001-inline-get-diff-instead-of-cruft.md
-      - ADR-0002 — Repository/ref keys: docs/adr/0002-repository-ref-as-canonical-keys.md
-      - ADR-0003 — Lock file concurrency: docs/adr/0003-lock-file-concurrency.md
+      - Overview: adr/README.md
+      - ADR-0001 — Inline get_diff: adr/0001-inline-get-diff-instead-of-cruft.md
+      - ADR-0002 — Repository/ref keys: adr/0002-repository-ref-as-canonical-keys.md
+      - ADR-0003 — Lock file concurrency: adr/0003-lock-file-concurrency.md
