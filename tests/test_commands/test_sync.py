@@ -191,6 +191,29 @@ class TestLockFile:
 
         assert TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock").config["sha"] == "cafebabe12345678"
 
+    def test_write_lock_skips_write_when_content_unchanged(self, tmp_path):
+        """_write_lock does not rewrite the file when only synced_at differs."""
+        sha = "abc123def456"
+        lock_first = TemplateLock(sha=sha, synced_at="2024-01-01T00:00:00Z")
+        _write_lock(tmp_path, lock_first)
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+        content_after_first = lock_path.read_text(encoding="utf-8")
+
+        # Write the same lock with a different synced_at; the file must not change.
+        lock_second = TemplateLock(sha=sha, synced_at="2024-06-01T12:00:00Z")
+        _write_lock(tmp_path, lock_second)
+        assert lock_path.read_text(encoding="utf-8") == content_after_first
+
+    def test_write_lock_updates_when_sha_changes(self, tmp_path):
+        """_write_lock rewrites the file when sha changes."""
+        lock_first = TemplateLock(sha="aaa111", synced_at="2024-01-01T00:00:00Z")
+        _write_lock(tmp_path, lock_first)
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+
+        lock_second = TemplateLock(sha="bbb222", synced_at="2024-06-01T12:00:00Z")
+        _write_lock(tmp_path, lock_second)
+        assert TemplateLock.from_yaml(lock_path).config["sha"] == "bbb222"
+
 
 class TestApplyDiff:
     """Tests for the diff application helper."""
