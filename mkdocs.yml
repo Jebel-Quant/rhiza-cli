@@ -1,3 +1,5 @@
+INHERIT: docs/mkdocs-base.yml
+
 site_name: Rhiza CLI
 site_description: Reusable configuration templates for modern Python projects
 site_url: https://jebel-quant.github.io/rhiza-cli/
@@ -5,10 +7,9 @@ repo_url: https://github.com/jebel-quant/rhiza-cli
 repo_name: jebel-quant/rhiza-cli
 edit_uri: edit/main/
 
-docs_dir: .
+docs_dir: docs  # must not be '.' (project root) — _book would then be inside docs_dir, which MkDocs rejects
 
 theme:
-  name: material
   palette:
     - scheme: default
       primary: teal
@@ -26,16 +27,19 @@ theme:
     - navigation.tabs
     - navigation.sections
     - navigation.expand
+    - navigation.top
     - toc.integrate
     - search.suggest
     - search.highlight
     - content.code.copy
 
 markdown_extensions:
+  - md_in_html
   - admonition
   - attr_list
   - toc:
       permalink: true
+      toc_depth: 3
   - pymdownx.details
   - pymdownx.highlight:
       anchor_linenums: true
@@ -44,26 +48,18 @@ markdown_extensions:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.snippets:
+      base_path: ["."]
   - pymdownx.tabbed:
       alternate_style: true
 
 nav:
-  - Home: README.md
-  - Getting Started: GETTING_STARTED.md
-  - CLI Reference: CLI.md
-  - Usage Guide: USAGE.md
+  - Home: index.md
   - Guides:
-      - Architecture: docs/ARCHITECTURE.md
-      - Authentication: docs/AUTHENTICATION.md
-      - Customization: docs/CUSTOMIZATION.md
-      - Testing: docs/TESTS.md
-      - Quick Reference: docs/QUICK_REFERENCE.md
-  - Reference:
-      - Glossary: docs/GLOSSARY.md
-      - Security: docs/SECURITY.md
-      - Demo: docs/DEMO.md
+      - Authentication: AUTHENTICATION.md
+      - Testing: development/TESTS.md
   - Decisions:
-      - Overview: docs/adr/README.md
-      - ADR-0001 — Inline get_diff: docs/adr/0001-inline-get-diff-instead-of-cruft.md
-      - ADR-0002 — Repository/ref keys: docs/adr/0002-repository-ref-as-canonical-keys.md
-      - ADR-0003 — Lock file concurrency: docs/adr/0003-lock-file-concurrency.md
+      - Overview: adr/README.md
+      - ADR-0001 — Inline get_diff: adr/0001-inline-get-diff-instead-of-cruft.md
+      - ADR-0002 — Repository/ref keys: adr/0002-repository-ref-as-canonical-keys.md
+      - ADR-0003 — Lock file concurrency: adr/0003-lock-file-concurrency.md
