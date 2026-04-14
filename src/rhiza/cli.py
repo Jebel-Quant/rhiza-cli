@@ -490,6 +490,48 @@ def summarise(
             help="Output file path (defaults to stdout)",
         ),
     ] = None,
+    no_header: Annotated[
+        bool,
+        typer.Option("--no-header", help="Suppress the header section."),
+    ] = False,
+    no_footer: Annotated[
+        bool,
+        typer.Option("--no-footer", help="Suppress the footer section."),
+    ] = False,
+    no_categories: Annotated[
+        bool,
+        typer.Option("--no-categories", help="Show a flat file list instead of grouping by category."),
+    ] = False,
+    output_format: Annotated[
+        str,
+        typer.Option(
+            "--format",
+            "-f",
+            help="Output format: markdown (default), plain, or json.",
+        ),
+    ] = "markdown",
+    title: Annotated[
+        str | None,
+        typer.Option("--title", help="Override the PR description title (markdown / plain formats)."),
+    ] = None,
+    compare_ref: Annotated[
+        str | None,
+        typer.Option(
+            "--compare",
+            help="Compare against this git ref instead of staged changes (e.g. 'main', 'HEAD~1').",
+        ),
+    ] = None,
+    jinja2_template: Annotated[
+        Path | None,
+        typer.Option(
+            "--template",
+            "-t",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            help="Path to a Jinja2 template file for fully custom output.",
+        ),
+    ] = None,
 ) -> None:
     r"""Generate a summary of staged changes for PR descriptions.
 
@@ -508,6 +550,10 @@ def summarise(
         rhiza summarise
         rhiza summarise --output pr-description.md
         rhiza summarise /path/to/project -o description.md
+        rhiza summarise --format json
+        rhiza summarise --no-categories --no-footer
+        rhiza summarise --compare main
+        rhiza summarise --template my-template.md.j2
 
     Typical workflow:
         rhiza sync
@@ -516,4 +562,14 @@ def summarise(
         gh pr create --title "chore: Sync with rhiza" --body-file pr-body.md
     """
     with _exit_on_error(RuntimeError):
-        summarise_cmd(target, output)
+        summarise_cmd(
+            target,
+            output,
+            include_header=not no_header,
+            include_footer=not no_footer,
+            include_categories=not no_categories,
+            output_format=output_format,
+            title=title,
+            compare_ref=compare_ref,
+            jinja2_template=jinja2_template,
+        )
