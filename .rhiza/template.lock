@@ -1,7 +1,7 @@
-sha: 93b9e88eebbbac47470293f6052ec978c8dc78ba
+sha: 015fa78916d1cc0c802453ccb2ccd47821553bd7
 repo: jebel-quant/rhiza
 host: github
-ref: v0.9.0
+ref: v0.9.2
 include: []
 exclude: []
 templates:
@@ -76,6 +76,7 @@ files:
 - .rhiza/tests/conftest.py
 - .rhiza/tests/deps/test_dependency_health.py
 - .rhiza/tests/integration/test_book_targets.py
+- .rhiza/tests/integration/test_docs_targets.py
 - .rhiza/tests/integration/test_lfs.py
 - .rhiza/tests/integration/test_sbom.py
 - .rhiza/tests/integration/test_test_mk.py
@@ -110,5 +111,5 @@ files:
 - pytest.ini
 - renovate.json
 - ruff.toml
-synced_at: '2026-04-03T11:27:12Z'
+synced_at: '2026-04-14T08:24:02Z'
 strategy: merge
