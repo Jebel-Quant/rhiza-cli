@@ -230,6 +230,41 @@ def _clean_orphaned_files(
 # ---------------------------------------------------------------------------
 
 
+def _lock_content_unchanged(lock: TemplateLock, lock_path: Path) -> bool:
+    """Return ``True`` when the on-disk lock is identical to *lock*, ignoring ``synced_at``.
+
+    Compares all fields except ``synced_at`` so that a re-sync that produces no
+    template changes does not cause a spurious timestamp-only update to
+    ``template.lock``.
+
+    Args:
+        lock: The candidate :class:`~rhiza.models.TemplateLock` to write.
+        lock_path: Path to the existing lock file on disk.
+
+    Returns:
+        ``True`` if the existing lock has the same effective content as *lock*,
+        ``False`` when the lock file does not exist or differs in any field
+        other than ``synced_at``.
+    """
+    if not lock_path.exists():
+        return False
+    try:
+        existing = TemplateLock.from_yaml(lock_path)
+    except Exception:
+        return False
+    return (
+        existing.sha == lock.sha
+        and existing.repo == lock.repo
+        and str(existing.host) == str(lock.host)
+        and existing.ref == lock.ref
+        and existing.include == lock.include
+        and existing.exclude == lock.exclude
+        and existing.templates == lock.templates
+        and existing.files == lock.files
+        and existing.strategy == lock.strategy
+    )
+
+
 def _write_lock(target: Path, lock: TemplateLock, lock_file: Path | None = None) -> None:
     """Persist the lock data to the YAML lock file.
 
@@ -242,6 +277,10 @@ def _write_lock(target: Path, lock: TemplateLock, lock_file: Path | None = None)
     Only files that actually exist in *target* are recorded in ``lock.files``.
     This guarantees that the lock never references paths that are absent from
     the repository.
+
+    The lock file is **not** rewritten when the effective content (all fields
+    except ``synced_at``) is identical to what is already on disk, preventing
+    spurious timestamp-only changes when no template updates are available.
 
     Args:
         target: Path to the target repository.
@@ -260,6 +299,12 @@ def _write_lock(target: Path, lock: TemplateLock, lock_file: Path | None = None)
     lock = dataclasses.replace(lock, files=existing_files)
 
     lock_path = lock_file if lock_file is not None else target / LOCK_FILE
+
+    # Skip write when only synced_at would change to avoid spurious diffs.
+    if _lock_content_unchanged(lock, lock_path):
+        logger.info(f"{lock_path.name} is already up to date — skipping write")
+        return
+
     tmp_path = Path(str(lock_path) + ".tmp")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     # Acquire an exclusive advisory lock via a dedicated lock-fd file so that
