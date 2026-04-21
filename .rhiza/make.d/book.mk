@@ -1,6 +1,6 @@
 ## book.mk - Book-building targets (MkDocs-based)
 
-ROOT := $(shell git rev-parse --show-toplevel)
+ROOT := $(strip $(or $(shell git rev-parse --show-toplevel 2>/dev/null),$(shell pwd)))
 
 .PHONY: book serve test benchmark stress hypothesis-test _book-reports _book-notebooks
 
