@@ -1,6 +1,6 @@
 """Tests for the `uninstall` command."""
 
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -180,7 +180,7 @@ class TestUninstallCLI:
 
     def test_help(self):
         """Uninstall --help exits 0 and mentions the command name."""
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603
             [sys.executable, "-m", "rhiza", "uninstall", "--help"],
             capture_output=True,
             text=True,
@@ -237,7 +237,7 @@ class TestUninstallCLI:
         file1.write_text("content")
         lock_file = _make_lock(tmp_path, ["file.txt"])
 
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603
             [sys.executable, "-m", "rhiza", "uninstall", str(tmp_path), "--force"],
             capture_output=True,
             text=True,

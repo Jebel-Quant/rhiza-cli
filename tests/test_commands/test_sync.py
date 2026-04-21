@@ -9,7 +9,7 @@ Tests cover:
 - CLI wiring
 """
 
-import subprocess
+import subprocess  # nosec B404
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
@@ -1278,7 +1278,7 @@ class TestThreeWayMergeSyncMergeStrategy:
                 },
                 f,
             )
-        subprocess.run([git_executable, "add", "."], cwd=project, check=True, capture_output=True, env=git_env)
+        subprocess.run([git_executable, "add", "."], cwd=project, check=True, capture_output=True, env=git_env)  # nosec B603
         subprocess.run(
             [git_executable, "commit", "-m", "init"],
             cwd=project,
