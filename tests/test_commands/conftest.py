@@ -8,7 +8,7 @@ Security Notes:
   full path is available at runtime.
 """
 
-import subprocess
+import subprocess  # nosec B404
 
 import pytest
 
