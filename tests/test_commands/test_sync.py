@@ -1279,7 +1279,7 @@ class TestThreeWayMergeSyncMergeStrategy:
                 f,
             )
         subprocess.run([git_executable, "add", "."], cwd=project, check=True, capture_output=True, env=git_env)  # nosec B603
-        subprocess.run(
+        subprocess.run(  # nosec B603
             [git_executable, "commit", "-m", "init"],
             cwd=project,
             check=True,
