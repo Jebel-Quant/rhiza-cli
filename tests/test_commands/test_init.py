@@ -4,7 +4,7 @@ This module verifies that `init` creates/validates `.rhiza/template.yml` and
 that the Typer CLI entry `rhiza init` works as expected.
 """
 
-import subprocess
+import subprocess  # nosec B404
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -788,7 +788,7 @@ class TestInitCustomTemplatePath:
 
     def test_cli_path_to_template_creates_template_in_custom_directory(self, tmp_path):
         """CLI --path-to-template writes template.yml to the given directory."""
-        import subprocess as sp
+        import subprocess as sp  # nosec B404
 
         sp.run(["git", "init", str(tmp_path)], capture_output=True)  # nosec B603 B607
         (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")

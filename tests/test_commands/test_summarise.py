@@ -5,7 +5,7 @@ staged changes and `.rhiza/template.yml` configuration.
 """
 
 import shutil
-import subprocess
+import subprocess  # nosec B404
 
 import pytest
 from typer.testing import CliRunner
@@ -24,9 +24,9 @@ class TestSummariseCommand:
         repo.mkdir()
 
         git_cmd = shutil.which("git") or "git"
-        subprocess.run([git_cmd, "init"], cwd=repo, check=True)
-        subprocess.run([git_cmd, "config", "user.email", "test@test.com"], cwd=repo, check=True)
-        subprocess.run([git_cmd, "config", "user.name", "Test"], cwd=repo, check=True)
+        subprocess.run([git_cmd, "init"], cwd=repo, check=True)  # nosec B603
+        subprocess.run([git_cmd, "config", "user.email", "test@test.com"], cwd=repo, check=True)  # nosec B603
+        subprocess.run([git_cmd, "config", "user.name", "Test"], cwd=repo, check=True)  # nosec B603
 
         return repo
 
@@ -37,7 +37,7 @@ class TestSummariseCommand:
         # Create and stage a file
         test_file = git_repo / "test.txt"
         test_file.write_text("test content")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
 
         # Run summarise directly
         summarise(git_repo)
@@ -65,7 +65,7 @@ class TestSummariseCommand:
         # Create and stage a file
         test_file = git_repo / "feature.py"
         test_file.write_text("def feature(): pass")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
 
         # Run summarise directly
         summarise(git_repo)
@@ -91,7 +91,7 @@ class TestSummariseCommand:
         # Create and stage a file
         test_file = git_repo / "cli_test.txt"
         test_file.write_text("cli test")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
 
         runner = CliRunner()
         result = runner.invoke(app, ["summarise", str(git_repo)])
@@ -108,12 +108,12 @@ class TestSummariseCommand:
         # Create, commit, then delete a file
         test_file = git_repo / "to_delete.txt"
         test_file.write_text("will be deleted")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
-        subprocess.run([git_cmd, "commit", "-m", "initial"], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
+        subprocess.run([git_cmd, "commit", "-m", "initial"], cwd=git_repo, check=True)  # nosec B603
 
         # Delete and stage the deletion
         test_file.unlink()
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
 
         # Run summarise
         summarise(git_repo)
@@ -131,13 +131,13 @@ class TestSummariseCommand:
         # Create and commit a file
         old_file = git_repo / "old_name.txt"
         old_file.write_text("content")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
-        subprocess.run([git_cmd, "commit", "-m", "initial"], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
+        subprocess.run([git_cmd, "commit", "-m", "initial"], cwd=git_repo, check=True)  # nosec B603
 
         # Rename and stage
         new_file = git_repo / "new_name.txt"
         old_file.rename(new_file)
-        subprocess.run([git_cmd, "add", "-A"], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "-A"], cwd=git_repo, check=True)  # nosec B603
 
         # Run summarise
         summarise(git_repo)
@@ -157,7 +157,7 @@ class TestSummariseCommand:
         workflows_dir.mkdir(parents=True)
         workflow_file = workflows_dir / "ci.yml"
         workflow_file.write_text("name: CI")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
 
         # Run summarise
         summarise(git_repo)
@@ -177,7 +177,7 @@ class TestSummariseCommand:
         github_dir.mkdir(parents=True)
         config_file = github_dir / "CODEOWNERS"
         config_file.write_text("* @owner")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
 
         # Run summarise
         summarise(git_repo)
@@ -197,7 +197,7 @@ class TestSummariseCommand:
         rhiza_dir.mkdir(parents=True)
         script_file = rhiza_dir / "my-script.sh"
         script_file.write_text("#!/bin/bash")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
 
         # Run summarise
         summarise(git_repo)
@@ -217,7 +217,7 @@ class TestSummariseCommand:
         rhiza_dir.mkdir(parents=True)
         makefile = rhiza_dir / "Makefile"
         makefile.write_text("all:\n\t@echo test")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
 
         # Run summarise
         summarise(git_repo)
@@ -237,7 +237,7 @@ class TestSummariseCommand:
         tests_dir.mkdir(parents=True)
         test_file = tests_dir / "test_feature.py"
         test_file.write_text("def test_something(): pass")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
 
         # Run summarise
         summarise(git_repo)
@@ -257,7 +257,7 @@ class TestSummariseCommand:
         book_dir.mkdir(parents=True)
         doc_file = book_dir / "intro.md"
         doc_file.write_text("# Introduction")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
 
         # Run summarise
         summarise(git_repo)
@@ -275,7 +275,7 @@ class TestSummariseCommand:
         # Create markdown file
         readme = git_repo / "README.md"
         readme.write_text("# Project")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
 
         # Run summarise
         summarise(git_repo)
@@ -293,7 +293,7 @@ class TestSummariseCommand:
         # Create a known config file
         config_file = git_repo / ".editorconfig"
         config_file.write_text("[*]\nindent_size = 2")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
 
         # Run summarise
         summarise(git_repo)
@@ -328,7 +328,7 @@ class TestSummariseCommand:
         # Create and stage a file
         test_file = git_repo / "test.txt"
         test_file.write_text("test")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
 
         # Run summarise
         summarise(git_repo)
@@ -346,7 +346,7 @@ class TestSummariseCommand:
         # Create and stage a file
         test_file = git_repo / "test.txt"
         test_file.write_text("test")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
 
         # Run summarise with output file
         output_file = tmp_path / "pr-description.md"
@@ -373,7 +373,7 @@ class TestSummariseCommand:
         # Create and stage a file normally first
         test_file = git_repo / "test.txt"
         test_file.write_text("test")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
 
         # Run summarise - it should handle edge cases in parsing
         summarise(git_repo)
@@ -391,12 +391,12 @@ class TestSummariseCommand:
         # Create and commit a file
         test_file = git_repo / "existing.txt"
         test_file.write_text("original content")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
-        subprocess.run([git_cmd, "commit", "-m", "initial"], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
+        subprocess.run([git_cmd, "commit", "-m", "initial"], cwd=git_repo, check=True)  # nosec B603
 
         # Modify and stage
         test_file.write_text("modified content")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
 
         # Run summarise
         summarise(git_repo)
@@ -414,13 +414,13 @@ class TestSummariseCommand:
         # Create and commit a file with 'rhiza' in commit message
         test_file = git_repo / "test.txt"
         test_file.write_text("content")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
-        subprocess.run([git_cmd, "commit", "-m", "Sync with rhiza template"], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
+        subprocess.run([git_cmd, "commit", "-m", "Sync with rhiza template"], cwd=git_repo, check=True)  # nosec B603
 
         # Create another file and stage it
         new_file = git_repo / "new.txt"
         new_file.write_text("new content")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
 
         # Run summarise
         summarise(git_repo)
