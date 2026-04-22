@@ -6,7 +6,7 @@ This module tests:
 """
 
 import shutil
-import subprocess
+import subprocess  # nosec B404
 import sys
 from unittest.mock import patch
 
@@ -23,7 +23,7 @@ class TestCliApp:
 
     def test_version_flag(self):
         """Test that --version flag shows version information."""
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603
             [sys.executable, "-m", "rhiza", "--version"],
             capture_output=True,
             text=True,
@@ -34,7 +34,7 @@ class TestCliApp:
 
     def test_version_short_flag(self):
         """Test that -v flag shows version information."""
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603
             [sys.executable, "-m", "rhiza", "-v"],
             capture_output=True,
             text=True,
@@ -66,7 +66,7 @@ class TestMainEntry:
     def test_main_entry_point(self):
         """Test that the module can be run with python -m rhiza."""
         # Test that the module is executable
-        result = subprocess.run([sys.executable, "-m", "rhiza", "--help"], capture_output=True, text=True)
+        result = subprocess.run([sys.executable, "-m", "rhiza", "--help"], capture_output=True, text=True)  # nosec B603
         assert result.returncode == 0
         assert "rhiza" in result.stdout.lower()
 
@@ -169,7 +169,7 @@ class TestSummariseCommand:
 
     def test_summarise_help(self):
         """Test that summarise command help is available."""
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603
             [sys.executable, "-m", "rhiza", "summarise", "--help"],
             capture_output=True,
             text=True,
@@ -188,9 +188,9 @@ class TestSummariseCommand:
         repo = tmp_path / "test_repo"
         repo.mkdir()
         git_cmd = shutil.which("git") or "git"
-        subprocess.run([git_cmd, "init"], cwd=repo, check=True)
-        subprocess.run([git_cmd, "config", "user.email", "test@test.com"], cwd=repo, check=True)
-        subprocess.run([git_cmd, "config", "user.name", "Test"], cwd=repo, check=True)
+        subprocess.run([git_cmd, "init"], cwd=repo, check=True)  # nosec B603
+        subprocess.run([git_cmd, "config", "user.email", "test@test.com"], cwd=repo, check=True)  # nosec B603
+        subprocess.run([git_cmd, "config", "user.name", "Test"], cwd=repo, check=True)  # nosec B603
 
         # Create template.yml
         template_dir = repo / ".rhiza"
@@ -201,7 +201,7 @@ class TestSummariseCommand:
         # Create and stage a test file
         test_file = repo / "test.txt"
         test_file.write_text("test")
-        subprocess.run([git_cmd, "add", "."], cwd=repo, check=True)
+        subprocess.run([git_cmd, "add", "."], cwd=repo, check=True)  # nosec B603
 
         runner = CliRunner()
         result = runner.invoke(app, ["summarise", str(repo)])

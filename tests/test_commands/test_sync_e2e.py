@@ -34,7 +34,7 @@ Security Notes:
   ``git_setup`` fixture.
 """
 
-import subprocess
+import subprocess  # nosec B404
 from pathlib import Path
 from unittest.mock import patch
 
