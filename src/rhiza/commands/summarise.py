@@ -7,8 +7,10 @@ structured PR descriptions for rhiza sync operations.
 import json as _json
 import subprocess  # nosec B404
 from collections import defaultdict
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import NamedTuple
 
 import jinja2
 import yaml
@@ -16,6 +18,44 @@ from loguru import logger
 
 from rhiza.models.lock import TemplateLock
 from rhiza.models.template import RhizaTemplate
+
+
+@dataclass(kw_only=True)
+class SummariseOptions:
+    """Options controlling the output of :func:`generate_pr_description`.
+
+    All fields are keyword-only and default to the standard behaviour so
+    callers only need to set the fields they want to override.
+    """
+
+    include_header: bool = True
+    """Whether to include the header section (markdown / plain formats)."""
+
+    include_footer: bool = True
+    """Whether to include the footer section (markdown / plain formats)."""
+
+    include_categories: bool = True
+    """Whether to group changes by category; when ``False`` a flat list is shown."""
+
+    output_format: str = "markdown"
+    """Output format: ``"markdown"`` (default), ``"plain"``, or ``"json"``."""
+
+    title: str | None = None
+    """Override the section heading; ``None`` uses the built-in default."""
+
+    compare_ref: str | None = None
+    """Compare against this git ref instead of the staged index."""
+
+    jinja2_template: Path | None = field(default=None)
+    """Path to a Jinja2 template file for fully custom output."""
+
+
+class _TemplateInfo(NamedTuple):
+    """Lightweight container for template metadata used during rendering."""
+
+    repo: str
+    branch: str
+    last_sync: str | None
 
 
 def run_git_command(args: list[str], cwd: Path | None = None) -> str:
@@ -99,6 +139,13 @@ _CONFIG_FILES: frozenset[str] = frozenset(
 )
 
 
+_DIR_CATEGORIES: dict[str, str] = {
+    "tests": "Tests",
+    "src": "Source Code",
+}
+_DOC_DIRS: frozenset[str] = frozenset({"book", "docs"})
+
+
 def _categorize_by_directory(first_dir: str, filepath: str) -> str | None:
     """Categorize file based on its first directory.
 
@@ -122,14 +169,11 @@ def _categorize_by_directory(first_dir: str, filepath: str) -> str | None:
             return "Makefiles"
         return "Rhiza Configuration"
 
-    if first_dir == "tests":
-        return "Tests"
+    if first_dir in _DIR_CATEGORIES:
+        return _DIR_CATEGORIES[first_dir]
 
-    if first_dir in {"book", "docs"}:
+    if first_dir in _DOC_DIRS:
         return "Documentation"
-
-    if first_dir == "src":
-        return "Source Code"
 
     return None
 
@@ -216,8 +260,8 @@ def get_template_info(repo_path: Path) -> tuple[str, str]:
     except (yaml.YAMLError, ValueError, TypeError, KeyError):
         logger.warning("Failed to read template.yml")
         return ("", "")
-    else:
-        return template.template_repository, template.template_branch
+
+    return template.template_repository, template.template_branch
 
 
 def get_last_sync_date(repo_path: Path, template_repo: str = "") -> str | None:
@@ -247,7 +291,7 @@ def get_last_sync_date(repo_path: Path, template_repo: str = "") -> str | None:
             pass
 
     # Derive the short name from the template repo for targeted grepping
-    template_short_name = template_repo.split("/")[-1] if template_repo else ""
+    template_short_name = template_repo.rsplit("/", 1)[-1] if template_repo else ""
 
     grep_args = ["log", "--format=%cI", "-1"]
     if template_short_name:
@@ -263,7 +307,7 @@ def get_last_sync_date(repo_path: Path, template_repo: str = "") -> str | None:
     if history_file.exists():
         # Get the file modification time
         stat = history_file.stat()
-        return datetime.fromtimestamp(stat.st_mtime).isoformat()
+        return datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat()
 
     return None
 
@@ -320,7 +364,9 @@ def _build_header(template_repo: str, title: str | None = None) -> list[str]:
     lines = [header_title, ""]
     if template_repo:
         url = f"https://github.com/{template_repo}"
-        lines.append(f"This PR synchronizes the repository with the [{template_repo}]({url}) template.")
+        repo_link = f"[{template_repo}]({url})"
+        sync_line = f"This PR synchronizes the repository with the {repo_link} template."
+        lines.append(sync_line)
     else:
         lines.append("This PR synchronizes the repository with the upstream template.")
     lines.append("")
@@ -346,13 +392,11 @@ def _build_summary(changes: dict[str, list[str]]) -> list[str]:
     ]
 
 
-def _build_footer(template_repo: str, template_branch: str, last_sync: str | None) -> list[str]:
+def _build_footer(tmpl: _TemplateInfo) -> list[str]:
     """Build the PR description footer with metadata.
 
     Args:
-        template_repo: Template repository name
-        template_branch: Template branch name
-        last_sync: Last sync date string or None
+        tmpl: Template metadata container
 
     Returns:
         List of footer lines
@@ -363,10 +407,10 @@ def _build_footer(template_repo: str, template_branch: str, last_sync: str | Non
         "**🤖 Generated by [rhiza](https://github.com/jebel-quant/rhiza-cli)**",
         "",
     ]
-    if template_repo:
-        lines.append(f"- Template: `{template_repo}@{template_branch}`")
-    if last_sync:
-        lines.append(f"- Last sync: {last_sync}")
+    if tmpl.repo:
+        lines.append(f"- Template: `{tmpl.repo}@{tmpl.branch}`")
+    if tmpl.last_sync:
+        lines.append(f"- Last sync: {tmpl.last_sync}")
     lines.append(f"- Sync date: {datetime.now().astimezone().isoformat()}")
     return lines
 
@@ -374,26 +418,22 @@ def _build_footer(template_repo: str, template_branch: str, last_sync: str | Non
 def _generate_json_output(
     changes: dict[str, list[str]],
     categories: dict[str, list[str]],
-    template_repo: str,
-    template_branch: str,
-    last_sync: str | None,
+    tmpl: _TemplateInfo,
 ) -> str:
     """Generate a JSON representation of the change data.
 
     Args:
         changes: Dictionary of changes by type
         categories: Files grouped by category
-        template_repo: Template repository name
-        template_branch: Template branch name
-        last_sync: Last sync date string or None
+        tmpl: Template metadata container
 
     Returns:
         JSON-formatted string
     """
     data = {
-        "template_repo": template_repo,
-        "template_branch": template_branch,
-        "last_sync": last_sync,
+        "template_repo": tmpl.repo,
+        "template_branch": tmpl.branch,
+        "last_sync": tmpl.last_sync,
         "sync_date": datetime.now().astimezone().isoformat(),
         "changes": changes,
         "categories": categories,
@@ -401,59 +441,63 @@ def _generate_json_output(
     return _json.dumps(data, indent=2)
 
 
+def _plain_file_section(lines: list[str], label: str, files: list[str]) -> None:
+    """Append a labelled block of files to *lines* in plain-text format.
+
+    Args:
+        lines: List to append lines to
+        label: Section label (e.g. "Added")
+        files: List of file paths
+    """
+    if not files:
+        return
+    lines.append(f"{label}:")
+    lines.extend(f"  {f}" for f in sorted(files))
+    lines.append("")
+
+
 def _generate_plain_output(
     changes: dict[str, list[str]],
     categories: dict[str, list[str]],
-    template_repo: str,
-    template_branch: str,
-    last_sync: str | None,
-    title: str | None = None,
-    include_header: bool = True,
-    include_footer: bool = True,
-    include_categories: bool = True,
+    tmpl: _TemplateInfo,
+    options: SummariseOptions,
 ) -> str:
     """Generate plain-text output from change data.
 
     Args:
         changes: Dictionary of changes by type
         categories: Files grouped by category
-        template_repo: Template repository name
-        template_branch: Template branch name
-        last_sync: Last sync date string or None
-        title: Optional title override
-        include_header: Whether to include the header block
-        include_footer: Whether to include the footer block
-        include_categories: Whether to group files by category
+        tmpl: Template metadata container
+        options: Output customisation options
 
     Returns:
         Plain-text formatted string
     """
     lines: list[str] = []
 
-    if include_header:
-        heading = title if title else "Template Synchronization"
+    if options.include_header:
+        heading = options.title or "Template Synchronization"
         lines.extend([heading, "=" * len(heading), ""])
-        if template_repo:
-            lines.append(f"Template: {template_repo}@{template_branch}")
+        if tmpl.repo:
+            lines.append(f"Template: {tmpl.repo}@{tmpl.branch}")
             lines.append("")
 
     total = sum(len(v) for v in changes.values())
-    if total == 0:
+    if not total:
         lines.append("No changes detected.")
         return "\n".join(lines)
 
     lines.append(
         f"Changes: {len(changes['added'])} added, "
         f"{len(changes['modified'])} modified, "
-        f"{len(changes['deleted'])} deleted"
+        f"{len(changes['deleted'])} deleted",
     )
     lines.append("")
 
-    if include_categories:
+    if options.include_categories:
         for category, files in sorted(categories.items()):
             lines.append(f"{category}:")
-            for f in sorted(files):
-                lines.append(f"  {f}")
+            lines.extend(f"  {f}" for f in sorted(files))
             lines.append("")
     else:
         for label, files in [
@@ -461,40 +505,22 @@ def _generate_plain_output(
             ("Modified", changes["modified"]),
             ("Deleted", changes["deleted"]),
         ]:
-            if files:
-                lines.append(f"{label}:")
-                for f in sorted(files):
-                    lines.append(f"  {f}")
-                lines.append("")
+            _plain_file_section(lines, label, files)
 
-    if include_footer:
-        if last_sync:
-            lines.append(f"Last sync: {last_sync}")
+    if options.include_footer:
+        if tmpl.last_sync:
+            lines.append(f"Last sync: {tmpl.last_sync}")
         lines.append(f"Sync date: {datetime.now().astimezone().isoformat()}")
 
     return "\n".join(lines)
 
 
-def _generate_jinja2_output(
-    template_path: Path,
-    changes: dict[str, list[str]],
-    categories: dict[str, list[str]],
-    template_repo: str,
-    template_branch: str,
-    last_sync: str | None,
-    title: str | None = None,
-) -> str:
+def _generate_jinja2_output(template_path: Path, context: dict) -> str:
     """Render output using a custom Jinja2 template file.
 
-    The template receives the following context variables:
-
-    - ``template_repo`` (str): Template repository name.
-    - ``template_branch`` (str): Template branch name.
-    - ``last_sync`` (str | None): ISO timestamp of last sync, or ``None``.
-    - ``sync_date`` (str): ISO timestamp for the current run.
-    - ``changes`` (dict): Files grouped by ``"added"``, ``"modified"``, ``"deleted"``.
-    - ``categories`` (dict): Files grouped by category name.
-    - ``title`` (str | None): User-supplied title, or ``None``.
+    The *context* dict is passed directly to the template. It should contain at
+    minimum: ``template_repo``, ``template_branch``, ``last_sync``, ``sync_date``,
+    ``changes``, ``categories``, and ``title``.
 
     Note:
         Autoescape is disabled because this function generates plain text / Markdown,
@@ -503,109 +529,52 @@ def _generate_jinja2_output(
 
     Args:
         template_path: Path to the Jinja2 template file
-        changes: Dictionary of changes by type
-        categories: Files grouped by category
-        template_repo: Template repository name
-        template_branch: Template branch name
-        last_sync: Last sync date string or None
-        title: Optional title override
+        context: Template context variables
 
     Returns:
         Rendered template string
     """
     template_text = template_path.read_text(encoding="utf-8")
-    env = jinja2.Environment(autoescape=False, loader=jinja2.BaseLoader())  # nosec B701  # noqa: S701
-    tmpl = env.from_string(template_text)
-    context = {
-        "template_repo": template_repo,
-        "template_branch": template_branch,
-        "last_sync": last_sync,
-        "sync_date": datetime.now().astimezone().isoformat(),
-        "changes": changes,
-        "categories": categories,
-        "title": title,
-    }
-    return tmpl.render(**context)
+    env = jinja2.Environment(  # nosec B701
+        autoescape=False,  # noqa: S701
+        loader=jinja2.BaseLoader(),
+    )
+    return env.from_string(template_text).render(**context)
 
 
-def generate_pr_description(
-    repo_path: Path,
-    *,
-    include_header: bool = True,
-    include_footer: bool = True,
-    include_categories: bool = True,
-    output_format: str = "markdown",
-    title: str | None = None,
-    compare_ref: str | None = None,
-    jinja2_template: Path | None = None,
+def _markdown_body(
+    changes: dict[str, list[str]],
+    categories: dict[str, list[str]],
+    tmpl: _TemplateInfo,
+    options: SummariseOptions,
 ) -> str:
-    """Generate PR description based on staged changes.
+    """Build the markdown PR description body.
 
     Args:
-        repo_path: Path to the repository
-        include_header: Whether to include the header section (markdown only)
-        include_footer: Whether to include the footer section (markdown / plain)
-        include_categories: Whether to group changes by category
-        output_format: Output format - ``"markdown"`` (default), ``"plain"``, or ``"json"``
-        title: Optional override for the PR description title
-        compare_ref: Optional git ref to compare against instead of staged changes
-        jinja2_template: Optional path to a Jinja2 template for fully custom output
+        changes: Dictionary of changes by type
+        categories: Files grouped by category
+        tmpl: Template metadata container
+        options: Output customisation options
 
     Returns:
-        Formatted PR description
+        Markdown-formatted string
     """
-    changes = get_staged_changes(repo_path, compare_ref=compare_ref)
-    template_repo, template_branch = get_template_info(repo_path)
-    last_sync = get_last_sync_date(repo_path, template_repo=template_repo)
-
-    all_changed_files = changes["added"] + changes["modified"] + changes["deleted"]
-    categories = categorize_files(all_changed_files) if all_changed_files else {}
-
-    # Custom Jinja2 template takes full precedence over all other options
-    if jinja2_template:
-        return _generate_jinja2_output(
-            jinja2_template,
-            changes,
-            categories,
-            template_repo,
-            template_branch,
-            last_sync,
-            title=title,
-        )
-
-    if output_format == "json":
-        return _generate_json_output(changes, categories, template_repo, template_branch, last_sync)
-
-    if output_format == "plain":
-        return _generate_plain_output(
-            changes,
-            categories,
-            template_repo,
-            template_branch,
-            last_sync,
-            title=title,
-            include_header=include_header,
-            include_footer=include_footer,
-            include_categories=include_categories,
-        )
-
-    # --- Markdown format (default) ---
     lines: list[str] = []
 
-    if include_header:
-        lines.extend(_build_header(template_repo, title=title))
+    if options.include_header:
+        lines.extend(_build_header(tmpl.repo, title=options.title))
 
     total_changes = sum(len(files) for files in changes.values())
-    if total_changes == 0:
+    if not total_changes:
         lines.append("No changes detected.")
-        if include_footer:
+        if options.include_footer:
             lines.append("")
-            lines.extend(_build_footer(template_repo, template_branch, last_sync))
+            lines.extend(_build_footer(tmpl))
         return "\n".join(lines)
 
     lines.extend(_build_summary(changes))
 
-    if include_categories and categories:
+    if options.include_categories and categories:
         lines.append("### 📁 Changes by Category")
         lines.append("")
 
@@ -613,7 +582,6 @@ def generate_pr_description(
             lines.append(f"#### {category}")
             lines.append("")
 
-            # Group files by change type within this category
             category_added = [f for f in files if f in changes["added"]]
             category_modified = [f for f in files if f in changes["modified"]]
             category_deleted = [f for f in files if f in changes["deleted"]]
@@ -622,31 +590,69 @@ def generate_pr_description(
             _add_category_section(lines, "Modified", len(category_modified), category_modified, "📝")
             _add_category_section(lines, "Deleted", len(category_deleted), category_deleted, "❌")
 
-    elif not include_categories:
-        # Flat file list when categories are suppressed
+    elif not options.include_categories:
         lines.append("### 📁 Changed Files")
         lines.append("")
         _add_category_section(lines, "Added", len(changes["added"]), changes["added"], "✅")
         _add_category_section(lines, "Modified", len(changes["modified"]), changes["modified"], "📝")
         _add_category_section(lines, "Deleted", len(changes["deleted"]), changes["deleted"], "❌")
 
-    if include_footer:
-        lines.extend(_build_footer(template_repo, template_branch, last_sync))
+    if options.include_footer:
+        lines.extend(_build_footer(tmpl))
 
     return "\n".join(lines)
+
+
+def generate_pr_description(repo_path: Path, options: SummariseOptions | None = None) -> str:
+    """Generate PR description based on staged changes.
+
+    Args:
+        repo_path: Path to the repository
+        options: Output customisation options.  Defaults to :class:`SummariseOptions`
+            with all fields at their defaults (markdown format, with header / footer /
+            categories, no custom title, staged-index diff).
+
+    Returns:
+        Formatted PR description
+    """
+    opts = options or SummariseOptions()
+
+    changes = get_staged_changes(repo_path, compare_ref=opts.compare_ref)
+    template_repo, template_branch = get_template_info(repo_path)
+    last_sync = get_last_sync_date(repo_path, template_repo=template_repo)
+
+    all_changed_files = changes["added"] + changes["modified"] + changes["deleted"]
+    categories = categorize_files(all_changed_files) if all_changed_files else {}
+
+    tmpl = _TemplateInfo(repo=template_repo, branch=template_branch, last_sync=last_sync)
+
+    # Custom Jinja2 template takes full precedence over all other options
+    if opts.jinja2_template:
+        context = {
+            "template_repo": tmpl.repo,
+            "template_branch": tmpl.branch,
+            "last_sync": tmpl.last_sync,
+            "sync_date": datetime.now().astimezone().isoformat(),
+            "changes": changes,
+            "categories": categories,
+            "title": opts.title,
+        }
+        return _generate_jinja2_output(opts.jinja2_template, context)
+
+    if opts.output_format == "json":
+        return _generate_json_output(changes, categories, tmpl)
+
+    if opts.output_format == "plain":
+        return _generate_plain_output(changes, categories, tmpl, opts)
+
+    return _markdown_body(changes, categories, tmpl, opts)
 
 
 def summarise(
     target: Path,
     output: Path | None = None,
     *,
-    include_header: bool = True,
-    include_footer: bool = True,
-    include_categories: bool = True,
-    output_format: str = "markdown",
-    title: str | None = None,
-    compare_ref: str | None = None,
-    jinja2_template: Path | None = None,
+    options: SummariseOptions | None = None,
 ) -> None:
     """Generate a summary of staged changes for rhiza sync operations.
 
@@ -660,42 +666,26 @@ def summarise(
     Args:
         target: Path to the target repository.
         output: Optional output file path. If not provided, prints to stdout.
-        include_header: Whether to include the header section.
-        include_footer: Whether to include the footer section.
-        include_categories: Whether to group changes by category.
-        output_format: Output format - ``"markdown"`` (default), ``"plain"``, or ``"json"``.
-        title: Optional override for the PR description title.
-        compare_ref: Optional git ref to compare against (instead of staged changes).
-        jinja2_template: Optional path to a Jinja2 template for custom output.
+        options: Output customisation options.  Defaults to :class:`SummariseOptions`
+            with all fields at their defaults.
     """
     target = target.resolve()
     logger.info(f"Target repository: {target}")
 
     # Check if target is a git repository
     if not (target / ".git").is_dir():
-        logger.error(f"Target directory is not a git repository: {target}")
+        err_msg = f"Target directory is not a git repository: {target}"
+        logger.error(err_msg)
         logger.error("Initialize a git repository with 'git init' first")
-        raise RuntimeError(f"Target directory is not a git repository: {target}")  # noqa: TRY003
+        raise RuntimeError(err_msg)
 
-    # Generate the PR description
-    description = generate_pr_description(
-        target,
-        include_header=include_header,
-        include_footer=include_footer,
-        include_categories=include_categories,
-        output_format=output_format,
-        title=title,
-        compare_ref=compare_ref,
-        jinja2_template=jinja2_template,
-    )
+    description = generate_pr_description(target, options)
 
-    # Output the description
     if output:
         output_path = output.resolve()
         output_path.write_text(description, encoding="utf-8")
         logger.success(f"PR description written to {output_path}")
     else:
-        # Print to stdout
         print(description)
 
     logger.success("Summary generated successfully")

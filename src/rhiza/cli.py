@@ -19,6 +19,7 @@ from rhiza.commands import validate as validate_cmd
 from rhiza.commands.list_repos import list_repos as list_repos_cmd
 from rhiza.commands.migrate import migrate as migrate_cmd
 from rhiza.commands.status import status as status_cmd
+from rhiza.commands.summarise import SummariseOptions
 from rhiza.commands.summarise import summarise as summarise_cmd
 from rhiza.commands.sync import sync as sync_cmd
 from rhiza.commands.tree import tree as tree_cmd
@@ -565,11 +566,13 @@ def summarise(
         summarise_cmd(
             target,
             output,
-            include_header=not no_header,
-            include_footer=not no_footer,
-            include_categories=not no_categories,
-            output_format=output_format,
-            title=title,
-            compare_ref=compare_ref,
-            jinja2_template=jinja2_template,
+            options=SummariseOptions(
+                include_header=not no_header,
+                include_footer=not no_footer,
+                include_categories=not no_categories,
+                output_format=output_format,
+                title=title,
+                compare_ref=compare_ref,
+                jinja2_template=jinja2_template,
+            ),
         )
