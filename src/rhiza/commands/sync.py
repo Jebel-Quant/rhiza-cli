@@ -251,9 +251,11 @@ def sync(
                     lock_file=lock_file,
                 )
                 if not clean:
-                    logger.error("Sync completed with conflicts")
-                    logger.error("Conflict markers or .rej files have been created")
-                    logger.error("Please resolve conflicts manually before committing")
+                    logger.error("Sync completed with conflicts — see the file list above for details")
+                    logger.error(
+                        "Resolve all conflicts locally (remove *.rej files and conflict markers),\n"
+                        "  then commit the result."
+                    )
                     msg = "Sync completed with merge conflicts"
                     raise RuntimeError(msg)
         finally:

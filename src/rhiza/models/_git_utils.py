@@ -319,11 +319,48 @@ class GitContext:
                 logger.debug(f"[merge-file] Clean merge: {rel_path}")
 
         if conflict_files:
+            detail = "\n".join(f"  {f}" for f in conflict_files)
             logger.warning(
-                f"{len(conflict_files)} file(s) have conflict markers to resolve: " + ", ".join(conflict_files)
+                f"The following file(s) have conflict markers to resolve:\n{detail}\n"
+                "  Resolve each <<<<<<< / ======= / >>>>>>> block and remove the markers\n"
+                "  before committing."
             )
 
         return all_clean
+
+    def _scan_conflict_artifacts(self, target: Path) -> tuple[list[str], list[str]]:
+        """Scan *target* for merge-conflict artifacts left by git.
+
+        Looks for:
+
+        - ``*.rej`` files produced by ``git apply --reject``.
+        - Text files that contain ``<<<<<<<`` conflict markers (from
+          ``git apply -3`` or ``git merge-file``).
+
+        Args:
+            target: Root of the working tree to scan.
+
+        Returns:
+            A ``(rej_files, marker_files)`` tuple, each a sorted list of
+            paths relative to *target*.
+        """
+        rej_files: list[str] = []
+        marker_files: list[str] = []
+        for path in sorted(target.rglob("*")):
+            if not path.is_file():
+                continue
+            rel = str(path.relative_to(target))
+            if path.suffix == ".rej":
+                rej_files.append(rel)
+            else:
+                try:
+                    # Read up to 1 MB to avoid stalling on large binary files.
+                    content = path.read_bytes()[:1_048_576]
+                    if b"<<<<<<<" in content:
+                        marker_files.append(rel)
+                except OSError:
+                    pass
+        return rej_files, marker_files
 
     def _apply_diff(
         self,
@@ -389,9 +426,26 @@ class GitContext:
                 stderr2 = e2.stderr.decode() if isinstance(e2.stderr, bytes) else (e2.stderr or "")
                 if stderr2:
                     logger.warning(stderr2.strip())
+
+            # Scan and report any conflict artifacts left behind so users know
+            # exactly which files need attention.
+            rej_files, marker_files = self._scan_conflict_artifacts(target)
+            if rej_files:
+                rej_detail = "\n".join(f"  {f.removesuffix('.rej')}  (unresolved hunks saved to {f})" for f in rej_files)
                 logger.warning(
-                    "Some changes could not be applied cleanly. Check for *.rej files and resolve conflicts manually."
+                    f"The following file(s) have unresolved hunks:\n{rej_detail}\n"
+                    "  Open each .rej file, manually apply the diff hunks to the source file,\n"
+                    "  then delete the .rej file before committing."
                 )
+            if marker_files:
+                marker_detail = "\n".join(f"  {f}" for f in marker_files)
+                logger.warning(
+                    f"The following file(s) contain conflict markers:\n{marker_detail}\n"
+                    "  Resolve each <<<<<<< / ======= / >>>>>>> block and remove the markers\n"
+                    "  before committing."
+                )
+            if not rej_files and not marker_files:
+                logger.warning("Some changes could not be applied cleanly — check the working tree for partial edits.")
             return False
         else:
             return True
