@@ -514,7 +514,7 @@ class TestScanConflictArtifacts:
 
     def test_finds_conflict_marker_in_text_file(self, tmp_path, git_ctx):
         """A file containing <<<<<<< is returned in marker_files."""
-        (tmp_path / "settings.yml").write_text("<<<<<<< ours\nfoo\n=======\nbar\n>>>>>>> upstream\n")
+        (tmp_path / "settings.yml").write_text("<<<<<<< HEAD\nfoo\n=======\nbar\n>>>>>>> rhiza-template\n")
         rej, markers = git_ctx._scan_conflict_artifacts(tmp_path)
         assert rej == []
         assert "settings.yml" in markers
@@ -529,7 +529,7 @@ class TestScanConflictArtifacts:
     def test_rej_file_not_included_in_marker_scan(self, tmp_path, git_ctx):
         """A .rej file is only reported in rej_files, not also in marker_files."""
         # .rej files often contain diff context that looks like conflict markers
-        (tmp_path / "a.txt.rej").write_text("<<<<<<< ours\nfoo\n")
+        (tmp_path / "a.txt.rej").write_text("<<<<<<< HEAD\nfoo\n")
         rej, markers = git_ctx._scan_conflict_artifacts(tmp_path)
         assert "a.txt.rej" in rej
         assert markers == []
@@ -539,7 +539,7 @@ class TestScanConflictArtifacts:
         subdir = tmp_path / "src" / "deep"
         subdir.mkdir(parents=True)
         (subdir / "module.py.rej").write_text("+foo\n")
-        (subdir / "other.py").write_text("<<<<<<< ours\nfoo\n=======\nbar\n>>>>>>> upstream\n")
+        (subdir / "other.py").write_text("<<<<<<< HEAD\nfoo\n=======\nbar\n>>>>>>> rhiza-template\n")
         rej, markers = git_ctx._scan_conflict_artifacts(tmp_path)
         assert any("module.py.rej" in r for r in rej)
         assert any("other.py" in m for m in markers)

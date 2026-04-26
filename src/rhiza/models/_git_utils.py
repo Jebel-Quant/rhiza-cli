@@ -241,7 +241,7 @@ class GitContext:
         contents from *base_snapshot* and *upstream_snapshot*, so it does not
         require the template's blob objects to exist in the target repository.
 
-        Conflict markers (``<<<<<<<`` / ``=======`` / ``>>>>>>>``) are left in
+        Conflict markers (``<<<<<<< HEAD`` / ``=======`` / ``>>>>>>> rhiza-template``) are left in
         place for manual resolution when both sides changed the same region.
 
         Args:
@@ -295,11 +295,11 @@ class GitContext:
                     self.executable,
                     "merge-file",
                     "-L",
-                    "ours",
+                    "HEAD",
                     "-L",
                     "base",
                     "-L",
-                    "upstream",
+                    "rhiza-template",
                     str(target_file),
                     str(base_file),
                     str(upstream_file),
