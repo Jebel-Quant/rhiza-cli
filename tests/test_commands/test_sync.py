@@ -467,6 +467,17 @@ class TestSyncCLI:
         assert result.exit_code == 0
         mock_sync.assert_called_once()
 
+    @patch("rhiza.cli.sync_cmd")
+    def test_sync_cli_exits_with_error_on_conflict(self, mock_sync, tmp_path):
+        """CLI should exit with code 1 when sync raises RuntimeError due to conflicts."""
+        mock_sync.side_effect = RuntimeError("Sync completed with merge conflicts")
+        result = self.runner.invoke(
+            cli.app,
+            ["sync", str(tmp_path)],
+        )
+        assert result.exit_code == 1
+        mock_sync.assert_called_once()
+
 
 class TestApplyDiffConflict:
     """Tests for conflict-handling branch in _apply_diff."""
@@ -484,6 +495,77 @@ class TestApplyDiffConflict:
         )
         result = git_ctx._apply_diff(diff, git_project)
         assert result is False
+
+    def test_apply_diff_logs_rej_file_details_on_conflict(self, git_project, git_ctx):
+        """After a conflict, a warning message names each .rej file explicitly."""
+        from loguru import logger as _logger
+
+        messages: list[str] = []
+        handler_id = _logger.add(lambda msg: messages.append(msg), format="{message}", colorize=False)
+        try:
+            (git_project / "config.txt").write_text("timeout = 30\n")
+            _commit_all(git_project, git_ctx)
+            # Local change diverges from base so the patch won't apply cleanly
+            (git_project / "config.txt").write_text("timeout = 99\n")
+
+            base = git_project.parent / "base"
+            base.mkdir()
+            upstream = git_project.parent / "upstream"
+            upstream.mkdir()
+            (base / "config.txt").write_text("timeout = 30\n")
+            (upstream / "config.txt").write_text("timeout = 60\n")
+
+            diff = git_ctx.get_diff(base, upstream)
+            git_ctx._apply_diff(diff, git_project)
+        finally:
+            _logger.remove(handler_id)
+
+        # The warning must mention the specific file, not just a generic "*.rej" glob.
+        combined = " ".join(messages)
+        assert "config.txt" in combined
+
+
+class TestScanConflictArtifacts:
+    """Unit tests for GitContext._scan_conflict_artifacts."""
+
+    def test_finds_rej_file(self, tmp_path, git_ctx):
+        """A .rej file in the target directory is returned in rej_files."""
+        (tmp_path / "foo.py.rej").write_text("+new line\n")
+        rej, markers = git_ctx._scan_conflict_artifacts(tmp_path)
+        assert "foo.py.rej" in rej
+        assert markers == []
+
+    def test_finds_conflict_marker_in_text_file(self, tmp_path, git_ctx):
+        """A file containing <<<<<<< is returned in marker_files."""
+        (tmp_path / "settings.yml").write_text("<<<<<<< HEAD\nfoo\n=======\nbar\n>>>>>>> rhiza-template\n")
+        rej, markers = git_ctx._scan_conflict_artifacts(tmp_path)
+        assert rej == []
+        assert "settings.yml" in markers
+
+    def test_clean_tree_returns_empty_lists(self, tmp_path, git_ctx):
+        """No artifacts in a clean directory → both lists are empty."""
+        (tmp_path / "README.md").write_text("# clean\n")
+        rej, markers = git_ctx._scan_conflict_artifacts(tmp_path)
+        assert rej == []
+        assert markers == []
+
+    def test_rej_file_not_included_in_marker_scan(self, tmp_path, git_ctx):
+        """A .rej file is only reported in rej_files, not also in marker_files."""
+        # .rej files often contain diff context that looks like conflict markers
+        (tmp_path / "a.txt.rej").write_text("<<<<<<< HEAD\nfoo\n")
+        rej, markers = git_ctx._scan_conflict_artifacts(tmp_path)
+        assert "a.txt.rej" in rej
+        assert markers == []
+
+    def test_nested_files_detected(self, tmp_path, git_ctx):
+        """.rej and marker files in subdirectories are detected."""
+        subdir = tmp_path / "src" / "deep"
+        subdir.mkdir(parents=True)
+        (subdir / "module.py.rej").write_text("+foo\n")
+        (subdir / "other.py").write_text("<<<<<<< HEAD\nfoo\n=======\nbar\n>>>>>>> rhiza-template\n")
+        rej, markers = git_ctx._scan_conflict_artifacts(tmp_path)
+        assert any("module.py.rej" in r for r in rej)
+        assert any("other.py" in m for m in markers)
 
 
 class TestSyncMergeWithBase:
@@ -610,7 +692,7 @@ class TestMergeWithBasePaths:
         base_snapshot = tmp_path / "base"
         base_snapshot.mkdir()
 
-        git_ctx._merge_with_base(
+        result = git_ctx._merge_with_base(
             git_project,
             upstream_snapshot,
             "newsha",
@@ -621,6 +703,39 @@ class TestMergeWithBasePaths:
             TemplateLock(sha="newsha"),
         )
 
+        assert result is True
+        mock_apply.assert_called_once()
+
+    @patch("rhiza.models._git_utils.GitContext._apply_diff")
+    @patch("rhiza.models._git_utils.GitContext.get_diff")
+    @patch("rhiza.models._git_utils.GitContext.clone_at_sha")
+    @patch("rhiza.models._git_utils._prepare_snapshot")
+    def test_merge_with_base_conflict_returns_false(
+        self, mock_prepare, mock_clone, mock_get_diff, mock_apply, tmp_path, git_project, git_ctx
+    ):
+        """When diff has conflicts, _merge_with_base returns False."""
+        mock_get_diff.return_value = (
+            "diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new\n"
+        )
+        mock_apply.return_value = False  # conflict
+
+        upstream_snapshot = tmp_path / "upstream"
+        upstream_snapshot.mkdir()
+        base_snapshot = tmp_path / "base"
+        base_snapshot.mkdir()
+
+        result = git_ctx._merge_with_base(
+            git_project,
+            upstream_snapshot,
+            "newsha",
+            "oldsha",
+            base_snapshot,
+            RhizaTemplate(template_repository="example/repo", include=["file.txt"]),
+            set(),
+            TemplateLock(sha="newsha"),
+        )
+
+        assert result is False
         mock_apply.assert_called_once()
 
 
@@ -753,29 +868,39 @@ class TestThreeWayMergeApplyDiff:
         assert "pytest" in content
 
     def test_conflict_creates_rej_file_and_returns_false(self, tmp_path, git_project, git_ctx):
-        """When local edits conflict with template update, .rej file is produced."""
-        # Commit original
-        (git_project / "settings.cfg").write_text("timeout = 30\n")
-        _commit_all(git_project, git_ctx)
+        """When local edits conflict with template update, .rej file is produced and logged by name."""
+        from loguru import logger as _logger
 
-        # User makes a local change to the SAME line
-        (git_project / "settings.cfg").write_text("timeout = 99\n")
+        messages: list[str] = []
+        handler_id = _logger.add(lambda msg: messages.append(msg), format="{message}", colorize=False)
+        try:
+            # Commit original
+            (git_project / "settings.cfg").write_text("timeout = 30\n")
+            _commit_all(git_project, git_ctx)
 
-        # Template also changes the same line to a different value
-        base = tmp_path / "base"
-        base.mkdir()
-        upstream = tmp_path / "upstream"
-        upstream.mkdir()
-        (base / "settings.cfg").write_text("timeout = 30\n")
-        (upstream / "settings.cfg").write_text("timeout = 60\n")
+            # User makes a local change to the SAME line
+            (git_project / "settings.cfg").write_text("timeout = 99\n")
 
-        diff = git_ctx.get_diff(base, upstream)
-        result = git_ctx._apply_diff(diff, git_project)
+            # Template also changes the same line to a different value
+            base = tmp_path / "base"
+            base.mkdir()
+            upstream = tmp_path / "upstream"
+            upstream.mkdir()
+            (base / "settings.cfg").write_text("timeout = 30\n")
+            (upstream / "settings.cfg").write_text("timeout = 60\n")
+
+            diff = git_ctx.get_diff(base, upstream)
+            result = git_ctx._apply_diff(diff, git_project)
+        finally:
+            _logger.remove(handler_id)
 
         # Apply cannot succeed — local file diverged from the context
         assert result is False
         # The .rej file should exist, marking the conflict
         assert (git_project / "settings.cfg.rej").exists()
+        # Warning must name the specific file rather than just saying "check *.rej files"
+        combined = " ".join(messages)
+        assert "settings.cfg" in combined
 
     def test_upstream_mixed_add_modify_delete(self, tmp_path, git_project, git_ctx):
         """Upstream adds one file, modifies another, removes a third — all in one diff."""

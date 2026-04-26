@@ -62,5 +62,6 @@ DEP002 = ["rhiza-tools"]
 [dependency-groups]
 dev = [
     "hypothesis>=6.151.9",
+    "pytest>=9.0.3",
 ]
 
