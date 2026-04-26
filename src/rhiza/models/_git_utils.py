@@ -431,7 +431,9 @@ class GitContext:
             # exactly which files need attention.
             rej_files, marker_files = self._scan_conflict_artifacts(target)
             if rej_files:
-                rej_detail = "\n".join(f"  {f.removesuffix('.rej')}  (unresolved hunks saved to {f})" for f in rej_files)
+                rej_detail = "\n".join(
+                    f"  {f.removesuffix('.rej')}  (unresolved hunks saved to {f})" for f in rej_files
+                )
                 logger.warning(
                     f"The following file(s) have unresolved hunks:\n{rej_detail}\n"
                     "  Open each .rej file, manually apply the diff hunks to the source file,\n"
