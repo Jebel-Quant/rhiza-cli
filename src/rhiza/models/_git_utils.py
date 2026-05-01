@@ -241,7 +241,7 @@ class GitContext:
         contents from *base_snapshot* and *upstream_snapshot*, so it does not
         require the template's blob objects to exist in the target repository.
 
-        Conflict markers (``<<<<<<<`` / ``=======`` / ``>>>>>>>``) are left in
+        Conflict markers (``<<<<<<< HEAD`` / ``=======`` / ``>>>>>>> rhiza-template``) are left in
         place for manual resolution when both sides changed the same region.
 
         Args:
@@ -295,11 +295,11 @@ class GitContext:
                     self.executable,
                     "merge-file",
                     "-L",
-                    "ours",
+                    "HEAD",
                     "-L",
                     "base",
                     "-L",
-                    "upstream",
+                    "rhiza-template",
                     str(target_file),
                     str(base_file),
                     str(upstream_file),
@@ -319,11 +319,48 @@ class GitContext:
                 logger.debug(f"[merge-file] Clean merge: {rel_path}")
 
         if conflict_files:
+            detail = "\n".join(f"  {f}" for f in conflict_files)
             logger.warning(
-                f"{len(conflict_files)} file(s) have conflict markers to resolve: " + ", ".join(conflict_files)
+                f"The following file(s) have conflict markers to resolve:\n{detail}\n"
+                "  Resolve each <<<<<<< / ======= / >>>>>>> block and remove the markers\n"
+                "  before committing."
             )
 
         return all_clean
+
+    def _scan_conflict_artifacts(self, target: Path) -> tuple[list[str], list[str]]:
+        """Scan *target* for merge-conflict artifacts left by git.
+
+        Looks for:
+
+        - ``*.rej`` files produced by ``git apply --reject``.
+        - Text files that contain ``<<<<<<<`` conflict markers (from
+          ``git apply -3`` or ``git merge-file``).
+
+        Args:
+            target: Root of the working tree to scan.
+
+        Returns:
+            A ``(rej_files, marker_files)`` tuple, each a sorted list of
+            paths relative to *target*.
+        """
+        rej_files: list[str] = []
+        marker_files: list[str] = []
+        for path in sorted(target.rglob("*")):
+            if not path.is_file():
+                continue
+            rel = str(path.relative_to(target))
+            if path.suffix == ".rej":
+                rej_files.append(rel)
+            else:
+                try:
+                    # Read up to 1 MB to avoid stalling on large binary files.
+                    content = path.read_bytes()[:1_048_576]
+                    if b"<<<<<<<" in content:
+                        marker_files.append(rel)
+                except OSError:
+                    pass
+        return rej_files, marker_files
 
     def _apply_diff(
         self,
@@ -389,9 +426,28 @@ class GitContext:
                 stderr2 = e2.stderr.decode() if isinstance(e2.stderr, bytes) else (e2.stderr or "")
                 if stderr2:
                     logger.warning(stderr2.strip())
-                logger.warning(
-                    "Some changes could not be applied cleanly. Check for *.rej files and resolve conflicts manually."
+
+            # Scan and report any conflict artifacts left behind so users know
+            # exactly which files need attention.
+            rej_files, marker_files = self._scan_conflict_artifacts(target)
+            if rej_files:
+                rej_detail = "\n".join(
+                    f"  {f.removesuffix('.rej')}  (unresolved hunks saved to {f})" for f in rej_files
                 )
+                logger.warning(
+                    f"The following file(s) have unresolved hunks:\n{rej_detail}\n"
+                    "  Open each .rej file, manually apply the diff hunks to the source file,\n"
+                    "  then delete the .rej file before committing."
+                )
+            if marker_files:
+                marker_detail = "\n".join(f"  {f}" for f in marker_files)
+                logger.warning(
+                    f"The following file(s) contain conflict markers:\n{marker_detail}\n"
+                    "  Resolve each <<<<<<< / ======= / >>>>>>> block and remove the markers\n"
+                    "  before committing."
+                )
+            if not rej_files and not marker_files:
+                logger.warning("Some changes could not be applied cleanly — check the working tree for partial edits.")
             return False
         else:
             return True
@@ -422,7 +478,7 @@ class GitContext:
         excludes: set[str],
         lock: "TemplateLock",
         lock_file: "Path | None" = None,
-    ) -> None:
+    ) -> bool:
         """Execute the merge strategy (cruft-style 3-way merge).
 
         When a base SHA exists, computes the diff between base and upstream
@@ -440,6 +496,9 @@ class GitContext:
             lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
             lock_file: Optional explicit path for the lock file.  When ``None``
                 the default ``<target>/.rhiza/template.lock`` is used.
+
+        Returns:
+            True if all changes applied cleanly, False if any conflicts remain.
         """
         from rhiza.commands._sync_helpers import (
             _clean_orphaned_files,
@@ -455,9 +514,10 @@ class GitContext:
         old_tracked_files = _read_previously_tracked_files(target, lock_file=lock_file)
 
         base_snapshot = Path(tempfile.mkdtemp())
+        clean = True
         try:
             if base_sha:
-                self._merge_with_base(
+                clean = self._merge_with_base(
                     target,
                     upstream_snapshot,
                     upstream_sha,
@@ -496,6 +556,8 @@ class GitContext:
         finally:
             if base_snapshot.exists():
                 shutil.rmtree(base_snapshot)
+
+        return clean
 
     def update_sparse_checkout(
         self,
@@ -714,7 +776,7 @@ class GitContext:
         excludes: set[str],
         lock: "TemplateLock",
         lock_file: "Path | None" = None,
-    ) -> None:
+    ) -> bool:
         """Compute and apply the diff between base and upstream snapshots.
 
         Args:
@@ -728,6 +790,9 @@ class GitContext:
             lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
             lock_file: Optional explicit path for the lock file.  When ``None``
                 the default ``<target>/.rhiza/template.lock`` is used.
+
+        Returns:
+            True if all changes applied cleanly, False if any conflicts remain.
         """
         from rhiza.commands._sync_helpers import _write_lock
 
@@ -747,7 +812,7 @@ class GitContext:
         if not diff.strip():
             logger.success("Template unchanged since last sync — nothing to apply")
             _write_lock(target, lock, lock_file=lock_file)
-            return
+            return True
 
         logger.info("Applying template changes via 3-way merge (cruft)...")
         clean = self._apply_diff(diff, target, base_snapshot=base_snapshot, upstream_snapshot=upstream_snapshot)
@@ -756,6 +821,8 @@ class GitContext:
             logger.success("All changes applied cleanly")
         else:
             logger.warning("Some changes had conflicts. Check for *.rej files and resolve manually.")
+
+        return clean
 
 
 def _normalize_to_list(value: Any | list[Any] | None) -> list[Any]:
