@@ -18,7 +18,7 @@ import questionary
 from jinja2 import Template
 from loguru import logger
 
-from rhiza.commands.list_repos import _DESC_WIDTH, _fetch_repos
+from rhiza.commands.list_repos import _fetch_repos
 from rhiza.commands.validate import validate
 from rhiza.models import GitContext, GitHost, RhizaTemplate
 
@@ -174,10 +174,16 @@ def _prompt_template_repository() -> str | None:
     if not repos:
         return None
 
+    menu_desc_width = 45
+
     default_label = "Use the default repository"
     choices = [questionary.Choice(title=default_label, value=None)]
     for repo in repos:
-        desc = repo.description[:_DESC_WIDTH] if repo.description else ""
+        if repo.description:
+            raw = repo.description[:menu_desc_width]
+            desc = raw + "…" if len(repo.description) > menu_desc_width else raw
+        else:
+            desc = ""
         label = f"{repo.full_name:<30}  {desc}".rstrip()
         choices.append(questionary.Choice(title=label, value=repo.full_name))
 
