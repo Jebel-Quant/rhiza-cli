@@ -174,7 +174,11 @@ def _prompt_template_repository() -> str | None:
     if not repos:
         return None
 
-    menu_desc_width = 45
+    import shutil
+
+    term_width = shutil.get_terminal_size((80, 24)).columns
+    # 4 = questionary pointer/indicator prefix, 30 = repo name col, 2 = spacing, 1 = ellipsis
+    menu_desc_width = max(10, term_width - 4 - 30 - 2 - 1)
 
     default_label = "Use the default repository"
     choices = [questionary.Choice(title=default_label, value=None)]
