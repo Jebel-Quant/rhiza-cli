@@ -34,9 +34,9 @@ _RHIZA_STYLE = questionary.Style(
         ("qmark", "fg:#00BCD4 bold"),  # the ? marker
         ("question", "bold"),  # question text
         ("answer", "fg:#00BCD4 bold"),  # confirmed answer
-        ("pointer", "fg:#00BCD4 bold"),  # > cursor in select
-        ("highlighted", "bold"),  # hovered row — bold, no background
-        ("checkbox", "fg:#00ff00 bold"),  # ●/○ marker — always green
+        ("pointer", "fg:#00BCD4 bold"),  # > cursor in select/checkbox
+        ("highlighted", ""),  # hovered row — no extra styling, pointer alone indicates position
+        ("checkbox", "fg:#00BCD4 bold"),  # ●/○ marker — cyan; shape (filled vs hollow) shows selection
         ("selected", "fg:#aaaaaa"),  # checked item text — same dim as unchecked
         ("separator", "fg:#444444"),  # separator lines
         ("instruction", "fg:#666666 italic"),  # hint text
