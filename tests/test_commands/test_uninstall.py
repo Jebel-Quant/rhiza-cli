@@ -104,24 +104,26 @@ class TestUninstallCommand:
         assert file1.exists()
 
     def test_skips_confirmation_with_force(self, tmp_path):
-        """force=True must not call input()."""
+        """force=True must not call questionary.confirm()."""
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
         _make_lock(tmp_path, ["file.txt"])
 
-        with patch("builtins.input") as mock_input:
+        with patch("questionary.confirm") as mock_confirm:
             uninstall(tmp_path, force=True)
-            mock_input.assert_not_called()
+            mock_confirm.assert_not_called()
 
         assert not file1.exists()
 
     def test_prompts_for_confirmation_without_force(self, tmp_path):
-        """force=False prompts the user; confirming with 'y' proceeds."""
+        """force=False prompts the user; confirming proceeds."""
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
         lock_file = _make_lock(tmp_path, ["file.txt"])
 
-        with patch("builtins.input", return_value="y"):
+        mock_question = patch("questionary.confirm")
+        with mock_question as mock_confirm:
+            mock_confirm.return_value.ask.return_value = True
             uninstall(tmp_path, force=False)
 
         assert not file1.exists()
@@ -133,7 +135,8 @@ class TestUninstallCommand:
         file1.write_text("content")
         lock_file = _make_lock(tmp_path, ["file.txt"])
 
-        with patch("builtins.input", return_value="n"):
+        with patch("questionary.confirm") as mock_confirm:
+            mock_confirm.return_value.ask.return_value = False
             uninstall(tmp_path, force=False)
 
         assert file1.exists()
@@ -145,7 +148,8 @@ class TestUninstallCommand:
         file1.write_text("content")
         lock_file = _make_lock(tmp_path, ["file.txt"])
 
-        with patch("builtins.input", side_effect=KeyboardInterrupt):
+        with patch("questionary.confirm") as mock_confirm:
+            mock_confirm.return_value.ask.side_effect = KeyboardInterrupt
             uninstall(tmp_path, force=False)
 
         assert file1.exists()
@@ -155,7 +159,8 @@ class TestUninstallCommand:
         """_confirm_uninstall logs 'already deleted' for files not present on disk."""
         _make_lock(tmp_path, ["nonexistent.txt"])
 
-        with patch("builtins.input", return_value="n"):
+        with patch("questionary.confirm") as mock_confirm:
+            mock_confirm.return_value.ask.return_value = False
             uninstall(tmp_path, force=False)
 
     def test_returns_early_when_no_files_in_lock(self, tmp_path):
@@ -216,16 +221,18 @@ class TestUninstallCLI:
         assert not lock_file.exists()
 
     @pytest.mark.parametrize(
-        ("user_input", "removed"),
-        [("y\n", True), ("n\n", False)],
+        ("confirmed", "removed"),
+        [(True, True), (False, False)],
     )
-    def test_interactive_confirmation(self, tmp_path, user_input, removed):
-        """Typing y removes files; typing n keeps them."""
+    def test_interactive_confirmation(self, tmp_path, confirmed, removed):
+        """Confirming removes files; declining keeps them."""
         file1 = tmp_path / "file.txt"
         file1.write_text("content")
         lock_file = _make_lock(tmp_path, ["file.txt"])
 
-        result = CliRunner().invoke(app, ["uninstall", str(tmp_path)], input=user_input)
+        with patch("questionary.confirm") as mock_confirm:
+            mock_confirm.return_value.ask.return_value = confirmed
+            result = CliRunner().invoke(app, ["uninstall", str(tmp_path)])
 
         assert result.exit_code == 0
         assert file1.exists() is not removed

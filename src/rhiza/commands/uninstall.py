@@ -8,7 +8,10 @@ template-managed files from a project.
 
 from pathlib import Path
 
+import questionary
 from loguru import logger
+
+from rhiza.commands.init import _RHIZA_STYLE
 
 
 def _confirm_uninstall(files_to_remove: list[Path], target: Path) -> bool:
@@ -30,8 +33,12 @@ def _confirm_uninstall(files_to_remove: list[Path], target: Path) -> bool:
             logger.debug(f"  - {file_path} (already deleted)")
 
     try:
-        response = input("\nAre you sure you want to proceed? [y/N]: ").strip().lower()
-        if response not in ("y", "yes"):
+        confirmed = questionary.confirm(
+            "Are you sure you want to proceed?",
+            default=False,
+            style=_RHIZA_STYLE,
+        ).ask()
+        if not confirmed:
             logger.info("Uninstall cancelled by user")
             return False
     except (KeyboardInterrupt, EOFError):

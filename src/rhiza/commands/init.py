@@ -14,7 +14,7 @@ import urllib.error
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import typer
+import questionary
 from jinja2 import Template
 from loguru import logger
 
@@ -24,6 +24,24 @@ from rhiza.models import GitContext, GitHost, RhizaTemplate
 
 if TYPE_CHECKING:
     from rhiza.models.bundle import RhizaBundles
+
+# ---------------------------------------------------------------------------
+# Rhiza brand style — cyan on dark terminals
+# ---------------------------------------------------------------------------
+
+_RHIZA_STYLE = questionary.Style(
+    [
+        ("qmark", "fg:#00BCD4 bold"),  # the ? marker
+        ("question", "bold"),  # question text
+        ("answer", "fg:#00BCD4 bold"),  # confirmed answer
+        ("pointer", "fg:#00BCD4 bold"),  # > cursor
+        ("highlighted", "fg:#00BCD4 bold"),  # hovered item
+        ("selected", "fg:#00BCD4"),  # checked checkbox item
+        ("separator", "fg:#444444"),  # separator lines
+        ("instruction", "fg:#666666 italic"),  # hint text
+        ("text", ""),  # normal choice text
+    ]
+)
 
 
 def _normalize_package_name(name: str) -> str:
@@ -112,8 +130,6 @@ def _prompt_git_host() -> GitHost:
     Returns:
         Git hosting platform choice as a GitHost enum value.
     """
-    import questionary
-
     if sys.stdin.isatty():
         choice = questionary.select(
             "Where will your project be hosted?",
@@ -122,6 +138,7 @@ def _prompt_git_host() -> GitHost:
                 questionary.Choice("GitLab", value="gitlab"),
             ],
             default="github",
+            style=_RHIZA_STYLE,
         ).ask()
         if choice is None:
             # User cancelled (Ctrl-C / Escape) — fall back to github
@@ -157,33 +174,25 @@ def _prompt_template_repository() -> str | None:
     if not repos:
         return None
 
-    # Display a compact numbered list
-    typer.echo("\nAvailable template repositories:")
-    for i, repo in enumerate(repos, start=1):
+    default_label = "Use the default repository"
+    choices = [questionary.Choice(title=default_label, value=None)]
+    for repo in repos:
         desc = repo.description[:_DESC_WIDTH] if repo.description else ""
-        typer.echo(f"  {i:>2}  {repo.full_name:<30}  {desc}")
+        label = f"{repo.full_name:<30}  {desc}".rstrip()
+        choices.append(questionary.Choice(title=label, value=repo.full_name))
 
-    typer.echo("")
-    selection = typer.prompt(
-        "Select a template repository by number, or press Enter to use the default",
-        default="",
-    ).strip()
+    chosen = questionary.select(
+        "Select a template repository:",
+        choices=choices,
+        style=_RHIZA_STYLE,
+    ).ask()
 
-    if not selection:
+    if chosen is None:
+        # Either user picked the default option or cancelled (Ctrl-C)
         return None
 
-    try:
-        idx = int(selection)
-        if 1 <= idx <= len(repos):
-            chosen = repos[idx - 1].full_name
-            logger.info(f"Selected template repository: {chosen}")
-            return chosen
-        else:
-            logger.warning(f"Invalid selection '{idx}', using default repository")
-            return None
-    except ValueError:
-        logger.warning(f"Invalid input '{selection}', using default repository")
-        return None
+    logger.info(f"Selected template repository: {chosen}")
+    return chosen
 
 
 def _get_default_templates_for_host(git_host: GitHost | str) -> list[str]:
@@ -278,8 +287,6 @@ def _prompt_profile(
         ``selected_templates`` is empty; in advanced mode
         ``selected_profiles`` is empty.
     """
-    import questionary
-
     if not sys.stdin.isatty():
         # Non-interactive: pick a sensible default profile
         default = "github-project" if git_host == GitHost.GITHUB else "gitlab-project"
@@ -300,6 +307,7 @@ def _prompt_profile(
     selection = questionary.select(
         "Select a setup profile:",
         choices=choices,
+        style=_RHIZA_STYLE,
     ).ask()
 
     if selection is None:
@@ -330,8 +338,6 @@ def _prompt_advanced_bundles(
         Tuple of ``([], selected_templates)`` — profiles list is always empty
         in advanced mode.
     """
-    import questionary
-
     if available_bundles and available_bundles.bundles:
         default_names = set(_get_default_templates_for_host(git_host))
         choices = [
@@ -345,6 +351,7 @@ def _prompt_advanced_bundles(
         selected = questionary.checkbox(
             "Select the bundles you want (space to toggle, enter to confirm):",
             choices=choices,
+            style=_RHIZA_STYLE,
         ).ask()
         if selected is None or not selected:
             # Cancelled or nothing chosen — fall back to defaults
