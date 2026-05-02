@@ -36,10 +36,10 @@ _RHIZA_STYLE = questionary.Style(
         ("answer", "fg:#00BCD4 bold"),  # confirmed answer
         ("pointer", "fg:#00BCD4 bold"),  # > cursor in select
         ("highlighted", "fg:#00BCD4 bold"),  # hovered item in select
-        ("selected", "fg:#00BCD4 bold"),  # checked checkbox item
+        ("selected", "fg:#00ff00 bold"),  # checked checkbox item (green dot)
         ("separator", "fg:#444444"),  # separator lines
         ("instruction", "fg:#666666 italic"),  # hint text
-        ("text", "fg:#aaaaaa"),  # unchecked/normal items (dimmed)
+        ("text", "fg:#aaaaaa"),  # unchecked items (dimmed)
     ]
 )
 
@@ -352,14 +352,14 @@ def _prompt_advanced_bundles(
         default_names = set(_get_default_templates_for_host(git_host))
         choices = [
             questionary.Choice(
-                title=f"{name}  —  {bundle.description or ''}".rstrip(),
+                title=f"{name}  —  {(bundle.description or '').splitlines()[0].split('.')[0].strip()}".rstrip(),
                 value=name,
                 checked=name in default_names,
             )
             for name, bundle in available_bundles.bundles.items()
         ]
         selected = questionary.checkbox(
-            "Select the bundles you want (space to toggle, enter to confirm):",
+            "Select bundles:",
             choices=choices,
             style=_RHIZA_STYLE,
         ).ask()
