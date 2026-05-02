@@ -356,10 +356,9 @@ def _prompt_advanced_bundles(
             if len(raw_desc) > 50:
                 raw_desc = raw_desc[:50] + "…"
             label = f"{name}  —  {raw_desc}".rstrip() if raw_desc else name
-            # Use explicit hex colour in title tuple so text stays dim regardless of checked state
             choices.append(
                 questionary.Choice(
-                    title=[("fg:#aaaaaa", label)],
+                    title=label,
                     value=name,
                     checked=name in default_names,
                 )
