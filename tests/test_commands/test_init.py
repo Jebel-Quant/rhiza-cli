@@ -1043,14 +1043,13 @@ class TestPromptProfile:
 class TestQuestionaryCursorPatch:
     """Tests for the repo-local questionary cursor patch."""
 
-    def test_list_window_hides_terminal_cursor(self):
-        """The inquirer list window hides the terminal cursor to avoid a square marker block."""
+    def test_choice_tokens_do_not_include_set_cursor_position(self):
+        """The checkbox rows should not emit a cursor-position token for the active item."""
         import questionary
-        from prompt_toolkit.layout.containers import ConditionalContainer, HSplit, Window
 
-        from rhiza.commands.init import _hide_questionary_list_cursor
+        from rhiza.commands.init import _remove_questionary_list_cursor_position
 
-        _hide_questionary_list_cursor()
+        _remove_questionary_list_cursor_position()
 
         ic = questionary.prompts.common.InquirerControl(
             choices=[questionary.Choice("core", value="core")],
@@ -1060,13 +1059,9 @@ class TestQuestionaryCursorPatch:
             use_shortcuts=False,
             initial_choice=None,
         )
-        layout = questionary.prompts.common.create_inquirer_layout(ic, lambda: [])
+        tokens = ic._get_choice_tokens()
 
-        assert isinstance(layout.container, HSplit)
-        list_container = layout.container.children[1]
-        assert isinstance(list_container, ConditionalContainer)
-        assert isinstance(list_container.content, Window)
-        assert bool(list_container.content.always_hide_cursor()) is True
+        assert ("[SetCursorPosition]", "") not in tokens
 
 
 # ---------------------------------------------------------------------------

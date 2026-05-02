@@ -17,11 +17,6 @@ from typing import TYPE_CHECKING
 import questionary
 from jinja2 import Template
 from loguru import logger
-from prompt_toolkit.filters import Condition
-from prompt_toolkit.filters.cli import IsDone
-from prompt_toolkit.layout import ConditionalContainer, HSplit, Layout, Window
-from prompt_toolkit.layout.controls import FormattedTextControl
-from prompt_toolkit.layout.dimension import LayoutDimension
 
 from rhiza.commands.list_repos import _fetch_repos
 from rhiza.commands.validate import validate
@@ -49,52 +44,29 @@ _RHIZA_STYLE = questionary.Style(
 )
 
 
-def _hide_questionary_list_cursor() -> None:
-    """Patch questionary list prompts to hide the terminal cursor.
+def _remove_questionary_list_cursor_position() -> None:
+    """Patch questionary list prompts to stop placing the cursor on the active row.
 
-    Questionary positions the terminal cursor on the active list item's marker.
-    In some terminals that renders as a cyan square around the bullet. Hide the
-    cursor for the list window so the only active-row indicator is the pointer.
+    Questionary emits a ``[SetCursorPosition]`` token on the active choice.
+    Some terminals render that as a visible square around the bullet marker.
+    Remove that token so only the pointer and filled/hollow bullet communicate
+    position and selection state.
     """
     common = questionary.prompts.common
-    if getattr(common, "_rhiza_hide_list_cursor_patch", False):
+    if getattr(common, "_rhiza_remove_list_cursor_patch", False):
         return
 
-    def create_inquirer_layout(ic, get_prompt_tokens, **kwargs):
-        ps = common.PromptSession(get_prompt_tokens, reserve_space_for_menu=0, **kwargs)
-        common._fix_unecessary_blank_lines(ps)
+    original_get_choice_tokens = common.InquirerControl._get_choice_tokens
 
-        @Condition
-        def has_search_string():
-            return ic.get_search_string_tokens() is not None
+    def _get_choice_tokens_without_cursor(self):
+        tokens = original_get_choice_tokens(self)
+        return [token for token in tokens if token[0] != "[SetCursorPosition]"]
 
-        validation_prompt = common.PromptSession(bottom_toolbar=lambda: ic.error_message, **kwargs)
-
-        return Layout(
-            HSplit(
-                [
-                    ps.layout.container,
-                    ConditionalContainer(Window(ic, always_hide_cursor=True), filter=~IsDone()),
-                    ConditionalContainer(
-                        Window(
-                            height=LayoutDimension.exact(2),
-                            content=FormattedTextControl(ic.get_search_string_tokens),
-                        ),
-                        filter=has_search_string & ~IsDone(),
-                    ),
-                    ConditionalContainer(
-                        validation_prompt.layout.container,
-                        filter=Condition(lambda: ic.error_message is not None),
-                    ),
-                ]
-            )
-        )
-
-    common.create_inquirer_layout = create_inquirer_layout
-    common._rhiza_hide_list_cursor_patch = True
+    common.InquirerControl._get_choice_tokens = _get_choice_tokens_without_cursor
+    common._rhiza_remove_list_cursor_patch = True
 
 
-_hide_questionary_list_cursor()
+_remove_questionary_list_cursor_position()
 
 
 def _normalize_package_name(name: str) -> str:
