@@ -350,14 +350,18 @@ def _prompt_advanced_bundles(
     """
     if available_bundles and available_bundles.bundles:
         default_names = set(_get_default_templates_for_host(git_host))
-        choices = [
-            questionary.Choice(
-                title=f"{name}  —  {(bundle.description or '').splitlines()[0].split('.')[0].strip()}".rstrip(),
-                value=name,
-                checked=name in default_names,
+        choices = []
+        for name, bundle in available_bundles.bundles.items():
+            first_line = (bundle.description or "").splitlines()[0].split(".")[0].strip()
+            label = f"{name}  —  {first_line}".rstrip() if first_line else name
+            # Use a formatted title so the text stays neutral regardless of checked state
+            choices.append(
+                questionary.Choice(
+                    title=[("class:text", label)],
+                    value=name,
+                    checked=name in default_names,
+                )
             )
-            for name, bundle in available_bundles.bundles.items()
-        ]
         selected = questionary.checkbox(
             "Select bundles:",
             choices=choices,
