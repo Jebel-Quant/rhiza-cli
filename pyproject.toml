@@ -32,6 +32,7 @@ dependencies = [
     "PyYAML>=6.0.3,<7",
     "jinja2>=3.1.0",
     "rich>=14.3.3",
+    "questionary>=2.0.0",
 ]
 
 [project.urls]
@@ -52,6 +53,7 @@ loguru = "loguru"
 typer = "typer"
 jinja2 = "jinja2"
 rhiza-tools = "rhiza_tools"
+questionary = "questionary"
 
 [project.scripts]
 rhiza = "rhiza.__main__:app"

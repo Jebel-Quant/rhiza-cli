@@ -12,6 +12,7 @@ import subprocess  # nosec B404
 import sys
 import urllib.error
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 from jinja2 import Template
@@ -20,6 +21,9 @@ from loguru import logger
 from rhiza.commands.list_repos import _DESC_WIDTH, _fetch_repos
 from rhiza.commands.validate import validate
 from rhiza.models import GitContext, GitHost, RhizaTemplate
+
+if TYPE_CHECKING:
+    from rhiza.models.bundle import RhizaBundles
 
 
 def _normalize_package_name(name: str) -> str:
@@ -103,31 +107,30 @@ def _check_template_repository_reachable(template_repository: str, git_host: Git
 
 
 def _prompt_git_host() -> GitHost:
-    """Prompt user for git hosting platform.
+    """Prompt user for git hosting platform using an interactive menu.
 
     Returns:
         Git hosting platform choice as a GitHost enum value.
     """
-    if sys.stdin.isatty():
-        logger.info("Where will your project be hosted?")
-        git_host = typer.prompt(
-            "Target Git hosting platform (github/gitlab)",
-            type=str,
-            default="github",
-        ).lower()
+    import questionary
 
-        while git_host not in GitHost._value2member_map_:
-            logger.warning(f"Invalid choice: {git_host}. Please choose 'github' or 'gitlab'")
-            git_host = typer.prompt(
-                "Target Git hosting platform (github/gitlab)",
-                type=str,
-                default="github",
-            ).lower()
+    if sys.stdin.isatty():
+        choice = questionary.select(
+            "Where will your project be hosted?",
+            choices=[
+                questionary.Choice("GitHub", value="github"),
+                questionary.Choice("GitLab", value="gitlab"),
+            ],
+            default="github",
+        ).ask()
+        if choice is None:
+            # User cancelled (Ctrl-C / Escape) — fall back to github
+            choice = "github"
     else:
-        git_host = "github"
+        choice = "github"
         logger.debug("Non-interactive mode detected, defaulting to github")
 
-    return GitHost(git_host)
+    return GitHost(choice)
 
 
 def _prompt_template_repository() -> str | None:
@@ -210,7 +213,7 @@ def _fetch_profiles_from_upstream(
     branch: str = "main",
     git_host: GitHost | str = GitHost.GITHUB,
     bundles_path: str = ".rhiza/template-bundles.yml",
-) -> dict[str, str] | None:
+) -> tuple[dict[str, str], "RhizaBundles"] | None:
     """Fetch available profiles from the upstream template-bundles.yml.
 
     Args:
@@ -220,7 +223,7 @@ def _fetch_profiles_from_upstream(
         bundles_path: Path to bundle definitions inside the repo.
 
     Returns:
-        Ordered dict mapping profile name → description, or ``None`` if the
+        Tuple of (profiles map, full RhizaBundles object), or ``None`` if the
         file could not be fetched or contains no profiles section.
     """
     import tempfile
@@ -245,7 +248,7 @@ def _fetch_profiles_from_upstream(
             rb = RhizaBundles.from_yaml(bundles_file)
             if not rb.profiles:
                 return None
-            return {name: profile.description for name, profile in rb.profiles.items()}
+            return {name: profile.description for name, profile in rb.profiles.items()}, rb
         finally:
             import shutil
 
@@ -258,12 +261,16 @@ def _fetch_profiles_from_upstream(
 def _prompt_profile(
     profiles: dict[str, str],
     git_host: GitHost | str = GitHost.GITHUB,
+    available_bundles: "RhizaBundles | None" = None,
 ) -> tuple[list[str], list[str]]:
-    """Prompt the user to select a profile or enter advanced bundle selection.
+    """Prompt the user to select a profile or hand-pick individual bundles.
 
     Args:
         profiles: Mapping of profile name → description.
         git_host: Current git host (used for advanced fallback).
+        available_bundles: Full bundle definitions for advanced selection. When
+            provided, advanced mode shows a checkbox list of all bundles instead
+            of falling back to a hard-coded default list.
 
     Returns:
         Tuple of ``(selected_profiles, selected_templates)`` where exactly
@@ -271,6 +278,8 @@ def _prompt_profile(
         ``selected_templates`` is empty; in advanced mode
         ``selected_profiles`` is empty.
     """
+    import questionary
+
     if not sys.stdin.isatty():
         # Non-interactive: pick a sensible default profile
         default = "github-project" if git_host == GitHost.GITHUB else "gitlab-project"
@@ -280,35 +289,73 @@ def _prompt_profile(
             return [chosen], []
         return [], _get_default_templates_for_host(git_host)
 
-    typer.echo("\nAvailable profiles:")
-    profile_list = list(profiles.items())
-    for i, (name, desc) in enumerate(profile_list, start=1):
-        # Show first line of description only
+    # Build choices: one per profile + a separator + advanced option
+    choices: list[questionary.Choice | questionary.Separator] = []
+    for name, desc in profiles.items():
         first_line = desc.strip().split("\n")[0].strip()
-        typer.echo(f"  {i:>2}  {name:<25}  {first_line}")
-    typer.echo(f"  {'A':>2}  {'advanced':<25}  Hand-pick individual bundles")
-    typer.echo("")
+        choices.append(questionary.Choice(title=f"{name}  —  {first_line}", value=name))
+    choices.append(questionary.Separator())
+    choices.append(questionary.Choice(title="Advanced — hand-pick individual bundles", value="__advanced__"))
 
-    while True:
-        selection = typer.prompt(
-            "Select a profile by number, or 'A' for advanced",
-            default="1",
-        ).strip()
+    selection = questionary.select(
+        "Select a setup profile:",
+        choices=choices,
+    ).ask()
 
-        if selection.lower() == "a":
-            logger.info("Advanced mode: using default bundle set for your git host")
+    if selection is None:
+        # Cancelled — fall back to sensible default
+        default = "github-project" if git_host == GitHost.GITHUB else "gitlab-project"
+        chosen = default if default in profiles else next(iter(profiles), None)
+        return ([chosen], []) if chosen else ([], _get_default_templates_for_host(git_host))
+
+    if selection == "__advanced__":
+        return _prompt_advanced_bundles(git_host, available_bundles)
+
+    logger.info(f"Selected profile: {selection}")
+    return [selection], []
+
+
+def _prompt_advanced_bundles(
+    git_host: GitHost | str = GitHost.GITHUB,
+    available_bundles: "RhizaBundles | None" = None,
+) -> tuple[list[str], list[str]]:
+    """Prompt the user to hand-pick individual bundles via a checkbox list.
+
+    Args:
+        git_host: Current git host (used for default selection hints).
+        available_bundles: Full bundle definitions. When ``None`` falls back to
+            the hard-coded default list for the host.
+
+    Returns:
+        Tuple of ``([], selected_templates)`` — profiles list is always empty
+        in advanced mode.
+    """
+    import questionary
+
+    if available_bundles and available_bundles.bundles:
+        default_names = set(_get_default_templates_for_host(git_host))
+        choices = [
+            questionary.Choice(
+                title=f"{name}  —  {bundle.description or ''}".rstrip(),
+                value=name,
+                checked=name in default_names,
+            )
+            for name, bundle in available_bundles.bundles.items()
+        ]
+        selected = questionary.checkbox(
+            "Select the bundles you want (space to toggle, enter to confirm):",
+            choices=choices,
+        ).ask()
+        if selected is None or not selected:
+            # Cancelled or nothing chosen — fall back to defaults
+            logger.debug("Advanced bundle selection cancelled, using defaults")
             return [], _get_default_templates_for_host(git_host)
+        logger.info(f"Advanced mode: selected bundles: {', '.join(selected)}")
+        return [], selected
 
-        try:
-            idx = int(selection)
-            if 1 <= idx <= len(profile_list):
-                chosen_name = profile_list[idx - 1][0]
-                logger.info(f"Selected profile: {chosen_name}")
-                return [chosen_name], []
-            else:
-                typer.echo(f"  Please enter a number between 1 and {len(profile_list)}, or 'A'")
-        except ValueError:
-            typer.echo("  Please enter a number or 'A'")
+    # No bundle metadata available — fall back to defaults silently
+    logger.info("Advanced mode: using default bundle set for your git host")
+    return [], _get_default_templates_for_host(git_host)
 
 
 def _display_path(path: Path, target: Path) -> Path:
@@ -371,15 +418,16 @@ def _create_template_file(
 
     # Attempt profile-first selection: fetch upstream profiles and prompt user.
     # TODO: remove feat/bundle-profiles fallback once that branch is merged to main.
-    profiles_map = _fetch_profiles_from_upstream(repo, branch, git_host)
-    if not profiles_map:
-        profiles_map = _fetch_profiles_from_upstream(repo, "feat/bundle-profiles", git_host)
+    fetch_result = _fetch_profiles_from_upstream(repo, branch, git_host)
+    if not fetch_result:
+        fetch_result = _fetch_profiles_from_upstream(repo, "feat/bundle-profiles", git_host)
 
     selected_profiles: list[str] = []
     selected_templates: list[str] = []
 
-    if profiles_map:
-        selected_profiles, selected_templates = _prompt_profile(profiles_map, git_host)
+    if fetch_result:
+        profiles_map, available_bundles = fetch_result
+        selected_profiles, selected_templates = _prompt_profile(profiles_map, git_host, available_bundles)
     else:
         # Fallback to legacy template list (offline or pre-profile upstream)
         selected_templates = _get_default_templates_for_host(git_host)
