@@ -93,11 +93,12 @@ def _load_template_from_project(target: Path, template_file: Path | None = None)
         logger.error("template-repository is not configured in template.yml")
         raise RuntimeError("template-repository is required")  # noqa: TRY003
 
-    if not template.templates and not template.include:
-        logger.error("No templates or include paths found in template.yml")
-        logger.error("Add either 'templates' or 'include' list in template.yml")
-        raise RuntimeError("No templates or include paths found in template.yml")  # noqa: TRY003
+    if not template.templates and not template.include and not template.profiles:
+        logger.error("No templates, profiles, or include paths found in template.yml")
+        logger.error("Add 'profiles', 'templates', or 'include' list in template.yml")
+        raise RuntimeError("No templates, profiles, or include paths found in template.yml")  # noqa: TRY003
 
+    _log_list("Profiles", template.profiles)
     _log_list("Templates", template.templates)
     _log_list("Include paths", template.include)
     _log_list("Exclude paths", template.exclude)
@@ -109,12 +110,12 @@ def _clone_template(
     template: RhizaTemplate,
     git_ctx: GitContext,
     branch: str = "main",
-) -> tuple[Path, str, list[str]]:
+) -> tuple[Path, str, list[str], list[str]]:
     """Clone the upstream template repository and resolve include paths.
 
     Clones the template repository using sparse checkout.  When
-    ``templates`` are configured the corresponding bundle names are resolved
-    to file paths via :meth:`~rhiza.models.RhizaTemplate.resolve_include_paths`.
+    ``templates`` or ``profiles`` are configured the corresponding bundle
+    names are resolved to file paths.
 
     Args:
         template: The template configuration.
@@ -123,34 +124,40 @@ def _clone_template(
             on the template.
 
     Returns:
-        Tuple of ``(upstream_dir, upstream_sha, resolved_include)`` where
-        *upstream_dir* is a temporary directory containing the cloned repository
-        tree.  The caller is responsible for removing *upstream_dir* when done.
+        Tuple of ``(upstream_dir, upstream_sha, resolved_include, effective_bundles)``
+        where *upstream_dir* is a temporary directory containing the cloned
+        repository tree and *effective_bundles* is the deduplicated list of
+        bundle names that were resolved (profiles expanded + explicit templates).
+        The caller is responsible for removing *upstream_dir* when done.
 
     Raises:
         ValueError: If ``template_repository`` is not set, the host is
-            unsupported, or no include paths / templates are configured.
+            unsupported, or no include paths / templates / profiles are configured.
         subprocess.CalledProcessError: If a git operation fails.
     """
     from rhiza.models.bundle import RhizaBundles
 
     if not template.template_repository:
         raise ValueError("template_repository is not configured in template.yml")  # noqa: TRY003
-    if not template.templates and not template.include:
-        raise ValueError("No templates or include paths found in template.yml")  # noqa: TRY003
+    if not template.templates and not template.include and not template.profiles:
+        raise ValueError("No templates, profiles, or include paths found in template.yml")  # noqa: TRY003
 
     rhiza_branch = template.template_branch or branch
     include_paths = list(template.include)
     upstream_dir = Path(tempfile.mkdtemp())
+    effective_bundles: list[str] = []
 
-    if template.templates:
+    if template.templates or template.profiles:
+        from rhiza.models._profile_resolver import resolve_bundles
+
         # Checkout the bundle definitions file from template_repository @ template_branch
         bundles_path = template.template_bundles_path
         git_ctx.clone_repository(template.git_url, upstream_dir, rhiza_branch, [bundles_path])
 
-        # Load bundle definitions, resolve bundle names to paths, update sparse checkout
+        # Load bundle definitions, resolve profiles+templates to bundle names, then to paths
         bundles = RhizaBundles.from_yaml(upstream_dir / bundles_path)
-        resolved_paths = bundles.resolve_to_paths(template.templates)
+        effective_bundles = resolve_bundles(template, bundles)
+        resolved_paths = bundles.resolve_to_paths(effective_bundles)
         # Merge resolved bundle paths with any explicit include: paths (hybrid mode)
         merged_paths = list(dict.fromkeys(resolved_paths + include_paths))
         git_ctx.update_sparse_checkout(upstream_dir, merged_paths)
@@ -161,7 +168,7 @@ def _clone_template(
     upstream_sha = git_ctx.get_head_sha(upstream_dir)
     logger.info(f"Upstream HEAD: {upstream_sha[:12]}")
 
-    return upstream_dir, upstream_sha, include_paths
+    return upstream_dir, upstream_sha, include_paths, effective_bundles
 
 
 def sync(
@@ -205,7 +212,7 @@ def sync(
     original_include = list(template.include)
 
     logger.info(f"Cloning {template.template_repository}@{template.template_branch} (upstream)")
-    upstream_dir, upstream_sha, resolved_include = _clone_template(template, git_ctx, branch=branch)
+    upstream_dir, upstream_sha, resolved_include, effective_bundles = _clone_template(template, git_ctx, branch=branch)
 
     # Synchronizes target with upstream template snapshot transactionally; cleans up resources
     try:
@@ -224,7 +231,7 @@ def sync(
                 ref=template.template_branch,
                 include=original_include,
                 exclude=template.exclude,
-                templates=template.templates,
+                templates=effective_bundles,
                 files=[str(p) for p in materialized],
                 synced_at=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 strategy=strategy,

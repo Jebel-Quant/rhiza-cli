@@ -191,12 +191,124 @@ def _get_default_templates_for_host(git_host: GitHost | str) -> list[str]:
 
     Returns:
         List of template names.
+
+    .. deprecated::
+        Use :func:`_prompt_profile` instead.  This function is retained for
+        backward compatibility when profile selection is not available
+        (e.g. offline, non-interactive, or the upstream bundle file has no
+        profiles section).
     """
     common = ["core", "tests", "book", "marimo", "presentation"]
     if git_host == GitHost.GITLAB:
         return [*common, "gitlab"]
     else:
         return [*common, "github"]
+
+
+def _fetch_profiles_from_upstream(
+    repo: str,
+    branch: str = "main",
+    git_host: GitHost | str = GitHost.GITHUB,
+    bundles_path: str = ".rhiza/template-bundles.yml",
+) -> dict[str, str] | None:
+    """Fetch available profiles from the upstream template-bundles.yml.
+
+    Args:
+        repo: Template repository in 'owner/repo' format.
+        branch: Branch to fetch from. Defaults to 'main'.
+        git_host: Git host. Defaults to GitHub.
+        bundles_path: Path to bundle definitions inside the repo.
+
+    Returns:
+        Ordered dict mapping profile name → description, or ``None`` if the
+        file could not be fetched or contains no profiles section.
+    """
+    import tempfile
+
+    from rhiza.models.bundle import RhizaBundles
+
+    try:
+        git_ctx = GitContext.default()
+        host_urls = {
+            GitHost.GITHUB: "https://github.com",
+            GitHost.GITLAB: "https://gitlab.com",
+        }
+        base_url = host_urls.get(git_host, "https://github.com")  # type: ignore[call-overload]
+        repo_url = f"{base_url}/{repo}.git"
+
+        tmpdir = Path(tempfile.mkdtemp())
+        try:
+            git_ctx.clone_repository(repo_url, tmpdir, branch, [bundles_path])
+            bundles_file = tmpdir / bundles_path
+            if not bundles_file.exists():
+                return None
+            rb = RhizaBundles.from_yaml(bundles_file)
+            if not rb.profiles:
+                return None
+            return {name: profile.description for name, profile in rb.profiles.items()}
+        finally:
+            import shutil
+
+            shutil.rmtree(tmpdir, ignore_errors=True)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug(f"Could not fetch profiles from upstream: {exc}")
+        return None
+
+
+def _prompt_profile(
+    profiles: dict[str, str],
+    git_host: GitHost | str = GitHost.GITHUB,
+) -> tuple[list[str], list[str]]:
+    """Prompt the user to select a profile or enter advanced bundle selection.
+
+    Args:
+        profiles: Mapping of profile name → description.
+        git_host: Current git host (used for advanced fallback).
+
+    Returns:
+        Tuple of ``(selected_profiles, selected_templates)`` where exactly
+        one of the two lists will be non-empty.  In profile mode
+        ``selected_templates`` is empty; in advanced mode
+        ``selected_profiles`` is empty.
+    """
+    if not sys.stdin.isatty():
+        # Non-interactive: pick a sensible default profile
+        default = "github-project" if git_host == GitHost.GITHUB else "gitlab-project"
+        chosen = default if default in profiles else next(iter(profiles), None)
+        if chosen:
+            logger.debug(f"Non-interactive mode: using profile '{chosen}'")
+            return [chosen], []
+        return [], _get_default_templates_for_host(git_host)
+
+    typer.echo("\nAvailable profiles:")
+    profile_list = list(profiles.items())
+    for i, (name, desc) in enumerate(profile_list, start=1):
+        # Show first line of description only
+        first_line = desc.strip().split("\n")[0].strip()
+        typer.echo(f"  {i:>2}  {name:<25}  {first_line}")
+    typer.echo(f"  {'A':>2}  {'advanced':<25}  Hand-pick individual bundles")
+    typer.echo("")
+
+    while True:
+        selection = typer.prompt(
+            "Select a profile by number, or 'A' for advanced",
+            default="1",
+        ).strip()
+
+        if selection.lower() == "a":
+            logger.info("Advanced mode: using default bundle set for your git host")
+            return [], _get_default_templates_for_host(git_host)
+
+        try:
+            idx = int(selection)
+            if 1 <= idx <= len(profile_list):
+                chosen_name = profile_list[idx - 1][0]
+                logger.info(f"Selected profile: {chosen_name}")
+                return [chosen_name], []
+            else:
+                typer.echo(f"  Please enter a number between 1 and {len(profile_list)}, or 'A'")
+        except ValueError:
+            typer.echo("  Please enter a number or 'A'")
 
 
 def _display_path(path: Path, target: Path) -> Path:
@@ -257,13 +369,28 @@ def _create_template_file(
     if template_branch:
         logger.info(f"Using custom template branch: {branch}")
 
-    templates = _get_default_templates_for_host(git_host)
-    logger.info(f"Using template-based configuration with templates: {', '.join(templates)}")
+    # Attempt profile-first selection: fetch upstream profiles and prompt user
+    profiles_map = _fetch_profiles_from_upstream(repo, branch, git_host)
+
+    selected_profiles: list[str] = []
+    selected_templates: list[str] = []
+
+    if profiles_map:
+        selected_profiles, selected_templates = _prompt_profile(profiles_map, git_host)
+    else:
+        # Fallback to legacy template list (offline or pre-profile upstream)
+        selected_templates = _get_default_templates_for_host(git_host)
+        logger.info(f"Using template-based configuration with templates: {', '.join(selected_templates)}")
+
+    if selected_profiles:
+        logger.info(f"Using profile-based configuration with profiles: {', '.join(selected_profiles)}")
+
     default_template = RhizaTemplate(
         template_repository=repo,
         template_branch=branch,
         language=language,
-        templates=templates,
+        profiles=selected_profiles,
+        templates=selected_templates,
     )
 
     logger.debug(f"Writing default template to: {template_file}")
