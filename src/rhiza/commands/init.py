@@ -34,13 +34,12 @@ _RHIZA_STYLE = questionary.Style(
         ("qmark", "fg:#00BCD4 bold"),  # the ? marker
         ("question", "bold"),  # question text
         ("answer", "fg:#00BCD4 bold"),  # confirmed answer
-        ("pointer", "fg:#00BCD4 bold"),  # > cursor in select/checkbox
-        ("highlighted", ""),  # hovered row — no extra styling, pointer alone indicates position
-        ("checkbox", "fg:#00BCD4 bold"),  # ●/○ marker — cyan; shape (filled vs hollow) shows selection
-        ("selected", "fg:#aaaaaa"),  # checked item text — same dim as unchecked
+        ("pointer", "fg:#00BCD4 bold"),  # > cursor — only position indicator
+        ("highlighted", "fg:#aaaaaa noreverse"),  # hovered row text — same as normal, no background
+        ("selected", "fg:#00BCD4 bold"),  # ● filled marker for checked items
         ("separator", "fg:#444444"),  # separator lines
         ("instruction", "fg:#666666 italic"),  # hint text
-        ("text", "fg:#aaaaaa"),  # unchecked items (dimmed)
+        ("text", "fg:#aaaaaa"),  # ○ hollow marker and all row text — always dim grey
     ]
 )
 
@@ -357,9 +356,12 @@ def _prompt_advanced_bundles(
             if len(raw_desc) > 50:
                 raw_desc = raw_desc[:50] + "…"
             label = f"{name}  —  {raw_desc}".rstrip() if raw_desc else name
+            # Title as a raw styled tuple list — questionary uses these directly,
+            # bypassing class:selected and class:highlighted on the text entirely.
+            # This means row text is always dim grey regardless of checked/hover state.
             choices.append(
                 questionary.Choice(
-                    title=label,
+                    title=[("fg:#aaaaaa", label)],
                     value=name,
                     checked=name in default_names,
                 )
