@@ -315,7 +315,9 @@ class TestRhizaTemplateClone:
             include=["Makefile", ".github"],
         )
 
-        upstream_dir, upstream_sha, resolved_include, _effective_bundles = _clone_template(template, GitContext.default(), branch="main")
+        upstream_dir, upstream_sha, resolved_include, _effective_bundles = _clone_template(
+            template, GitContext.default(), branch="main"
+        )
 
         assert upstream_dir.is_dir()
         assert upstream_sha == "abc123def456"
@@ -347,7 +349,9 @@ class TestRhizaTemplateClone:
             include=["Makefile"],
         )
 
-        upstream_dir, upstream_sha, _resolved, _effective = _clone_template(template, GitContext.default(), branch="main")
+        upstream_dir, upstream_sha, _resolved, _effective = _clone_template(
+            template, GitContext.default(), branch="main"
+        )
 
         # The clone should use 'develop' (template_branch), not 'main' (default arg).
         mock_clone.assert_called_once()

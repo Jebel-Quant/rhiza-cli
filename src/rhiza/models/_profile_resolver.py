@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 __all__ = ["resolve_bundles"]
 
 
-def resolve_bundles(template: "RhizaTemplate", available_bundles: "RhizaBundles") -> list[str]:
+def resolve_bundles(template: RhizaTemplate, available_bundles: RhizaBundles) -> list[str]:
     """Resolve a template's profiles and explicit bundle list to a deduplicated list of bundle names.
 
     Profiles are expanded first (in declaration order), then any explicit

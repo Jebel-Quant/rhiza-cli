@@ -250,7 +250,7 @@ def _fetch_profiles_from_upstream(
             import shutil
 
             shutil.rmtree(tmpdir, ignore_errors=True)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.debug(f"Could not fetch profiles from upstream: {exc}")
         return None
 
