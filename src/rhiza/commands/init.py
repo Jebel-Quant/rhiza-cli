@@ -35,7 +35,7 @@ _RHIZA_STYLE = questionary.Style(
         ("question", "bold"),  # question text
         ("answer", "fg:#00BCD4 bold"),  # confirmed answer
         ("pointer", "fg:#00BCD4 bold"),  # > cursor in select
-        ("highlighted", "fg:#00BCD4 bold"),  # hovered item in select
+        ("highlighted", ""),  # hovered row — no extra colour
         ("selected", "fg:#00ff00 bold"),  # checked checkbox item (green dot)
         ("separator", "fg:#444444"),  # separator lines
         ("instruction", "fg:#666666 italic"),  # hint text
