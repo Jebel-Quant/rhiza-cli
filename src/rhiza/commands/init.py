@@ -369,8 +369,11 @@ def _create_template_file(
     if template_branch:
         logger.info(f"Using custom template branch: {branch}")
 
-    # Attempt profile-first selection: fetch upstream profiles and prompt user
+    # Attempt profile-first selection: fetch upstream profiles and prompt user.
+    # TODO: remove feat/bundle-profiles fallback once that branch is merged to main.
     profiles_map = _fetch_profiles_from_upstream(repo, branch, git_host)
+    if not profiles_map:
+        profiles_map = _fetch_profiles_from_upstream(repo, "feat/bundle-profiles", git_host)
 
     selected_profiles: list[str] = []
     selected_templates: list[str] = []
