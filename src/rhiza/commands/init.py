@@ -34,12 +34,12 @@ _RHIZA_STYLE = questionary.Style(
         ("qmark", "fg:#00BCD4 bold"),  # the ? marker
         ("question", "bold"),  # question text
         ("answer", "fg:#00BCD4 bold"),  # confirmed answer
-        ("pointer", "fg:#00BCD4 bold"),  # > cursor
-        ("highlighted", "fg:#00BCD4 bold"),  # hovered item
-        ("selected", "fg:#00BCD4"),  # checked checkbox item
+        ("pointer", "fg:#00BCD4 bold"),  # > cursor in select
+        ("highlighted", "fg:#00BCD4 bold"),  # hovered item in select
+        ("selected", "fg:#00BCD4 bold"),  # checked checkbox item
         ("separator", "fg:#444444"),  # separator lines
         ("instruction", "fg:#666666 italic"),  # hint text
-        ("text", ""),  # normal choice text
+        ("text", "fg:#aaaaaa"),  # unchecked/normal items (dimmed)
     ]
 )
 
