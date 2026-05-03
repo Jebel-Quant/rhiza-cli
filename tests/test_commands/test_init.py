@@ -211,6 +211,23 @@ class TestInitCommand:
         assert "name" in data["project"]
         assert data["project"]["name"] == tmp_path.name
 
+    def test_init_with_hyphenated_project_name_normalises_test_import(self, tmp_path):
+        """Test that the generated test file imports from the normalised package name.
+
+        Regression: previously the test template was rendered with the raw project
+        name (e.g. 'mini-commodities'), producing an invalid import statement such as
+        ``from mini-commodities.main import …``.  The import must use the normalised
+        package name (e.g. 'example_project').
+        """
+        init(tmp_path, project_name="example-project", git_host="github")
+
+        test_file = tmp_path / "tests" / "test_main.py"
+        assert test_file.exists()
+        content = test_file.read_text()
+        # Import must reference the normalised name, not the raw hyphenated one
+        assert "from example_project.main import" in content
+        assert "from example-project.main import" not in content
+
     def test_init_with_project_name_starting_with_digit(self, tmp_path):
         """Test init with project name starting with a digit (auto-normalized package name)."""
         # Don't pass package_name, so it will be auto-normalized from project_name
