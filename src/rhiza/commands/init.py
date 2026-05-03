@@ -553,7 +553,7 @@ def _create_python_package(target: Path, project_name: str, package_name: str) -
 
     template_content = importlib.resources.files("rhiza").joinpath("_templates/basic/test_main.py.jinja2").read_text()
     template = Template(template_content)
-    code = template.render(project_name=project_name)
+    code = template.render(project_name=package_name)
     test_file.write_text(code)
     # logger.success(f"Created Python package structure in {src_folder}")
 
