@@ -820,3 +820,344 @@ class TestInitCustomTemplatePath:
         assert result.exit_code == 0
         assert (custom_dir / "template.yml").exists()
         assert not (tmp_path / ".rhiza" / "template.yml").exists()
+
+
+# ---------------------------------------------------------------------------
+# _fetch_profiles_from_upstream
+# ---------------------------------------------------------------------------
+
+
+class TestFetchProfilesFromUpstream:
+    """Tests for _fetch_profiles_from_upstream().
+
+    All tests mock the git clone so they run offline and never touch the network.
+    """
+
+    def _make_bundles_file(self, tmp_path, profiles: dict | None = None) -> Path:
+        """Write a minimal template-bundles.yml to tmp_path and return its path."""
+        import yaml as _yaml
+
+        content: dict = {"bundles": {"core": {"description": "Core", "files": ["Makefile"]}}}
+        if profiles is not None:
+            content["profiles"] = profiles
+        bundles_file = tmp_path / ".rhiza" / "template-bundles.yml"
+        bundles_file.parent.mkdir(parents=True, exist_ok=True)
+        bundles_file.write_text(_yaml.dump(content))
+        return bundles_file
+
+    def test_returns_profile_map_when_fetch_succeeds(self, tmp_path):
+        """Returns a name→description dict when the upstream file has profiles."""
+        from rhiza.commands.init import _fetch_profiles_from_upstream
+
+        bundles_root = tmp_path / "upstream"
+        bundles_root.mkdir()
+        self._make_bundles_file(
+            bundles_root,
+            profiles={
+                "local": {"description": "Local-first", "bundles": ["core"]},
+                "github-project": {"description": "GitHub project", "bundles": ["core"]},
+            },
+        )
+
+        def fake_clone(repo_url, dest, branch, paths):
+            # Copy the bundles file into dest so the real parsing code finds it
+            import shutil
+
+            src = bundles_root / ".rhiza" / "template-bundles.yml"
+            target = dest / ".rhiza" / "template-bundles.yml"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(src, target)
+
+        with patch("rhiza.commands.init.GitContext.default") as mock_ctx:
+            mock_ctx.return_value.clone_repository.side_effect = fake_clone
+            result = _fetch_profiles_from_upstream("owner/repo", branch="main")
+
+        assert result is not None
+        profiles_map, rb = result
+        assert "local" in profiles_map
+        assert "github-project" in profiles_map
+        assert "Local-first" in profiles_map["local"]
+        assert rb is not None
+        assert "core" in rb.bundles
+
+    def test_returns_none_when_clone_raises(self):
+        """Returns None (does not raise) when the git clone fails."""
+        from rhiza.commands.init import _fetch_profiles_from_upstream
+
+        with patch("rhiza.commands.init.GitContext.default") as mock_ctx:
+            mock_ctx.return_value.clone_repository.side_effect = RuntimeError("network down")
+            result = _fetch_profiles_from_upstream("owner/repo")
+
+        assert result is None
+
+    def test_returns_none_when_bundles_file_absent(self, tmp_path):
+        """Returns None when the cloned directory has no template-bundles.yml."""
+        from rhiza.commands.init import _fetch_profiles_from_upstream
+
+        def fake_clone(repo_url, dest, branch, paths):
+            pass  # Don't write anything — file will be absent
+
+        with patch("rhiza.commands.init.GitContext.default") as mock_ctx:
+            mock_ctx.return_value.clone_repository.side_effect = fake_clone
+            result = _fetch_profiles_from_upstream("owner/repo")
+
+        assert result is None
+
+    def test_returns_none_when_no_profiles_section(self, tmp_path):
+        """Returns None when the bundles file exists but has no profiles: key."""
+        from rhiza.commands.init import _fetch_profiles_from_upstream
+
+        bundles_root = tmp_path / "upstream"
+        bundles_root.mkdir()
+        self._make_bundles_file(bundles_root, profiles=None)  # no profiles key
+
+        def fake_clone(repo_url, dest, branch, paths):
+            import shutil
+
+            src = bundles_root / ".rhiza" / "template-bundles.yml"
+            target = dest / ".rhiza" / "template-bundles.yml"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(src, target)
+
+        with patch("rhiza.commands.init.GitContext.default") as mock_ctx:
+            mock_ctx.return_value.clone_repository.side_effect = fake_clone
+            result = _fetch_profiles_from_upstream("owner/repo")
+
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# _prompt_profile
+# ---------------------------------------------------------------------------
+
+
+class TestPromptProfile:
+    """Tests for _prompt_profile().
+
+    Verifies the interactive menu, non-interactive auto-select, and advanced mode.
+    """
+
+    _PROFILES = {
+        "local": "Local-first setup",
+        "github-project": "Standard GitHub project",
+    }
+
+    def test_non_interactive_picks_github_project_for_github(self, monkeypatch):
+        """In non-interactive mode, github-project is selected automatically for GitHub."""
+        from rhiza.commands.init import _prompt_profile
+        from rhiza.models import GitHost
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        profiles, templates = _prompt_profile(self._PROFILES, git_host=GitHost.GITHUB)
+
+        assert profiles == ["github-project"]
+        assert templates == []
+
+    def test_non_interactive_picks_first_profile_when_default_absent(self, monkeypatch):
+        """In non-interactive mode, picks the first profile when the default name is not present."""
+        from rhiza.commands.init import _prompt_profile
+        from rhiza.models import GitHost
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        profiles_map = {"local": "Local-first setup"}  # no github-project
+        profiles, templates = _prompt_profile(profiles_map, git_host=GitHost.GITHUB)
+
+        assert profiles == ["local"]
+        assert templates == []
+
+    def test_interactive_numeric_selection_returns_profile(self, monkeypatch):
+        """Selecting the first profile returns it."""
+        from unittest.mock import MagicMock
+
+        from rhiza.commands.init import _prompt_profile
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        mock_q = MagicMock()
+        mock_q.ask.return_value = "local"
+        monkeypatch.setattr("questionary.select", lambda *a, **kw: mock_q)
+
+        profiles, templates = _prompt_profile(self._PROFILES)
+
+        assert profiles == ["local"]
+        assert templates == []
+
+    def test_interactive_selects_second_profile(self, monkeypatch):
+        """Selecting the second profile returns it."""
+        from unittest.mock import MagicMock
+
+        from rhiza.commands.init import _prompt_profile
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        mock_q = MagicMock()
+        mock_q.ask.return_value = "github-project"
+        monkeypatch.setattr("questionary.select", lambda *a, **kw: mock_q)
+
+        profiles, templates = _prompt_profile(self._PROFILES)
+
+        assert profiles == ["github-project"]
+        assert templates == []
+
+    def test_interactive_advanced_mode_returns_templates(self, monkeypatch):
+        """Selecting advanced falls through to the bundle checkbox."""
+        from unittest.mock import MagicMock
+
+        from rhiza.commands.init import _prompt_profile
+        from rhiza.models import GitHost
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        # select returns __advanced__, checkbox returns nothing (triggers default fallback)
+        mock_select = MagicMock()
+        mock_select.ask.return_value = "__advanced__"
+        monkeypatch.setattr("questionary.select", lambda *a, **kw: mock_select)
+        mock_checkbox = MagicMock()
+        mock_checkbox.ask.return_value = None  # cancelled → defaults
+        monkeypatch.setattr("questionary.checkbox", lambda *a, **kw: mock_checkbox)
+
+        profiles, templates = _prompt_profile(self._PROFILES, git_host=GitHost.GITHUB)
+
+        assert profiles == []
+        assert len(templates) > 0  # falls back to default github templates
+
+    def test_interactive_advanced_mode_with_bundles_returns_selection(self, monkeypatch):
+        """Advanced mode with available_bundles shows a checkbox and returns chosen bundles."""
+        from unittest.mock import MagicMock
+
+        from rhiza.commands.init import _prompt_profile
+        from rhiza.models.bundle import RhizaBundles
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        mock_select = MagicMock()
+        mock_select.ask.return_value = "__advanced__"
+        monkeypatch.setattr("questionary.select", lambda *a, **kw: mock_select)
+        mock_checkbox = MagicMock()
+        mock_checkbox.ask.return_value = ["core", "tests"]
+        monkeypatch.setattr("questionary.checkbox", lambda *a, **kw: mock_checkbox)
+
+        rb = RhizaBundles.from_config({"bundles": {"core": {"description": "Core"}, "tests": {"description": "Tests"}}})
+        profiles, templates = _prompt_profile(self._PROFILES, available_bundles=rb)
+
+        assert profiles == []
+        assert templates == ["core", "tests"]
+
+    def test_interactive_cancelled_falls_back_to_default(self, monkeypatch):
+        """When questionary returns None (Ctrl-C/Escape), the default profile is used."""
+        from unittest.mock import MagicMock
+
+        from rhiza.commands.init import _prompt_profile
+        from rhiza.models import GitHost
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        mock_q = MagicMock()
+        mock_q.ask.return_value = None  # cancelled
+        monkeypatch.setattr("questionary.select", lambda *a, **kw: mock_q)
+
+        profiles, templates = _prompt_profile(self._PROFILES, git_host=GitHost.GITHUB)
+
+        assert profiles == ["github-project"]
+        assert templates == []
+
+
+class TestQuestionaryCursorPatch:
+    """Tests for the repo-local questionary cursor patch."""
+
+    def test_choice_tokens_do_not_include_set_cursor_position(self):
+        """The checkbox rows should not emit a cursor-position token for the active item."""
+        import questionary
+
+        from rhiza.commands.init import _remove_questionary_list_cursor_position
+
+        _remove_questionary_list_cursor_position()
+
+        ic = questionary.prompts.common.InquirerControl(
+            choices=[questionary.Choice("core", value="core")],
+            default="core",
+            pointer=">",
+            use_indicator=True,
+            use_shortcuts=False,
+            initial_choice=None,
+        )
+        tokens = ic._get_choice_tokens()
+
+        assert ("[SetCursorPosition]", "") not in tokens
+
+
+# ---------------------------------------------------------------------------
+# _create_template_file — profile integration
+# ---------------------------------------------------------------------------
+
+
+class TestCreateTemplateFileProfileIntegration:
+    """Tests that _create_template_file uses profiles when available and falls back correctly."""
+
+    def test_profiles_written_to_template_yml_when_fetch_succeeds(self, tmp_path, monkeypatch):
+        """When upstream profiles are available and user selects one, template.yml gets profiles:."""
+        from rhiza.commands.init import _create_template_file
+        from rhiza.models import GitHost
+        from rhiza.models.bundle import RhizaBundles
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)  # auto-select
+        rb = RhizaBundles.from_config({"bundles": {"core": {"description": "Core"}}})
+        with patch(
+            "rhiza.commands.init._fetch_profiles_from_upstream",
+            return_value=({"local": "Local-first", "github-project": "GitHub project"}, rb),
+        ):
+            _create_template_file(tmp_path, GitHost.GITHUB, template_repository="owner/repo")
+
+        config = yaml.safe_load((tmp_path / ".rhiza" / "template.yml").read_text())
+        assert "profiles" in config
+        assert config["profiles"] == ["github-project"]
+        assert not config.get("templates")  # templates should be absent or empty in profile mode
+
+    def test_templates_written_when_fetch_returns_none(self, tmp_path):
+        """When _fetch_profiles_from_upstream returns None, template.yml uses templates: fallback."""
+        from rhiza.commands.init import _create_template_file
+        from rhiza.models import GitHost
+
+        with patch("rhiza.commands.init._fetch_profiles_from_upstream", return_value=None):
+            _create_template_file(tmp_path, GitHost.GITHUB, template_repository="owner/repo")
+
+        config = yaml.safe_load((tmp_path / ".rhiza" / "template.yml").read_text())
+        assert "templates" in config
+        assert "profiles" not in config
+
+    def test_init_calls_fetch_profiles_from_upstream(self, tmp_path):
+        """init() calls _fetch_profiles_from_upstream so the profile menu can appear."""
+        fetch_mock = MagicMock(return_value=None)
+        with (
+            patch("rhiza.commands.init._fetch_profiles_from_upstream", fetch_mock),
+            patch("rhiza.commands.init._check_template_repository_reachable", return_value=True),
+        ):
+            init(tmp_path, git_host="github", template_repository="owner/repo")
+
+        assert fetch_mock.call_count >= 1
+
+    def test_init_calls_prompt_profile_when_profiles_available(self, tmp_path, monkeypatch):
+        """init() calls _prompt_profile when upstream profiles are found."""
+        from rhiza.models.bundle import RhizaBundles
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        prompt_mock = MagicMock(return_value=(["local"], []))
+        rb = RhizaBundles.from_config({"bundles": {"core": {"description": "Core"}}})
+        with (
+            patch(
+                "rhiza.commands.init._fetch_profiles_from_upstream",
+                return_value=({"local": "Local-first"}, rb),
+            ),
+            patch("rhiza.commands.init._prompt_profile", prompt_mock),
+            patch("rhiza.commands.init._check_template_repository_reachable", return_value=True),
+        ):
+            init(tmp_path, git_host="github", template_repository="owner/repo")
+
+        prompt_mock.assert_called_once()
+
+    def test_init_does_not_call_prompt_profile_when_fetch_fails(self, tmp_path):
+        """init() skips _prompt_profile entirely when _fetch_profiles_from_upstream returns None."""
+        prompt_mock = MagicMock(return_value=([], []))
+        with (
+            patch("rhiza.commands.init._fetch_profiles_from_upstream", return_value=None),
+            patch("rhiza.commands.init._prompt_profile", prompt_mock),
+            patch("rhiza.commands.init._check_template_repository_reachable", return_value=True),
+        ):
+            init(tmp_path, git_host="github", template_repository="owner/repo")
+
+        prompt_mock.assert_not_called()

@@ -8,6 +8,23 @@ from rhiza.models._git_utils import _normalize_to_list
 
 
 @dataclass(frozen=True, kw_only=True)
+class ProfileDefinition:
+    """Represents a single profile from template-bundles.yml.
+
+    Profiles are higher-level named presets that expand to a set of bundles.
+    They represent stable user intents (local-only, GitHub-hosted, etc.) and
+    do not own files directly.
+
+    Attributes:
+        description: Human-readable description of the profile.
+        bundles: List of bundle names that this profile expands to.
+    """
+
+    description: str = ""
+    bundles: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True, kw_only=True)
 class BundleDefinition:
     """Represents a single bundle from template-bundles.yml.
 
@@ -32,10 +49,14 @@ class RhizaBundles(YamlSerializable):
     Attributes:
         version: Optional version string of the bundles configuration format.
         bundles: Dictionary mapping bundle names to their definitions.
+        profiles: Dictionary mapping profile names to their definitions.
+            Defaults to an empty dict for backward compatibility with bundle
+            files that predate the profile layer.
     """
 
     version: str | None = None
     bundles: dict[str, BundleDefinition] = field(default_factory=dict)
+    profiles: dict[str, ProfileDefinition] = field(default_factory=dict)
 
     @property
     def config(self) -> dict[str, Any]:
@@ -57,6 +78,16 @@ class RhizaBundles(YamlSerializable):
             bundles_dict[name] = bundle_entry
 
         config["bundles"] = bundles_dict
+
+        if self.profiles:
+            profiles_dict: dict[str, Any] = {}
+            for name, profile in self.profiles.items():
+                profile_entry: dict[str, Any] = {"description": profile.description}
+                if profile.bundles:
+                    profile_entry["bundles"] = profile.bundles
+                profiles_dict[name] = profile_entry
+            config["profiles"] = profiles_dict
+
         return config
 
     @classmethod
@@ -95,7 +126,22 @@ class RhizaBundles(YamlSerializable):
                 standalone=bundle_data.get("standalone", True),
             )
 
-        return cls(version=version, bundles=bundles)
+        profiles_config = config.get("profiles", {})
+        if not isinstance(profiles_config, dict):
+            msg = "Profiles must be a dictionary"
+            raise TypeError(msg)
+
+        profiles: dict[str, ProfileDefinition] = {}
+        for profile_name, profile_data in profiles_config.items():
+            if not isinstance(profile_data, dict):
+                msg = f"Profile '{profile_name}' must be a dictionary"
+                raise TypeError(msg)
+            profiles[profile_name] = ProfileDefinition(
+                description=profile_data.get("description", ""),
+                bundles=_normalize_to_list(profile_data.get("bundles")),
+            )
+
+        return cls(version=version, bundles=bundles, profiles=profiles)
 
     def resolve_to_paths(self, bundle_names: list[str]) -> list[str]:
         """Convert bundle names to deduplicated file paths.

@@ -315,7 +315,9 @@ class TestRhizaTemplateClone:
             include=["Makefile", ".github"],
         )
 
-        upstream_dir, upstream_sha, resolved_include = _clone_template(template, GitContext.default(), branch="main")
+        upstream_dir, upstream_sha, resolved_include, _effective_bundles = _clone_template(
+            template, GitContext.default(), branch="main"
+        )
 
         assert upstream_dir.is_dir()
         assert upstream_sha == "abc123def456"
@@ -330,9 +332,9 @@ class TestRhizaTemplateClone:
             _clone_template(template, GitContext.default())
 
     def test_clone_raises_when_no_include_or_templates(self):
-        """_clone_template raises ValueError when neither include nor templates are set."""
+        """_clone_template raises ValueError when neither include, templates, nor profiles are set."""
         template = RhizaTemplate(template_repository="owner/repo")
-        with pytest.raises(ValueError, match="No templates or include paths"):
+        with pytest.raises(ValueError, match="No templates, profiles, or include paths"):
             _clone_template(template, GitContext.default())
 
     @patch("rhiza.models._git_utils.GitContext.get_head_sha")
@@ -347,7 +349,9 @@ class TestRhizaTemplateClone:
             include=["Makefile"],
         )
 
-        upstream_dir, upstream_sha, _resolved = _clone_template(template, GitContext.default(), branch="main")
+        upstream_dir, upstream_sha, _resolved, _effective = _clone_template(
+            template, GitContext.default(), branch="main"
+        )
 
         # The clone should use 'develop' (template_branch), not 'main' (default arg).
         mock_clone.assert_called_once()
@@ -626,7 +630,7 @@ class TestFromProject:
         _write_template_yml(tmp_path, {"template-repository": "owner/repo", "template-branch": "main"})
         with (
             patch("rhiza.commands.validate.validate", return_value=True),
-            pytest.raises(RuntimeError, match="No templates or include paths"),
+            pytest.raises(RuntimeError, match="No templates, profiles, or include paths"),
         ):
             _load_template_from_project(tmp_path)
 

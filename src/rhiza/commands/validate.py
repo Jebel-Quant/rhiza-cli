@@ -121,7 +121,7 @@ def _parse_yaml_file(template_file: Path) -> tuple[bool, dict[str, Any] | None]:
 
 
 def _validate_configuration_mode(config: dict[str, Any]) -> bool:
-    """Validate that at least one of templates or include is specified.
+    """Validate that at least one of templates, profiles, or include is specified.
 
     Args:
         config: Configuration dictionary.
@@ -131,6 +131,7 @@ def _validate_configuration_mode(config: dict[str, Any]) -> bool:
     """
     logger.debug("Validating configuration mode")
     has_templates = "templates" in config and config["templates"]
+    has_profiles = "profiles" in config and config["profiles"]
     has_include = "include" in config and config["include"]
 
     # Error if old "bundles" field is used
@@ -140,17 +141,22 @@ def _validate_configuration_mode(config: dict[str, Any]) -> bool:
         logger.error("  bundles: [...]  →  templates: [...]")
         return False
 
-    # Require at least one of templates or include
-    if not has_templates and not has_include:
-        logger.error("Must specify at least one of 'templates' or 'include' in template.yml")
+    # Require at least one of profiles, templates, or include
+    if not has_templates and not has_profiles and not has_include:
+        logger.error("Must specify at least one of 'profiles', 'templates', or 'include' in template.yml")
         logger.error("Options:")
+        logger.error("  • Profile-based (recommended): profiles: [local]")
         logger.error("  • Template-based: templates: [core, tests, github]")
         logger.error("  • Path-based: include: [.rhiza, .github, ...]")
-        logger.error("  • Hybrid: specify both templates and include")
+        logger.error("  • Mixed: specify profiles and/or templates with include")
         return False
 
     # Log what mode is being used
-    if has_templates and has_include:
+    if has_profiles and (has_templates or has_include):
+        logger.success("Using mixed mode (profiles + templates/include)")
+    elif has_profiles:
+        logger.success("Using profile-based mode")
+    elif has_templates and has_include:
         logger.success("Using hybrid mode (templates + include)")
     elif has_templates:
         logger.success("Using template-based mode")
@@ -158,6 +164,38 @@ def _validate_configuration_mode(config: dict[str, Any]) -> bool:
         logger.success("Using path-based mode")
 
     return True
+
+
+def _validate_profiles(config: dict[str, Any]) -> bool:
+    """Validate profiles field if present.
+
+    Args:
+        config: Configuration dictionary.
+
+    Returns:
+        True if profiles field is valid, False otherwise.
+    """
+    logger.debug("Validating profiles field")
+    if "profiles" not in config:
+        return True
+
+    profiles = config["profiles"]
+    if not isinstance(profiles, list):
+        logger.error(f"profiles must be a list, got {type(profiles).__name__}")
+        logger.error("Example: profiles: [local]")
+        return False
+    elif len(profiles) == 0:
+        logger.error("profiles list cannot be empty")
+        logger.error("Add at least one profile name, e.g. profiles: [local]")
+        return False
+    else:
+        logger.success(f"profiles list has {len(profiles)} profile(s)")
+        for profile in profiles:
+            if not isinstance(profile, str):
+                logger.warning(f"profile name should be a string, got {type(profile).__name__}: {profile}")
+            else:
+                logger.info(f"  - {profile}")
+        return True
 
 
 def _validate_templates(config: dict[str, Any]) -> bool:
@@ -448,6 +486,10 @@ def validate(target: Path, template_file: Path | None = None) -> bool:
 
     # Validate specific field formats
     if not _validate_repository_format(config):
+        validation_passed = False
+
+    # Validate profiles if present
+    if config.get("profiles") and not _validate_profiles(config):
         validation_passed = False
 
     # Validate templates if present

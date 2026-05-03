@@ -527,7 +527,7 @@ class TestSyncE2EUpdatedTemplateYml:
         (upstream_dir_v1 / "file_b.txt").write_text("content b\n")
 
         def clone_v1(template, git_ctx_, branch="main"):
-            return upstream_dir_v1, "sha_v1", list(template.include)
+            return upstream_dir_v1, "sha_v1", list(template.include), []
 
         with patch("rhiza.commands.sync._clone_template", side_effect=clone_v1):
             sync(target=project, branch="main", target_branch=None, strategy="merge")
@@ -558,7 +558,7 @@ class TestSyncE2EUpdatedTemplateYml:
         (upstream_dir_v2 / "file_c.txt").write_text("content c\n")
 
         def clone_v2(template, git_ctx_, branch="main"):
-            return upstream_dir_v2, "sha_v2", list(template.include)
+            return upstream_dir_v2, "sha_v2", list(template.include), []
 
         def populate_base(git_url, sha, dest, include_paths):
             """Base snapshot contains only the files present at sha_v1."""
@@ -606,7 +606,7 @@ class TestSyncE2EUpdatedTemplateYml:
         (upstream_dir_v1 / "file_b.txt").write_text("content b\n")
 
         def clone_v1(template, git_ctx_, branch="main"):
-            return upstream_dir_v1, "sha_v1", list(template.include)
+            return upstream_dir_v1, "sha_v1", list(template.include), []
 
         with patch("rhiza.commands.sync._clone_template", side_effect=clone_v1):
             sync(target=project, branch="main", target_branch=None, strategy="merge")
@@ -634,7 +634,7 @@ class TestSyncE2EUpdatedTemplateYml:
 
         def clone_v2(template, git_ctx_, branch="main"):
             # Only file_a.txt is in the updated include list from template.yml.
-            return upstream_dir_v2, "sha_v2", list(template.include)
+            return upstream_dir_v2, "sha_v2", list(template.include), []
 
         def populate_base(git_url, sha, dest, include_paths):
             # Orphan cleanup uses the lock's ``files`` field, not the diff,
@@ -687,7 +687,7 @@ class TestSyncE2ECustomPaths:
         (upstream / "special.txt").write_text("from custom template\n")
 
         def clone_upstream(template, git_ctx_, branch="main"):
-            return upstream, "sha_custom", list(template.include)
+            return upstream, "sha_custom", list(template.include), []
 
         with patch("rhiza.commands.sync._clone_template", side_effect=clone_upstream):
             sync(
@@ -726,7 +726,7 @@ class TestSyncE2ECustomPaths:
         (upstream / "app.txt").write_text("root level\n")
 
         def clone_upstream(template, git_ctx_, branch="main"):
-            return upstream, "sha_root", list(template.include)
+            return upstream, "sha_root", list(template.include), []
 
         with patch("rhiza.commands.sync._clone_template", side_effect=clone_upstream):
             sync(
@@ -766,7 +766,7 @@ class TestSyncE2ECustomPaths:
         (upstream_v1 / "data.txt").write_text("version 1\n")
 
         def clone_v1(template, git_ctx_, branch="main"):
-            return upstream_v1, "sha_v1", list(template.include)
+            return upstream_v1, "sha_v1", list(template.include), []
 
         with patch("rhiza.commands.sync._clone_template", side_effect=clone_v1):
             sync(
@@ -790,7 +790,7 @@ class TestSyncE2ECustomPaths:
         (upstream_v2 / "data.txt").write_text("version 2\n")
 
         def clone_v2(template, git_ctx_, branch="main"):
-            return upstream_v2, "sha_v2", list(template.include)
+            return upstream_v2, "sha_v2", list(template.include), []
 
         def populate_base(git_url, sha, dest, include_paths):
             (dest / "data.txt").write_text("version 1\n")
@@ -832,7 +832,7 @@ class TestSyncE2ECustomPaths:
         (upstream / "cli_test.txt").write_text("cli driven\n")
 
         def clone_upstream(template, git_ctx_, branch="main"):
-            return upstream, "sha_cli", list(template.include)
+            return upstream, "sha_cli", list(template.include), []
 
         runner = CliRunner()
         with patch("rhiza.commands.sync._clone_template", side_effect=clone_upstream):
@@ -864,7 +864,7 @@ class TestSyncE2ECustomPaths:
         (upstream / "Makefile").write_text("install:\n\tpip install .\n")
 
         def clone_upstream(template, git_ctx_, branch="main"):
-            return upstream, "sha_dot", list(template.include)
+            return upstream, "sha_dot", list(template.include), []
 
         runner = CliRunner()
         with patch("rhiza.commands.sync._clone_template", side_effect=clone_upstream):

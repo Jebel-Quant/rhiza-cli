@@ -12,14 +12,61 @@ import subprocess  # nosec B404
 import sys
 import urllib.error
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import typer
+import questionary
 from jinja2 import Template
 from loguru import logger
 
-from rhiza.commands.list_repos import _DESC_WIDTH, _fetch_repos
+from rhiza.commands.list_repos import _fetch_repos
 from rhiza.commands.validate import validate
 from rhiza.models import GitContext, GitHost, RhizaTemplate
+
+if TYPE_CHECKING:
+    from rhiza.models.bundle import RhizaBundles
+
+# ---------------------------------------------------------------------------
+# Rhiza brand style — cyan on dark terminals
+# ---------------------------------------------------------------------------
+
+_RHIZA_STYLE = questionary.Style(
+    [
+        ("qmark", "fg:#00BCD4 bold"),  # the ? marker
+        ("question", "bold"),  # question text
+        ("answer", "fg:#00BCD4 bold"),  # confirmed answer
+        ("pointer", "fg:#00BCD4 bold"),  # > cursor — only position indicator
+        ("highlighted", "fg:#aaaaaa noreverse"),  # hovered row text — same as normal, no background
+        ("selected", "fg:#00BCD4 bold"),  # ● filled marker for checked items
+        ("separator", "fg:#444444"),  # separator lines
+        ("instruction", "fg:#666666 italic"),  # hint text
+        ("text", "fg:#aaaaaa"),  # ○ hollow marker and all row text — always dim grey
+    ]
+)
+
+
+def _remove_questionary_list_cursor_position() -> None:
+    """Patch questionary list prompts to stop placing the cursor on the active row.
+
+    Questionary emits a ``[SetCursorPosition]`` token on the active choice.
+    Some terminals render that as a visible square around the bullet marker.
+    Remove that token so only the pointer and filled/hollow bullet communicate
+    position and selection state.
+    """
+    common = questionary.prompts.common
+    if getattr(common, "_rhiza_remove_list_cursor_patch", False):
+        return
+
+    original_get_choice_tokens = common.InquirerControl._get_choice_tokens
+
+    def _get_choice_tokens_without_cursor(self):
+        tokens = original_get_choice_tokens(self)
+        return [token for token in tokens if token[0] != "[SetCursorPosition]"]
+
+    common.InquirerControl._get_choice_tokens = _get_choice_tokens_without_cursor
+    common._rhiza_remove_list_cursor_patch = True
+
+
+_remove_questionary_list_cursor_position()
 
 
 def _normalize_package_name(name: str) -> str:
@@ -103,31 +150,29 @@ def _check_template_repository_reachable(template_repository: str, git_host: Git
 
 
 def _prompt_git_host() -> GitHost:
-    """Prompt user for git hosting platform.
+    """Prompt user for git hosting platform using an interactive menu.
 
     Returns:
         Git hosting platform choice as a GitHost enum value.
     """
     if sys.stdin.isatty():
-        logger.info("Where will your project be hosted?")
-        git_host = typer.prompt(
-            "Target Git hosting platform (github/gitlab)",
-            type=str,
+        choice = questionary.select(
+            "Where will your project be hosted?",
+            choices=[
+                questionary.Choice("GitHub", value="github"),
+                questionary.Choice("GitLab", value="gitlab"),
+            ],
             default="github",
-        ).lower()
-
-        while git_host not in GitHost._value2member_map_:
-            logger.warning(f"Invalid choice: {git_host}. Please choose 'github' or 'gitlab'")
-            git_host = typer.prompt(
-                "Target Git hosting platform (github/gitlab)",
-                type=str,
-                default="github",
-            ).lower()
+            style=_RHIZA_STYLE,
+        ).ask()
+        if choice is None:
+            # User cancelled (Ctrl-C / Escape) — fall back to github
+            choice = "github"
     else:
-        git_host = "github"
+        choice = "github"
         logger.debug("Non-interactive mode detected, defaulting to github")
 
-    return GitHost(git_host)
+    return GitHost(choice)
 
 
 def _prompt_template_repository() -> str | None:
@@ -154,33 +199,35 @@ def _prompt_template_repository() -> str | None:
     if not repos:
         return None
 
-    # Display a compact numbered list
-    typer.echo("\nAvailable template repositories:")
-    for i, repo in enumerate(repos, start=1):
-        desc = repo.description[:_DESC_WIDTH] if repo.description else ""
-        typer.echo(f"  {i:>2}  {repo.full_name:<30}  {desc}")
+    import shutil
 
-    typer.echo("")
-    selection = typer.prompt(
-        "Select a template repository by number, or press Enter to use the default",
-        default="",
-    ).strip()
+    term_width = shutil.get_terminal_size((80, 24)).columns
+    # 4 = questionary pointer/indicator prefix, 30 = repo name col, 2 = spacing, 1 = ellipsis
+    menu_desc_width = max(10, term_width - 4 - 30 - 2 - 1)
 
-    if not selection:
-        return None
-
-    try:
-        idx = int(selection)
-        if 1 <= idx <= len(repos):
-            chosen = repos[idx - 1].full_name
-            logger.info(f"Selected template repository: {chosen}")
-            return chosen
+    default_label = "Use the default repository"
+    choices = [questionary.Choice(title=default_label, value=None)]
+    for repo in repos:
+        if repo.description:
+            raw = repo.description[:menu_desc_width]
+            desc = raw + "…" if len(repo.description) > menu_desc_width else raw
         else:
-            logger.warning(f"Invalid selection '{idx}', using default repository")
-            return None
-    except ValueError:
-        logger.warning(f"Invalid input '{selection}', using default repository")
+            desc = ""
+        label = f"{repo.full_name:<30}  {desc}".rstrip()
+        choices.append(questionary.Choice(title=label, value=repo.full_name))
+
+    chosen = questionary.select(
+        "Select a template repository:",
+        choices=choices,
+        style=_RHIZA_STYLE,
+    ).ask()
+
+    if chosen is None:
+        # Either user picked the default option or cancelled (Ctrl-C)
         return None
+
+    logger.info(f"Selected template repository: {chosen}")
+    return chosen
 
 
 def _get_default_templates_for_host(git_host: GitHost | str) -> list[str]:
@@ -191,12 +238,174 @@ def _get_default_templates_for_host(git_host: GitHost | str) -> list[str]:
 
     Returns:
         List of template names.
+
+    .. deprecated::
+        Use :func:`_prompt_profile` instead.  This function is retained for
+        backward compatibility when profile selection is not available
+        (e.g. offline, non-interactive, or the upstream bundle file has no
+        profiles section).
     """
     common = ["core", "tests", "book", "marimo", "presentation"]
     if git_host == GitHost.GITLAB:
         return [*common, "gitlab"]
     else:
         return [*common, "github"]
+
+
+def _fetch_profiles_from_upstream(
+    repo: str,
+    branch: str = "main",
+    git_host: GitHost | str = GitHost.GITHUB,
+    bundles_path: str = ".rhiza/template-bundles.yml",
+) -> tuple[dict[str, str], "RhizaBundles"] | None:
+    """Fetch available profiles from the upstream template-bundles.yml.
+
+    Args:
+        repo: Template repository in 'owner/repo' format.
+        branch: Branch to fetch from. Defaults to 'main'.
+        git_host: Git host. Defaults to GitHub.
+        bundles_path: Path to bundle definitions inside the repo.
+
+    Returns:
+        Tuple of (profiles map, full RhizaBundles object), or ``None`` if the
+        file could not be fetched or contains no profiles section.
+    """
+    import tempfile
+
+    from rhiza.models.bundle import RhizaBundles
+
+    try:
+        git_ctx = GitContext.default()
+        host_urls = {
+            GitHost.GITHUB: "https://github.com",
+            GitHost.GITLAB: "https://gitlab.com",
+        }
+        base_url = host_urls.get(git_host, "https://github.com")  # type: ignore[call-overload]
+        repo_url = f"{base_url}/{repo}.git"
+
+        tmpdir = Path(tempfile.mkdtemp())
+        try:
+            git_ctx.clone_repository(repo_url, tmpdir, branch, [bundles_path])
+            bundles_file = tmpdir / bundles_path
+            if not bundles_file.exists():
+                return None
+            rb = RhizaBundles.from_yaml(bundles_file)
+            if not rb.profiles:
+                return None
+            return {name: profile.description for name, profile in rb.profiles.items()}, rb
+        finally:
+            import shutil
+
+            shutil.rmtree(tmpdir, ignore_errors=True)
+    except Exception as exc:
+        logger.debug(f"Could not fetch profiles from upstream: {exc}")
+        return None
+
+
+def _prompt_profile(
+    profiles: dict[str, str],
+    git_host: GitHost | str = GitHost.GITHUB,
+    available_bundles: "RhizaBundles | None" = None,
+) -> tuple[list[str], list[str]]:
+    """Prompt the user to select a profile or hand-pick individual bundles.
+
+    Args:
+        profiles: Mapping of profile name → description.
+        git_host: Current git host (used for advanced fallback).
+        available_bundles: Full bundle definitions for advanced selection. When
+            provided, advanced mode shows a checkbox list of all bundles instead
+            of falling back to a hard-coded default list.
+
+    Returns:
+        Tuple of ``(selected_profiles, selected_templates)`` where exactly
+        one of the two lists will be non-empty.  In profile mode
+        ``selected_templates`` is empty; in advanced mode
+        ``selected_profiles`` is empty.
+    """
+    if not sys.stdin.isatty():
+        # Non-interactive: pick a sensible default profile
+        default = "github-project" if git_host == GitHost.GITHUB else "gitlab-project"
+        chosen = default if default in profiles else next(iter(profiles), None)
+        if chosen:
+            logger.debug(f"Non-interactive mode: using profile '{chosen}'")
+            return [chosen], []
+        return [], _get_default_templates_for_host(git_host)
+
+    # Build choices: one per profile + a separator + advanced option
+    choices: list[questionary.Choice | questionary.Separator] = []
+    for name, desc in profiles.items():
+        first_line = desc.strip().split("\n")[0].strip()
+        choices.append(questionary.Choice(title=f"{name}  —  {first_line}", value=name))
+    choices.append(questionary.Separator())
+    choices.append(questionary.Choice(title="Advanced — hand-pick individual bundles", value="__advanced__"))
+
+    selection = questionary.select(
+        "Select a setup profile:",
+        choices=choices,
+        style=_RHIZA_STYLE,
+    ).ask()
+
+    if selection is None:
+        # Cancelled — fall back to sensible default
+        default = "github-project" if git_host == GitHost.GITHUB else "gitlab-project"
+        chosen = default if default in profiles else next(iter(profiles), None)
+        return ([chosen], []) if chosen else ([], _get_default_templates_for_host(git_host))
+
+    if selection == "__advanced__":
+        return _prompt_advanced_bundles(git_host, available_bundles)
+
+    logger.info(f"Selected profile: {selection}")
+    return [selection], []
+
+
+def _prompt_advanced_bundles(
+    git_host: GitHost | str = GitHost.GITHUB,
+    available_bundles: "RhizaBundles | None" = None,
+) -> tuple[list[str], list[str]]:
+    """Prompt the user to hand-pick individual bundles via a checkbox list.
+
+    Args:
+        git_host: Current git host (used for default selection hints).
+        available_bundles: Full bundle definitions. When ``None`` falls back to
+            the hard-coded default list for the host.
+
+    Returns:
+        Tuple of ``([], selected_templates)`` — profiles list is always empty
+        in advanced mode.
+    """
+    if available_bundles and available_bundles.bundles:
+        default_names = set(_get_default_templates_for_host(git_host))
+        choices = []
+        for name, bundle in available_bundles.bundles.items():
+            raw_desc = (bundle.description or "").splitlines()[0].split(".")[0].strip()
+            if len(raw_desc) > 50:
+                raw_desc = raw_desc[:50] + "…"
+            label = f"{name}  —  {raw_desc}".rstrip() if raw_desc else name
+            # Title as a raw styled tuple list — questionary uses these directly,
+            # bypassing class:selected and class:highlighted on the text entirely.
+            # This means row text is always dim grey regardless of checked/hover state.
+            choices.append(
+                questionary.Choice(
+                    title=[("fg:#aaaaaa", label)],
+                    value=name,
+                    checked=name in default_names,
+                )
+            )
+        selected = questionary.checkbox(
+            "Select bundles:",
+            choices=choices,
+            style=_RHIZA_STYLE,
+        ).ask()
+        if selected is None or not selected:
+            # Cancelled or nothing chosen — fall back to defaults
+            logger.debug("Advanced bundle selection cancelled, using defaults")
+            return [], _get_default_templates_for_host(git_host)
+        logger.info(f"Advanced mode: selected bundles: {', '.join(selected)}")
+        return [], selected
+
+    # No bundle metadata available — fall back to defaults silently
+    logger.info("Advanced mode: using default bundle set for your git host")
+    return [], _get_default_templates_for_host(git_host)
 
 
 def _display_path(path: Path, target: Path) -> Path:
@@ -257,13 +466,32 @@ def _create_template_file(
     if template_branch:
         logger.info(f"Using custom template branch: {branch}")
 
-    templates = _get_default_templates_for_host(git_host)
-    logger.info(f"Using template-based configuration with templates: {', '.join(templates)}")
+    # Attempt profile-first selection: fetch upstream profiles and prompt user.
+    # TODO: remove feat/bundle-profiles fallback once that branch is merged to main.
+    fetch_result = _fetch_profiles_from_upstream(repo, branch, git_host)
+    if not fetch_result:
+        fetch_result = _fetch_profiles_from_upstream(repo, "feat/bundle-profiles", git_host)
+
+    selected_profiles: list[str] = []
+    selected_templates: list[str] = []
+
+    if fetch_result:
+        profiles_map, available_bundles = fetch_result
+        selected_profiles, selected_templates = _prompt_profile(profiles_map, git_host, available_bundles)
+    else:
+        # Fallback to legacy template list (offline or pre-profile upstream)
+        selected_templates = _get_default_templates_for_host(git_host)
+        logger.info(f"Using template-based configuration with templates: {', '.join(selected_templates)}")
+
+    if selected_profiles:
+        logger.info(f"Using profile-based configuration with profiles: {', '.join(selected_profiles)}")
+
     default_template = RhizaTemplate(
         template_repository=repo,
         template_branch=branch,
         language=language,
-        templates=templates,
+        profiles=selected_profiles,
+        templates=selected_templates,
     )
 
     logger.debug(f"Writing default template to: {template_file}")

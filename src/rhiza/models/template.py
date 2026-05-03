@@ -35,6 +35,12 @@ class RhizaTemplate(YamlSerializable):
         exclude: List of paths to exclude from the template repository (default: empty list).
         templates: List of template names to include (template-based mode).
             Can be used together with include to merge paths.
+        profiles: List of profile names to apply (profile-based mode).
+            Each profile expands to a set of bundles as defined in
+            template-bundles.yml. Profiles are expanded by
+            :func:`~rhiza.models._profile_resolver.resolve_bundles` before
+            sync. Old config files without a ``profiles`` key load without
+            error (defaults to empty list).
         template_bundles_path: Path to the bundle definitions file inside the upstream
             template repository. Defaults to ``.rhiza/template-bundles.yml``.
     """
@@ -46,6 +52,7 @@ class RhizaTemplate(YamlSerializable):
     include: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
     templates: list[str] = field(default_factory=list)
+    profiles: list[str] = field(default_factory=list)
     template_bundles_path: str = ".rhiza/template-bundles.yml"
 
     @classmethod
@@ -74,6 +81,7 @@ class RhizaTemplate(YamlSerializable):
             include=_normalize_to_list(config.get("include")),
             exclude=_normalize_to_list(config.get("exclude")),
             templates=_normalize_to_list(config.get("templates")),
+            profiles=_normalize_to_list(config.get("profiles")),
             template_bundles_path=config.get("template-bundles-path", ".rhiza/template-bundles.yml"),
         )
 
@@ -86,6 +94,8 @@ class RhizaTemplate(YamlSerializable):
         config["ref"] = self.template_branch
         config["template-host"] = str(self.template_host)
         config["language"] = self.language
+        if self.profiles:
+            config["profiles"] = self.profiles
         config["templates"] = self.templates
         config["include"] = self.include
         config["exclude"] = self.exclude
