@@ -9,7 +9,6 @@ templates:
 - legal
 - tests
 - book
-- renovate
 files:
 - .bandit
 - .editorconfig
@@ -91,7 +90,6 @@ files:
 - docs/index.md
 - docs/mkdocs-base.yml
 - pytest.ini
-- renovate.json
 - ruff.toml
-synced_at: '2026-04-25T03:59:15Z'
+synced_at: '2026-05-11T00:43:34Z'
 strategy: merge
