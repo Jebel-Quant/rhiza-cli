@@ -169,3 +169,20 @@ class TestResolveToPaths:
         result = bundles.resolve_to_paths(["ci"])
         # Makefile comes from core (dependency) and ci — should appear once
         assert result.count("Makefile") == 1
+
+    def test_resolves_transitive_bundle_dependencies(self):
+        """Nested requires are resolved transitively."""
+        bundles = RhizaBundles.from_config(
+            {
+                "bundles": {
+                    "core": {"description": "Core", "files": ["pyproject.toml"]},
+                    "github": {"description": "GitHub", "files": [".github/workflows/ci.yml"], "requires": ["core"]},
+                    "github-tests": {"description": "GitHub tests", "files": ["tests/"], "requires": ["github"]},
+                }
+            }
+        )
+
+        result = bundles.resolve_to_paths(["github-tests"])
+        assert "tests/" in result
+        assert ".github/workflows/ci.yml" in result
+        assert "pyproject.toml" in result
