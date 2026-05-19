@@ -139,14 +139,14 @@ wheels = [
 
 [[package]]
 name = "hypothesis"
-version = "6.152.6"
+version = "6.152.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "sortedcontainers" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f0/09/f5219c8fd75ff1f270a6f691df651c206e9316b9d0ce2cbd8b6f82844e1e/hypothesis-6.152.6.tar.gz", hash = "sha256:4a3f21e9a7349a17616626e9010f04360b02e6bf8ff15fdc7c53e76d5517c1e8", size = 467945, upload-time = "2026-05-11T13:12:59.888Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3b/fb/a5651eb0cd03ecee644e8f4d8cd2027b40a08bf1488f46201e794aebe9b5/hypothesis-6.152.9.tar.gz", hash = "sha256:de4711d69ce3a18009047c3b44882810fd0c0348c1558e920a4b0d2c45f59e1e", size = 472009, upload-time = "2026-05-19T17:10:19.586Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5f/1c/ed568eca3a963dc3e447b01961ae653e0d6f107c2cfd77b3f2b1a5cfc520/hypothesis-6.152.6-py3-none-any.whl", hash = "sha256:b20ffc532e5f2901229348d10ed7cb37fd9723ebf4799df663d2dce1cdce4e32", size = 533724, upload-time = "2026-05-11T13:12:56.182Z" },
+    { url = "https://files.pythonhosted.org/packages/79/d9/40ef7ed22f0c45c2316467edb9afb8fc172cd089cb329c0ee6da6b74416c/hypothesis-6.152.9-py3-none-any.whl", hash = "sha256:9c4fdccb1eac0b12ec740c12290d0e6a0bea3526a3f0bf812b7643bb563c2d8b", size = 538148, upload-time = "2026-05-19T17:10:16.131Z" },
 ]
 
 [[package]]
@@ -764,7 +764,7 @@ dev = [
 
 [[package]]
 name = "rhiza-tools"
-version = "0.4.5"
+version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bump-my-version" },
@@ -777,9 +777,9 @@ dependencies = [
     { name = "tomlkit" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/23/ad/502901c2053f20853d9394317e740c1f59d4bf07e4885a8cbe372a4c2862/rhiza_tools-0.4.5.tar.gz", hash = "sha256:22d597f26208bee4e2b817764c0627a39ba978f0ec40c3dcf2c79f0f5b5a8fdb", size = 268037, upload-time = "2026-04-25T06:30:30.227Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/92/a6/ededd684155b1016a39917b26383ceb704247c5890564843e93b2dcc6c5f/rhiza_tools-0.5.0.tar.gz", hash = "sha256:b0be1e00bf09c3d45dce4f1ff42f7d19e6db025969225f85947b5860f37b3945", size = 270112, upload-time = "2026-05-18T07:15:34.312Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/74/55/53814da44b15a67fa6b12033d7158e84b6b88e856e08d349e7adbb907194/rhiza_tools-0.4.5-py3-none-any.whl", hash = "sha256:1cd120d66b6995469bd40021f0ac4f1aeecf3fb7049da7d0041e76932e7be44e", size = 43507, upload-time = "2026-04-25T06:30:28.874Z" },
+    { url = "https://files.pythonhosted.org/packages/58/f6/6f66ffa41a595613050b786668c1a3becb38b7d41f89d025bee219891d1f/rhiza_tools-0.5.0-py3-none-any.whl", hash = "sha256:1c11407fb4d1f99113cacf4484eacffaa238c02b2c7cdef2d605d9491ea298b1", size = 43642, upload-time = "2026-05-18T07:15:32.553Z" },
 ]
 
 [[package]]
