@@ -155,14 +155,31 @@ class RhizaBundles(YamlSerializable):
         Raises:
             ValueError: If a bundle doesn't exist or circular dependency detected.
         """
-        bundles: set[str] = set()
+        bundles: list[str] = []
+        resolved: set[str] = set()
+        resolving: set[str] = set()
         paths: list[str] = []
         seen: set[str] = set()
 
+        def _collect(bundle_name: str) -> None:
+            if bundle_name not in self.bundles:
+                msg = f"Bundle '{bundle_name}' does not exist"
+                raise ValueError(msg)
+            if bundle_name in resolving:
+                msg = f"Circular dependency detected for bundle '{bundle_name}'"
+                raise ValueError(msg)
+            if bundle_name in resolved:
+                return
+
+            resolving.add(bundle_name)
+            for dependency in self.bundles[bundle_name].requires:
+                _collect(dependency)
+            resolving.remove(bundle_name)
+            resolved.add(bundle_name)
+            bundles.append(bundle_name)
+
         for bundle_name in bundle_names:
-            bundles.add(bundle_name)
-            for bundle in self.bundles[bundle_name].requires:
-                bundles.add(bundle)
+            _collect(bundle_name)
 
         for bundle_name in bundles:
             bundle = self.bundles[bundle_name]
