@@ -826,3 +826,101 @@ class TestSummariseCommand:
 
         assert result.exit_code == 0
         assert "Custom Heading" in result.stdout
+
+    # ------------------------------------------------------------------
+    # Tests covering exception paths in get_template_info / get_last_sync_date
+    # ------------------------------------------------------------------
+
+    def test_get_template_info_handles_malformed_lock_file(self, git_repo):
+        """get_template_info falls back gracefully when template.lock is malformed."""
+        from rhiza.commands.summarise import get_template_info
+
+        rhiza_dir = git_repo / ".rhiza"
+        rhiza_dir.mkdir()
+        (rhiza_dir / "template.lock").write_text("not: valid: yaml: [\n")
+
+        repo, branch = get_template_info(git_repo)
+        assert repo == ""
+        assert branch == ""
+
+    def test_get_template_info_handles_malformed_template_yml(self, git_repo):
+        """get_template_info returns empty strings when template.yml cannot be parsed."""
+        from rhiza.commands.summarise import get_template_info
+
+        rhiza_dir = git_repo / ".rhiza"
+        rhiza_dir.mkdir()
+        (rhiza_dir / "template.yml").write_text("not: valid: yaml: [\n")
+
+        repo, branch = get_template_info(git_repo)
+        assert repo == ""
+        assert branch == ""
+
+    def test_get_last_sync_date_handles_malformed_lock_file(self, git_repo):
+        """get_last_sync_date continues to git log when template.lock is malformed."""
+        from unittest.mock import patch
+
+        from rhiza.commands.summarise import get_last_sync_date
+
+        rhiza_dir = git_repo / ".rhiza"
+        rhiza_dir.mkdir()
+        (rhiza_dir / "template.lock").write_text("not: valid: yaml: [\n")
+
+        with patch("rhiza.commands.summarise.run_git_command", return_value="2025-01-01T00:00:00Z"):
+            result = get_last_sync_date(git_repo)
+
+        assert result == "2025-01-01T00:00:00Z"
+
+    # ------------------------------------------------------------------
+    # Tests covering _generate_plain_output branches
+    # ------------------------------------------------------------------
+
+    def test_summarise_format_plain_with_template_repo_in_header(self, git_repo, capsys):
+        """Plain format includes the template repo name in the header."""
+        git_cmd = shutil.which("git") or "git"
+
+        rhiza_dir = git_repo / ".rhiza"
+        rhiza_dir.mkdir()
+        (rhiza_dir / "template.lock").write_text(
+            "sha: abc123\nrepo: my-org/plain-template\nref: v1.0\nsynced_at: '2025-01-15T00:00:00Z'\n"
+        )
+        (git_repo / "test.txt").write_text("content")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
+
+        summarise(git_repo, options=SummariseOptions(output_format="plain"))
+
+        assert "my-org/plain-template" in capsys.readouterr().out
+
+    def test_summarise_format_plain_no_changes(self, git_repo, capsys):
+        """Plain format with no staged changes outputs 'No changes detected.'."""
+        summarise(git_repo, options=SummariseOptions(output_format="plain"))
+
+        assert "No changes detected." in capsys.readouterr().out
+
+    def test_summarise_format_plain_no_categories_shows_flat_list(self, git_repo, capsys):
+        """Plain format with include_categories=False calls _plain_file_section."""
+        git_cmd = shutil.which("git") or "git"
+
+        (git_repo / "added.txt").write_text("new file")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
+
+        summarise(git_repo, options=SummariseOptions(output_format="plain", include_categories=False))
+
+        output = capsys.readouterr().out
+        assert "Added:" in output
+        assert "added.txt" in output
+
+    def test_summarise_format_plain_shows_last_sync_in_footer(self, git_repo, capsys):
+        """Plain format includes 'Last sync' line in the footer."""
+        git_cmd = shutil.which("git") or "git"
+
+        rhiza_dir = git_repo / ".rhiza"
+        rhiza_dir.mkdir()
+        (rhiza_dir / "template.lock").write_text(
+            "sha: abc123\nrepo: my-org/t\nref: main\nsynced_at: '2024-11-01T10:00:00Z'\n"
+        )
+        (git_repo / "file.txt").write_text("content")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
+
+        summarise(git_repo, options=SummariseOptions(output_format="plain"))
+
+        assert "Last sync: 2024-11-01T10:00:00Z" in capsys.readouterr().out

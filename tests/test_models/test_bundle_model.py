@@ -186,3 +186,34 @@ class TestResolveToPaths:
         assert "tests/" in result
         assert ".github/workflows/ci.yml" in result
         assert "pyproject.toml" in result
+
+    def test_resolve_to_paths_raises_for_nonexistent_bundle(self):
+        """ValueError raised when a requested bundle does not exist."""
+        import pytest
+
+        bundles = self._make_bundles()
+        with pytest.raises(ValueError, match="does not exist"):
+            bundles.resolve_to_paths(["nonexistent-bundle"])
+
+    def test_resolve_to_paths_raises_for_circular_dependency(self):
+        """ValueError raised when bundles form a circular dependency chain."""
+        import pytest
+
+        bundles = RhizaBundles.from_config(
+            {
+                "bundles": {
+                    "a": {"description": "A", "files": ["a.txt"], "requires": ["b"]},
+                    "b": {"description": "B", "files": ["b.txt"], "requires": ["a"]},
+                }
+            }
+        )
+        with pytest.raises(ValueError, match=r"[Cc]ircular"):
+            bundles.resolve_to_paths(["a"])
+
+    def test_resolve_to_paths_already_resolved_bundle_skipped(self):
+        """A bundle that is a dependency of the first request is skipped when requested again."""
+        bundles = self._make_bundles()
+        # 'core' is a dependency of 'ci'; requesting both should not raise or duplicate.
+        result = bundles.resolve_to_paths(["ci", "core"])
+        assert result.count("Makefile") == 1
+        assert result.count("pyproject.toml") == 1

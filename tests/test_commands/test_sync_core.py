@@ -15,6 +15,7 @@ Covers the five fundamental scenarios:
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 import yaml
 
 from rhiza.commands._sync_helpers import _write_lock
@@ -514,3 +515,23 @@ class TestSyncPathToTemplateBundlesDerived:
         first_clone_call = mock_clone.call_args_list[0]
         sparse_paths_arg = first_clone_call[0][3]
         assert sparse_paths_arg == [".rhiza/template-bundles.yml"]
+
+    @patch("rhiza.models._git_utils.GitContext.sync_merge")
+    @patch("rhiza.commands.sync.shutil.rmtree")
+    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.commands.sync.tempfile.mkdtemp")
+    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    def test_sync_raises_runtime_error_on_merge_conflicts(
+        self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, mock_sync_merge, tmp_path
+    ):
+        """sync() raises RuntimeError when sync_merge signals unresolved conflicts."""
+        _setup_project(tmp_path)
+        mock_sha.return_value = "sha123abc"
+        mock_sync_merge.return_value = False
+
+        clone_dir = _make_clone_dir(tmp_path, "upstream_clone", {"test.txt": "upstream\n"})
+        snapshot_dir = _make_clone_dir(tmp_path, "upstream_snapshot", {})
+        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir)]
+
+        with pytest.raises(RuntimeError, match="Sync completed with merge conflicts"):
+            sync(tmp_path, "main", None, "merge")

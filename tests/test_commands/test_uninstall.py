@@ -9,7 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from rhiza.cli import app
-from rhiza.commands.uninstall import uninstall
+from rhiza.commands.uninstall import _remove_files, uninstall
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -168,6 +168,45 @@ class TestUninstallCommand:
         uninstall(tmp_path, force=True)
 
         assert lock_file.exists()
+
+    def test_remove_files_permission_error_success_after_chmod(self, tmp_path):
+        """PermissionError triggers chmod+retry; success path increments removed_count."""
+        f = tmp_path / "locked.txt"
+        f.write_text("content")
+
+        first_call = {"done": False}
+        real_unlink = Path.unlink
+
+        def patched_unlink(self, missing_ok=False):
+            if self.name == "locked.txt" and not first_call["done"]:
+                first_call["done"] = True
+                raise PermissionError("read-only file")  # noqa: TRY003
+            real_unlink(self, missing_ok=missing_ok)
+
+        with patch.object(Path, "unlink", patched_unlink):
+            removed, _skipped, errors = _remove_files([Path("locked.txt")], tmp_path)
+
+        assert removed == 1
+        assert errors == 0
+        assert not f.exists()
+
+    def test_remove_files_generic_exception_increments_error_count(self, tmp_path):
+        """Non-PermissionError on unlink increments error_count without raising."""
+        f = tmp_path / "problem.txt"
+        f.write_text("content")
+
+        real_unlink = Path.unlink
+
+        def patched_unlink(self, missing_ok=False):
+            if self.name == "problem.txt":
+                raise OSError("disk I/O error")  # noqa: TRY003
+            real_unlink(self, missing_ok=missing_ok)
+
+        with patch.object(Path, "unlink", patched_unlink):
+            removed, _skipped, errors = _remove_files([Path("problem.txt")], tmp_path)
+
+        assert errors == 1
+        assert removed == 0
 
 
 # ---------------------------------------------------------------------------

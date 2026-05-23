@@ -63,5 +63,6 @@ DEP002 = ["rhiza-tools"]
 dev = [
     "hypothesis>=6.151.9",
     "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
 ]
 

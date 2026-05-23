@@ -22,6 +22,7 @@ from rhiza.commands._sync_helpers import (
     _clean_orphaned_files,
     _delete_orphaned_file,
     _files_from_snapshot,
+    _lock_content_unchanged,
     _read_previously_tracked_files,
     _warn_about_workflow_files,
     _write_lock,
@@ -213,6 +214,15 @@ class TestLockFile:
         lock_second = TemplateLock(sha="bbb222", synced_at="2024-06-01T12:00:00Z")
         _write_lock(tmp_path, lock_second)
         assert TemplateLock.from_yaml(lock_path).config["sha"] == "bbb222"
+
+    def test_lock_content_unchanged_returns_false_on_parse_error(self, tmp_path):
+        """_lock_content_unchanged returns False when the lock file is malformed."""
+        lock_path = tmp_path / ".rhiza" / "template.lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text("not: valid: yaml: [\n")
+
+        result = _lock_content_unchanged(TemplateLock(sha="abc"), lock_path)
+        assert result is False
 
 
 class TestApplyDiff:
@@ -496,6 +506,29 @@ class TestApplyDiffConflict:
         result = git_ctx._apply_diff(diff, git_project)
         assert result is False
 
+    def test_apply_diff_warns_for_conflict_marker_files(self, git_project, git_ctx):
+        """When scan finds conflict markers, the marker-files warning is emitted."""
+        from loguru import logger as _logger
+
+        messages: list[str] = []
+        handler_id = _logger.add(lambda msg: messages.append(msg), format="{message}", colorize=False)
+        try:
+            with patch.object(git_ctx, "_scan_conflict_artifacts", return_value=([], ["conflicted.py"])):
+                diff = (
+                    "diff --git a/nonexistent.txt b/nonexistent.txt\n"
+                    "--- a/nonexistent.txt\n"
+                    "+++ b/nonexistent.txt\n"
+                    "@@ -1 +1 @@\n"
+                    "-old\n"
+                    "+new\n"
+                )
+                result = git_ctx._apply_diff(diff, git_project)
+        finally:
+            _logger.remove(handler_id)
+
+        assert result is False
+        assert any("conflicted.py" in m or "conflict markers" in m for m in messages)
+
     def test_apply_diff_logs_rej_file_details_on_conflict(self, git_project, git_ctx):
         """After a conflict, a warning message names each .rej file explicitly."""
         from loguru import logger as _logger
@@ -566,6 +599,13 @@ class TestScanConflictArtifacts:
         rej, markers = git_ctx._scan_conflict_artifacts(tmp_path)
         assert any("module.py.rej" in r for r in rej)
         assert any("other.py" in m for m in markers)
+
+    def test_oserror_on_read_silently_ignored(self, tmp_path, git_ctx):
+        """OSError when reading a file's bytes is silently swallowed."""
+        (tmp_path / "binary.dat").write_bytes(b"\x00\x01\x02")
+        with patch("pathlib.Path.read_bytes", side_effect=OSError("Permission denied")):
+            _rej_files, marker_files = git_ctx._scan_conflict_artifacts(tmp_path)
+        assert marker_files == []
 
 
 class TestSyncMergeWithBase:
