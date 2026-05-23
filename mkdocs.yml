@@ -9,49 +9,49 @@ edit_uri: edit/main/
 
 docs_dir: docs  # must not be '.' (project root) — _book would then be inside docs_dir, which MkDocs rejects
 
-theme:
-  palette:
-    - scheme: default
-      primary: teal
-      accent: teal
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    - scheme: slate
-      primary: teal
-      accent: teal
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
-  features:
-    - navigation.tabs
-    - navigation.sections
-    - navigation.expand
-    - navigation.top
-    - toc.integrate
-    - search.suggest
-    - search.highlight
-    - content.code.copy
+#theme:
+#  palette:
+#    - scheme: default
+#      primary: teal
+#      accent: teal
+#      toggle:
+#        icon: material/brightness-7
+#        name: Switch to dark mode
+#    - scheme: slate
+#      primary: teal
+#      accent: teal
+#      toggle:
+#        icon: material/brightness-4
+#        name: Switch to light mode
+#  features:
+#    - navigation.tabs
+#    - navigation.sections
+#    - navigation.expand
+#    - navigation.top
+#    - toc.integrate
+#    - search.suggest
+#    - search.highlight
+#    - content.code.copy
 
-markdown_extensions:
-  - md_in_html
-  - admonition
-  - attr_list
-  - toc:
-      permalink: true
-      toc_depth: 3
-  - pymdownx.details
-  - pymdownx.highlight:
-      anchor_linenums: true
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.snippets:
-      base_path: ["."]
-  - pymdownx.tabbed:
-      alternate_style: true
+#markdown_extensions:
+#  - md_in_html
+#  - admonition
+#  - attr_list
+#  - toc:
+#      permalink: true
+#      toc_depth: 3
+#  - pymdownx.details
+#  - pymdownx.highlight:
+#      anchor_linenums: true
+#  - pymdownx.superfences:
+#      custom_fences:
+#        - name: mermaid
+#          class: mermaid
+#          format: !!python/name:pymdownx.superfences.fence_code_format
+#  - pymdownx.snippets:
+#      base_path: ["."]
+#  - pymdownx.tabbed:
+#      alternate_style: true
 
 nav:
   - Home: index.md
