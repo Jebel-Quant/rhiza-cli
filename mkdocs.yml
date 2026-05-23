@@ -55,11 +55,11 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Guides:
-      - Authentication: AUTHENTICATION.md
-      - Testing: development/TESTS.md
   - Decisions:
       - Overview: adr/README.md
       - ADR-0001 — Inline get_diff: adr/0001-inline-get-diff-instead-of-cruft.md
       - ADR-0002 — Repository/ref keys: adr/0002-repository-ref-as-canonical-keys.md
       - ADR-0003 — Lock file concurrency: adr/0003-lock-file-concurrency.md
+  - Reports:
+      - Test Report: reports/html-report/report.html
+      - Coverage Report: reports/html-coverage/index.html
