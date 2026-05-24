@@ -165,8 +165,7 @@ def _clone_template(
                         f"Available profiles: {available_text}"
                     )
                 raise ValueError(  # noqa: TRY003
-                    f"Profile '{template.profile}' was not found in {bundles_path}. "
-                    "No profiles are defined."
+                    f"Profile '{template.profile}' was not found in {bundles_path}. No profiles are defined."
                 )
             profile_bundle_names = profiles[template.profile].bundles
             all_bundle_names = list(dict.fromkeys(profile_bundle_names + template.templates))
