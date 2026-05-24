@@ -368,6 +368,41 @@ class TestRhizaTemplateClone:
         with pytest.raises(ValueError, match="No templates, profile, or include paths"):
             _clone_template(template, GitContext.default())
 
+    @patch("rhiza.models._git_utils.GitContext.update_sparse_checkout")
+    @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
+    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    def test_clone_resolves_profile_to_paths(self, mock_clone, mock_head_sha, mock_from_yaml, mock_sparse):
+        """_clone_template resolves a profile to bundle names then to file paths."""
+        from rhiza.models.bundle import RhizaBundles
+
+        mock_head_sha.return_value = "sha_profile"
+        mock_bundles = RhizaBundles.from_config(
+            {
+                "bundles": {
+                    "core": {"description": "Core", "files": ["Makefile"]},
+                    "book": {"description": "Book", "files": ["docs/"]},
+                },
+                "profiles": {
+                    "local": {"description": "Local", "bundles": ["core", "book"]},
+                },
+            }
+        )
+        mock_from_yaml.return_value = mock_bundles
+
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            template_branch="main",
+            profile="local",
+        )
+
+        upstream_dir, upstream_sha, resolved = _clone_template(template, GitContext.default())
+
+        assert upstream_sha == "sha_profile"
+        assert "Makefile" in resolved
+        assert "docs/" in resolved
+        shutil.rmtree(upstream_dir, ignore_errors=True)
+
     @patch("rhiza.models._git_utils.GitContext.get_head_sha")
     @patch("rhiza.models._git_utils.GitContext.clone_repository")
     def test_clone_uses_template_branch_over_default(self, mock_clone, mock_head_sha):
