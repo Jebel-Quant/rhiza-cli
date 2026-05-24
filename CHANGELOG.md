@@ -1,3 +1,16 @@
+## [0.14.0] - 2026-05-24
+
+### 🚀 Features
+
+- Add profile support to template configuration (#502)
+
+### 💼 Other
+
+- Bump version 0.13.6 → 0.14.0
+
+### ⚙️ Miscellaneous Tasks
+
+- Update CHANGELOG.md for v0.13.6 [skip ci]
 ## [0.13.6] - 2026-05-23
 
 ### 🐛 Bug Fixes
