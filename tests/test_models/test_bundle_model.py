@@ -274,6 +274,18 @@ class TestProfileDefinition:
                 }
             )
 
+    def test_profiles_null_in_yaml_treated_as_empty(self):
+        """profiles: null in YAML (None in Python) is coerced to an empty dict."""
+        bundles = RhizaBundles.from_config({"bundles": {}, "profiles": None})
+        assert bundles.profiles == {}
+
+    def test_profiles_not_a_dict_raises_type_error(self):
+        """TypeError raised when profiles value is not a dict."""
+        import pytest
+
+        with pytest.raises(TypeError, match="Profiles must be a dictionary"):
+            RhizaBundles.from_config({"bundles": {}, "profiles": ["not", "a", "dict"]})
+
     def test_config_round_trips_profiles(self):
         """Profiles survive a config round-trip."""
         original = self._make_bundles_with_profiles()

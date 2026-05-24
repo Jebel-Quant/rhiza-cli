@@ -368,6 +368,51 @@ class TestRhizaTemplateClone:
         with pytest.raises(ValueError, match="No templates, profile, or include paths"):
             _clone_template(template, GitContext.default())
 
+    @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
+    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    def test_clone_raises_when_profile_not_found_with_alternatives(self, mock_clone, mock_head_sha, mock_from_yaml):
+        """_clone_template raises ValueError listing available profiles when profile is missing."""
+        from rhiza.models.bundle import RhizaBundles
+
+        mock_head_sha.return_value = "sha"
+        mock_from_yaml.return_value = RhizaBundles.from_config(
+            {
+                "bundles": {"core": {"description": "Core", "files": ["Makefile"]}},
+                "profiles": {"local": {"bundles": ["core"]}},
+            }
+        )
+
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            template_branch="main",
+            profile="nonexistent",
+        )
+
+        with pytest.raises(ValueError, match="Available profiles: local"):
+            _clone_template(template, GitContext.default())
+
+    @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
+    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    def test_clone_raises_when_profile_not_found_no_profiles_defined(self, mock_clone, mock_head_sha, mock_from_yaml):
+        """_clone_template raises ValueError noting no profiles are defined when profiles is empty."""
+        from rhiza.models.bundle import RhizaBundles
+
+        mock_head_sha.return_value = "sha"
+        mock_from_yaml.return_value = RhizaBundles.from_config(
+            {"bundles": {"core": {"description": "Core", "files": ["Makefile"]}}}
+        )
+
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            template_branch="main",
+            profile="nonexistent",
+        )
+
+        with pytest.raises(ValueError, match="No profiles are defined"):
+            _clone_template(template, GitContext.default())
+
     @patch("rhiza.models._git_utils.GitContext.update_sparse_checkout")
     @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
     @patch("rhiza.models._git_utils.GitContext.get_head_sha")
