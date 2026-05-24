@@ -155,7 +155,20 @@ def _clone_template(
 
         # Resolve profile → bundle names, then merge with explicit templates list
         if template.profile:
-            profile_bundle_names = bundles.profiles[template.profile].bundles
+            profiles = bundles.profiles or {}
+            if template.profile not in profiles:
+                available_profiles = sorted(profiles)
+                if available_profiles:
+                    available_text = ", ".join(available_profiles)
+                    raise ValueError(  # noqa: TRY003
+                        f"Profile '{template.profile}' was not found in {bundles_path}. "
+                        f"Available profiles: {available_text}"
+                    )
+                raise ValueError(  # noqa: TRY003
+                    f"Profile '{template.profile}' was not found in {bundles_path}. "
+                    "No profiles are defined."
+                )
+            profile_bundle_names = profiles[template.profile].bundles
             all_bundle_names = list(dict.fromkeys(profile_bundle_names + template.templates))
         else:
             all_bundle_names = template.templates
