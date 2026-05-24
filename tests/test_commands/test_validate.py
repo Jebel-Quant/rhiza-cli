@@ -875,6 +875,16 @@ class TestValidateHelperFunctions:
         result = _validate_configuration_mode({"repository": "owner/repo", "profile": "github-project"})
         assert result is True
 
+    def test_validate_configuration_mode_profile_must_be_string(self):
+        """_validate_configuration_mode returns False when profile is not a string."""
+        result = _validate_configuration_mode({"repository": "owner/repo", "profile": ["github-project"]})
+        assert result is False
+
+    def test_validate_configuration_mode_profile_cannot_be_empty(self):
+        """_validate_configuration_mode returns False when profile is empty."""
+        result = _validate_configuration_mode({"repository": "owner/repo", "profile": "  "})
+        assert result is False
+
     def test_validate_templates_without_templates_key(self):
         """_validate_templates returns True when config has no 'templates' key (line 162)."""
         result = _validate_templates({"include": [".github"]})

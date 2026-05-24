@@ -132,7 +132,19 @@ def _validate_configuration_mode(config: dict[str, Any]) -> bool:
     logger.debug("Validating configuration mode")
     has_templates = "templates" in config and config["templates"]
     has_include = "include" in config and config["include"]
-    has_profile = "profile" in config and config["profile"]
+    has_profile = False
+
+    if "profile" in config:
+        profile = config["profile"]
+        if not isinstance(profile, str):
+            logger.error(f"profile must be a string, got {type(profile).__name__}")
+            logger.error("Example: profile: github-project")
+            return False
+        if not profile.strip():
+            logger.error("profile cannot be empty")
+            logger.error("Example: profile: github-project")
+            return False
+        has_profile = True
 
     # Error if old "bundles" field is used
     if "bundles" in config:
