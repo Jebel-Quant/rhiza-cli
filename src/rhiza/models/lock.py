@@ -32,6 +32,7 @@ class TemplateLock(YamlSerializable):
     include: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
     templates: list[str] = field(default_factory=list)
+    profile: str = ""
     files: list[str] = field(default_factory=list)
     synced_at: str = ""
     strategy: str = ""
@@ -54,6 +55,7 @@ class TemplateLock(YamlSerializable):
             include=_normalize_to_list(config.get("include")),
             exclude=_normalize_to_list(config.get("exclude")),
             templates=_normalize_to_list(config.get("templates")),
+            profile=config.get("profile", ""),
             files=_normalize_to_list(config.get("files")),
             synced_at=config.get("synced_at", ""),
             strategy=config.get("strategy", ""),
@@ -72,6 +74,8 @@ class TemplateLock(YamlSerializable):
             "templates": self.templates,
             "files": self.files,
         }
+        if self.profile:
+            config["profile"] = self.profile
         if self.synced_at:
             config["synced_at"] = self.synced_at
         if self.strategy:

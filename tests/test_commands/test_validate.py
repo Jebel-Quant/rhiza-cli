@@ -13,6 +13,7 @@ from typer.testing import CliRunner
 
 from rhiza import cli
 from rhiza.commands.validate import (
+    _validate_configuration_mode,
     _validate_include_paths,
     _validate_language_field,
     _validate_repository_format,
@@ -868,6 +869,21 @@ class TestValidateCommand:
 
 class TestValidateHelperFunctions:
     """Tests that directly exercise private helper function edge-case branches."""
+
+    def test_validate_configuration_mode_profile_only(self):
+        """_validate_configuration_mode returns True when only 'profile' is set."""
+        result = _validate_configuration_mode({"repository": "owner/repo", "profile": "github-project"})
+        assert result is True
+
+    def test_validate_configuration_mode_profile_must_be_string(self):
+        """_validate_configuration_mode returns False when profile is not a string."""
+        result = _validate_configuration_mode({"repository": "owner/repo", "profile": ["github-project"]})
+        assert result is False
+
+    def test_validate_configuration_mode_profile_cannot_be_empty(self):
+        """_validate_configuration_mode returns False when profile is empty."""
+        result = _validate_configuration_mode({"repository": "owner/repo", "profile": "  "})
+        assert result is False
 
     def test_validate_templates_without_templates_key(self):
         """_validate_templates returns True when config has no 'templates' key (line 162)."""

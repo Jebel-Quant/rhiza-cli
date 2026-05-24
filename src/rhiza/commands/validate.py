@@ -121,7 +121,7 @@ def _parse_yaml_file(template_file: Path) -> tuple[bool, dict[str, Any] | None]:
 
 
 def _validate_configuration_mode(config: dict[str, Any]) -> bool:
-    """Validate that at least one of templates or include is specified.
+    """Validate that at least one of profile, templates, or include is specified.
 
     Args:
         config: Configuration dictionary.
@@ -132,6 +132,19 @@ def _validate_configuration_mode(config: dict[str, Any]) -> bool:
     logger.debug("Validating configuration mode")
     has_templates = "templates" in config and config["templates"]
     has_include = "include" in config and config["include"]
+    has_profile = False
+
+    if "profile" in config:
+        profile = config["profile"]
+        if not isinstance(profile, str):
+            logger.error(f"profile must be a string, got {type(profile).__name__}")
+            logger.error("Example: profile: github-project")
+            return False
+        if not profile.strip():
+            logger.error("profile cannot be empty")
+            logger.error("Example: profile: github-project")
+            return False
+        has_profile = True
 
     # Error if old "bundles" field is used
     if "bundles" in config:
@@ -140,17 +153,20 @@ def _validate_configuration_mode(config: dict[str, Any]) -> bool:
         logger.error("  bundles: [...]  →  templates: [...]")
         return False
 
-    # Require at least one of templates or include
-    if not has_templates and not has_include:
-        logger.error("Must specify at least one of 'templates' or 'include' in template.yml")
+    # Require at least one of profile, templates, or include
+    if not has_profile and not has_templates and not has_include:
+        logger.error("Must specify at least one of 'profile', 'templates', or 'include' in template.yml")
         logger.error("Options:")
+        logger.error("  • Profile-based: profile: github-project")
         logger.error("  • Template-based: templates: [core, tests, github]")
         logger.error("  • Path-based: include: [.rhiza, .github, ...]")
         logger.error("  • Hybrid: specify both templates and include")
         return False
 
     # Log what mode is being used
-    if has_templates and has_include:
+    if has_profile:
+        logger.success(f"Using profile mode (profile: {config['profile']})")
+    elif has_templates and has_include:
         logger.success("Using hybrid mode (templates + include)")
     elif has_templates:
         logger.success("Using template-based mode")

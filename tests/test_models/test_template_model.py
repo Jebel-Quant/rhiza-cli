@@ -195,6 +195,39 @@ class TestRhizaTemplate:
         assert config["repository"] == ""
         assert config["ref"] == ""
 
+        # 5. profile is included when set, omitted when empty
+        template = RhizaTemplate(template_repository="owner/repo", profile="github-project")
+        template_file = tmp_path / "template_profile.yml"
+        template.to_yaml(template_file)
+        with open(template_file) as f:
+            config = yaml.safe_load(f)
+        assert config["profile"] == "github-project"
+
+        template_no_profile = RhizaTemplate(template_repository="owner/repo")
+        template_file2 = tmp_path / "template_no_profile.yml"
+        template_no_profile.to_yaml(template_file2)
+        with open(template_file2) as f:
+            config2 = yaml.safe_load(f)
+        assert "profile" not in config2
+
+    def test_rhiza_template_profile_round_trip(self, tmp_path):
+        """Profile field survives a YAML round-trip."""
+        original = RhizaTemplate(
+            template_repository="owner/repo",
+            template_branch="main",
+            profile="github-project",
+        )
+        template_file = tmp_path / "template.yml"
+        original.to_yaml(template_file)
+        loaded = RhizaTemplate.from_yaml(template_file)
+        assert loaded.profile == "github-project"
+        assert loaded == original
+
+    def test_rhiza_template_from_config_profile_default(self):
+        """Profile defaults to empty string when not present in config."""
+        template = RhizaTemplate.from_config({"repository": "owner/repo", "templates": ["core"]})
+        assert template.profile == ""
+
     def test_normalize_to_list_with_unexpected_type(self, tmp_path):
         """Test that _normalize_to_list handles unexpected types gracefully."""
         from rhiza.models._git_utils import _normalize_to_list
@@ -330,10 +363,90 @@ class TestRhizaTemplateClone:
             _clone_template(template, GitContext.default())
 
     def test_clone_raises_when_no_include_or_templates(self):
-        """_clone_template raises ValueError when neither include nor templates are set."""
+        """_clone_template raises ValueError when neither include, templates, nor profile are set."""
         template = RhizaTemplate(template_repository="owner/repo")
-        with pytest.raises(ValueError, match="No templates or include paths"):
+        with pytest.raises(ValueError, match="No templates, profile, or include paths"):
             _clone_template(template, GitContext.default())
+
+    @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
+    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    def test_clone_raises_when_profile_not_found_with_alternatives(self, mock_clone, mock_head_sha, mock_from_yaml):
+        """_clone_template raises ValueError listing available profiles when profile is missing."""
+        from rhiza.models.bundle import RhizaBundles
+
+        mock_head_sha.return_value = "sha"
+        mock_from_yaml.return_value = RhizaBundles.from_config(
+            {
+                "bundles": {"core": {"description": "Core", "files": ["Makefile"]}},
+                "profiles": {"local": {"bundles": ["core"]}},
+            }
+        )
+
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            template_branch="main",
+            profile="nonexistent",
+        )
+
+        with pytest.raises(ValueError, match="Available profiles: local"):
+            _clone_template(template, GitContext.default())
+
+    @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
+    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    def test_clone_raises_when_profile_not_found_no_profiles_defined(self, mock_clone, mock_head_sha, mock_from_yaml):
+        """_clone_template raises ValueError noting no profiles are defined when profiles is empty."""
+        from rhiza.models.bundle import RhizaBundles
+
+        mock_head_sha.return_value = "sha"
+        mock_from_yaml.return_value = RhizaBundles.from_config(
+            {"bundles": {"core": {"description": "Core", "files": ["Makefile"]}}}
+        )
+
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            template_branch="main",
+            profile="nonexistent",
+        )
+
+        with pytest.raises(ValueError, match="No profiles are defined"):
+            _clone_template(template, GitContext.default())
+
+    @patch("rhiza.models._git_utils.GitContext.update_sparse_checkout")
+    @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
+    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    def test_clone_resolves_profile_to_paths(self, mock_clone, mock_head_sha, mock_from_yaml, mock_sparse):
+        """_clone_template resolves a profile to bundle names then to file paths."""
+        from rhiza.models.bundle import RhizaBundles
+
+        mock_head_sha.return_value = "sha_profile"
+        mock_bundles = RhizaBundles.from_config(
+            {
+                "bundles": {
+                    "core": {"description": "Core", "files": ["Makefile"]},
+                    "book": {"description": "Book", "files": ["docs/"]},
+                },
+                "profiles": {
+                    "local": {"description": "Local", "bundles": ["core", "book"]},
+                },
+            }
+        )
+        mock_from_yaml.return_value = mock_bundles
+
+        template = RhizaTemplate(
+            template_repository="owner/repo",
+            template_branch="main",
+            profile="local",
+        )
+
+        upstream_dir, upstream_sha, resolved = _clone_template(template, GitContext.default())
+
+        assert upstream_sha == "sha_profile"
+        assert "Makefile" in resolved
+        assert "docs/" in resolved
+        shutil.rmtree(upstream_dir, ignore_errors=True)
 
     @patch("rhiza.models._git_utils.GitContext.get_head_sha")
     @patch("rhiza.models._git_utils.GitContext.clone_repository")
@@ -622,13 +735,23 @@ class TestFromProject:
         assert template.template_branch == "develop"
 
     def test_no_include_or_templates_raises(self, tmp_path):
-        """RuntimeError is raised when neither include nor templates are configured."""
+        """RuntimeError is raised when neither include, templates, nor profile are configured."""
         _write_template_yml(tmp_path, {"template-repository": "owner/repo", "template-branch": "main"})
         with (
             patch("rhiza.commands.validate.validate", return_value=True),
-            pytest.raises(RuntimeError, match="No templates or include paths"),
+            pytest.raises(RuntimeError, match="No templates, profile, or include paths"),
         ):
             _load_template_from_project(tmp_path)
+
+    def test_profile_is_loaded_and_logged(self, tmp_path):
+        """_load_template_from_project loads the profile field when set in template.yml."""
+        _write_template_yml(
+            tmp_path,
+            {"template-repository": "owner/repo", "template-branch": "main", "profile": "github-project"},
+        )
+        with patch("rhiza.commands.validate.validate", return_value=True):
+            template = _load_template_from_project(tmp_path)
+        assert template.profile == "github-project"
 
     def test_templates_list_is_logged(self, tmp_path):
         """_load_template_from_project succeeds and returns template when templates are configured."""

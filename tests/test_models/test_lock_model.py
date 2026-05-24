@@ -118,6 +118,30 @@ class TestTemplateLock:
         with pytest.raises(TypeError, match="does not contain a YAML mapping"):
             TemplateLock.from_yaml(lock_path)
 
+    def test_template_lock_profile_omitted_when_empty(self, tmp_path):
+        """Profile key is absent from YAML output when profile is the empty string."""
+        lock = TemplateLock(sha="abc123")
+        lock_path = tmp_path / "template.lock"
+        lock.to_yaml(lock_path)
+        data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+        assert "profile" not in data
+
+    def test_template_lock_profile_persisted_when_set(self, tmp_path):
+        """Profile is written and read back correctly."""
+        lock = TemplateLock(sha="abc123", profile="github-project")
+        lock_path = tmp_path / "template.lock"
+        lock.to_yaml(lock_path)
+        data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+        assert data["profile"] == "github-project"
+
+        restored = TemplateLock.from_yaml(lock_path)
+        assert restored.profile == "github-project"
+
+    def test_template_lock_profile_defaults_to_empty(self):
+        """Profile defaults to empty string when not present in config."""
+        lock = TemplateLock.from_config({"sha": "abc"})
+        assert lock.profile == ""
+
 
 # ---------------------------------------------------------------------------
 # YamlSerializable Protocol — lock-related check

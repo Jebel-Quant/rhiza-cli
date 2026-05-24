@@ -217,3 +217,146 @@ class TestResolveToPaths:
         result = bundles.resolve_to_paths(["ci", "core"])
         assert result.count("Makefile") == 1
         assert result.count("pyproject.toml") == 1
+
+
+# ---------------------------------------------------------------------------
+# ProfileDefinition and profiles support
+# ---------------------------------------------------------------------------
+
+
+class TestProfileDefinition:
+    """Tests for ProfileDefinition parsing and RhizaBundles.profiles."""
+
+    def _make_bundles_with_profiles(self):
+        return RhizaBundles.from_config(
+            {
+                "bundles": {
+                    "core": {"description": "Core", "files": ["Makefile", "pyproject.toml"]},
+                    "book": {"description": "Book", "files": ["docs/"]},
+                    "tests": {"description": "Tests", "files": ["pytest.ini"], "requires": ["core"]},
+                    "github": {"description": "GitHub", "files": [".github/workflows/ci.yml"], "requires": ["core"]},
+                },
+                "profiles": {
+                    "local": {
+                        "description": "Local-first development",
+                        "bundles": ["core", "book", "tests"],
+                    },
+                    "github-project": {
+                        "description": "Standard GitHub project",
+                        "bundles": ["core", "github", "book", "tests"],
+                    },
+                },
+            }
+        )
+
+    def test_profiles_parsed_from_config(self):
+        """Profiles section is parsed into ProfileDefinition instances."""
+        bundles = self._make_bundles_with_profiles()
+        assert "local" in bundles.profiles
+        assert "github-project" in bundles.profiles
+        assert bundles.profiles["local"].description == "Local-first development"
+        assert bundles.profiles["local"].bundles == ["core", "book", "tests"]
+
+    def test_profiles_absent_gives_empty_dict(self):
+        """When no profiles key is present, profiles is an empty dict."""
+        bundles = RhizaBundles.from_config({"bundles": {"core": {"description": "Core"}}})
+        assert bundles.profiles == {}
+
+    def test_profile_entry_not_a_dict_raises_type_error(self):
+        """TypeError raised when a profile entry is not a dict."""
+        import pytest
+
+        with pytest.raises(TypeError, match="Profile 'local' must be a dictionary"):
+            RhizaBundles.from_config(
+                {
+                    "bundles": {},
+                    "profiles": {"local": "not-a-dict"},
+                }
+            )
+
+    def test_profiles_null_in_yaml_treated_as_empty(self):
+        """profiles: null in YAML (None in Python) is coerced to an empty dict."""
+        bundles = RhizaBundles.from_config({"bundles": {}, "profiles": None})
+        assert bundles.profiles == {}
+
+    def test_profiles_not_a_dict_raises_type_error(self):
+        """TypeError raised when profiles value is not a dict."""
+        import pytest
+
+        with pytest.raises(TypeError, match="Profiles must be a dictionary"):
+            RhizaBundles.from_config({"bundles": {}, "profiles": ["not", "a", "dict"]})
+
+    def test_config_round_trips_profiles(self):
+        """Profiles survive a config round-trip."""
+        original = self._make_bundles_with_profiles()
+        restored = RhizaBundles.from_config(original.config)
+        assert restored.profiles["local"].bundles == original.profiles["local"].bundles
+        assert restored.profiles["github-project"].description == original.profiles["github-project"].description
+
+    def test_config_omits_profiles_when_empty(self):
+        """Profiles key is absent from config output when there are no profiles."""
+        bundles = RhizaBundles.from_config({"bundles": {"core": {"description": "Core"}}})
+        assert "profiles" not in bundles.config
+
+    def test_config_omits_description_when_empty(self):
+        """Description is omitted from a profile entry when it is the empty string."""
+        bundles = RhizaBundles.from_config(
+            {
+                "bundles": {"core": {"description": "Core", "files": ["Makefile"]}},
+                "profiles": {"minimal": {"bundles": ["core"]}},
+            }
+        )
+        assert "description" not in bundles.config["profiles"]["minimal"]
+
+
+class TestResolveProfileToPaths:
+    """Tests for RhizaBundles.resolve_profile_to_paths."""
+
+    def _make_bundles(self):
+        return RhizaBundles.from_config(
+            {
+                "bundles": {
+                    "core": {"description": "Core", "files": ["Makefile", "pyproject.toml"]},
+                    "book": {"description": "Book", "files": ["docs/"]},
+                    "tests": {"description": "Tests", "files": ["pytest.ini"], "requires": ["core"]},
+                    "github": {"description": "GitHub", "files": [".github/workflows/ci.yml"], "requires": ["core"]},
+                },
+                "profiles": {
+                    "local": {"description": "Local", "bundles": ["core", "book", "tests"]},
+                    "github-project": {"bundles": ["core", "github", "book", "tests"]},
+                },
+            }
+        )
+
+    def test_resolve_profile_returns_correct_paths(self):
+        """resolve_profile_to_paths returns all paths for bundles in the profile."""
+        bundles = self._make_bundles()
+        result = bundles.resolve_profile_to_paths("local")
+        assert "Makefile" in result
+        assert "pyproject.toml" in result
+        assert "docs/" in result
+        assert "pytest.ini" in result
+        assert ".github/workflows/ci.yml" not in result
+
+    def test_resolve_profile_deduplicates_paths(self):
+        """Paths shared across bundles appear only once."""
+        bundles = self._make_bundles()
+        result = bundles.resolve_profile_to_paths("github-project")
+        assert result.count("Makefile") == 1
+        assert result.count("pyproject.toml") == 1
+
+    def test_resolve_profile_raises_for_nonexistent_profile(self):
+        """ValueError raised when the requested profile does not exist."""
+        import pytest
+
+        bundles = self._make_bundles()
+        with pytest.raises(ValueError, match="Profile 'unknown' does not exist"):
+            bundles.resolve_profile_to_paths("unknown")
+
+    def test_resolve_profile_resolves_bundle_dependencies(self):
+        """Bundles in a profile have their requires resolved transitively."""
+        bundles = self._make_bundles()
+        result = bundles.resolve_profile_to_paths("github-project")
+        # github requires core; core files must appear
+        assert "pyproject.toml" in result
+        assert ".github/workflows/ci.yml" in result
