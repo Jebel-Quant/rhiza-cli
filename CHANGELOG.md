@@ -1,3 +1,16 @@
+## [0.14.1] - 2026-05-24
+
+### 🚀 Features
+
+- Change profile from scalar to list (profiles)
+
+### 💼 Other
+
+- Bump version 0.14.0 → 0.14.1
+
+### ⚙️ Miscellaneous Tasks
+
+- Update CHANGELOG.md for v0.14.0 [skip ci]
 ## [0.14.0] - 2026-05-24
 
 ### 🚀 Features
