@@ -7,6 +7,77 @@ from rhiza.models._base import YamlSerializable
 from rhiza.models._git_utils import _normalize_to_list
 
 
+@dataclass(frozen=True)
+class BundleFileEntry:
+    """A file entry in a bundle, with optional source→destination path remapping.
+
+    When ``source`` and ``dest`` differ, the file is read from ``source`` in the
+    template repository but written to ``dest`` in the downstream project.
+
+    Attributes:
+        source: Path of the file in the template repository.
+        dest: Path where the file should be placed in the downstream project.
+    """
+
+    source: str
+    dest: str
+
+    @property
+    def is_remapped(self) -> bool:
+        """True when the destination path differs from the source path."""
+        return self.source != self.dest
+
+    @classmethod
+    def from_config_entry(cls, entry: "str | dict[str, str]") -> "BundleFileEntry":
+        """Parse a file entry from a YAML config value (string or dict).
+
+        Args:
+            entry: Either a plain path string or a ``{source, dest}`` dict.
+
+        Returns:
+            A :class:`BundleFileEntry` instance.
+
+        Raises:
+            TypeError: If the entry is a dict without a ``source`` key.
+        """
+        if isinstance(entry, str):
+            return cls(source=entry, dest=entry)
+        if not isinstance(entry, dict) or "source" not in entry:
+            raise TypeError(  # noqa: TRY003
+                f"File entry must be a string or a dict with a 'source' key, got: {entry!r}"
+            )
+        source = entry["source"]
+        dest = entry.get("dest", source)
+        return cls(source=source, dest=dest)
+
+    def to_config_entry(self) -> "str | dict[str, str]":
+        """Serialize back to the YAML config representation."""
+        if not self.is_remapped:
+            return self.source
+        return {"source": self.source, "dest": self.dest}
+
+    def remap_expanded_path(self, expanded_source: str) -> str:
+        """Map an expanded source path to its destination path.
+
+        Handles both exact file matches and directory-prefix matches.
+
+        Args:
+            expanded_source: A source path produced by expanding this entry.
+
+        Returns:
+            The corresponding destination path.
+        """
+        if not self.is_remapped:
+            return expanded_source
+        if expanded_source == self.source:
+            return self.dest
+        src_prefix = self.source.rstrip("/") + "/"
+        if expanded_source.startswith(src_prefix):
+            dest_prefix = self.dest.rstrip("/") + "/"
+            return dest_prefix + expanded_source[len(src_prefix) :]
+        return expanded_source
+
+
 @dataclass(frozen=True, kw_only=True)
 class ProfileDefinition:
     """Represents a single profile from template-bundles.yml.
@@ -26,7 +97,7 @@ class BundleDefinition:
 
     Attributes:
         description: Human-readable description of the bundle.
-        files: List of file paths included in this bundle.
+        files: List of file entries included in this bundle.
         requires: List of bundle names that this bundle requires.
         standalone: Whether this bundle is standalone (no dependencies).
     """
@@ -34,7 +105,7 @@ class BundleDefinition:
     # name: str
     description: str
     standalone: bool = True
-    files: list[str] = field(default_factory=list)
+    files: list[BundleFileEntry] = field(default_factory=list)
     requires: list[str] = field(default_factory=list)
 
 
@@ -63,7 +134,7 @@ class RhizaBundles(YamlSerializable):
         for name, bundle in self.bundles.items():
             bundle_entry: dict[str, Any] = {"description": bundle.description}
             if bundle.files:
-                bundle_entry["files"] = bundle.files
+                bundle_entry["files"] = [f.to_config_entry() for f in bundle.files]
             if bundle.requires:
                 bundle_entry["requires"] = bundle.requires
             if bundle.standalone:
@@ -110,7 +181,13 @@ class RhizaBundles(YamlSerializable):
                 msg = f"Bundle '{bundle_name}' must be a dictionary"
                 raise TypeError(msg)
 
-            files = _normalize_to_list(bundle_data.get("files"))
+            raw_files = bundle_data.get("files")
+            if isinstance(raw_files, list):
+                files = [BundleFileEntry.from_config_entry(e) for e in raw_files]
+            elif isinstance(raw_files, str):
+                files = [BundleFileEntry.from_config_entry(e) for e in _normalize_to_list(raw_files)]
+            else:
+                files = []
             requires = _normalize_to_list(bundle_data.get("requires"))
 
             bundles[bundle_name] = BundleDefinition(
@@ -179,12 +256,52 @@ class RhizaBundles(YamlSerializable):
 
         for bundle_name in bundles:
             bundle = self.bundles[bundle_name]
-            for path in bundle.files:
-                if path not in seen:
-                    paths.append(path)
-                    seen.add(path)
+            for entry in bundle.files:
+                if entry.source not in seen:
+                    paths.append(entry.source)
+                    seen.add(entry.source)
 
         return paths
+
+    def resolve_to_path_map(self, bundle_names: list[str]) -> dict[str, str]:
+        """Return a source→destination mapping for all remapped file entries.
+
+        Plain (non-remapped) entries are excluded — callers can assume an
+        absent key means ``dest == source``.
+
+        Args:
+            bundle_names: List of bundle names to resolve (dependencies included).
+
+        Returns:
+            Dict mapping source path → destination path for remapped entries only.
+        """
+        path_map: dict[str, str] = {}
+        resolved = self.resolve_to_paths(bundle_names)
+        resolved_set = set(resolved)
+
+        seen: set[str] = set()
+        bundle_order: list[str] = []
+        resolving: set[str] = set()
+
+        def _collect(name: str) -> None:
+            if name not in self.bundles or name in resolving or name in seen:
+                return
+            resolving.add(name)
+            for dep in self.bundles[name].requires:
+                _collect(dep)
+            resolving.remove(name)
+            seen.add(name)
+            bundle_order.append(name)
+
+        for name in bundle_names:
+            _collect(name)
+
+        for bundle_name in bundle_order:
+            for entry in self.bundles[bundle_name].files:
+                if entry.source in resolved_set and entry.is_remapped:
+                    path_map[entry.source] = entry.dest
+
+        return path_map
 
     def resolve_profile_to_paths(self, profile_name: str) -> list[str]:
         """Resolve a profile name to deduplicated file paths.

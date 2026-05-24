@@ -110,7 +110,7 @@ def _clone_template(
     template: RhizaTemplate,
     git_ctx: GitContext,
     branch: str = "main",
-) -> tuple[Path, str, list[str]]:
+) -> tuple[Path, str, list[str], dict[str, str]]:
     """Clone the upstream template repository and resolve include paths.
 
     Clones the template repository using sparse checkout.  When
@@ -124,9 +124,10 @@ def _clone_template(
             on the template.
 
     Returns:
-        Tuple of ``(upstream_dir, upstream_sha, resolved_include)`` where
+        Tuple of ``(upstream_dir, upstream_sha, resolved_include, path_map)`` where
         *upstream_dir* is a temporary directory containing the cloned repository
-        tree.  The caller is responsible for removing *upstream_dir* when done.
+        tree and *path_map* maps source paths to destination paths for remapped
+        entries.  The caller is responsible for removing *upstream_dir* when done.
 
     Raises:
         ValueError: If ``template_repository`` is not set, the host is
@@ -176,17 +177,19 @@ def _clone_template(
             all_bundle_names = template.templates
 
         resolved_paths = bundles.resolve_to_paths(all_bundle_names)
+        path_map = bundles.resolve_to_path_map(all_bundle_names)
         # Merge resolved bundle paths with any explicit include: paths (hybrid mode)
         merged_paths = list(dict.fromkeys(resolved_paths + include_paths))
         git_ctx.update_sparse_checkout(upstream_dir, merged_paths)
         include_paths = merged_paths
     else:
+        path_map = {}
         git_ctx.clone_repository(template.git_url, upstream_dir, rhiza_branch, include_paths)
 
     upstream_sha = git_ctx.get_head_sha(upstream_dir)
     logger.info(f"Upstream HEAD: {upstream_sha[:12]}")
 
-    return upstream_dir, upstream_sha, include_paths
+    return upstream_dir, upstream_sha, include_paths, path_map
 
 
 def sync(
@@ -230,7 +233,7 @@ def sync(
     original_include = list(template.include)
 
     logger.info(f"Cloning {template.template_repository}@{template.template_branch} (upstream)")
-    upstream_dir, upstream_sha, resolved_include = _clone_template(template, git_ctx, branch=branch)
+    upstream_dir, upstream_sha, resolved_include, path_map = _clone_template(template, git_ctx, branch=branch)
 
     # Synchronizes target with upstream template snapshot transactionally; cleans up resources
     try:
@@ -240,7 +243,9 @@ def sync(
         upstream_snapshot = Path(tempfile.mkdtemp())
         try:
             excludes = _excluded_set(upstream_dir, template.exclude)
-            materialized = _prepare_snapshot(upstream_dir, resolved_include, excludes, upstream_snapshot)
+            materialized = _prepare_snapshot(
+                upstream_dir, resolved_include, excludes, upstream_snapshot, path_map=path_map
+            )
             logger.info(f"Upstream: {len(materialized)} file(s) to consider")
             lock = TemplateLock(
                 sha=upstream_sha,
@@ -275,6 +280,7 @@ def sync(
                     excludes=excludes,
                     lock=lock,
                     lock_file=lock_file,
+                    path_map=path_map,
                 )
                 if not clean:
                     logger.error("Sync completed with conflicts — see the file list above for details")
