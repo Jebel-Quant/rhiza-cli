@@ -195,38 +195,38 @@ class TestRhizaTemplate:
         assert config["repository"] == ""
         assert config["ref"] == ""
 
-        # 5. profile is included when set, omitted when empty
-        template = RhizaTemplate(template_repository="owner/repo", profile="github-project")
-        template_file = tmp_path / "template_profile.yml"
+        # 5. profiles is included when set, omitted when empty
+        template = RhizaTemplate(template_repository="owner/repo", profiles=["github-project"])
+        template_file = tmp_path / "template_profiles.yml"
         template.to_yaml(template_file)
         with open(template_file) as f:
             config = yaml.safe_load(f)
-        assert config["profile"] == "github-project"
+        assert config["profiles"] == ["github-project"]
 
-        template_no_profile = RhizaTemplate(template_repository="owner/repo")
-        template_file2 = tmp_path / "template_no_profile.yml"
-        template_no_profile.to_yaml(template_file2)
+        template_no_profiles = RhizaTemplate(template_repository="owner/repo")
+        template_file2 = tmp_path / "template_no_profiles.yml"
+        template_no_profiles.to_yaml(template_file2)
         with open(template_file2) as f:
             config2 = yaml.safe_load(f)
-        assert "profile" not in config2
+        assert "profiles" not in config2
 
-    def test_rhiza_template_profile_round_trip(self, tmp_path):
-        """Profile field survives a YAML round-trip."""
+    def test_rhiza_template_profiles_round_trip(self, tmp_path):
+        """Profiles field survives a YAML round-trip."""
         original = RhizaTemplate(
             template_repository="owner/repo",
             template_branch="main",
-            profile="github-project",
+            profiles=["github-project", "local"],
         )
         template_file = tmp_path / "template.yml"
         original.to_yaml(template_file)
         loaded = RhizaTemplate.from_yaml(template_file)
-        assert loaded.profile == "github-project"
+        assert loaded.profiles == ["github-project", "local"]
         assert loaded == original
 
-    def test_rhiza_template_from_config_profile_default(self):
-        """Profile defaults to empty string when not present in config."""
+    def test_rhiza_template_from_config_profiles_default(self):
+        """Profiles defaults to empty list when not present in config."""
         template = RhizaTemplate.from_config({"repository": "owner/repo", "templates": ["core"]})
-        assert template.profile == ""
+        assert template.profiles == []
 
     def test_normalize_to_list_with_unexpected_type(self, tmp_path):
         """Test that _normalize_to_list handles unexpected types gracefully."""
@@ -386,7 +386,7 @@ class TestRhizaTemplateClone:
         template = RhizaTemplate(
             template_repository="owner/repo",
             template_branch="main",
-            profile="nonexistent",
+            profiles=["nonexistent"],
         )
 
         with pytest.raises(ValueError, match="Available profiles: local"):
@@ -407,7 +407,7 @@ class TestRhizaTemplateClone:
         template = RhizaTemplate(
             template_repository="owner/repo",
             template_branch="main",
-            profile="nonexistent",
+            profiles=["nonexistent"],
         )
 
         with pytest.raises(ValueError, match="No profiles are defined"):
@@ -438,7 +438,7 @@ class TestRhizaTemplateClone:
         template = RhizaTemplate(
             template_repository="owner/repo",
             template_branch="main",
-            profile="local",
+            profiles=["local"],
         )
 
         upstream_dir, upstream_sha, resolved = _clone_template(template, GitContext.default())
@@ -743,15 +743,15 @@ class TestFromProject:
         ):
             _load_template_from_project(tmp_path)
 
-    def test_profile_is_loaded_and_logged(self, tmp_path):
-        """_load_template_from_project loads the profile field when set in template.yml."""
+    def test_profiles_is_loaded_and_logged(self, tmp_path):
+        """_load_template_from_project loads the profiles field when set in template.yml."""
         _write_template_yml(
             tmp_path,
-            {"template-repository": "owner/repo", "template-branch": "main", "profile": "github-project"},
+            {"template-repository": "owner/repo", "template-branch": "main", "profiles": ["github-project"]},
         )
         with patch("rhiza.commands.validate.validate", return_value=True):
             template = _load_template_from_project(tmp_path)
-        assert template.profile == "github-project"
+        assert template.profiles == ["github-project"]
 
     def test_templates_list_is_logged(self, tmp_path):
         """_load_template_from_project succeeds and returns template when templates are configured."""

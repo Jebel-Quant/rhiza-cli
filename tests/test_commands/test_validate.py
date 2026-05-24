@@ -870,19 +870,24 @@ class TestValidateCommand:
 class TestValidateHelperFunctions:
     """Tests that directly exercise private helper function edge-case branches."""
 
-    def test_validate_configuration_mode_profile_only(self):
-        """_validate_configuration_mode returns True when only 'profile' is set."""
-        result = _validate_configuration_mode({"repository": "owner/repo", "profile": "github-project"})
+    def test_validate_configuration_mode_profiles_only(self):
+        """_validate_configuration_mode returns True when only 'profiles' is set."""
+        result = _validate_configuration_mode({"repository": "owner/repo", "profiles": ["github-project"]})
         assert result is True
 
-    def test_validate_configuration_mode_profile_must_be_string(self):
-        """_validate_configuration_mode returns False when profile is not a string."""
-        result = _validate_configuration_mode({"repository": "owner/repo", "profile": ["github-project"]})
+    def test_validate_configuration_mode_profiles_must_be_list(self):
+        """_validate_configuration_mode returns False when profiles is not a list."""
+        result = _validate_configuration_mode({"repository": "owner/repo", "profiles": "github-project"})
         assert result is False
 
-    def test_validate_configuration_mode_profile_cannot_be_empty(self):
-        """_validate_configuration_mode returns False when profile is empty."""
-        result = _validate_configuration_mode({"repository": "owner/repo", "profile": "  "})
+    def test_validate_configuration_mode_profiles_cannot_be_empty(self):
+        """_validate_configuration_mode returns False when profiles is an empty list."""
+        result = _validate_configuration_mode({"repository": "owner/repo", "profiles": []})
+        assert result is False
+
+    def test_validate_configuration_mode_profiles_entry_must_be_nonempty_string(self):
+        """_validate_configuration_mode returns False when a profile entry is empty."""
+        result = _validate_configuration_mode({"repository": "owner/repo", "profiles": ["  "]})
         assert result is False
 
     def test_validate_templates_without_templates_key(self):

@@ -46,7 +46,7 @@ class RhizaTemplate(YamlSerializable):
     include: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
     templates: list[str] = field(default_factory=list)
-    profile: str = ""
+    profiles: list[str] = field(default_factory=list)
     template_bundles_path: str = ".rhiza/template-bundles.yml"
 
     @classmethod
@@ -75,7 +75,7 @@ class RhizaTemplate(YamlSerializable):
             include=_normalize_to_list(config.get("include")),
             exclude=_normalize_to_list(config.get("exclude")),
             templates=_normalize_to_list(config.get("templates")),
-            profile=config.get("profile", ""),
+            profiles=_normalize_to_list(config.get("profiles")),
             template_bundles_path=config.get("template-bundles-path", ".rhiza/template-bundles.yml"),
         )
 
@@ -91,8 +91,8 @@ class RhizaTemplate(YamlSerializable):
         config["templates"] = self.templates
         config["include"] = self.include
         config["exclude"] = self.exclude
-        if self.profile:
-            config["profile"] = self.profile
+        if self.profiles:
+            config["profiles"] = self.profiles
         if self.template_bundles_path != ".rhiza/template-bundles.yml":
             config["template-bundles-path"] = self.template_bundles_path
         return config

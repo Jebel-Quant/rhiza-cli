@@ -118,29 +118,29 @@ class TestTemplateLock:
         with pytest.raises(TypeError, match="does not contain a YAML mapping"):
             TemplateLock.from_yaml(lock_path)
 
-    def test_template_lock_profile_omitted_when_empty(self, tmp_path):
-        """Profile key is absent from YAML output when profile is the empty string."""
+    def test_template_lock_profiles_omitted_when_empty(self, tmp_path):
+        """Profiles key is absent from YAML output when profiles is an empty list."""
         lock = TemplateLock(sha="abc123")
         lock_path = tmp_path / "template.lock"
         lock.to_yaml(lock_path)
         data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
-        assert "profile" not in data
+        assert "profiles" not in data
 
-    def test_template_lock_profile_persisted_when_set(self, tmp_path):
-        """Profile is written and read back correctly."""
-        lock = TemplateLock(sha="abc123", profile="github-project")
+    def test_template_lock_profiles_persisted_when_set(self, tmp_path):
+        """Profiles is written and read back correctly."""
+        lock = TemplateLock(sha="abc123", profiles=["github-project", "local"])
         lock_path = tmp_path / "template.lock"
         lock.to_yaml(lock_path)
         data = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
-        assert data["profile"] == "github-project"
+        assert data["profiles"] == ["github-project", "local"]
 
         restored = TemplateLock.from_yaml(lock_path)
-        assert restored.profile == "github-project"
+        assert restored.profiles == ["github-project", "local"]
 
-    def test_template_lock_profile_defaults_to_empty(self):
-        """Profile defaults to empty string when not present in config."""
+    def test_template_lock_profiles_defaults_to_empty_list(self):
+        """Profiles defaults to empty list when not present in config."""
         lock = TemplateLock.from_config({"sha": "abc"})
-        assert lock.profile == ""
+        assert lock.profiles == []
 
 
 # ---------------------------------------------------------------------------

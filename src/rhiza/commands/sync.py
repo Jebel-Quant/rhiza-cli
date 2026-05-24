@@ -93,13 +93,12 @@ def _load_template_from_project(target: Path, template_file: Path | None = None)
         logger.error("template-repository is not configured in template.yml")
         raise RuntimeError("template-repository is required")  # noqa: TRY003
 
-    if not template.templates and not template.include and not template.profile:
-        logger.error("No templates, profile, or include paths found in template.yml")
-        logger.error("Add 'templates', 'profile', or 'include' to template.yml")
+    if not template.templates and not template.include and not template.profiles:
+        logger.error("No templates, profiles, or include paths found in template.yml")
+        logger.error("Add 'templates', 'profiles', or 'include' to template.yml")
         raise RuntimeError("No templates, profile, or include paths found in template.yml")  # noqa: TRY003
 
-    if template.profile:
-        logger.info(f"Profile: {template.profile}")
+    _log_list("Profiles", template.profiles)
     _log_list("Templates", template.templates)
     _log_list("Include paths", template.include)
     _log_list("Exclude paths", template.exclude)
@@ -138,14 +137,14 @@ def _clone_template(
 
     if not template.template_repository:
         raise ValueError("template_repository is not configured in template.yml")  # noqa: TRY003
-    if not template.templates and not template.include and not template.profile:
+    if not template.templates and not template.include and not template.profiles:
         raise ValueError("No templates, profile, or include paths found in template.yml")  # noqa: TRY003
 
     rhiza_branch = template.template_branch or branch
     include_paths = list(template.include)
     upstream_dir = Path(tempfile.mkdtemp())
 
-    if template.profile or template.templates:
+    if template.profiles or template.templates:
         # Checkout the bundle definitions file from template_repository @ template_branch
         bundles_path = template.template_bundles_path
         git_ctx.clone_repository(template.git_url, upstream_dir, rhiza_branch, [bundles_path])
@@ -153,21 +152,25 @@ def _clone_template(
         # Load bundle definitions
         bundles = RhizaBundles.from_yaml(upstream_dir / bundles_path)
 
-        # Resolve profile → bundle names, then merge with explicit templates list
-        if template.profile:
-            profiles = bundles.profiles or {}
-            if template.profile not in profiles:
-                available_profiles = sorted(profiles)
-                if available_profiles:
-                    available_text = ", ".join(available_profiles)
+        # Resolve profiles → bundle names, then merge with explicit templates list
+        if template.profiles:
+            available_profiles = bundles.profiles or {}
+            profile_bundle_names: list[str] = []
+            for profile_name in template.profiles:
+                if profile_name not in available_profiles:
+                    sorted_available = sorted(available_profiles)
+                    if sorted_available:
+                        available_text = ", ".join(sorted_available)
+                        raise ValueError(  # noqa: TRY003
+                            f"Profile '{profile_name}' was not found in {bundles_path}. "
+                            f"Available profiles: {available_text}"
+                        )
                     raise ValueError(  # noqa: TRY003
-                        f"Profile '{template.profile}' was not found in {bundles_path}. "
-                        f"Available profiles: {available_text}"
+                        f"Profile '{profile_name}' was not found in {bundles_path}. No profiles are defined."
                     )
-                raise ValueError(  # noqa: TRY003
-                    f"Profile '{template.profile}' was not found in {bundles_path}. No profiles are defined."
-                )
-            profile_bundle_names = profiles[template.profile].bundles
+                for bundle in available_profiles[profile_name].bundles:
+                    if bundle not in profile_bundle_names:
+                        profile_bundle_names.append(bundle)
             all_bundle_names = list(dict.fromkeys(profile_bundle_names + template.templates))
         else:
             all_bundle_names = template.templates
@@ -247,7 +250,7 @@ def sync(
                 include=original_include,
                 exclude=template.exclude,
                 templates=template.templates,
-                profile=template.profile,
+                profiles=template.profiles,
                 files=[str(p) for p in materialized],
                 synced_at=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 strategy=strategy,
