@@ -121,6 +121,12 @@ class RhizaBundles(YamlSerializable):
             )
 
         profiles_config = config.get("profiles", {})
+        if profiles_config is None:
+            profiles_config = {}
+        elif not isinstance(profiles_config, dict):
+            msg = "Profiles must be a dictionary"
+            raise TypeError(msg)
+
         profiles: dict[str, ProfileDefinition] = {}
         for profile_name, profile_data in profiles_config.items():
             if not isinstance(profile_data, dict):
