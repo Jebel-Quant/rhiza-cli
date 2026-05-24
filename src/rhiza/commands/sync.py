@@ -93,11 +93,13 @@ def _load_template_from_project(target: Path, template_file: Path | None = None)
         logger.error("template-repository is not configured in template.yml")
         raise RuntimeError("template-repository is required")  # noqa: TRY003
 
-    if not template.templates and not template.include:
-        logger.error("No templates or include paths found in template.yml")
-        logger.error("Add either 'templates' or 'include' list in template.yml")
-        raise RuntimeError("No templates or include paths found in template.yml")  # noqa: TRY003
+    if not template.templates and not template.include and not template.profile:
+        logger.error("No templates, profile, or include paths found in template.yml")
+        logger.error("Add 'templates', 'profile', or 'include' to template.yml")
+        raise RuntimeError("No templates, profile, or include paths found in template.yml")  # noqa: TRY003
 
+    if template.profile:
+        logger.info(f"Profile: {template.profile}")
     _log_list("Templates", template.templates)
     _log_list("Include paths", template.include)
     _log_list("Exclude paths", template.exclude)
@@ -136,21 +138,29 @@ def _clone_template(
 
     if not template.template_repository:
         raise ValueError("template_repository is not configured in template.yml")  # noqa: TRY003
-    if not template.templates and not template.include:
-        raise ValueError("No templates or include paths found in template.yml")  # noqa: TRY003
+    if not template.templates and not template.include and not template.profile:
+        raise ValueError("No templates, profile, or include paths found in template.yml")  # noqa: TRY003
 
     rhiza_branch = template.template_branch or branch
     include_paths = list(template.include)
     upstream_dir = Path(tempfile.mkdtemp())
 
-    if template.templates:
+    if template.profile or template.templates:
         # Checkout the bundle definitions file from template_repository @ template_branch
         bundles_path = template.template_bundles_path
         git_ctx.clone_repository(template.git_url, upstream_dir, rhiza_branch, [bundles_path])
 
-        # Load bundle definitions, resolve bundle names to paths, update sparse checkout
+        # Load bundle definitions
         bundles = RhizaBundles.from_yaml(upstream_dir / bundles_path)
-        resolved_paths = bundles.resolve_to_paths(template.templates)
+
+        # Resolve profile → bundle names, then merge with explicit templates list
+        if template.profile:
+            profile_bundle_names = bundles.profiles[template.profile].bundles
+            all_bundle_names = list(dict.fromkeys(profile_bundle_names + template.templates))
+        else:
+            all_bundle_names = template.templates
+
+        resolved_paths = bundles.resolve_to_paths(all_bundle_names)
         # Merge resolved bundle paths with any explicit include: paths (hybrid mode)
         merged_paths = list(dict.fromkeys(resolved_paths + include_paths))
         git_ctx.update_sparse_checkout(upstream_dir, merged_paths)
@@ -225,6 +235,7 @@ def sync(
                 include=original_include,
                 exclude=template.exclude,
                 templates=template.templates,
+                profile=template.profile,
                 files=[str(p) for p in materialized],
                 synced_at=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 strategy=strategy,
