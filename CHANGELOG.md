@@ -1,3 +1,16 @@
+## [0.16.0] - 2026-05-25
+
+### 🚀 Features
+
+- Support directory-based bundle resolution (no explicit files) (#506)
+
+### 💼 Other
+
+- Bump version 0.15.0 → 0.16.0
+
+### ⚙️ Miscellaneous Tasks
+
+- Update CHANGELOG.md for v0.15.0 [skip ci]
 ## [0.15.0] - 2026-05-25
 
 ### 🚀 Features
