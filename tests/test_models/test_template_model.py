@@ -348,7 +348,9 @@ class TestRhizaTemplateClone:
             include=["Makefile", ".github"],
         )
 
-        upstream_dir, upstream_sha, resolved_include = _clone_template(template, GitContext.default(), branch="main")
+        upstream_dir, upstream_sha, resolved_include, _path_map = _clone_template(
+            template, GitContext.default(), branch="main"
+        )
 
         assert upstream_dir.is_dir()
         assert upstream_sha == "abc123def456"
@@ -441,7 +443,7 @@ class TestRhizaTemplateClone:
             profiles=["local"],
         )
 
-        upstream_dir, upstream_sha, resolved = _clone_template(template, GitContext.default())
+        upstream_dir, upstream_sha, resolved, _path_map = _clone_template(template, GitContext.default())
 
         assert upstream_sha == "sha_profile"
         assert "Makefile" in resolved
@@ -460,7 +462,9 @@ class TestRhizaTemplateClone:
             include=["Makefile"],
         )
 
-        upstream_dir, upstream_sha, _resolved = _clone_template(template, GitContext.default(), branch="main")
+        upstream_dir, upstream_sha, _resolved, _path_map = _clone_template(
+            template, GitContext.default(), branch="main"
+        )
 
         # The clone should use 'develop' (template_branch), not 'main' (default arg).
         mock_clone.assert_called_once()

@@ -17,7 +17,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from rhiza.models._base import YamlSerializable, load_model, read_yaml
-from rhiza.models.bundle import RhizaBundles
+from rhiza.models.bundle import BundleFileEntry, RhizaBundles
 from rhiza.models.lock import TemplateLock
 from rhiza.models.template import GitHost, RhizaTemplate
 
@@ -513,7 +513,7 @@ class TestRhizaBundlesE2E:
         restored = RhizaBundles.from_yaml(path)
         assert restored.version == b.version
         assert set(restored.bundles.keys()) == set(b.bundles.keys())
-        assert restored.bundles["core"].files == ["Makefile"]
+        assert restored.bundles["core"].files == [BundleFileEntry(source="Makefile", dest="Makefile")]
         assert restored.bundles["ci"].requires == ["core"]
 
     def test_load_model_helper(self, tmp_path):
