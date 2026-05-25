@@ -66,11 +66,14 @@ class TestRhizaBundlesConfig:
         assert bundles.config["version"] == "2"
 
     def test_config_omits_empty_files_and_workflows(self):
-        """Files and workflows keys are omitted when empty."""
+        """Files, workflows, and new optional fields are omitted when empty/default."""
         bundles = RhizaBundles.from_config({"bundles": {"core": {"description": "Core"}}})
         entry = bundles.config["bundles"]["core"]
         assert "files" not in entry
         assert "workflows" not in entry
+        assert "recommends" not in entry
+        assert "notes" not in entry
+        assert "required" not in entry
 
     def test_config_round_trips_through_from_config(self):
         """Config output can be fed back into from_config producing an equal object."""
@@ -314,6 +317,151 @@ class TestProfileDefinition:
             }
         )
         assert "description" not in bundles.config["profiles"]["minimal"]
+
+
+class TestBundleDefinitionNewFields:
+    """Tests for the new BundleDefinition fields: required, recommends, notes."""
+
+    def test_required_field_parsed(self):
+        """required: true is parsed from config."""
+        b = RhizaBundles.from_config({"bundles": {"core": {"description": "Core", "required": True}}})
+        assert b.bundles["core"].required is True
+
+    def test_required_defaults_to_false(self):
+        """Required defaults to False when absent."""
+        b = RhizaBundles.from_config({"bundles": {"core": {"description": "Core"}}})
+        assert b.bundles["core"].required is False
+
+    def test_recommends_parsed(self):
+        """Recommends list is parsed from config."""
+        b = RhizaBundles.from_config({"bundles": {"book": {"description": "Book", "recommends": ["tests", "marimo"]}}})
+        assert b.bundles["book"].recommends == ["tests", "marimo"]
+
+    def test_recommends_defaults_to_empty(self):
+        """Recommends defaults to [] when absent."""
+        b = RhizaBundles.from_config({"bundles": {"core": {"description": "Core"}}})
+        assert b.bundles["core"].recommends == []
+
+    def test_notes_parsed(self):
+        """Notes string is parsed from config."""
+        b = RhizaBundles.from_config({"bundles": {"core": {"description": "Core", "notes": "See readme"}}})
+        assert b.bundles["core"].notes == "See readme"
+
+    def test_notes_defaults_to_empty(self):
+        """Notes defaults to empty string when absent."""
+        b = RhizaBundles.from_config({"bundles": {"core": {"description": "Core"}}})
+        assert b.bundles["core"].notes == ""
+
+    def test_required_serialised_when_true(self):
+        """required: True appears in config output."""
+        b = RhizaBundles.from_config({"bundles": {"core": {"description": "Core", "required": True}}})
+        assert b.config["bundles"]["core"]["required"] is True
+
+    def test_recommends_serialised_when_present(self):
+        """Recommends list appears in config output when non-empty."""
+        b = RhizaBundles.from_config({"bundles": {"book": {"description": "Book", "recommends": ["tests"]}}})
+        assert b.config["bundles"]["book"]["recommends"] == ["tests"]
+
+    def test_notes_serialised_when_present(self):
+        """Notes appears in config output when non-empty."""
+        b = RhizaBundles.from_config({"bundles": {"core": {"description": "Core", "notes": "See readme"}}})
+        assert b.config["bundles"]["core"]["notes"] == "See readme"
+
+    def test_new_fields_round_trip(self):
+        """New fields survive a config round-trip."""
+        original = RhizaBundles.from_config(
+            {
+                "bundles": {
+                    "core": {"description": "Core", "required": True},
+                    "book": {"description": "Book", "recommends": ["tests"], "notes": "Needs marimo"},
+                }
+            }
+        )
+        restored = RhizaBundles.from_config(original.config)
+        assert restored.bundles["core"].required is True
+        assert restored.bundles["book"].recommends == ["tests"]
+        assert restored.bundles["book"].notes == "Needs marimo"
+
+
+class TestDirectoryBasedResolution:
+    """Tests for bundles without explicit files resolved via bundles/<name>/ directories."""
+
+    def _make_dir_bundles(self):
+        return RhizaBundles.from_config(
+            {
+                "bundles": {
+                    "core": {"description": "Core", "required": True, "standalone": True},
+                    "tests": {"description": "Tests", "standalone": True, "requires": ["core"]},
+                    "github-tests": {"description": "GitHub Tests", "standalone": True, "requires": ["tests"]},
+                }
+            }
+        )
+
+    def test_resolve_to_paths_returns_bundle_dirs(self):
+        """Bundles without files resolve to bundles/<name>/ directory paths."""
+        b = self._make_dir_bundles()
+        result = b.resolve_to_paths(["core"])
+        assert result == ["bundles/core/"]
+
+    def test_resolve_to_paths_includes_transitive_deps(self):
+        """Transitive requires are resolved to bundle directory paths."""
+        b = self._make_dir_bundles()
+        result = b.resolve_to_paths(["tests"])
+        assert "bundles/core/" in result
+        assert "bundles/tests/" in result
+
+    def test_resolve_to_paths_deduplicates_dirs(self):
+        """Each bundle directory appears only once even when shared across deps."""
+        b = self._make_dir_bundles()
+        result = b.resolve_to_paths(["github-tests", "tests"])
+        assert result.count("bundles/core/") == 1
+        assert result.count("bundles/tests/") == 1
+
+    def test_resolve_to_path_map_returns_dir_prefix_to_root(self):
+        """resolve_to_path_map maps bundles/<name>/ → '' for directory-based bundles."""
+        b = self._make_dir_bundles()
+        path_map = b.resolve_to_path_map(["core"])
+        assert path_map == {"bundles/core/": ""}
+
+    def test_resolve_to_path_map_covers_all_resolved_bundles(self):
+        """path_map includes an entry for every bundle in the resolved set."""
+        b = self._make_dir_bundles()
+        path_map = b.resolve_to_path_map(["tests"])
+        assert "bundles/core/" in path_map
+        assert "bundles/tests/" in path_map
+        assert all(v == "" for v in path_map.values())
+
+    def test_mixed_format_explicit_files_bundle_uses_paths(self):
+        """A bundle with explicit files still uses the old path-based resolution."""
+        b = RhizaBundles.from_config(
+            {
+                "bundles": {
+                    "core": {"description": "Core", "files": ["Makefile", "pyproject.toml"]},
+                    "tests": {"description": "Tests", "requires": ["core"]},
+                }
+            }
+        )
+        result = b.resolve_to_paths(["tests"])
+        assert "Makefile" in result
+        assert "pyproject.toml" in result
+        assert "bundles/tests/" in result
+
+    def test_mixed_format_path_map_blends_old_and_new(self):
+        """path_map mixes explicit remaps (old) with dir prefix (new)."""
+        b = RhizaBundles.from_config(
+            {
+                "bundles": {
+                    "core": {
+                        "description": "Core",
+                        "files": [{"source": ".rhiza/stubs/ci.yml", "dest": ".github/workflows/ci.yml"}],
+                    },
+                    "tests": {"description": "Tests", "requires": ["core"]},
+                }
+            }
+        )
+        path_map = b.resolve_to_path_map(["tests"])
+        assert path_map[".rhiza/stubs/ci.yml"] == ".github/workflows/ci.yml"
+        assert path_map["bundles/tests/"] == ""
 
 
 class TestBundleFileEntry:

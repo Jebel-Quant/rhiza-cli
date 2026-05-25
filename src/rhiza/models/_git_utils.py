@@ -962,8 +962,10 @@ def _remap_path(source: str, path_map: dict[str, str]) -> str:
     for src, dest in path_map.items():
         src_prefix = src.rstrip("/") + "/"
         if source.startswith(src_prefix):
-            dest_prefix = dest.rstrip("/") + "/"
-            return dest_prefix + source[len(src_prefix) :]
+            suffix = source[len(src_prefix) :]
+            if dest.rstrip("/"):
+                return dest.rstrip("/") + "/" + suffix
+            return suffix
     return source
 
 
