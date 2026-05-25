@@ -1,3 +1,21 @@
+## [0.15.0] - 2026-05-25
+
+### 🚀 Features
+
+- Add path remapping support for bundle file entries (#504)
+
+### 🐛 Bug Fixes
+
+- Point coverage badge at GitHub Pages URL
+
+### 💼 Other
+
+- Bump version 0.14.1 → 0.15.0
+
+### ⚙️ Miscellaneous Tasks
+
+- Update CHANGELOG.md for v0.14.1 [skip ci]
+- Bump rhiza template to v0.11.0 (#503)
 ## [0.14.1] - 2026-05-24
 
 ### 🚀 Features
