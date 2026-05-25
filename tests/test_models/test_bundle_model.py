@@ -88,6 +88,13 @@ class TestRhizaBundlesConfig:
         assert restored.bundles["core"].files == original.bundles["core"].files
         assert restored.bundles["ci"].requires == original.bundles["ci"].requires
 
+    def test_files_as_string_normalised_to_list(self):
+        """A bundle's files field accepts a plain string and normalises it to a list."""
+        from rhiza.models.bundle import BundleFileEntry
+
+        b = RhizaBundles.from_config({"bundles": {"core": {"files": "Makefile"}}})
+        assert b.bundles["core"].files == [BundleFileEntry(source="Makefile", dest="Makefile")]
+
 
 # ---------------------------------------------------------------------------
 # from_config error paths
@@ -385,6 +392,13 @@ class TestBundleFileEntry:
         entry = BundleFileEntry.from_config_entry({"source": ".rhiza/stubs/ci.yml", "dest": ".github/workflows/ci.yml"})
         assert entry.remap_expanded_path("other/file.yml") == "other/file.yml"
 
+    def test_remap_non_remapped_entry_returns_expanded_source(self):
+        """remap_expanded_path returns expanded_source unchanged for non-remapped entries."""
+        from rhiza.models.bundle import BundleFileEntry
+
+        entry = BundleFileEntry.from_config_entry("Makefile")
+        assert entry.remap_expanded_path("Makefile") == "Makefile"
+
 
 class TestResolveToPathsWithRemappedEntries:
     """Tests for resolve_to_paths and resolve_to_path_map with remapped files."""
@@ -434,6 +448,25 @@ class TestResolveToPathsWithRemappedEntries:
         entry = restored.bundles["github-ci"].files[0]
         assert entry.source == ".rhiza/stubs/workflows/rhiza_ci.yml"
         assert entry.dest == ".github/workflows/rhiza_ci.yml"
+
+    def test_resolve_to_path_map_with_shared_dependency(self):
+        """resolve_to_path_map deduplicates bundles that share a common dependency."""
+        bundles = RhizaBundles.from_config(
+            {
+                "bundles": {
+                    "core": {"description": "Core", "files": ["Makefile"]},
+                    "tests": {"description": "Tests", "requires": ["core"], "files": ["pytest.ini"]},
+                    "ci": {
+                        "description": "CI",
+                        "requires": ["core"],
+                        "files": [{"source": ".rhiza/stubs/ci.yml", "dest": ".github/workflows/ci.yml"}],
+                    },
+                }
+            }
+        )
+        # Both tests and ci require core; the shared-dep guard (name in seen) is exercised.
+        path_map = bundles.resolve_to_path_map(["tests", "ci"])
+        assert path_map == {".rhiza/stubs/ci.yml": ".github/workflows/ci.yml"}
 
 
 class TestResolveProfileToPaths:

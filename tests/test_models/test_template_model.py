@@ -16,7 +16,7 @@ import yaml
 from rhiza.commands.sync import _clone_template, _load_template_from_project
 from rhiza.models import GitContext
 from rhiza.models._base import YamlSerializable, load_model
-from rhiza.models._git_utils import _excluded_set, _expand_paths, _prepare_snapshot
+from rhiza.models._git_utils import _excluded_set, _expand_paths, _prepare_snapshot, _remap_path
 from rhiza.models.template import RhizaTemplate
 
 
@@ -781,3 +781,19 @@ class TestFromProject:
         with patch("rhiza.commands.validate.validate", return_value=True):
             template = _load_template_from_project(tmp_path)
         assert template.exclude == ["secret.txt"]
+
+
+class TestRemapPath:
+    """Tests for _remap_path."""
+
+    def test_direct_key_match_returns_mapped_dest(self):
+        """Returns the mapped destination for an exact source key."""
+        assert _remap_path("Makefile", {"Makefile": "dest/Makefile"}) == "dest/Makefile"
+
+    def test_directory_prefix_match_substitutes_prefix(self):
+        """Replaces a directory prefix when source starts with <key>/."""
+        assert _remap_path(".rhiza/stubs/ci.yml", {".rhiza/stubs": ".github/workflows"}) == ".github/workflows/ci.yml"
+
+    def test_no_match_returns_source_unchanged(self):
+        """Returns source unchanged when no key matches."""
+        assert _remap_path("other.txt", {"Makefile": "dest/Makefile"}) == "other.txt"
