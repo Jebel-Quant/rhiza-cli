@@ -1,3 +1,16 @@
+## [0.16.1] - 2026-05-25
+
+### 🐛 Bug Fixes
+
+- Follow symlinks when scanning bundle directories
+
+### 💼 Other
+
+- Bump version 0.16.0 → 0.16.1
+
+### ⚙️ Miscellaneous Tasks
+
+- Update CHANGELOG.md for v0.16.0 [skip ci]
 ## [0.16.0] - 2026-05-25
 
 ### 🚀 Features
