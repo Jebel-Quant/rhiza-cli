@@ -919,7 +919,11 @@ def _expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
         if full.is_file():
             all_files.append(full)
         elif full.is_dir():
-            all_files.extend(f for f in full.rglob("*") if f.is_file())
+            all_files.extend(
+                Path(dirpath) / fname
+                for dirpath, _, filenames in os.walk(full, followlinks=True)
+                for fname in filenames
+            )
         else:
             logger.debug(f"Path not found in template repository: {p}")
     return all_files
