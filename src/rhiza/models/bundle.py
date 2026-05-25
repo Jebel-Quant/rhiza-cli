@@ -97,16 +97,22 @@ class BundleDefinition:
 
     Attributes:
         description: Human-readable description of the bundle.
-        files: List of file entries included in this bundle.
+        files: Explicit file entries (legacy format only — new bundles own files via
+            their ``bundles/<name>/`` directory in the template repository).
         requires: List of bundle names that this bundle requires.
+        recommends: List of bundle names that this bundle recommends (soft deps).
         standalone: Whether this bundle is standalone (no dependencies).
+        required: Whether this bundle is mandatory (always included).
+        notes: Free-form notes for maintainers (not synced to downstream projects).
     """
 
-    # name: str
     description: str
     standalone: bool = True
+    required: bool = False
     files: list[BundleFileEntry] = field(default_factory=list)
     requires: list[str] = field(default_factory=list)
+    recommends: list[str] = field(default_factory=list)
+    notes: str = ""
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -133,12 +139,18 @@ class RhizaBundles(YamlSerializable):
         bundles_dict: dict[str, Any] = {}
         for name, bundle in self.bundles.items():
             bundle_entry: dict[str, Any] = {"description": bundle.description}
-            if bundle.files:
-                bundle_entry["files"] = [f.to_config_entry() for f in bundle.files]
-            if bundle.requires:
-                bundle_entry["requires"] = bundle.requires
+            if bundle.required:
+                bundle_entry["required"] = bundle.required
             if bundle.standalone:
                 bundle_entry["standalone"] = bundle.standalone
+            if bundle.requires:
+                bundle_entry["requires"] = bundle.requires
+            if bundle.recommends:
+                bundle_entry["recommends"] = bundle.recommends
+            if bundle.files:
+                bundle_entry["files"] = [f.to_config_entry() for f in bundle.files]
+            if bundle.notes:
+                bundle_entry["notes"] = bundle.notes
             bundles_dict[name] = bundle_entry
 
         config["bundles"] = bundles_dict
@@ -194,7 +206,10 @@ class RhizaBundles(YamlSerializable):
                 description=bundle_data.get("description", ""),
                 files=files,
                 requires=requires,
+                recommends=_normalize_to_list(bundle_data.get("recommends")),
                 standalone=bundle_data.get("standalone", True),
+                required=bool(bundle_data.get("required", False)),
+                notes=bundle_data.get("notes") or "",
             )
 
         profiles_config = config.get("profiles", {})
@@ -256,10 +271,16 @@ class RhizaBundles(YamlSerializable):
 
         for bundle_name in bundles:
             bundle = self.bundles[bundle_name]
-            for entry in bundle.files:
-                if entry.source not in seen:
-                    paths.append(entry.source)
-                    seen.add(entry.source)
+            if bundle.files:
+                for entry in bundle.files:
+                    if entry.source not in seen:
+                        paths.append(entry.source)
+                        seen.add(entry.source)
+            else:
+                dir_path = f"bundles/{bundle_name}/"
+                if dir_path not in seen:
+                    paths.append(dir_path)
+                    seen.add(dir_path)
 
         return paths
 
@@ -297,9 +318,13 @@ class RhizaBundles(YamlSerializable):
             _collect(name)
 
         for bundle_name in bundle_order:
-            for entry in self.bundles[bundle_name].files:
-                if entry.source in resolved_set and entry.is_remapped:
-                    path_map[entry.source] = entry.dest
+            bundle = self.bundles[bundle_name]
+            if bundle.files:
+                for entry in bundle.files:
+                    if entry.source in resolved_set and entry.is_remapped:
+                        path_map[entry.source] = entry.dest
+            else:
+                path_map[f"bundles/{bundle_name}/"] = ""
 
         return path_map
 

@@ -797,3 +797,20 @@ class TestRemapPath:
     def test_no_match_returns_source_unchanged(self):
         """Returns source unchanged when no key matches."""
         assert _remap_path("other.txt", {"Makefile": "dest/Makefile"}) == "other.txt"
+
+    def test_empty_dest_strips_bundle_prefix_to_root(self):
+        """Empty dest maps bundles/<name>/file.txt → file.txt (directory-based bundle resolution)."""
+        assert _remap_path("bundles/core/Makefile", {"bundles/core/": ""}) == "Makefile"
+
+    def test_empty_dest_strips_nested_path(self):
+        """Empty dest handles nested paths correctly."""
+        assert (
+            _remap_path("bundles/github-tests/.github/workflows/ci.yml", {"bundles/github-tests/": ""})
+            == ".github/workflows/ci.yml"
+        )
+
+    def test_empty_dest_no_leading_slash(self):
+        """Empty dest does not produce a leading slash in the result."""
+        result = _remap_path("bundles/tests/pytest.ini", {"bundles/tests/": ""})
+        assert not result.startswith("/")
+        assert result == "pytest.ini"
