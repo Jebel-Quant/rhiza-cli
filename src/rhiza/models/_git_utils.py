@@ -478,6 +478,7 @@ class GitContext:
         excludes: set[str],
         lock: "TemplateLock",
         lock_file: "Path | None" = None,
+        path_map: "dict[str, str] | None" = None,
     ) -> bool:
         """Execute the merge strategy (cruft-style 3-way merge).
 
@@ -496,6 +497,8 @@ class GitContext:
             lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
             lock_file: Optional explicit path for the lock file.  When ``None``
                 the default ``<target>/.rhiza/template.lock`` is used.
+            path_map: Optional source→destination path mapping for remapped
+                bundle file entries.
 
         Returns:
             True if all changes applied cleanly, False if any conflicts remain.
@@ -527,6 +530,7 @@ class GitContext:
                     excludes,
                     lock,
                     lock_file=lock_file,
+                    path_map=path_map,
                 )
             else:
                 logger.info("First sync — copying all template files")
@@ -776,6 +780,7 @@ class GitContext:
         excludes: set[str],
         lock: "TemplateLock",
         lock_file: "Path | None" = None,
+        path_map: "dict[str, str] | None" = None,
     ) -> bool:
         """Compute and apply the diff between base and upstream snapshots.
 
@@ -790,6 +795,8 @@ class GitContext:
             lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
             lock_file: Optional explicit path for the lock file.  When ``None``
                 the default ``<target>/.rhiza/template.lock`` is used.
+            path_map: Optional source→destination path mapping for remapped
+                bundle file entries.
 
         Returns:
             True if all changes applied cleanly, False if any conflicts remain.
@@ -800,7 +807,7 @@ class GitContext:
         base_clone = Path(tempfile.mkdtemp())
         try:
             self.clone_at_sha(template.git_url, base_sha, base_clone, template.include)
-            _prepare_snapshot(base_clone, template.include, excludes, base_snapshot)
+            _prepare_snapshot(base_clone, template.include, excludes, base_snapshot, path_map=path_map)
         except Exception:
             logger.warning("Could not checkout base commit — treating all files as new")
         finally:
@@ -936,29 +943,62 @@ def _excluded_set(base_dir: Path, excluded_paths: list[str]) -> set[str]:
     return result
 
 
+def _remap_path(source: str, path_map: dict[str, str]) -> str:
+    """Translate *source* to its destination path using *path_map*.
+
+    Supports both exact file matches and directory-prefix matches.  A prefix
+    match is triggered when a key ends with ``/`` or when *source* starts with
+    ``<key>/``.
+
+    Args:
+        source: Source-relative path from the template clone.
+        path_map: Mapping of source path → destination path.
+
+    Returns:
+        The destination path, or *source* unchanged when no mapping applies.
+    """
+    if source in path_map:
+        return path_map[source]
+    for src, dest in path_map.items():
+        src_prefix = src.rstrip("/") + "/"
+        if source.startswith(src_prefix):
+            dest_prefix = dest.rstrip("/") + "/"
+            return dest_prefix + source[len(src_prefix) :]
+    return source
+
+
 def _prepare_snapshot(
     clone_dir: Path,
     include_paths: list[str],
     excludes: set[str],
     snapshot_dir: Path,
+    path_map: dict[str, str] | None = None,
 ) -> list[Path]:
     """Copy included (non-excluded) files from a clone into a snapshot directory.
 
+    When *path_map* is provided, files are written at their destination paths
+    (rather than their source paths) so that downstream diffs and merges operate
+    on the correct target locations.
+
     Args:
         clone_dir: Root of the template clone.
-        include_paths: Paths to include.
-        excludes: Set of relative paths to exclude.
+        include_paths: Source paths to include.
+        excludes: Set of relative source paths to exclude.
         snapshot_dir: Destination directory for the snapshot.
+        path_map: Optional source→destination path mapping.  Keys may be exact
+            file paths or directory prefixes.
 
     Returns:
-        List of relative file paths that were copied.
+        List of relative destination file paths that were copied.
     """
+    effective_map = path_map or {}
     materialized: list[Path] = []
     for f in _expand_paths(clone_dir, include_paths):
-        rel = str(f.relative_to(clone_dir))
-        if rel not in excludes:
-            dst = snapshot_dir / rel
+        rel_source = str(f.relative_to(clone_dir))
+        if rel_source not in excludes:
+            rel_dest = _remap_path(rel_source, effective_map)
+            dst = snapshot_dir / rel_dest
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(f, dst)
-            materialized.append(Path(rel))
+            materialized.append(Path(rel_dest))
     return materialized

@@ -88,6 +88,13 @@ class TestRhizaBundlesConfig:
         assert restored.bundles["core"].files == original.bundles["core"].files
         assert restored.bundles["ci"].requires == original.bundles["ci"].requires
 
+    def test_files_as_string_normalised_to_list(self):
+        """A bundle's files field accepts a plain string and normalises it to a list."""
+        from rhiza.models.bundle import BundleFileEntry
+
+        b = RhizaBundles.from_config({"bundles": {"core": {"files": "Makefile"}}})
+        assert b.bundles["core"].files == [BundleFileEntry(source="Makefile", dest="Makefile")]
+
 
 # ---------------------------------------------------------------------------
 # from_config error paths
@@ -307,6 +314,159 @@ class TestProfileDefinition:
             }
         )
         assert "description" not in bundles.config["profiles"]["minimal"]
+
+
+class TestBundleFileEntry:
+    """Tests for BundleFileEntry parsing and path remapping."""
+
+    def test_string_entry_source_equals_dest(self):
+        """A plain string entry has source == dest."""
+        from rhiza.models.bundle import BundleFileEntry
+
+        entry = BundleFileEntry.from_config_entry("Makefile")
+        assert entry.source == "Makefile"
+        assert entry.dest == "Makefile"
+        assert not entry.is_remapped
+
+    def test_dict_entry_with_dest(self):
+        """A dict entry with source and dest is parsed correctly."""
+        from rhiza.models.bundle import BundleFileEntry
+
+        entry = BundleFileEntry.from_config_entry(
+            {"source": ".rhiza/stubs/workflows/ci.yml", "dest": ".github/workflows/ci.yml"}
+        )
+        assert entry.source == ".rhiza/stubs/workflows/ci.yml"
+        assert entry.dest == ".github/workflows/ci.yml"
+        assert entry.is_remapped
+
+    def test_dict_entry_without_dest_falls_back_to_source(self):
+        """A dict entry with only source defaults dest to source."""
+        from rhiza.models.bundle import BundleFileEntry
+
+        entry = BundleFileEntry.from_config_entry({"source": "Makefile"})
+        assert entry.dest == "Makefile"
+        assert not entry.is_remapped
+
+    def test_dict_entry_missing_source_raises(self):
+        """TypeError raised when dict entry has no source key."""
+        import pytest
+
+        from rhiza.models.bundle import BundleFileEntry
+
+        with pytest.raises(TypeError, match="source"):
+            BundleFileEntry.from_config_entry({"dest": "Makefile"})
+
+    def test_to_config_entry_plain_string_roundtrip(self):
+        """Non-remapped entry serialises back to a plain string."""
+        from rhiza.models.bundle import BundleFileEntry
+
+        entry = BundleFileEntry.from_config_entry("Makefile")
+        assert entry.to_config_entry() == "Makefile"
+
+    def test_to_config_entry_remapped_roundtrip(self):
+        """Remapped entry serialises back to a dict."""
+        from rhiza.models.bundle import BundleFileEntry
+
+        raw = {"source": ".rhiza/stubs/workflows/ci.yml", "dest": ".github/workflows/ci.yml"}
+        entry = BundleFileEntry.from_config_entry(raw)
+        assert entry.to_config_entry() == raw
+
+    def test_remap_exact_file(self):
+        """remap_expanded_path maps an exact file path."""
+        from rhiza.models.bundle import BundleFileEntry
+
+        entry = BundleFileEntry.from_config_entry({"source": ".rhiza/stubs/ci.yml", "dest": ".github/workflows/ci.yml"})
+        assert entry.remap_expanded_path(".rhiza/stubs/ci.yml") == ".github/workflows/ci.yml"
+
+    def test_remap_directory_prefix(self):
+        """remap_expanded_path applies prefix substitution for directory entries."""
+        from rhiza.models.bundle import BundleFileEntry
+
+        entry = BundleFileEntry.from_config_entry({"source": ".rhiza/stubs/workflows", "dest": ".github/workflows"})
+        assert entry.remap_expanded_path(".rhiza/stubs/workflows/ci.yml") == ".github/workflows/ci.yml"
+
+    def test_remap_non_matching_path_unchanged(self):
+        """remap_expanded_path returns the source unchanged when it doesn't match."""
+        from rhiza.models.bundle import BundleFileEntry
+
+        entry = BundleFileEntry.from_config_entry({"source": ".rhiza/stubs/ci.yml", "dest": ".github/workflows/ci.yml"})
+        assert entry.remap_expanded_path("other/file.yml") == "other/file.yml"
+
+    def test_remap_non_remapped_entry_returns_expanded_source(self):
+        """remap_expanded_path returns expanded_source unchanged for non-remapped entries."""
+        from rhiza.models.bundle import BundleFileEntry
+
+        entry = BundleFileEntry.from_config_entry("Makefile")
+        assert entry.remap_expanded_path("Makefile") == "Makefile"
+
+
+class TestResolveToPathsWithRemappedEntries:
+    """Tests for resolve_to_paths and resolve_to_path_map with remapped files."""
+
+    def _make_bundles(self):
+        return RhizaBundles.from_config(
+            {
+                "bundles": {
+                    "core": {"description": "Core", "files": ["Makefile"]},
+                    "github-ci": {
+                        "description": "CI workflows",
+                        "requires": ["core"],
+                        "files": [
+                            {
+                                "source": ".rhiza/stubs/workflows/rhiza_ci.yml",
+                                "dest": ".github/workflows/rhiza_ci.yml",
+                            }
+                        ],
+                    },
+                }
+            }
+        )
+
+    def test_resolve_to_paths_returns_source_paths(self):
+        """resolve_to_paths returns source paths (used for sparse checkout)."""
+        bundles = self._make_bundles()
+        result = bundles.resolve_to_paths(["github-ci"])
+        assert ".rhiza/stubs/workflows/rhiza_ci.yml" in result
+        assert ".github/workflows/rhiza_ci.yml" not in result
+
+    def test_resolve_to_path_map_returns_remapped_entries_only(self):
+        """resolve_to_path_map only includes entries where source != dest."""
+        bundles = self._make_bundles()
+        path_map = bundles.resolve_to_path_map(["github-ci"])
+        assert path_map == {".rhiza/stubs/workflows/rhiza_ci.yml": ".github/workflows/rhiza_ci.yml"}
+        assert "Makefile" not in path_map
+
+    def test_resolve_to_path_map_empty_when_no_remapping(self):
+        """resolve_to_path_map is empty when no entries are remapped."""
+        bundles = self._make_bundles()
+        assert bundles.resolve_to_path_map(["core"]) == {}
+
+    def test_config_round_trips_remapped_files(self):
+        """Remapped file entries survive a config round-trip."""
+        bundles = self._make_bundles()
+        restored = RhizaBundles.from_config(bundles.config)
+        entry = restored.bundles["github-ci"].files[0]
+        assert entry.source == ".rhiza/stubs/workflows/rhiza_ci.yml"
+        assert entry.dest == ".github/workflows/rhiza_ci.yml"
+
+    def test_resolve_to_path_map_with_shared_dependency(self):
+        """resolve_to_path_map deduplicates bundles that share a common dependency."""
+        bundles = RhizaBundles.from_config(
+            {
+                "bundles": {
+                    "core": {"description": "Core", "files": ["Makefile"]},
+                    "tests": {"description": "Tests", "requires": ["core"], "files": ["pytest.ini"]},
+                    "ci": {
+                        "description": "CI",
+                        "requires": ["core"],
+                        "files": [{"source": ".rhiza/stubs/ci.yml", "dest": ".github/workflows/ci.yml"}],
+                    },
+                }
+            }
+        )
+        # Both tests and ci require core; the shared-dep guard (name in seen) is exercised.
+        path_map = bundles.resolve_to_path_map(["tests", "ci"])
+        assert path_map == {".rhiza/stubs/ci.yml": ".github/workflows/ci.yml"}
 
 
 class TestResolveProfileToPaths:
