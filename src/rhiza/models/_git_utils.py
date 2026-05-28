@@ -197,6 +197,7 @@ class GitContext:
         in_diff = False
 
         def _flush() -> None:
+            """Emit the current file entry into results if a path was captured."""
             rel = dst_path if not is_deleted else src_path
             if rel:
                 results.append((rel, is_new, is_deleted))

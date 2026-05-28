@@ -60,7 +60,7 @@ def _validate_git_host(git_host: str | None) -> GitHost | None:
         raise ValueError(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'") from None  # noqa: TRY003
 
 
-def _check_template_repository_reachable(template_repository: str, git_host: GitHost | str = GitHost.GITHUB) -> bool:
+def _check_template_repository_reachable(template_repository: str, git_host: GitHost = GitHost.GITHUB) -> bool:
     """Check if the template repository is reachable via git ls-remote.
 
     Args:

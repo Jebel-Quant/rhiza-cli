@@ -24,6 +24,8 @@ _DATE_WIDTH = 10
 
 @dataclass
 class _RepoInfo:
+    """Minimal repository metadata returned by the GitHub Search API."""
+
     full_name: str
     description: str
     updated_at: str
@@ -123,6 +125,7 @@ def _render_table(repos: list[_RepoInfo]) -> str:
     bot = f"└{'─' * (rw + 2)}┴{'─' * (dw + 2)}┴{'─' * (uw + 2)}┘"
 
     def cell_row(r: str, d: str, u: str) -> str:
+        """Format one table row with repo, description, and updated columns."""
         return f"│ {r:<{rw}} │ {d:<{dw}} │ {u:<{uw}} │"
 
     header = f"│ {'Repo':^{rw}} │ {'Description':^{dw}} │ {'Updated':^{uw}} │"
