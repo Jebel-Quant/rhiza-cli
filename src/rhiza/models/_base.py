@@ -13,7 +13,7 @@ Example usage::
 """
 
 from pathlib import Path
-from typing import Any, Protocol, Self, TypeVar, runtime_checkable
+from typing import Any, Protocol, Self, TypeVar, cast, runtime_checkable
 
 import yaml
 
@@ -134,4 +134,4 @@ def load_model(cls: type[_T], path: Path) -> _T:
     from_config = getattr(cls, "from_config", None)
     if not callable(from_config):
         raise TypeError(f"{cls.__name__} does not implement from_config")  # noqa: TRY003
-    return cls.from_config(read_yaml(path))  # type: ignore[attr-defined]
+    return cast(_T, from_config(read_yaml(path)))
