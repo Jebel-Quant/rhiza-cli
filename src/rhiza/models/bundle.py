@@ -250,6 +250,7 @@ class RhizaBundles(YamlSerializable):
         seen: set[str] = set()
 
         def _collect(bundle_name: str) -> None:
+            """Recursively resolve bundle dependencies in topological order."""
             if bundle_name not in self.bundles:
                 msg = f"Bundle '{bundle_name}' does not exist"
                 raise ValueError(msg)
@@ -305,6 +306,7 @@ class RhizaBundles(YamlSerializable):
         resolving: set[str] = set()
 
         def _collect(name: str) -> None:
+            """Recursively collect bundle dependency order, skipping already-seen entries."""
             if name not in self.bundles or name in resolving or name in seen:
                 return
             resolving.add(name)
