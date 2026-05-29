@@ -5,7 +5,6 @@ that the Typer CLI entry `rhiza init` works as expected.
 """
 
 import subprocess  # nosec B404
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -134,14 +133,14 @@ class TestInitCommand:
         # Old file should still exist (not moved)
         assert old_template_file.exists()
 
-    def test_init_cli_command(self):
+    def test_init_cli_command(self, tmp_path, monkeypatch):
         """Test the CLI init command via Typer runner."""
+        monkeypatch.chdir(tmp_path)
+        subprocess.run(["git", "init"], capture_output=True, cwd=tmp_path)  # nosec B603 B607
         runner = CliRunner()
-        with runner.isolated_filesystem():
-            subprocess.run(["git", "init"], capture_output=True)  # nosec B603 B607
-            result = runner.invoke(cli.app, ["init"])
-            assert result.exit_code == 0
-            assert Path(".rhiza/template.yml").exists()
+        result = runner.invoke(cli.app, ["init"])
+        assert result.exit_code == 0
+        assert (tmp_path / ".rhiza" / "template.yml").exists()
 
     def test_init_creates_correctly_formatted_files(self, tmp_path):
         """Test that init creates files with correct formatting (no indentation)."""
