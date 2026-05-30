@@ -20,12 +20,12 @@ class TestInitCommand:
     """Tests for the init command."""
 
     @patch("rhiza.commands.init._get_latest_tag", return_value="v1.2.3")
-    def test_init_creates_default_template_yml(self, mock_tag, tmp_path):
+    def test_init_creates_default_template_yml(self, mock_tag, git_tmp_path):
         """Test that init creates a default template.yml when it doesn't exist."""
-        init(tmp_path)
+        init(git_tmp_path)
 
         # Verify template.yml was created
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
 
         # Verify it contains expected content
@@ -37,10 +37,10 @@ class TestInitCommand:
         assert "profiles" in config
         assert "github-project" in config["profiles"]
 
-    def test_init_validates_existing_template_yml(self, tmp_path):
+    def test_init_validates_existing_template_yml(self, git_tmp_path):
         """Test that init validates an existing template.yml."""
         # Create existing template.yml
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -55,7 +55,7 @@ class TestInitCommand:
             )
 
         # Run init - should validate without error
-        init(tmp_path)
+        init(git_tmp_path)
 
         # Verify original content is preserved
         with open(template_file) as f:
@@ -64,10 +64,10 @@ class TestInitCommand:
         assert config["repository"] == "custom/repo"
         assert config["ref"] == "dev"
 
-    def test_init_warns_on_missing_template_repository(self, tmp_path):
+    def test_init_warns_on_missing_template_repository(self, git_tmp_path):
         """Test that init warns when template-repository is missing."""
         # Create template.yml without template-repository
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -75,13 +75,13 @@ class TestInitCommand:
             yaml.dump({"template-branch": "main", "include": [".github"]}, f)
 
         # Run init - should validate but warn
-        init(tmp_path)
+        init(git_tmp_path)
         # If we reach here, the function completed without raising an exception
 
-    def test_init_warns_on_missing_include(self, tmp_path):
+    def test_init_warns_on_missing_include(self, git_tmp_path):
         """Test that init warns when include field is missing or empty."""
         # Create template.yml without include
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
 
@@ -89,20 +89,20 @@ class TestInitCommand:
             yaml.dump({"template-repository": "jebel-quant/rhiza", "template-branch": "main"}, f)
 
         # Run init - should validate but warn
-        init(tmp_path)
+        init(git_tmp_path)
 
-    def test_init_creates_rhiza_directory(self, tmp_path):
+    def test_init_creates_rhiza_directory(self, git_tmp_path):
         """Test that init creates .rhiza directory if it doesn't exist."""
-        init(tmp_path)
+        init(git_tmp_path)
 
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_tmp_path / ".rhiza"
         assert rhiza_dir.exists()
         assert rhiza_dir.is_dir()
 
-    def test_init_with_old_template_location(self, tmp_path):
+    def test_init_with_old_template_location(self, git_tmp_path):
         """Test that init works when template.yml exists in old location."""
         # Create old location template.yml
-        github_dir = tmp_path / ".github"
+        github_dir = git_tmp_path / ".github"
         github_dir.mkdir(parents=True)
         old_template_file = github_dir / "template.yml"
 
@@ -117,10 +117,10 @@ class TestInitCommand:
             )
 
         # Run init - should create new template in new location
-        init(tmp_path)
+        init(git_tmp_path)
 
         # Verify new template was created in new location
-        new_template_file = tmp_path / ".rhiza" / "template.yml"
+        new_template_file = git_tmp_path / ".rhiza" / "template.yml"
         assert new_template_file.exists()
 
         # Verify it has default content (not copied from old location)
@@ -141,51 +141,51 @@ class TestInitCommand:
         assert result.exit_code == 0
         assert (tmp_path / ".rhiza" / "template.yml").exists()
 
-    def test_init_creates_correctly_formatted_files(self, tmp_path):
+    def test_init_creates_correctly_formatted_files(self, git_tmp_path):
         """Test that init creates files with correct formatting (no indentation)."""
-        init(tmp_path)
+        init(git_tmp_path)
 
         # Check pyproject.toml content
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_tmp_path / "pyproject.toml"
         assert pyproject_file.exists()
 
         # We expect the default template output
         content = pyproject_file.read_text()
-        assert f'name = "{tmp_path.name}"' in content
+        assert f'name = "{git_tmp_path.name}"' in content
         assert 'packages = ["src/' in content
 
         # Check main.py content
-        main_file = tmp_path / "src" / tmp_path.name / "main.py"
+        main_file = git_tmp_path / "src" / git_tmp_path.name / "main.py"
         assert main_file.exists()
 
         content = main_file.read_text()
-        assert f'"""Main module for {tmp_path.name}."""' in content
+        assert f'"""Main module for {git_tmp_path.name}."""' in content
         assert "def say_hello(name: str) -> str:" in content
 
-    def test_init_with_custom_names(self, tmp_path):
+    def test_init_with_custom_names(self, git_tmp_path):
         """Test init with custom project and package names."""
-        init(tmp_path, project_name="My Project", package_name="my_pkg")
+        init(git_tmp_path, project_name="My Project", package_name="my_pkg")
 
         # Check pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_tmp_path / "pyproject.toml"
         content = pyproject_file.read_text()
         assert 'name = "My Project"' in content
         assert 'packages = ["src/my_pkg"]' in content
 
         # Check directory structure
-        assert (tmp_path / "src" / "my_pkg").exists()
-        assert (tmp_path / "src" / "my_pkg" / "__init__.py").exists()
-        assert (tmp_path / "src" / "my_pkg" / "main.py").exists()
+        assert (git_tmp_path / "src" / "my_pkg").exists()
+        assert (git_tmp_path / "src" / "my_pkg" / "__init__.py").exists()
+        assert (git_tmp_path / "src" / "my_pkg" / "main.py").exists()
 
         # Check __init__.py docstring
-        init_file = tmp_path / "src" / "my_pkg" / "__init__.py"
+        init_file = git_tmp_path / "src" / "my_pkg" / "__init__.py"
         assert '"""My Project."""' in init_file.read_text()
 
-    def test_init_with_dev_dependencies(self, tmp_path):
+    def test_init_with_dev_dependencies(self, git_tmp_path):
         """Test init creates a pyproject.toml with test and lint dependency-groups."""
-        init(tmp_path, with_dev_dependencies=True)
+        init(git_tmp_path, with_dev_dependencies=True)
 
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_tmp_path / "pyproject.toml"
         content = pyproject_file.read_text()
 
         assert "[dependency-groups]" in content
@@ -194,42 +194,42 @@ class TestInitCommand:
         assert "pytest" in content
         assert "ruff" in content
 
-    def test_init_without_dev_dependencies(self, tmp_path):
+    def test_init_without_dev_dependencies(self, git_tmp_path):
         """Test init creates a pyproject.toml without a dependency-groups block by default."""
-        init(tmp_path, with_dev_dependencies=False)
+        init(git_tmp_path, with_dev_dependencies=False)
 
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_tmp_path / "pyproject.toml"
         content = pyproject_file.read_text()
 
         assert "[dependency-groups]" not in content
 
-    def test_init_creates_makefile(self, tmp_path):
+    def test_init_creates_makefile(self, git_tmp_path):
         """Test init creates a Makefile with a bootstrap sync target."""
-        init(tmp_path)
+        init(git_tmp_path)
 
-        makefile = tmp_path / "Makefile"
+        makefile = git_tmp_path / "Makefile"
         assert makefile.exists()
         content = makefile.read_text()
 
         assert "uvx rhiza sync ." in content
         assert "-include .rhiza/rhiza.mk" in content
 
-    def test_init_skips_makefile_creation_when_exists(self, tmp_path):
+    def test_init_skips_makefile_creation_when_exists(self, git_tmp_path):
         """Test that init does not overwrite an existing Makefile."""
-        makefile = tmp_path / "Makefile"
+        makefile = git_tmp_path / "Makefile"
         makefile.write_text("# existing\n")
 
-        init(tmp_path)
+        init(git_tmp_path)
 
         assert makefile.read_text() == "# existing\n"
 
-    def test_init_generates_valid_toml(self, tmp_path):
+    def test_init_generates_valid_toml(self, git_tmp_path):
         """Test that the generated pyproject.toml is valid TOML."""
         import tomllib
 
-        init(tmp_path)
+        init(git_tmp_path)
 
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_tmp_path / "pyproject.toml"
         assert pyproject_file.exists()
 
         with open(pyproject_file, "rb") as f:
@@ -237,9 +237,9 @@ class TestInitCommand:
 
         assert "project" in data
         assert "name" in data["project"]
-        assert data["project"]["name"] == tmp_path.name
+        assert data["project"]["name"] == git_tmp_path.name
 
-    def test_init_with_hyphenated_project_name_normalises_test_import(self, tmp_path):
+    def test_init_with_hyphenated_project_name_normalises_test_import(self, git_tmp_path):
         """Test that the generated test file imports from the normalised package name.
 
         Regression: previously the test template was rendered with the raw project
@@ -247,49 +247,49 @@ class TestInitCommand:
         ``from mini-commodities.main import …``.  The import must use the normalised
         package name (e.g. 'example_project').
         """
-        init(tmp_path, project_name="example-project", git_host="github")
+        init(git_tmp_path, project_name="example-project", git_host="github")
 
-        test_file = tmp_path / "tests" / "test_main.py"
+        test_file = git_tmp_path / "tests" / "test_main.py"
         assert test_file.exists()
         content = test_file.read_text()
         # Import must reference the normalised name, not the raw hyphenated one
         assert "from example_project.main import" in content
         assert "from example-project.main import" not in content
 
-    def test_init_with_project_name_starting_with_digit(self, tmp_path):
+    def test_init_with_project_name_starting_with_digit(self, git_tmp_path):
         """Test init with project name starting with a digit (auto-normalized package name)."""
         # Don't pass package_name, so it will be auto-normalized from project_name
-        init(tmp_path, project_name="123project")
+        init(git_tmp_path, project_name="123project")
 
         # Check that package name was normalized to _123project
-        assert (tmp_path / "src" / "_123project").exists()
-        assert (tmp_path / "src" / "_123project" / "__init__.py").exists()
+        assert (git_tmp_path / "src" / "_123project").exists()
+        assert (git_tmp_path / "src" / "_123project" / "__init__.py").exists()
 
         # Check pyproject.toml references the normalized package
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_tmp_path / "pyproject.toml"
         content = pyproject_file.read_text()
         assert 'packages = ["src/_123project"]' in content
 
-    def test_init_with_project_name_as_keyword(self, tmp_path):
+    def test_init_with_project_name_as_keyword(self, git_tmp_path):
         """Test init with project name that is a Python keyword (auto-normalized package name)."""
         # Don't pass package_name, so it will be auto-normalized from project_name
-        init(tmp_path, project_name="class")
+        init(git_tmp_path, project_name="class")
 
         # Check that package name was normalized to class_
-        assert (tmp_path / "src" / "class_").exists()
-        assert (tmp_path / "src" / "class_" / "__init__.py").exists()
+        assert (git_tmp_path / "src" / "class_").exists()
+        assert (git_tmp_path / "src" / "class_" / "__init__.py").exists()
 
         # Check pyproject.toml references the normalized package
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_tmp_path / "pyproject.toml"
         content = pyproject_file.read_text()
         assert 'packages = ["src/class_"]' in content
 
-    def test_init_with_github_explicit(self, tmp_path):
+    def test_init_with_github_explicit(self, git_tmp_path):
         """Test init with explicitly specified GitHub target platform."""
-        init(tmp_path, git_host="github")
+        init(git_tmp_path, git_host="github")
 
         # Verify template.yml was created
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
 
         with open(template_file) as f:
@@ -299,12 +299,12 @@ class TestInitCommand:
         assert "github-project" in config["profiles"]
         assert "gitlab-project" not in config["profiles"]
 
-    def test_init_with_gitlab_explicit(self, tmp_path):
+    def test_init_with_gitlab_explicit(self, git_tmp_path):
         """Test init with explicitly specified GitLab target platform."""
-        init(tmp_path, git_host="gitlab")
+        init(git_tmp_path, git_host="gitlab")
 
         # Verify template.yml was created
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
 
         with open(template_file) as f:
@@ -314,17 +314,17 @@ class TestInitCommand:
         assert "gitlab-project" in config["profiles"]
         assert "github-project" not in config["profiles"]
 
-    def test_init_with_invalid_git_host(self, tmp_path):
+    def test_init_with_invalid_git_host(self, git_tmp_path):
         """Test init with invalid git-host raises error."""
         with pytest.raises(ValueError, match="Invalid git-host"):
-            init(tmp_path, git_host="bitbucket")
+            init(git_tmp_path, git_host="bitbucket")
 
-    def test_init_with_git_host_case_insensitive(self, tmp_path):
+    def test_init_with_git_host_case_insensitive(self, git_tmp_path):
         """Test init with git-host is case insensitive."""
-        init(tmp_path, git_host="GitLab")
+        init(git_tmp_path, git_host="GitLab")
 
         # Verify template.yml was created
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
 
         with open(template_file) as f:
@@ -334,12 +334,12 @@ class TestInitCommand:
         assert "gitlab-project" in config["profiles"]
         assert "github-project" not in config["profiles"]
 
-    def test_init_with_go_language(self, tmp_path):
+    def test_init_with_go_language(self, git_tmp_path):
         """Test that init with go language creates Go-specific structure."""
-        init(tmp_path, git_host="github", language="go")
+        init(git_tmp_path, git_host="github", language="go")
 
         # Verify template.yml was created with go language
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
 
         with open(template_file) as f:
@@ -349,19 +349,19 @@ class TestInitCommand:
         assert config["language"] == "go"
 
         # Verify Go-specific structure was NOT created (user should run go mod init)
-        assert not (tmp_path / "go.mod").exists()
-        assert not (tmp_path / "src").exists()
-        assert not (tmp_path / "pyproject.toml").exists()
+        assert not (git_tmp_path / "go.mod").exists()
+        assert not (git_tmp_path / "src").exists()
+        assert not (git_tmp_path / "pyproject.toml").exists()
 
         # Only README should be created
-        assert (tmp_path / "README.md").exists()
+        assert (git_tmp_path / "README.md").exists()
 
-    def test_init_with_python_language_explicit(self, tmp_path):
+    def test_init_with_python_language_explicit(self, git_tmp_path):
         """Test that init with explicit python language creates Python structure."""
-        init(tmp_path, git_host="github", language="python")
+        init(git_tmp_path, git_host="github", language="python")
 
         # Verify template.yml was created WITHOUT language field (it's default)
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
@@ -369,60 +369,60 @@ class TestInitCommand:
         assert "language" not in config  # python is the default, not emitted
 
         # Verify Python-specific structure
-        assert (tmp_path / "pyproject.toml").exists()
-        assert (tmp_path / "src" / tmp_path.name).is_dir()
-        assert (tmp_path / "README.md").exists()
+        assert (git_tmp_path / "pyproject.toml").exists()
+        assert (git_tmp_path / "src" / git_tmp_path.name).is_dir()
+        assert (git_tmp_path / "README.md").exists()
 
-    def test_init_defaults_to_python_language(self, tmp_path):
+    def test_init_defaults_to_python_language(self, git_tmp_path):
         """Test that init defaults to python when no language specified."""
-        init(tmp_path, git_host="github")
+        init(git_tmp_path, git_host="github")
 
         # Verify Python structure was created
-        assert (tmp_path / "pyproject.toml").exists()
-        assert (tmp_path / "src").is_dir()
+        assert (git_tmp_path / "pyproject.toml").exists()
+        assert (git_tmp_path / "src").is_dir()
 
     @patch("rhiza.commands.init._check_template_repository_reachable", return_value=True)
-    def test_init_go_with_custom_template_repository(self, mock_check, tmp_path):
+    def test_init_go_with_custom_template_repository(self, mock_check, git_tmp_path):
         """Test that custom template repository works with Go language."""
         init(
-            tmp_path,
+            git_tmp_path,
             git_host="github",
             language="go",
             template_repository="custom/go-templates",
         )
 
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
         assert config["repository"] == "custom/go-templates"
         assert config["language"] == "go"
 
-    def test_init_unknown_language(self, tmp_path):
+    def test_init_unknown_language(self, git_tmp_path):
         """Test that init handles unknown languages gracefully."""
-        init(tmp_path, git_host="github", language="rust")
+        init(git_tmp_path, git_host="github", language="rust")
 
         # Should create minimal structure
-        assert (tmp_path / ".rhiza" / "template.yml").exists()
-        assert (tmp_path / "README.md").exists()
+        assert (git_tmp_path / ".rhiza" / "template.yml").exists()
+        assert (git_tmp_path / "README.md").exists()
 
         # Should not create language-specific files
-        assert not (tmp_path / "pyproject.toml").exists()
-        assert not (tmp_path / "go.mod").exists()
+        assert not (git_tmp_path / "pyproject.toml").exists()
+        assert not (git_tmp_path / "go.mod").exists()
 
         # Verify template.yml
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
         assert config["language"] == "rust"
         assert config["repository"] == "jebel-quant/rhiza"
 
-    def test_init_go_language_with_gitlab(self, tmp_path):
+    def test_init_go_language_with_gitlab(self, git_tmp_path):
         """Test Go init with GitLab hosting."""
-        init(tmp_path, git_host="gitlab", language="go")
+        init(git_tmp_path, git_host="gitlab", language="go")
 
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
@@ -432,60 +432,67 @@ class TestInitCommand:
         assert "gitlab-project" in config["profiles"]
         assert "github-project" not in config["profiles"]
 
-    def test_init_skips_src_folder_creation_when_exists(self, tmp_path):
+    def test_init_skips_src_folder_creation_when_exists(self, git_tmp_path):
         """Test that init skips creating src folder when it already exists."""
         # Create existing src folder structure
-        src_folder = tmp_path / "src" / "mypackage"
+        src_folder = git_tmp_path / "src" / "mypackage"
         src_folder.mkdir(parents=True)
         init_file = src_folder / "__init__.py"
         init_file.write_text("# Existing package")
 
         # Run init with explicit git_host to avoid prompting
-        init(tmp_path, git_host="github")
+        init(git_tmp_path, git_host="github")
 
         # Verify existing src structure is preserved
         assert init_file.exists()
         assert init_file.read_text() == "# Existing package"
 
         # Verify template.yml was still created
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
 
-    def test_init_skips_pyproject_creation_when_exists(self, tmp_path):
+    def test_init_skips_pyproject_creation_when_exists(self, git_tmp_path):
         """Test that init skips creating pyproject.toml when it already exists."""
         # Create existing pyproject.toml
-        pyproject_file = tmp_path / "pyproject.toml"
+        pyproject_file = git_tmp_path / "pyproject.toml"
         existing_content = "[project]\nname = 'existing-project'\n"
         pyproject_file.write_text(existing_content)
 
         # Run init with explicit git_host to avoid prompting
-        init(tmp_path, git_host="github")
+        init(git_tmp_path, git_host="github")
 
         # Verify existing pyproject.toml is preserved
         assert pyproject_file.exists()
         assert pyproject_file.read_text() == existing_content
 
         # Verify template.yml was still created
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
 
-    def test_init_skips_readme_creation_when_exists(self, tmp_path):
+    def test_init_skips_readme_creation_when_exists(self, git_tmp_path):
         """Test that init skips creating README.md when it already exists."""
         # Create existing README.md
-        readme_file = tmp_path / "README.md"
+        readme_file = git_tmp_path / "README.md"
         existing_content = "# My Existing Project\n\nExisting content.\n"
         readme_file.write_text(existing_content)
 
         # Run init with explicit git_host to avoid prompting
-        init(tmp_path, git_host="github")
+        init(git_tmp_path, git_host="github")
 
         # Verify existing README.md is preserved
         assert readme_file.exists()
         assert readme_file.read_text() == existing_content
 
         # Verify template.yml was still created
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
+
+    def test_init_fails_when_not_git_repository(self, tmp_path):
+        """init() returns False and creates nothing when target is not a git repository."""
+        result = init(tmp_path, git_host="github")
+
+        assert result is False
+        assert not (tmp_path / ".rhiza").exists()
 
     def test_prompt_git_host_validation_loop(self, monkeypatch):
         """Test that _prompt_git_host validates input in a loop."""
@@ -511,12 +518,12 @@ class TestInitCommand:
         assert prompt_mock.call_count == 2
 
     @patch("rhiza.commands.init._check_template_repository_reachable", return_value=True)
-    def test_init_with_custom_template_repository(self, mock_check, tmp_path):
+    def test_init_with_custom_template_repository(self, mock_check, git_tmp_path):
         """Test init with custom template repository."""
-        init(tmp_path, git_host="github", template_repository="myorg/my-templates")
+        init(git_tmp_path, git_host="github", template_repository="myorg/my-templates")
 
         # Verify template.yml was created
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
 
         with open(template_file) as f:
@@ -526,17 +533,17 @@ class TestInitCommand:
         assert config["ref"] == "main"
 
     @patch("rhiza.commands.init._check_template_repository_reachable", return_value=True)
-    def test_init_with_custom_template_repository_and_branch(self, mock_check, tmp_path):
+    def test_init_with_custom_template_repository_and_branch(self, mock_check, git_tmp_path):
         """Test init with custom template repository and branch."""
         init(
-            tmp_path,
+            git_tmp_path,
             git_host="github",
             template_repository="myorg/my-templates",
             template_branch="develop",
         )
 
         # Verify template.yml was created
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
 
         with open(template_file) as f:
@@ -545,12 +552,12 @@ class TestInitCommand:
         assert config["repository"] == "myorg/my-templates"
         assert config["ref"] == "develop"
 
-    def test_init_with_custom_template_branch_only(self, tmp_path):
+    def test_init_with_custom_template_branch_only(self, git_tmp_path):
         """Test init with custom template branch but default repository."""
-        init(tmp_path, git_host="github", template_branch="v2.0")
+        init(git_tmp_path, git_host="github", template_branch="v2.0")
 
         # Verify template.yml was created
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
 
         with open(template_file) as f:
@@ -559,16 +566,16 @@ class TestInitCommand:
         assert config["repository"] == "jebel-quant/rhiza"
         assert config["ref"] == "v2.0"
 
-    def test_create_template_file_with_gitlab_path_based(self, tmp_path):
+    def test_create_template_file_with_gitlab_path_based(self, git_tmp_path):
         """Test that path-based config with gitlab creates .gitlab paths."""
         from rhiza.commands.init import _create_template_file
 
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
 
-        _create_template_file(tmp_path, git_host="gitlab")
+        _create_template_file(git_tmp_path, git_host="gitlab")
 
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
 
         with open(template_file) as f:
@@ -577,16 +584,16 @@ class TestInitCommand:
         assert "profiles" in config
         assert "gitlab-project" in config["profiles"]
 
-    def test_create_template_file_with_github_path_based(self, tmp_path):
+    def test_create_template_file_with_github_path_based(self, git_tmp_path):
         """Test that path-based config with github creates .github paths."""
         from rhiza.commands.init import _create_template_file
 
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
 
-        _create_template_file(tmp_path, git_host="github")
+        _create_template_file(git_tmp_path, git_host="github")
 
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
 
         with open(template_file) as f:
@@ -639,20 +646,20 @@ class TestCheckTemplateRepositoryReachable:
         assert result is True
 
     @patch("rhiza.commands.init._check_template_repository_reachable", return_value=False)
-    def test_init_returns_false_when_repository_unreachable(self, mock_check, tmp_path):
+    def test_init_returns_false_when_repository_unreachable(self, mock_check, git_tmp_path):
         """Test that init returns False when template repository is unreachable."""
-        result = init(tmp_path, git_host="github", template_repository="typo/nonexistent")
+        result = init(git_tmp_path, git_host="github", template_repository="typo/nonexistent")
         assert result is False
         # Template file should not be created
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         assert not template_file.exists()
 
     @patch("rhiza.commands.init._check_template_repository_reachable", return_value=False)
-    def test_cli_init_exits_with_error_when_repository_unreachable(self, mock_check, tmp_path):
+    def test_cli_init_exits_with_error_when_repository_unreachable(self, mock_check, git_tmp_path):
         """Test that CLI exits with non-zero code when template repository is unreachable."""
         runner = CliRunner()
         result = runner.invoke(
-            cli.app, ["init", str(tmp_path), "--git-host", "github", "--template-repository", "typo/nonexistent"]
+            cli.app, ["init", str(git_tmp_path), "--git-host", "github", "--template-repository", "typo/nonexistent"]
         )
         assert result.exit_code != 0
 
@@ -742,43 +749,43 @@ class TestPromptTemplateRepository:
         ):
             assert _prompt_template_repository() is None
 
-    def test_init_calls_prompt_when_no_template_repo_specified(self, tmp_path):
+    def test_init_calls_prompt_when_no_template_repo_specified(self, git_tmp_path):
         """init() should call _prompt_template_repository() when no repo is provided and no yml exists."""
         prompt_mock = MagicMock(return_value=None)
         with patch("rhiza.commands.init._prompt_template_repository", prompt_mock):
-            init(tmp_path, git_host="github")
+            init(git_tmp_path, git_host="github")
         prompt_mock.assert_called_once()
 
-    def test_init_skips_prompt_when_template_repo_specified(self, tmp_path):
+    def test_init_skips_prompt_when_template_repo_specified(self, git_tmp_path):
         """init() should skip the prompt when --template-repository is provided."""
         prompt_mock = MagicMock(return_value=None)
         with (
             patch("rhiza.commands.init._prompt_template_repository", prompt_mock),
             patch("rhiza.commands.init._check_template_repository_reachable", return_value=True),
         ):
-            init(tmp_path, git_host="github", template_repository="org/custom")
+            init(git_tmp_path, git_host="github", template_repository="org/custom")
         prompt_mock.assert_not_called()
 
-    def test_init_skips_prompt_when_template_yml_exists(self, tmp_path):
+    def test_init_skips_prompt_when_template_yml_exists(self, git_tmp_path):
         """init() should skip the prompt when .rhiza/template.yml already exists."""
-        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir = git_tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"
         template_file.write_text("repository: org/existing\nref: main\ninclude:\n  - .github\n")
         prompt_mock = MagicMock(return_value=None)
         with patch("rhiza.commands.init._prompt_template_repository", prompt_mock):
-            init(tmp_path, git_host="github")
+            init(git_tmp_path, git_host="github")
         prompt_mock.assert_not_called()
 
-    def test_init_uses_selected_repo_from_prompt(self, tmp_path):
+    def test_init_uses_selected_repo_from_prompt(self, git_tmp_path):
         """init() should use the repository returned by _prompt_template_repository()."""
         with (
             patch("rhiza.commands.init._prompt_template_repository", return_value="org/selected-repo"),
             patch("rhiza.commands.init._check_template_repository_reachable", return_value=True),
         ):
-            init(tmp_path, git_host="github")
+            init(git_tmp_path, git_host="github")
 
-        template_file = tmp_path / ".rhiza" / "template.yml"
+        template_file = git_tmp_path / ".rhiza" / "template.yml"
         assert template_file.exists()
         with open(template_file) as f:
             config = yaml.safe_load(f)
@@ -788,40 +795,38 @@ class TestPromptTemplateRepository:
 class TestInitCustomTemplatePath:
     """Tests for the --path-to-template option on init."""
 
-    def test_init_creates_template_in_custom_directory(self, tmp_path):
+    def test_init_creates_template_in_custom_directory(self, git_tmp_path):
         """init() writes template.yml to the custom directory when template_file is given."""
-        (tmp_path / ".git").mkdir()
-        (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
-        custom_dir = tmp_path / "my-rhiza"
+        (git_tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+        custom_dir = git_tmp_path / "my-rhiza"
         custom_dir.mkdir()
         custom_file = custom_dir / "template.yml"
 
-        result = init(tmp_path, git_host="github", template_file=custom_file)
+        result = init(git_tmp_path, git_host="github", template_file=custom_file)
         assert result is True
         assert custom_file.exists()
         # Default .rhiza/template.yml must NOT have been created.
-        assert not (tmp_path / ".rhiza" / "template.yml").exists()
+        assert not (git_tmp_path / ".rhiza" / "template.yml").exists()
 
-    def test_init_creates_parent_directory_for_custom_file(self, tmp_path):
+    def test_init_creates_parent_directory_for_custom_file(self, git_tmp_path):
         """init() creates parent directories for the custom template_file path."""
-        (tmp_path / ".git").mkdir()
-        (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
-        custom_file = tmp_path / "deep" / "nested" / "template.yml"
+        (git_tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+        custom_file = git_tmp_path / "deep" / "nested" / "template.yml"
 
-        result = init(tmp_path, git_host="github", template_file=custom_file)
+        result = init(git_tmp_path, git_host="github", template_file=custom_file)
         assert result is True
         assert custom_file.exists()
 
-    def test_init_skips_prompt_when_custom_template_yml_exists(self, tmp_path):
+    def test_init_skips_prompt_when_custom_template_yml_exists(self, git_tmp_path):
         """init() skips the interactive prompt when the custom template file already exists."""
-        custom_dir = tmp_path / "my-rhiza"
+        custom_dir = git_tmp_path / "my-rhiza"
         custom_dir.mkdir()
         custom_file = custom_dir / "template.yml"
         custom_file.write_text("repository: org/existing\nref: main\ninclude:\n  - .github\n")
 
         prompt_mock = MagicMock(return_value=None)
         with patch("rhiza.commands.init._prompt_template_repository", prompt_mock):
-            init(tmp_path, git_host="github", template_file=custom_file)
+            init(git_tmp_path, git_host="github", template_file=custom_file)
         prompt_mock.assert_not_called()
 
     def test_cli_path_to_template_creates_template_in_custom_directory(self, tmp_path):
@@ -895,17 +900,17 @@ class TestGetLatestTag:
         args = mock_run.call_args[0][0]
         assert "gitlab.com" in " ".join(args)
 
-    def test_init_uses_latest_tag_as_ref(self, tmp_path):
+    def test_init_uses_latest_tag_as_ref(self, git_tmp_path):
         """init() writes the latest tag to ref in template.yml."""
         with patch("rhiza.commands.init._get_latest_tag", return_value="v2.0.0"):
-            init(tmp_path, git_host="github")
-        config = yaml.safe_load((tmp_path / ".rhiza" / "template.yml").read_text())
+            init(git_tmp_path, git_host="github")
+        config = yaml.safe_load((git_tmp_path / ".rhiza" / "template.yml").read_text())
         assert config["ref"] == "v2.0.0"
 
-    def test_init_falls_back_to_main_when_no_tag(self, tmp_path):
+    def test_init_falls_back_to_main_when_no_tag(self, git_tmp_path):
         """init() falls back to 'main' when no tag can be resolved (autouse stub returns None)."""
-        init(tmp_path, git_host="github")
-        config = yaml.safe_load((tmp_path / ".rhiza" / "template.yml").read_text())
+        init(git_tmp_path, git_host="github")
+        config = yaml.safe_load((git_tmp_path / ".rhiza" / "template.yml").read_text())
         assert config["ref"] == "main"
 
 
@@ -953,26 +958,26 @@ class TestDetectGitHost:
         """Returns None when git is not available."""
         assert _detect_git_host(tmp_path) is None
 
-    def test_init_uses_detected_host_without_prompt(self, tmp_path):
+    def test_init_uses_detected_host_without_prompt(self, git_tmp_path):
         """init() skips the git-host prompt when detection succeeds."""
         with (
             patch("rhiza.commands.init._detect_git_host", return_value=GitHost.GITLAB),
             patch("rhiza.commands.init._prompt_git_host") as mock_prompt,
         ):
-            init(tmp_path)
+            init(git_tmp_path)
         mock_prompt.assert_not_called()
 
-    def test_init_falls_back_to_prompt_when_detection_fails(self, tmp_path):
+    def test_init_falls_back_to_prompt_when_detection_fails(self, git_tmp_path):
         """init() prompts when detection returns None."""
         with (
             patch("rhiza.commands.init._detect_git_host", return_value=None),
             patch("rhiza.commands.init._prompt_git_host", return_value=GitHost.GITHUB) as mock_prompt,
         ):
-            init(tmp_path)
+            init(git_tmp_path)
         mock_prompt.assert_called_once()
 
-    def test_init_explicit_host_skips_detection(self, tmp_path):
+    def test_init_explicit_host_skips_detection(self, git_tmp_path):
         """Explicit git_host= bypasses detection entirely."""
         with patch("rhiza.commands.init._detect_git_host") as mock_detect:
-            init(tmp_path, git_host="github")
+            init(git_tmp_path, git_host="github")
         mock_detect.assert_not_called()

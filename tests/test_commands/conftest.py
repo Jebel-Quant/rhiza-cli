@@ -53,3 +53,15 @@ def git_project(tmp_path, git_ctx):
     ]:
         subprocess.run(cmd, cwd=project, check=True, capture_output=True, env=git_ctx.env)  # nosec B603
     return project
+
+
+@pytest.fixture
+def git_tmp_path(tmp_path, git_ctx):
+    """Return tmp_path after running git init inside it."""
+    for cmd in [
+        [git_ctx.executable, "init"],
+        [git_ctx.executable, "config", "user.email", "test@test.com"],
+        [git_ctx.executable, "config", "user.name", "Test"],
+    ]:
+        subprocess.run(cmd, cwd=tmp_path, check=True, capture_output=True, env=git_ctx.env)  # nosec B603
+    return tmp_path

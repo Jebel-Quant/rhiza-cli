@@ -517,6 +517,17 @@ def init(
     target = target.resolve()
     git_host = _validate_git_host(git_host)
 
+    git_ctx = GitContext.default()
+    result = subprocess.run(  # nosec B603  # noqa: S603
+        [git_ctx.executable, "rev-parse", "--git-dir"],
+        capture_output=True,
+        cwd=target,
+        env=git_ctx.env,
+    )
+    if result.returncode != 0:
+        logger.error(f"{target} is not a git repository. Run 'git init' first.")
+        return False
+
     logger.info(f"Initializing Rhiza configuration in: {target}")
     logger.info(f"Project language: {language}")
 
