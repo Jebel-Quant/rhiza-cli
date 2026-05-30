@@ -19,7 +19,7 @@ from loguru import logger
 
 from rhiza.commands.list_repos import _DESC_WIDTH, _fetch_repos
 from rhiza.commands.validate import validate
-from rhiza.models import GitContext, GitHost, RhizaTemplate
+from rhiza.models import GitContext, GitHost
 
 
 def _normalize_package_name(name: str) -> str:
@@ -183,20 +183,18 @@ def _prompt_template_repository() -> str | None:
         return None
 
 
-def _get_default_templates_for_host(git_host: GitHost | str) -> list[str]:
-    """Get default templates based on git hosting platform.
+def _get_default_profile_for_host(git_host: GitHost | str) -> str:
+    """Return the profile name that matches the git hosting platform.
 
     Args:
         git_host: Git hosting platform.
 
     Returns:
-        List of template names.
+        Profile name (e.g. ``"gitlab-project"`` or ``"github-project"``).
     """
-    common = ["core", "tests", "book", "marimo", "presentation"]
     if git_host == GitHost.GITLAB:
-        return [*common, "gitlab"]
-    else:
-        return [*common, "github"]
+        return "gitlab-project"
+    return "github-project"
 
 
 def _display_path(path: Path, target: Path) -> Path:
@@ -257,17 +255,20 @@ def _create_template_file(
     if template_branch:
         logger.info(f"Using custom template branch: {branch}")
 
-    templates = _get_default_templates_for_host(git_host)
-    logger.info(f"Using template-based configuration with templates: {', '.join(templates)}")
-    default_template = RhizaTemplate(
+    profile = _get_default_profile_for_host(git_host)
+    logger.info(f"Using profile: {profile}")
+
+    jinja_src = importlib.resources.files("rhiza").joinpath("_templates/basic/template.yml.jinja2").read_text()
+    rendered = Template(jinja_src).render(
         template_repository=repo,
         template_branch=branch,
+        git_host=str(git_host),
         language=language,
-        templates=templates,
+        profile=profile,
     )
 
     logger.debug(f"Writing default template to: {template_file}")
-    default_template.to_yaml(template_file)
+    template_file.write_text(rendered)
 
     logger.success(f"✓ Created {_display_path(template_file, target)}")
     logger.info("""
@@ -355,6 +356,22 @@ def _create_pyproject_toml(target: Path, project_name: str, package_name: str, w
     )
     pyproject_file.write_text(code)
     logger.success("Created pyproject.toml")
+
+
+def _create_makefile(target: Path) -> None:
+    """Create a minimal Makefile that bootstraps ``make sync`` before rhiza.mk exists.
+
+    Args:
+        target: Target repository path.
+    """
+    makefile = target / "Makefile"
+    if makefile.exists():
+        return
+
+    logger.info("Creating Makefile")
+    template_content = importlib.resources.files("rhiza").joinpath("_templates/basic/Makefile.jinja2").read_text()
+    makefile.write_text(Template(template_content).render())
+    logger.success("Created Makefile")
 
 
 def _create_readme(target: Path) -> None:
@@ -448,6 +465,7 @@ def init(
 
         _create_python_package(target, project_name, package_name)
         _create_pyproject_toml(target, project_name, package_name, with_dev_dependencies)
+        _create_makefile(target)
         _create_readme(target)
     elif language == "go":
         # Go-specific setup - just create README, user should run go mod init

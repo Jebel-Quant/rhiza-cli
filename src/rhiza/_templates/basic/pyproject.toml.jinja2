@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [project]
@@ -8,20 +8,33 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
-
-[dependency-groups]
-dev = [
-    "marimo>=0.20.0",
-    "numpy>=2.4.2",
-    "plotly>=6.5.2",
-    "polars>=1.37.1"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+  { name = "Your Name" }
 ]
+keywords = []
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Developers",
+]
+dependencies = []
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/{{ package_name }}"]
+{% if with_dev_dependencies %}
 
-[tool.deptry]
-# see https://deptry.com/usage/#pep-621-dev-dependency-groups
-pep621_dev_dependency_groups = ["dev"]
-
+[dependency-groups]
+test = [
+    "pytest>=8.0.0",
+    "pytest-cov>=6.0.0",
+]
+lint = [
+    "ruff>=0.11.0",
+]
+{% endif %}

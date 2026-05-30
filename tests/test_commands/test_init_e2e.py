@@ -95,8 +95,8 @@ class TestInitE2E:
         config = yaml.safe_load(template_file.read_text())
         assert config["repository"] == "jebel-quant/rhiza"
         assert config["ref"] == "main"
-        assert "github" in config["templates"]
-        assert "gitlab" not in config["templates"]
+        assert "github-project" in config["profiles"]
+        assert "gitlab-project" not in config["profiles"]
 
         # Python package structure
         pkg = tmp_path / "src" / "demo"
@@ -122,8 +122,8 @@ class TestInitE2E:
         assert result.exit_code == 0, f"rhiza init failed:\n{result.stdout}"
 
         config = yaml.safe_load((tmp_path / ".rhiza" / "template.yml").read_text())
-        assert "gitlab" in config["templates"]
-        assert "github" not in config["templates"]
+        assert "gitlab-project" in config["profiles"]
+        assert "github-project" not in config["profiles"]
 
     # ------------------------------------------------------------------
     # Chained commands

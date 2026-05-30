@@ -32,11 +32,8 @@ class TestInitCommand:
 
         assert config["repository"] == "jebel-quant/rhiza"
         assert config["ref"] == "main"
-        # Should use templates by default
-        assert "templates" in config
-        assert "core" in config["templates"]
-        assert "tests" in config["templates"]
-        assert "github" in config["templates"]
+        assert "profiles" in config
+        assert "github-project" in config["profiles"]
 
     def test_init_validates_existing_template_yml(self, tmp_path):
         """Test that init validates an existing template.yml."""
@@ -183,16 +180,46 @@ class TestInitCommand:
         assert '"""My Project."""' in init_file.read_text()
 
     def test_init_with_dev_dependencies(self, tmp_path):
-        """Test init creates a pyproject.toml with a [dependency-groups] dev block."""
+        """Test init creates a pyproject.toml with test and lint dependency-groups."""
         init(tmp_path, with_dev_dependencies=True)
 
         pyproject_file = tmp_path / "pyproject.toml"
         content = pyproject_file.read_text()
 
         assert "[dependency-groups]" in content
-        assert "dev = [" in content
-        assert "marimo" in content
-        assert "[tool.deptry]" in content
+        assert "test = [" in content
+        assert "lint = [" in content
+        assert "pytest" in content
+        assert "ruff" in content
+
+    def test_init_without_dev_dependencies(self, tmp_path):
+        """Test init creates a pyproject.toml without a dependency-groups block by default."""
+        init(tmp_path, with_dev_dependencies=False)
+
+        pyproject_file = tmp_path / "pyproject.toml"
+        content = pyproject_file.read_text()
+
+        assert "[dependency-groups]" not in content
+
+    def test_init_creates_makefile(self, tmp_path):
+        """Test init creates a Makefile with a bootstrap sync target."""
+        init(tmp_path)
+
+        makefile = tmp_path / "Makefile"
+        assert makefile.exists()
+        content = makefile.read_text()
+
+        assert "uvx rhiza sync ." in content
+        assert "-include .rhiza/rhiza.mk" in content
+
+    def test_init_skips_makefile_creation_when_exists(self, tmp_path):
+        """Test that init does not overwrite an existing Makefile."""
+        makefile = tmp_path / "Makefile"
+        makefile.write_text("# existing\n")
+
+        init(tmp_path)
+
+        assert makefile.read_text() == "# existing\n"
 
     def test_init_generates_valid_toml(self, tmp_path):
         """Test that the generated pyproject.toml is valid TOML."""
@@ -266,10 +293,9 @@ class TestInitCommand:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        # Should use templates for GitHub target
-        assert "templates" in config
-        assert "github" in config["templates"]
-        assert "gitlab" not in config["templates"]
+        assert "profiles" in config
+        assert "github-project" in config["profiles"]
+        assert "gitlab-project" not in config["profiles"]
 
     def test_init_with_gitlab_explicit(self, tmp_path):
         """Test init with explicitly specified GitLab target platform."""
@@ -282,10 +308,9 @@ class TestInitCommand:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        # Should use templates for GitLab target
-        assert "templates" in config
-        assert "gitlab" in config["templates"]
-        assert "github" not in config["templates"]
+        assert "profiles" in config
+        assert "gitlab-project" in config["profiles"]
+        assert "github-project" not in config["profiles"]
 
     def test_init_with_invalid_git_host(self, tmp_path):
         """Test init with invalid git-host raises error."""
@@ -303,11 +328,9 @@ class TestInitCommand:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        # Should use gitlab template for GitLab target
-        assert "templates" in config
-        assert "gitlab" in config["templates"]
-        # Should NOT include github template for GitLab target
-        assert "github" not in config["templates"]
+        assert "profiles" in config
+        assert "gitlab-project" in config["profiles"]
+        assert "github-project" not in config["profiles"]
 
     def test_init_with_go_language(self, tmp_path):
         """Test that init with go language creates Go-specific structure."""
@@ -341,7 +364,7 @@ class TestInitCommand:
             config = yaml.safe_load(f)
 
         assert config["repository"] == "jebel-quant/rhiza"
-        assert config["language"] == "python"
+        assert "language" not in config  # python is the default, not emitted
 
         # Verify Python-specific structure
         assert (tmp_path / "pyproject.toml").exists()
@@ -370,7 +393,6 @@ class TestInitCommand:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        # Custom repository should override default
         assert config["repository"] == "custom/go-templates"
         assert config["language"] == "go"
 
@@ -392,7 +414,6 @@ class TestInitCommand:
             config = yaml.safe_load(f)
 
         assert config["language"] == "rust"
-        # Should use default Python repository since no mapping exists
         assert config["repository"] == "jebel-quant/rhiza"
 
     def test_init_go_language_with_gitlab(self, tmp_path):
@@ -405,9 +426,9 @@ class TestInitCommand:
 
         assert config["repository"] == "jebel-quant/rhiza-go"
         assert config["language"] == "go"
-        # Should include gitlab in templates
-        assert "gitlab" in config["templates"]
-        assert "github" not in config["templates"]
+        assert "profiles" in config
+        assert "gitlab-project" in config["profiles"]
+        assert "github-project" not in config["profiles"]
 
     def test_init_skips_src_folder_creation_when_exists(self, tmp_path):
         """Test that init skips creating src folder when it already exists."""
@@ -499,9 +520,7 @@ class TestInitCommand:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        # Should use the custom repository
         assert config["repository"] == "myorg/my-templates"
-        # Branch should default to main
         assert config["ref"] == "main"
 
     @patch("rhiza.commands.init._check_template_repository_reachable", return_value=True)
@@ -521,7 +540,6 @@ class TestInitCommand:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        # Should use the custom repository and branch
         assert config["repository"] == "myorg/my-templates"
         assert config["ref"] == "develop"
 
@@ -536,7 +554,6 @@ class TestInitCommand:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        # Should use default repository but custom branch
         assert config["repository"] == "jebel-quant/rhiza"
         assert config["ref"] == "v2.0"
 
@@ -555,7 +572,8 @@ class TestInitCommand:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        assert "templates" in config
+        assert "profiles" in config
+        assert "gitlab-project" in config["profiles"]
 
     def test_create_template_file_with_github_path_based(self, tmp_path):
         """Test that path-based config with github creates .github paths."""
@@ -572,7 +590,8 @@ class TestInitCommand:
         with open(template_file) as f:
             config = yaml.safe_load(f)
 
-        assert "templates" in config
+        assert "profiles" in config
+        assert "github-project" in config["profiles"]
 
 
 class TestCheckTemplateRepositoryReachable:

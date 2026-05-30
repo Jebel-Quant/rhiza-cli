@@ -1,0 +1,11 @@
+repository: "{{ template_repository }}"
+ref: "{{ template_branch }}"
+{%- if git_host == "gitlab" %}
+template-host: gitlab
+{%- endif %}
+{%- if language != "python" %}
+language: {{ language }}
+{%- endif %}
+
+profiles:
+  - {{ profile }}
