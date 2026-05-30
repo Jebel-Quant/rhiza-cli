@@ -252,6 +252,7 @@ def _prompt_template_repository() -> str | None:
     selection = typer.prompt(
         "Select a template repository by number, or press Enter to use the default",
         default="",
+        show_default=False,
     ).strip()
 
     if not selection:
