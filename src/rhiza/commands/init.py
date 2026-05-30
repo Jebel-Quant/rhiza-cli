@@ -250,13 +250,9 @@ def _prompt_template_repository() -> str | None:
 
     typer.echo("")
     selection = typer.prompt(
-        "Select a template repository by number, or press Enter to use the default",
-        default="",
-        show_default=False,
+        "Select a template repository by number",
+        default="1",
     ).strip()
-
-    if not selection:
-        return None
 
     try:
         idx = int(selection)

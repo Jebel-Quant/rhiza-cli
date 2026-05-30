@@ -688,18 +688,19 @@ class TestPromptTemplateRepository:
         with patch("rhiza.commands.init._fetch_repos", return_value=[]):
             assert _prompt_template_repository() is None
 
-    def test_returns_none_on_empty_input(self, monkeypatch):
-        """Return None when the user presses Enter without entering a number."""
+    def test_enter_selects_first_repo(self, monkeypatch):
+        """Pressing Enter (default '1') selects the first repository in the list."""
         from rhiza.commands.init import _prompt_template_repository
         from rhiza.commands.list_repos import _RepoInfo
 
+        repos = [
+            _RepoInfo("org/repo-a", "desc A", "2026-01-01"),
+            _RepoInfo("org/repo-b", "desc B", "2026-02-01"),
+        ]
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
-        monkeypatch.setattr("typer.prompt", lambda *a, **kw: "")
-        with patch(
-            "rhiza.commands.init._fetch_repos",
-            return_value=[_RepoInfo("org/repo", "desc", "2026-01-01")],
-        ):
-            assert _prompt_template_repository() is None
+        monkeypatch.setattr("typer.prompt", lambda *a, **kw: "1")
+        with patch("rhiza.commands.init._fetch_repos", return_value=repos):
+            assert _prompt_template_repository() == "org/repo-a"
 
     def test_returns_selected_repo_on_valid_number(self, monkeypatch):
         """Return the full_name of the repo at the selected index."""
