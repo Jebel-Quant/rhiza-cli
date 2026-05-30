@@ -1,3 +1,27 @@
+## [0.17.0] - 2026-05-30
+
+### 🚀 Features
+
+- Improve rhiza init scaffolding (pyproject.toml, Makefile, template.yml)
+- *(init)* Resolve latest tag from template repo instead of pinning to main
+- *(init)* Auto-detect git host from origin remote URL
+
+### 🐛 Bug Fixes
+
+- *(init)* Hide empty default brackets in template repo prompt
+- *(init)* Default template repo selection to [1] instead of []
+
+### 💼 Other
+
+- Bump version 0.16.1 → 0.17.0
+
+### ⚙️ Miscellaneous Tasks
+
+- Update CHANGELOG.md for v0.16.1 [skip ci]
+- Update rhiza to v0.15.2 (#508)
+- Update rhiza to v0.15.3 (#509)
+- Update rhiza to v0.17.0 (#510)
+- Update rhiza to v0.18.4 (#511)
 ## [0.16.1] - 2026-05-25
 
 ### 🐛 Bug Fixes
