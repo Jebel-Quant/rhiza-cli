@@ -1,3 +1,16 @@
+## [0.17.3] - 2026-05-30
+
+### 🚀 Features
+
+- *(init)* Generate mkdocs.yml with host-aware URLs
+
+### 💼 Other
+
+- Bump version 0.17.2 → 0.17.3
+
+### ⚙️ Miscellaneous Tasks
+
+- Update CHANGELOG.md for v0.17.2 [skip ci]
 ## [0.17.2] - 2026-05-30
 
 ### 🚀 Features
