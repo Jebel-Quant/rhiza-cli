@@ -221,6 +221,41 @@ class TestInitCommand:
 
         assert makefile.read_text() == "# existing\n"
 
+    def test_init_creates_mkdocs_yml_github(self, git_tmp_path):
+        """Test init creates mkdocs.yml with GitHub URLs."""
+        with patch("rhiza.commands.init._get_github_username", return_value="acme"):
+            init(git_tmp_path, project_name="my-project", git_host="github")
+
+        mkdocs_file = git_tmp_path / "mkdocs.yml"
+        assert mkdocs_file.exists()
+        content = mkdocs_file.read_text()
+
+        assert "INHERIT: docs/mkdocs-base.yml" in content
+        assert "site_name: my-project" in content
+        assert "acme.github.io/my-project" in content
+        assert "github.com/acme/my-project" in content
+        assert "reports/html-report/report.html" in content
+        assert "reports/html-coverage/index.html" in content
+
+    def test_init_creates_mkdocs_yml_gitlab(self, git_tmp_path):
+        """Test init creates mkdocs.yml with GitLab URLs."""
+        with patch("rhiza.commands.init._get_github_username", return_value="acme"):
+            init(git_tmp_path, project_name="my-project", git_host="gitlab")
+
+        content = (git_tmp_path / "mkdocs.yml").read_text()
+
+        assert "acme.gitlab.io/my-project" in content
+        assert "gitlab.com/acme/my-project" in content
+
+    def test_init_skips_mkdocs_yml_creation_when_exists(self, git_tmp_path):
+        """Test that init does not overwrite an existing mkdocs.yml."""
+        mkdocs_file = git_tmp_path / "mkdocs.yml"
+        mkdocs_file.write_text("# existing\n")
+
+        init(git_tmp_path)
+
+        assert mkdocs_file.read_text() == "# existing\n"
+
     def test_init_generates_valid_toml(self, git_tmp_path):
         """Test that the generated pyproject.toml is valid TOML."""
         import tomllib

@@ -533,6 +533,39 @@ def _create_makefile(target: Path) -> None:
     logger.success("Created Makefile")
 
 
+def _create_mkdocs_yml(target: Path, project_name: str, username: str, git_host: GitHost | None = None) -> None:
+    """Create mkdocs.yml file.
+
+    Args:
+        target: Target repository path.
+        project_name: Project name.
+        username: GitHub/GitLab username or org extracted from the origin remote.
+        git_host: Git hosting platform; controls repo and pages URLs.
+    """
+    mkdocs_file = target / "mkdocs.yml"
+    if mkdocs_file.exists():
+        return
+
+    if git_host == GitHost.GITLAB:
+        repo_host = "gitlab.com"
+        pages_host = "gitlab.io"
+    else:
+        repo_host = "github.com"
+        pages_host = "github.io"
+
+    logger.info("Creating mkdocs.yml")
+    template_content = importlib.resources.files("rhiza").joinpath("_templates/basic/mkdocs.yml.jinja2").read_text()
+    mkdocs_file.write_text(
+        Template(template_content, keep_trailing_newline=True).render(
+            project_name=project_name,
+            username=username,
+            repo_host=repo_host,
+            pages_host=pages_host,
+        )
+    )
+    logger.success("Created mkdocs.yml")
+
+
 def _create_readme(target: Path) -> None:
     """Create README.md file.
 
@@ -642,6 +675,7 @@ def init(
         _create_pyproject_toml(target, project_name, package_name, with_dev_dependencies, github_username)
         _create_uv_lock(target)
         _create_makefile(target)
+        _create_mkdocs_yml(target, project_name, github_username, git_host)
         _create_readme(target)
     elif language == "go":
         # Go-specific setup - just create README, user should run go mod init
