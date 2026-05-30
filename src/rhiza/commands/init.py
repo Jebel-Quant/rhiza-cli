@@ -156,6 +156,40 @@ def _get_latest_tag(template_repository: str, git_host: GitHost | str = GitHost.
         return latest
 
 
+def _detect_git_host(target: Path) -> GitHost | None:
+    """Infer the git hosting platform from the repository's origin remote URL.
+
+    Args:
+        target: Repository root directory.
+
+    Returns:
+        Detected :class:`GitHost`, or ``None`` when detection is not possible
+        (no git repo, no origin remote, or unrecognised host).
+    """
+    try:
+        git_ctx = GitContext.default()
+        result = subprocess.run(  # nosec B603  # noqa: S603
+            [git_ctx.executable, "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            cwd=target,
+            env=git_ctx.env,
+        )
+        if result.returncode != 0:
+            return None
+        url = result.stdout.strip()
+        if "github.com" in url:
+            logger.debug(f"Detected git host: github (from {url})")
+            return GitHost.GITHUB
+        if "gitlab.com" in url:
+            logger.debug(f"Detected git host: gitlab (from {url})")
+            return GitHost.GITLAB
+    except (RuntimeError, OSError):
+        return None
+    else:
+        return None
+
+
 def _prompt_git_host() -> GitHost:
     """Prompt user for git hosting platform.
 
@@ -495,9 +529,13 @@ def init(
     logger.debug(f"Ensuring directory exists: {rhiza_dir}")
     rhiza_dir.mkdir(parents=True, exist_ok=True)
 
-    # Determine git host
+    # Determine git host: explicit arg > remote URL detection > interactive prompt
     if git_host is None:
-        git_host = _prompt_git_host()
+        git_host = _detect_git_host(target)
+        if git_host is not None:
+            logger.info(f"Detected git host from remote URL: {git_host}")
+        else:
+            git_host = _prompt_git_host()
 
     # When no template repository is specified and no config file exists yet,
     # offer the user an interactive selection from discovered rhiza repos.

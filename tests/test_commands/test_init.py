@@ -12,7 +12,8 @@ import yaml
 from typer.testing import CliRunner
 
 from rhiza import cli
-from rhiza.commands.init import _check_template_repository_reachable, _get_latest_tag, init
+from rhiza.commands.init import _check_template_repository_reachable, _detect_git_host, _get_latest_tag, init
+from rhiza.models import GitHost
 
 
 class TestInitCommand:
@@ -905,3 +906,72 @@ class TestGetLatestTag:
         init(tmp_path, git_host="github")
         config = yaml.safe_load((tmp_path / ".rhiza" / "template.yml").read_text())
         assert config["ref"] == "main"
+
+
+class TestDetectGitHost:
+    """Tests for the _detect_git_host function."""
+
+    @patch("rhiza.commands.init.subprocess.run")
+    def test_detects_github_from_https_url(self, mock_run, tmp_path):
+        """Returns GITHUB when origin URL contains github.com."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="https://github.com/owner/repo.git\n")
+        assert _detect_git_host(tmp_path) == GitHost.GITHUB
+
+    @patch("rhiza.commands.init.subprocess.run")
+    def test_detects_gitlab_from_https_url(self, mock_run, tmp_path):
+        """Returns GITLAB when origin URL contains gitlab.com."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="https://gitlab.com/owner/repo.git\n")
+        assert _detect_git_host(tmp_path) == GitHost.GITLAB
+
+    @patch("rhiza.commands.init.subprocess.run")
+    def test_detects_github_from_ssh_url(self, mock_run, tmp_path):
+        """Returns GITHUB for SSH remote URLs."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="git@github.com:owner/repo.git\n")
+        assert _detect_git_host(tmp_path) == GitHost.GITHUB
+
+    @patch("rhiza.commands.init.subprocess.run")
+    def test_detects_gitlab_from_ssh_url(self, mock_run, tmp_path):
+        """Returns GITLAB for SSH remote URLs."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="git@gitlab.com:owner/repo.git\n")
+        assert _detect_git_host(tmp_path) == GitHost.GITLAB
+
+    @patch("rhiza.commands.init.subprocess.run")
+    def test_returns_none_for_unknown_host(self, mock_run, tmp_path):
+        """Returns None when the remote URL doesn't match a known host."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="https://bitbucket.org/owner/repo.git\n")
+        assert _detect_git_host(tmp_path) is None
+
+    @patch("rhiza.commands.init.subprocess.run")
+    def test_returns_none_when_no_origin(self, mock_run, tmp_path):
+        """Returns None when there is no origin remote."""
+        mock_run.return_value = MagicMock(returncode=128, stdout="")
+        assert _detect_git_host(tmp_path) is None
+
+    @patch("rhiza.commands.init.subprocess.run", side_effect=OSError("git not found"))
+    def test_returns_none_on_os_error(self, mock_run, tmp_path):
+        """Returns None when git is not available."""
+        assert _detect_git_host(tmp_path) is None
+
+    def test_init_uses_detected_host_without_prompt(self, tmp_path):
+        """init() skips the git-host prompt when detection succeeds."""
+        with (
+            patch("rhiza.commands.init._detect_git_host", return_value=GitHost.GITLAB),
+            patch("rhiza.commands.init._prompt_git_host") as mock_prompt,
+        ):
+            init(tmp_path)
+        mock_prompt.assert_not_called()
+
+    def test_init_falls_back_to_prompt_when_detection_fails(self, tmp_path):
+        """init() prompts when detection returns None."""
+        with (
+            patch("rhiza.commands.init._detect_git_host", return_value=None),
+            patch("rhiza.commands.init._prompt_git_host", return_value=GitHost.GITHUB) as mock_prompt,
+        ):
+            init(tmp_path)
+        mock_prompt.assert_called_once()
+
+    def test_init_explicit_host_skips_detection(self, tmp_path):
+        """Explicit git_host= bypasses detection entirely."""
+        with patch("rhiza.commands.init._detect_git_host") as mock_detect:
+            init(tmp_path, git_host="github")
+        mock_detect.assert_not_called()
