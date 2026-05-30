@@ -1,3 +1,16 @@
+## [0.17.1] - 2026-05-30
+
+### 🚀 Features
+
+- *(init)* Fail early when target is not a git repository
+
+### 💼 Other
+
+- Bump version 0.17.0 → 0.17.1
+
+### ⚙️ Miscellaneous Tasks
+
+- Update CHANGELOG.md for v0.17.0 [skip ci]
 ## [0.17.0] - 2026-05-30
 
 ### 🚀 Features
