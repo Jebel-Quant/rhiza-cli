@@ -156,6 +156,40 @@ def _get_latest_tag(template_repository: str, git_host: GitHost | str = GitHost.
         return latest
 
 
+def _get_github_username(target: Path) -> str:
+    """Extract the GitHub/GitLab username (or org) from the origin remote URL.
+
+    Args:
+        target: Repository root directory.
+
+    Returns:
+        Username string, or ``"your-org"`` when detection fails.
+    """
+    try:
+        git_ctx = GitContext.default()
+        result = subprocess.run(  # nosec B603  # noqa: S603
+            [git_ctx.executable, "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            cwd=target,
+            env=git_ctx.env,
+        )
+        if result.returncode != 0:
+            return "your-org"
+        url = result.stdout.strip()
+        # ssh: git@github.com:username/repo.git
+        ssh_match = re.match(r"git@[^:]+:([^/]+)/", url)
+        if ssh_match:
+            return ssh_match.group(1)
+        # https: https://github.com/username/repo.git
+        https_match = re.match(r"https?://[^/]+/([^/]+)/", url)
+        if https_match:
+            return https_match.group(1)
+    except (RuntimeError, OSError):
+        pass
+    return "your-org"
+
+
 def _detect_git_host(target: Path) -> GitHost | None:
     """Infer the git hosting platform from the repository's origin remote URL.
 
@@ -422,7 +456,13 @@ def _create_python_package(target: Path, project_name: str, package_name: str) -
     # logger.success(f"Created Python package structure in {src_folder}")
 
 
-def _create_pyproject_toml(target: Path, project_name: str, package_name: str, with_dev_dependencies: bool) -> None:
+def _create_pyproject_toml(
+    target: Path,
+    project_name: str,
+    package_name: str,
+    with_dev_dependencies: bool,
+    github_username: str = "your-org",
+) -> None:
     """Create pyproject.toml file.
 
     Args:
@@ -430,6 +470,7 @@ def _create_pyproject_toml(target: Path, project_name: str, package_name: str, w
         project_name: Project name.
         package_name: Package name.
         with_dev_dependencies: Whether to include dev dependencies.
+        github_username: GitHub/GitLab username or org extracted from the origin remote.
     """
     pyproject_file = target / "pyproject.toml"
     if pyproject_file.exists():
@@ -439,14 +480,41 @@ def _create_pyproject_toml(target: Path, project_name: str, package_name: str, w
     pyproject_file.touch()
 
     template_content = importlib.resources.files("rhiza").joinpath("_templates/basic/pyproject.toml.jinja2").read_text()
-    template = Template(template_content)
+    template = Template(template_content, keep_trailing_newline=True)
     code = template.render(
         project_name=project_name,
         package_name=package_name,
         with_dev_dependencies=with_dev_dependencies,
+        github_username=github_username,
     )
     pyproject_file.write_text(code)
     logger.success("Created pyproject.toml")
+
+
+def _create_uv_lock(target: Path) -> None:
+    """Run ``uv lock`` to generate the initial uv.lock file.
+
+    Args:
+        target: Repository root directory.
+    """
+    lock_file = target / "uv.lock"
+    if lock_file.exists():
+        return
+
+    logger.info("Generating uv.lock")
+    try:
+        result = subprocess.run(  # nosec B603 B607
+            ["uv", "lock"],  # noqa: S607
+            cwd=target,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            logger.success("Created uv.lock")
+        else:
+            logger.warning(f"uv lock failed (exit {result.returncode}): {result.stderr.strip()}")
+    except (OSError, FileNotFoundError):
+        logger.warning("uv not found — skipping uv.lock generation. Run 'uv lock' manually.")
 
 
 def _create_makefile(target: Path) -> None:
@@ -569,8 +637,10 @@ def init(
         logger.debug(f"Project name: {project_name}")
         logger.debug(f"Package name: {package_name}")
 
+        github_username = _get_github_username(target)
         _create_python_package(target, project_name, package_name)
-        _create_pyproject_toml(target, project_name, package_name, with_dev_dependencies)
+        _create_pyproject_toml(target, project_name, package_name, with_dev_dependencies, github_username)
+        _create_uv_lock(target)
         _create_makefile(target)
         _create_readme(target)
     elif language == "go":

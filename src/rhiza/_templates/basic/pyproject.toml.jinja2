@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.25"]
+requires = ["hatchling>=1.29"]
 build-backend = "hatchling.build"
 
 [project]
@@ -11,7 +11,7 @@ requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
-  { name = "Your Name" }
+  { name = "{{ github_username }}" }
 ]
 keywords = []
 classifiers = [
@@ -20,21 +20,26 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "License :: OSI Approved :: MIT License",
     "Intended Audience :: Developers",
 ]
 dependencies = []
 
+[project.urls]
+Homepage = "https://github.com/{{ github_username }}/{{ project_name }}"
+Repository = "https://github.com/{{ github_username }}/{{ project_name }}"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/{{ package_name }}"]
-{% if with_dev_dependencies %}
 
 [dependency-groups]
 test = [
     "pytest>=8.0.0",
     "pytest-cov>=6.0.0",
+    "pytest-xdist>=3.0.0",
 ]
 lint = [
     "ruff>=0.11.0",
 ]
-{% endif %}
+dev = []

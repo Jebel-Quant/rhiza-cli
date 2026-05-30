@@ -12,7 +12,14 @@ import yaml
 from typer.testing import CliRunner
 
 from rhiza import cli
-from rhiza.commands.init import _check_template_repository_reachable, _detect_git_host, _get_latest_tag, init
+from rhiza.commands.init import (
+    _check_template_repository_reachable,
+    _create_uv_lock,
+    _detect_git_host,
+    _get_github_username,
+    _get_latest_tag,
+    init,
+)
 from rhiza.models import GitHost
 
 
@@ -181,27 +188,18 @@ class TestInitCommand:
         init_file = git_tmp_path / "src" / "my_pkg" / "__init__.py"
         assert '"""My Project."""' in init_file.read_text()
 
-    def test_init_with_dev_dependencies(self, git_tmp_path):
-        """Test init creates a pyproject.toml with test and lint dependency-groups."""
-        init(git_tmp_path, with_dev_dependencies=True)
+    def test_init_always_includes_dependency_groups(self, git_tmp_path):
+        """Test init always creates a pyproject.toml with test, lint, and dev dependency-groups."""
+        init(git_tmp_path)
 
-        pyproject_file = git_tmp_path / "pyproject.toml"
-        content = pyproject_file.read_text()
+        content = (git_tmp_path / "pyproject.toml").read_text()
 
         assert "[dependency-groups]" in content
         assert "test = [" in content
         assert "lint = [" in content
+        assert "dev = []" in content
         assert "pytest" in content
         assert "ruff" in content
-
-    def test_init_without_dev_dependencies(self, git_tmp_path):
-        """Test init creates a pyproject.toml without a dependency-groups block by default."""
-        init(git_tmp_path, with_dev_dependencies=False)
-
-        pyproject_file = git_tmp_path / "pyproject.toml"
-        content = pyproject_file.read_text()
-
-        assert "[dependency-groups]" not in content
 
     def test_init_creates_makefile(self, git_tmp_path):
         """Test init creates a Makefile with a bootstrap sync target."""
@@ -981,3 +979,129 @@ class TestDetectGitHost:
         with patch("rhiza.commands.init._detect_git_host") as mock_detect:
             init(git_tmp_path, git_host="github")
         mock_detect.assert_not_called()
+
+
+class TestPyprojectTomlContent:
+    """Snapshot test for the full pyproject.toml produced by init."""
+
+    EXPECTED = """\
+[build-system]
+requires = ["hatchling>=1.29"]
+build-backend = "hatchling.build"
+
+[project]
+name = "my-project"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+  { name = "acme" }
+]
+keywords = []
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Developers",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/acme/my-project"
+Repository = "https://github.com/acme/my-project"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/my_project"]
+
+[dependency-groups]
+test = [
+    "pytest>=8.0.0",
+    "pytest-cov>=6.0.0",
+    "pytest-xdist>=3.0.0",
+]
+lint = [
+    "ruff>=0.11.0",
+]
+dev = []
+"""
+
+    def test_pyproject_toml_full_content(self, git_tmp_path):
+        """The generated pyproject.toml must match the expected snapshot exactly."""
+        with patch("rhiza.commands.init._get_github_username", return_value="acme"):
+            init(git_tmp_path, project_name="my-project", package_name="my_project", git_host="github")
+
+        content = (git_tmp_path / "pyproject.toml").read_text()
+        assert content == self.EXPECTED
+
+
+class TestGetGithubUsername:
+    """Tests for the _get_github_username helper."""
+
+    @patch("rhiza.commands.init.subprocess.run")
+    def test_extracts_username_from_https_url(self, mock_run, tmp_path):
+        """Parses the org/user from an HTTPS remote URL."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="https://github.com/acme/my-project.git\n")
+        assert _get_github_username(tmp_path) == "acme"
+
+    @patch("rhiza.commands.init.subprocess.run")
+    def test_extracts_username_from_ssh_url(self, mock_run, tmp_path):
+        """Parses the org/user from an SSH remote URL."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="git@github.com:acme/my-project.git\n")
+        assert _get_github_username(tmp_path) == "acme"
+
+    @patch("rhiza.commands.init.subprocess.run")
+    def test_falls_back_when_no_remote(self, mock_run, tmp_path):
+        """Returns 'your-org' when git remote get-url fails."""
+        mock_run.return_value = MagicMock(returncode=128, stdout="")
+        assert _get_github_username(tmp_path) == "your-org"
+
+    @patch("rhiza.commands.init.subprocess.run", side_effect=OSError("git not found"))
+    def test_falls_back_on_os_error(self, mock_run, tmp_path):
+        """Returns 'your-org' when git is unavailable."""
+        assert _get_github_username(tmp_path) == "your-org"
+
+
+class TestCreateUvLock:
+    """Tests for the _create_uv_lock helper."""
+
+    @patch("rhiza.commands.init.subprocess.run")
+    def test_runs_uv_lock_when_no_lockfile(self, mock_run, tmp_path):
+        """Calls 'uv lock' when uv.lock does not exist."""
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        _create_uv_lock(tmp_path)
+        mock_run.assert_called_once()
+        assert mock_run.call_args[0][0] == ["uv", "lock"]
+
+    @patch("rhiza.commands.init.subprocess.run")
+    def test_skips_when_lockfile_already_exists(self, mock_run, tmp_path):
+        """Does not call 'uv lock' when uv.lock already exists."""
+        (tmp_path / "uv.lock").write_text("")
+        _create_uv_lock(tmp_path)
+        mock_run.assert_not_called()
+
+    @patch("rhiza.commands.init.subprocess.run")
+    def test_warns_on_nonzero_exit(self, mock_run, tmp_path):
+        """Logs a warning but does not raise when uv lock fails."""
+        mock_run.return_value = MagicMock(returncode=1, stderr="some error")
+        _create_uv_lock(tmp_path)  # must not raise
+
+    @patch("rhiza.commands.init.subprocess.run", side_effect=FileNotFoundError("uv not found"))
+    def test_warns_when_uv_not_installed(self, mock_run, tmp_path):
+        """Logs a warning but does not raise when uv is not on PATH."""
+        _create_uv_lock(tmp_path)  # must not raise
+
+    def test_init_creates_uv_lock(self, git_tmp_path):
+        """init() calls _create_uv_lock as part of the Python project bootstrap."""
+        with (
+            patch("rhiza.commands.init._create_uv_lock") as mock_lock,
+            patch("rhiza.commands.init._get_github_username", return_value="acme"),
+        ):
+            init(git_tmp_path, git_host="github")
+        mock_lock.assert_called_once_with(git_tmp_path)
