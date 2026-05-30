@@ -384,7 +384,7 @@ def _create_template_file(
     logger.info(f"Using profile: {profile}")
 
     jinja_src = importlib.resources.files("rhiza").joinpath("_templates/basic/template.yml.jinja2").read_text()
-    rendered = Template(jinja_src).render(
+    rendered = Template(jinja_src, keep_trailing_newline=True).render(
         template_repository=repo,
         template_branch=branch,
         git_host=str(git_host),
@@ -429,7 +429,7 @@ def _create_python_package(target: Path, project_name: str, package_name: str) -
     init_file.touch()
 
     template_content = importlib.resources.files("rhiza").joinpath("_templates/basic/__init__.py.jinja2").read_text()
-    template = Template(template_content)
+    template = Template(template_content, keep_trailing_newline=True)
     code = template.render(project_name=project_name)
     init_file.write_text(code)
 
@@ -439,7 +439,7 @@ def _create_python_package(target: Path, project_name: str, package_name: str) -
     main_file.touch()
 
     template_content = importlib.resources.files("rhiza").joinpath("_templates/basic/main.py.jinja2").read_text()
-    template = Template(template_content)
+    template = Template(template_content, keep_trailing_newline=True)
     code = template.render(project_name=project_name)
     main_file.write_text(code)
     logger.success(f"Created Python package structure in {src_folder}")
@@ -450,7 +450,7 @@ def _create_python_package(target: Path, project_name: str, package_name: str) -
     test_file.touch()
 
     template_content = importlib.resources.files("rhiza").joinpath("_templates/basic/test_main.py.jinja2").read_text()
-    template = Template(template_content)
+    template = Template(template_content, keep_trailing_newline=True)
     code = template.render(project_name=package_name)
     test_file.write_text(code)
     # logger.success(f"Created Python package structure in {src_folder}")
@@ -529,7 +529,7 @@ def _create_makefile(target: Path) -> None:
 
     logger.info("Creating Makefile")
     template_content = importlib.resources.files("rhiza").joinpath("_templates/basic/Makefile.jinja2").read_text()
-    makefile.write_text(Template(template_content).render())
+    makefile.write_text(Template(template_content, keep_trailing_newline=True).render())
     logger.success("Created Makefile")
 
 

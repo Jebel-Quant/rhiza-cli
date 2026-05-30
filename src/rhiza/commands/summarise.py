@@ -538,6 +538,7 @@ def _generate_jinja2_output(template_path: Path, context: dict) -> str:
     env = jinja2.Environment(  # nosec B701
         autoescape=False,  # noqa: S701
         loader=jinja2.BaseLoader(),
+        keep_trailing_newline=True,
     )
     return env.from_string(template_text).render(**context)
 
