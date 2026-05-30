@@ -1,3 +1,16 @@
+## [0.17.2] - 2026-05-30
+
+### 🚀 Features
+
+- *(init)* Enrich generated pyproject.toml and run uv lock
+
+### 💼 Other
+
+- Bump version 0.17.1 → 0.17.2
+
+### ⚙️ Miscellaneous Tasks
+
+- Update CHANGELOG.md for v0.17.1 [skip ci]
 ## [0.17.1] - 2026-05-30
 
 ### 🚀 Features
