@@ -1,3 +1,16 @@
+## [0.17.4] - 2026-05-30
+
+### 🐛 Bug Fixes
+
+- Preserve trailing newlines in Jinja2-rendered files
+
+### 💼 Other
+
+- Bump version 0.17.3 → 0.17.4
+
+### ⚙️ Miscellaneous Tasks
+
+- Update CHANGELOG.md for v0.17.3 [skip ci]
 ## [0.17.3] - 2026-05-30
 
 ### 🚀 Features
