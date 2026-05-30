@@ -102,6 +102,60 @@ def _check_template_repository_reachable(template_repository: str, git_host: Git
         return True  # Don't block init if git is unavailable
 
 
+def _get_latest_tag(template_repository: str, git_host: GitHost | str = GitHost.GITHUB) -> str | None:
+    """Fetch the latest version tag from the template repository via git ls-remote.
+
+    Args:
+        template_repository: Repository in 'owner/repo' format.
+        git_host: Git hosting platform.
+
+    Returns:
+        Latest version tag (e.g. ``'v0.18.4'``), or ``None`` on error or when no
+        version tags exist.
+    """
+    if git_host == GitHost.GITLAB:
+        repo_url = f"https://gitlab.com/{template_repository}"
+    else:
+        repo_url = f"https://github.com/{template_repository}"
+
+    logger.debug(f"Fetching latest tag from {repo_url}")
+    try:
+        git_ctx = GitContext.default()
+        result = subprocess.run(  # nosec B603  # noqa: S603
+            [git_ctx.executable, "ls-remote", "--tags", repo_url],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=git_ctx.env,
+        )
+        if result.returncode != 0:
+            logger.debug(f"git ls-remote --tags failed for {repo_url}")
+            return None
+
+        version_tags = []
+        for line in result.stdout.splitlines():
+            if "^{}" in line:  # skip dereferenced annotated-tag objects
+                continue
+            parts = line.split("\t")
+            if len(parts) == 2 and parts[1].startswith("refs/tags/"):
+                tag = parts[1][len("refs/tags/") :]
+                if re.match(r"^v?\d+\.\d+", tag):
+                    version_tags.append(tag)
+
+        if not version_tags:
+            logger.debug(f"No version tags found in {repo_url}")
+            return None
+
+        latest = max(version_tags, key=lambda t: tuple(int(x) for x in re.findall(r"\d+", t)))
+        logger.debug(f"Latest tag: {latest}")
+
+    except (subprocess.TimeoutExpired, RuntimeError, OSError) as exc:
+        logger.debug(f"Could not fetch latest tag from {repo_url}: {exc}")
+        return None
+    else:
+        return latest
+
+
 def _prompt_git_host() -> GitHost:
     """Prompt user for git hosting platform.
 
@@ -249,11 +303,17 @@ def _create_template_file(
         repo = "jebel-quant/rhiza-go" if language == "go" else "jebel-quant/rhiza"
         logger.debug(f"Using default repository for {language}: {repo}")
 
-    branch = template_branch or "main"
-
-    # Log when custom values are used
     if template_branch:
+        branch = template_branch
         logger.info(f"Using custom template branch: {branch}")
+    else:
+        latest = _get_latest_tag(repo, git_host)
+        if latest:
+            branch = latest
+            logger.info(f"Using latest tag: {branch}")
+        else:
+            branch = "main"
+            logger.warning("Could not determine latest tag, falling back to 'main'")
 
     profile = _get_default_profile_for_host(git_host)
     logger.info(f"Using profile: {profile}")

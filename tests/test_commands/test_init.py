@@ -12,13 +12,14 @@ import yaml
 from typer.testing import CliRunner
 
 from rhiza import cli
-from rhiza.commands.init import _check_template_repository_reachable, init
+from rhiza.commands.init import _check_template_repository_reachable, _get_latest_tag, init
 
 
 class TestInitCommand:
     """Tests for the init command."""
 
-    def test_init_creates_default_template_yml(self, tmp_path):
+    @patch("rhiza.commands.init._get_latest_tag", return_value="v1.2.3")
+    def test_init_creates_default_template_yml(self, mock_tag, tmp_path):
         """Test that init creates a default template.yml when it doesn't exist."""
         init(tmp_path)
 
@@ -31,7 +32,7 @@ class TestInitCommand:
             config = yaml.safe_load(f)
 
         assert config["repository"] == "jebel-quant/rhiza"
-        assert config["ref"] == "main"
+        assert config["ref"] == "v1.2.3"
         assert "profiles" in config
         assert "github-project" in config["profiles"]
 
@@ -838,3 +839,69 @@ class TestInitCustomTemplatePath:
         assert result.exit_code == 0
         assert (custom_dir / "template.yml").exists()
         assert not (tmp_path / ".rhiza" / "template.yml").exists()
+
+
+class TestGetLatestTag:
+    """Tests for the _get_latest_tag function."""
+
+    @patch("rhiza.commands.init.subprocess.run")
+    def test_returns_latest_version_tag(self, mock_run):
+        """Returns the highest version tag from ls-remote output."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=(
+                "abc\trefs/tags/v0.9.0\n"
+                "def\trefs/tags/v0.10.0\n"
+                "ghi\trefs/tags/v0.10.0^{}\n"
+                "jkl\trefs/tags/v0.18.4\n"
+                "mno\trefs/tags/v0.18.4^{}\n"
+            ),
+        )
+        assert _get_latest_tag("owner/repo") == "v0.18.4"
+
+    @patch("rhiza.commands.init.subprocess.run")
+    def test_skips_non_version_tags(self, mock_run):
+        """Ignores tags that don't look like version numbers."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="abc\trefs/tags/latest\nabc\trefs/tags/v1.2.3\n",
+        )
+        assert _get_latest_tag("owner/repo") == "v1.2.3"
+
+    @patch("rhiza.commands.init.subprocess.run")
+    def test_returns_none_on_nonzero_exit(self, mock_run):
+        """Returns None when git ls-remote fails."""
+        mock_run.return_value = MagicMock(returncode=128, stdout="")
+        assert _get_latest_tag("owner/repo") is None
+
+    @patch("rhiza.commands.init.subprocess.run")
+    def test_returns_none_when_no_tags(self, mock_run):
+        """Returns None when the repository has no version tags."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="")
+        assert _get_latest_tag("owner/repo") is None
+
+    def test_returns_none_on_timeout(self):
+        """Returns None on network timeout."""
+        with patch("rhiza.commands.init.subprocess.run", side_effect=subprocess.TimeoutExpired("git", 30)):
+            assert _get_latest_tag("owner/repo") is None
+
+    @patch("rhiza.commands.init.subprocess.run")
+    def test_uses_gitlab_url_for_gitlab_host(self, mock_run):
+        """Passes the GitLab URL when git_host is gitlab."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="")
+        _get_latest_tag("owner/repo", git_host="gitlab")
+        args = mock_run.call_args[0][0]
+        assert "gitlab.com" in " ".join(args)
+
+    def test_init_uses_latest_tag_as_ref(self, tmp_path):
+        """init() writes the latest tag to ref in template.yml."""
+        with patch("rhiza.commands.init._get_latest_tag", return_value="v2.0.0"):
+            init(tmp_path, git_host="github")
+        config = yaml.safe_load((tmp_path / ".rhiza" / "template.yml").read_text())
+        assert config["ref"] == "v2.0.0"
+
+    def test_init_falls_back_to_main_when_no_tag(self, tmp_path):
+        """init() falls back to 'main' when no tag can be resolved (autouse stub returns None)."""
+        init(tmp_path, git_host="github")
+        config = yaml.safe_load((tmp_path / ".rhiza" / "template.yml").read_text())
+        assert config["ref"] == "main"

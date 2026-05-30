@@ -94,7 +94,7 @@ class TestInitE2E:
         assert template_file.exists()
         config = yaml.safe_load(template_file.read_text())
         assert config["repository"] == "jebel-quant/rhiza"
-        assert config["ref"] == "main"
+        assert config["ref"]  # tag resolved from remote, or "main" as fallback
         assert "github-project" in config["profiles"]
         assert "gitlab-project" not in config["profiles"]
 
