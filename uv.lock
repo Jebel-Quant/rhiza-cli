@@ -243,14 +243,14 @@ wheels = [
 
 [[package]]
 name = "hypothesis"
-version = "6.155.0"
+version = "6.155.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "sortedcontainers" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/86/7d/9569717766867495510712eba388f7ca0633549f9ff4d3c34398b919e5b4/hypothesis-6.155.0.tar.gz", hash = "sha256:cf09ac913b60b49750585a53152704468de666f35c9c29f8e61d82a01f64bbb5", size = 476704, upload-time = "2026-05-28T15:43:24.193Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/49/ef/4a94c12429986a90076057513e084bf32106a9bdc62c8e29f58673dd85a2/hypothesis-6.155.1.tar.gz", hash = "sha256:07c102031612b98d7c1be15ca3608c43e1234d9d07e3a190a53fa01536700196", size = 477300, upload-time = "2026-05-29T23:12:57.515Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/53/f8/31a6a6646c5b76b9746454318989340cea0290ba34e0f3ccd0668ce67868/hypothesis-6.155.0-py3-none-any.whl", hash = "sha256:d6ffa3062afabaf908491be707c60843f6671f7c3e9f2ed249d5827207ebbf33", size = 543120, upload-time = "2026-05-28T15:43:21.855Z" },
+    { url = "https://files.pythonhosted.org/packages/26/6e/8c9cf32201238617454303b1605dfa667d90cd1ef51226f92d9c2b3b8f7c/hypothesis-6.155.1-py3-none-any.whl", hash = "sha256:2753f469df3ba3c483b08e0c37dbcbc41d8316ebb921abcc07493ee9c8a7d187", size = 543715, upload-time = "2026-05-29T23:12:54.77Z" },
 ]
 
 [[package]]
@@ -888,7 +888,7 @@ test = [
 
 [[package]]
 name = "rhiza-tools"
-version = "0.5.0"
+version = "0.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bump-my-version" },
@@ -901,9 +901,9 @@ dependencies = [
     { name = "tomlkit" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/92/a6/ededd684155b1016a39917b26383ceb704247c5890564843e93b2dcc6c5f/rhiza_tools-0.5.0.tar.gz", hash = "sha256:b0be1e00bf09c3d45dce4f1ff42f7d19e6db025969225f85947b5860f37b3945", size = 270112, upload-time = "2026-05-18T07:15:34.312Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/21/17/facaf93e0188ae5407518ad3db39fd1f98f55b487087316b3ffa7646154b/rhiza_tools-0.5.1.tar.gz", hash = "sha256:04a7bea82c54849423c25432cf06ba6ed0ffa1170188628283da512c96d39f46", size = 286759, upload-time = "2026-05-31T10:45:41.92Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/58/f6/6f66ffa41a595613050b786668c1a3becb38b7d41f89d025bee219891d1f/rhiza_tools-0.5.0-py3-none-any.whl", hash = "sha256:1c11407fb4d1f99113cacf4484eacffaa238c02b2c7cdef2d605d9491ea298b1", size = 43642, upload-time = "2026-05-18T07:15:32.553Z" },
+    { url = "https://files.pythonhosted.org/packages/32/3a/8f57e6459a36b95649c174854693007c6dd939bc06b0410831ab57029e5e/rhiza_tools-0.5.1-py3-none-any.whl", hash = "sha256:c177c3cbaa7584b6ca3278532c24b0a325c40f6f394a89ba93e700f8b9585bfc", size = 46096, upload-time = "2026-05-31T10:45:40.589Z" },
 ]
 
 [[package]]
@@ -1059,7 +1059,7 @@ wheels = [
 
 [[package]]
 name = "typer"
-version = "0.26.2"
+version = "0.26.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
@@ -1067,9 +1067,9 @@ dependencies = [
     { name = "rich" },
     { name = "shellingham" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/67/a5/756f2e6bc81a7dd79aa3c625dd01b74cabc4516628cace2caaec09ca6ff2/typer-0.26.2.tar.gz", hash = "sha256:9b4f19e08fcc9427a822d1ef467b1fe76737a2f65c7926bdeba2337d73569b68", size = 198991, upload-time = "2026-05-27T10:41:39.166Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5e/ed/ef06584ccdd5c410df0837951ecd7e15d9a6144ea1bd4c73cecab1a89891/typer-0.26.7.tar.gz", hash = "sha256:e314a34c617e419c091b2830dda3ea1f257134ff593061a8f5b9717ab8dddb3a", size = 201709, upload-time = "2026-06-03T07:18:06.843Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8b/a5/6ffd702beda8798b2b82ff70805ed4a66d963557e43a5d1823ab456251a4/typer-0.26.2-py3-none-any.whl", hash = "sha256:39beff72ffbb31978a5b545f677d57edb97c6f980f433b38556deb0af25f094d", size = 123123, upload-time = "2026-05-27T10:41:40.504Z" },
+    { url = "https://files.pythonhosted.org/packages/24/25/2201973529af2c954de0bb725323c3aaed6d7f0ceee8f550dec9185df013/typer-0.26.7-py3-none-any.whl", hash = "sha256:5c87cfbc5d34491c5346ebf49c23e18d56ccb863268d3a8d592b26087c2f5e58", size = 122456, upload-time = "2026-06-03T07:18:05.732Z" },
 ]
 
 [[package]]
