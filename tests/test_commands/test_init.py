@@ -6,6 +6,7 @@ that the Typer CLI entry `rhiza init` works as expected.
 
 import subprocess  # nosec B404
 from unittest.mock import MagicMock, patch
+from urllib.parse import urlparse
 
 import pytest
 import yaml
@@ -931,7 +932,8 @@ class TestGetLatestTag:
         mock_run.return_value = MagicMock(returncode=0, stdout="")
         _get_latest_tag("owner/repo", git_host="gitlab")
         args = mock_run.call_args[0][0]
-        assert "gitlab.com" in " ".join(args)
+        remote_url = next((arg for arg in args if isinstance(arg, str) and arg.startswith(("http://", "https://"))), "")
+        assert urlparse(remote_url).hostname == "gitlab.com"
 
     def test_init_uses_latest_tag_as_ref(self, git_tmp_path):
         """init() writes the latest tag to ref in template.yml."""
