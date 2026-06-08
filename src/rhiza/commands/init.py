@@ -11,6 +11,7 @@ import re
 import subprocess  # nosec B404
 import sys
 import urllib.error
+import urllib.parse
 from pathlib import Path
 
 import typer
@@ -212,10 +213,21 @@ def _detect_git_host(target: Path) -> GitHost | None:
         if result.returncode != 0:
             return None
         url = result.stdout.strip()
-        if "github.com" in url:
+
+        host: str | None = None
+        if "://" in url:
+            host = urllib.parse.urlparse(url).hostname
+        else:
+            # Handle SCP-like git remotes, e.g. git@github.com:org/repo.git
+            match = re.match(r"^(?:[^@]+@)?([^:]+):.+$", url)
+            if match:
+                host = match.group(1)
+
+        host = host.lower() if host else None
+        if host == "github.com":
             logger.debug(f"Detected git host: github (from {url})")
             return GitHost.GITHUB
-        if "gitlab.com" in url:
+        if host == "gitlab.com":
             logger.debug(f"Detected git host: gitlab (from {url})")
             return GitHost.GITLAB
     except (RuntimeError, OSError):
