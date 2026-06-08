@@ -1,3 +1,14 @@
+## [0.17.5] - 2026-05-30
+
+### 💼 Other
+
+- Bump version 0.17.4 → 0.17.5
+
+### ⚙️ Miscellaneous Tasks
+
+- Update CHANGELOG.md for v0.17.4 [skip ci]
+- Remove redundant trailing newline in __init__.py.jinja2 template
+- Remove unused pyproject.toml.template
 ## [0.17.4] - 2026-05-30
 
 ### 🐛 Bug Fixes
