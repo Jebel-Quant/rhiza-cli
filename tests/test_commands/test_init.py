@@ -5,8 +5,8 @@ that the Typer CLI entry `rhiza init` works as expected.
 """
 
 import subprocess  # nosec B404
-from urllib.parse import urlparse
 from unittest.mock import MagicMock, patch
+from urllib.parse import urlparse
 
 import pytest
 import yaml
