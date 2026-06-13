@@ -76,6 +76,16 @@ repos:
         args: [--config=pyproject.toml]
         files: ^src/
 
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (static type check)
+        entry: uv run --group type mypy
+        language: system
+        types: [python]
+        files: ^src/
+        pass_filenames: false
+
   - repo: https://github.com/Jebel-Quant/rhiza-hooks
     rev: v0.4.0  # Use the latest release
     hooks:

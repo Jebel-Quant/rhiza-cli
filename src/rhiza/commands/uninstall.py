@@ -208,9 +208,9 @@ def uninstall(target: Path, force: bool) -> None:
 
     # Remove tracking file
     if lock_file.exists():
-        r, e = _remove_history_file(lock_file, target)
-        removed_count += r
-        error_count += e
+        removed, errors = _remove_history_file(lock_file, target)
+        removed_count += removed
+        error_count += errors
 
     # Print summary
     _print_summary(removed_count, skipped_count, empty_dirs_removed, error_count)
