@@ -1,5 +1,7 @@
 # Getting Started with Rhiza
 
+> **📚 Documentation map** — **Getting Started** (you are here, start here) · [README](README.md) (overview & full command reference) · [Usage Guide](USAGE.md) (workflows & examples) · [CLI Reference](CLI.md) (command cheatsheet)
+
 **Rhiza helps you keep multiple Python projects consistently configured** by using templates stored in central repositories. Instead of manually copying configuration files between projects, Rhiza automates synchronization and ensures your projects stay aligned.
 
 **More than just a template or starter project**, Rhiza is a **continuous synchronization system** that adapts as standards evolve.
