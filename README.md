@@ -13,6 +13,8 @@
 Command-line interface for managing reusable configuration templates for modern Python projects.
 
 **📖 New to Rhiza? Check out the [Getting Started Guide](GETTING_STARTED.md) for a beginner-friendly introduction!**
+
+📚 **Documentation map** — [Getting Started](GETTING_STARTED.md) (start here) · **README** (overview & full command reference) · [Usage Guide](USAGE.md) (workflows & examples) · [CLI Reference](CLI.md) (command cheatsheet)
 </div>
 
 ## Overview

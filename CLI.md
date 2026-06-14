@@ -1,5 +1,7 @@
 # Rhiza CLI Quick Reference
 
+> **📚 Documentation map** — [Getting Started](GETTING_STARTED.md) (start here) · [README](README.md) (overview & full command reference) · [Usage Guide](USAGE.md) (workflows & examples) · **CLI Reference** (you are here)
+
 This document provides a quick reference for the Rhiza command-line interface.
 
 ## Command Overview

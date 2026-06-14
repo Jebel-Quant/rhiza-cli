@@ -1,5 +1,7 @@
 # Rhiza Usage Guide
 
+> **📚 Documentation map** — [Getting Started](GETTING_STARTED.md) (start here) · [README](README.md) (overview & full command reference) · **Usage Guide** (you are here) · [CLI Reference](CLI.md) (command cheatsheet)
+
 This guide provides practical examples and tutorials for using Rhiza CLI.
 
 ## Table of Contents
