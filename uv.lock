@@ -1086,11 +1086,12 @@ test = [
     { name = "hypothesis", specifier = ">=6.151.9" },
     { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
-    { name = "pytest-timeout", specifier = ">=2.3.0" },
+    { name = "pytest-timeout", specifier = ">=2.4.0" },
 ]
 type = [
     { name = "mypy", specifier = ">=1.13.0" },
     { name = "types-pyyaml", specifier = ">=6.0.12" },
+    { name = "pytest-timeout", specifier = ">=2.4.0" },
 ]
 
 [[package]]
