@@ -1091,7 +1091,6 @@ test = [
 type = [
     { name = "mypy", specifier = ">=1.13.0" },
     { name = "types-pyyaml", specifier = ">=6.0.12" },
-    { name = "pytest-timeout", specifier = ">=2.4.0" },
 ]
 
 [[package]]
