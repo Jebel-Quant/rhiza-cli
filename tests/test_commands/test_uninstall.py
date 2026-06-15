@@ -178,6 +178,7 @@ class TestUninstallCommand:
         real_unlink = Path.unlink
 
         def patched_unlink(self, missing_ok=False):
+            """Simulate Path.unlink for the test."""
             if self.name == "locked.txt" and not first_call["done"]:
                 first_call["done"] = True
                 raise PermissionError("read-only file")  # noqa: TRY003
@@ -198,6 +199,7 @@ class TestUninstallCommand:
         real_unlink = Path.unlink
 
         def patched_unlink(self, missing_ok=False):
+            """Simulate Path.unlink for the test."""
             if self.name == "problem.txt":
                 raise OSError("disk I/O error")  # noqa: TRY003
             real_unlink(self, missing_ok=missing_ok)
@@ -353,6 +355,7 @@ class TestUninstallEdgeCases:
         original_unlink = Path.unlink
 
         def mock_unlink(self):
+            """Simulate Path.unlink raising an error."""
             if self.name == "file.txt":
                 raise PermissionError("Cannot delete file")  # noqa: TRY003
             return original_unlink(self)
@@ -369,6 +372,7 @@ class TestUninstallEdgeCases:
         original_unlink = Path.unlink
 
         def mock_unlink(self):
+            """Simulate Path.unlink raising an error."""
             if self.name == "template.lock" and ".rhiza" in str(self):
                 raise PermissionError("Cannot delete .rhiza/template.lock")  # noqa: TRY003
             return original_unlink(self)
@@ -386,6 +390,7 @@ class TestUninstallEdgeCases:
         original_rmdir = Path.rmdir
 
         def mock_rmdir(self):
+            """Simulate Path.rmdir raising an error."""
             if self.name == "dir1":
                 raise PermissionError("Cannot remove directory")  # noqa: TRY003
             return original_rmdir(self)

@@ -566,7 +566,7 @@ class TestYamlSerializableProtocol:
         """A class without from_yaml / to_yaml does not satisfy YamlSerializable."""
 
         class NotSerializable:
-            pass
+            """Stub class that does not satisfy the protocol."""
 
         assert not isinstance(NotSerializable(), YamlSerializable)
 
@@ -596,7 +596,7 @@ class TestLoadModel:
         """load_model raises TypeError when the class lacks from_config."""
 
         class NoConfig:
-            pass
+            """Stub model class without a from_config method."""
 
         with pytest.raises(TypeError, match="NoConfig does not implement from_config"):
             load_model(NoConfig, Path("irrelevant.yml"))
@@ -702,6 +702,7 @@ class TestCloneAtShaErrors:
 
 
 def _write_template_yml(target: Path, config: dict) -> None:
+    """Write a template.yml fixture to the given path."""
     rhiza_dir = target / ".rhiza"
     rhiza_dir.mkdir(parents=True, exist_ok=True)
     with open(rhiza_dir / "template.yml", "w") as f:

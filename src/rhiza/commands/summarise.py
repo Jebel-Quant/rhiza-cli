@@ -10,7 +10,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import jinja2
 import yaml
@@ -515,7 +515,7 @@ def _generate_plain_output(
     return "\n".join(lines)
 
 
-def _generate_jinja2_output(template_path: Path, context: dict) -> str:
+def _generate_jinja2_output(template_path: Path, context: dict[str, Any]) -> str:
     """Render output using a custom Jinja2 template file.
 
     The *context* dict is passed directly to the template. It should contain at
