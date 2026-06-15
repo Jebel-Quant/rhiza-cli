@@ -3,7 +3,8 @@ repo: jebel-quant/rhiza
 host: github
 ref: v0.19.1
 include: []
-exclude: []
+exclude:
+- bundles/github-tests/.github/workflows/rhiza_mutation.yml
 templates:
 - legal
 files:
@@ -27,7 +28,6 @@ files:
 - .github/workflows/rhiza_codeql.yml
 - .github/workflows/rhiza_fuzzing.yml
 - .github/workflows/rhiza_marimo.yml
-- .github/workflows/rhiza_mutation.yml
 - .github/workflows/rhiza_release.yml
 - .github/workflows/rhiza_scorecard.yml
 - .github/workflows/rhiza_sync.yml
@@ -101,5 +101,5 @@ files:
 - ruff.toml
 profiles:
 - github-project
-synced_at: '2026-06-15T10:59:21Z'
+synced_at: '2026-06-15T15:46:48Z'
 strategy: merge
