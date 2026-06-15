@@ -26,11 +26,11 @@ def _build_rich_tree(paths: list[str]) -> Tree:
         A Rich Tree rooted at ".".
     """
     rich_tree = Tree(".")
-    node_cache: dict = {}
+    node_cache: dict[tuple[str, ...], Tree] = {}
     for path in sorted(paths):
         parts = Path(path).parts
         parent: Tree = rich_tree
-        current_path: tuple = ()
+        current_path: tuple[str, ...] = ()
         for part in parts:
             key = (*current_path, part)
             if key not in node_cache:
