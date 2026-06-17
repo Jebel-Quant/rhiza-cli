@@ -147,7 +147,7 @@ class GoValidator(LanguageValidator):
 class LanguageValidatorRegistry:
     """Registry for language validators."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the registry with default validators."""
         self._validators: dict[str, LanguageValidator] = {}
         self._register_defaults()

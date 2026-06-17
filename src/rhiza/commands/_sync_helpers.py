@@ -124,7 +124,7 @@ def _read_previously_tracked_files(
                 if snapshot_files:
                     logger.debug(f"Reconstructing previous file list from base snapshot ({len(snapshot_files)} files)")
                     return snapshot_files
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — orphan cleanup is best-effort; any lock-read failure just skips it
             logger.debug(f"Could not read template.lock for orphan cleanup: {e}")
 
     history_file = target / ".rhiza" / "history"
@@ -156,7 +156,7 @@ def _delete_orphaned_file(target: Path, file_path: Path) -> None:
         try:
             full_path.unlink()
             logger.success(f"[DEL] {file_path}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — deleting an orphan is best-effort; log and continue on any OS error
             logger.warning(f"Failed to delete {file_path}: {e}")
     else:
         logger.debug(f"Skipping {file_path} (already deleted)")
@@ -250,7 +250,7 @@ def _lock_content_unchanged(lock: TemplateLock, lock_path: Path) -> bool:
         return False
     try:
         existing = TemplateLock.from_yaml(lock_path)
-    except Exception:
+    except Exception:  # noqa: BLE001 — any unreadable/corrupt lock means "differs", so callers rewrite it
         return False
     return (
         existing.sha == lock.sha

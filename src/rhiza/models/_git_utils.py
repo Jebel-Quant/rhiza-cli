@@ -568,7 +568,7 @@ class GitContext:
         self,
         tmp_dir: Path,
         include_paths: list[str],
-        logger=None,
+        logger: logging.Logger | None = None,
     ) -> None:
         """Update sparse-checkout paths in an already-cloned repository.
 
@@ -620,7 +620,7 @@ class GitContext:
         tmp_dir: Path,
         branch: str,
         include_paths: list[str],
-        logger=None,
+        logger: logging.Logger | None = None,
     ) -> None:
         """Clone template repository with sparse checkout.
 
@@ -701,7 +701,7 @@ class GitContext:
         sha: str,
         dest: Path,
         include_paths: list[str],
-        logger=None,
+        logger: logging.Logger | None = None,
     ) -> None:
         """Clone the template repository and checkout a specific commit.
 
@@ -774,7 +774,7 @@ class GitContext:
         self,
         target: Path,
         upstream_snapshot: Path,
-        upstream_sha: str,
+        upstream_sha: str,  # noqa: ARG002 — part of the merge-context signature (mirrors clone call sites); lock.sha carries it
         base_sha: str,
         base_snapshot: Path,
         template: "RhizaTemplate",
@@ -809,7 +809,7 @@ class GitContext:
         try:
             self.clone_at_sha(template.git_url, base_sha, base_clone, template.include)
             _prepare_snapshot(base_clone, template.include, excludes, base_snapshot, path_map=path_map)
-        except Exception:
+        except Exception:  # noqa: BLE001 — any base-checkout failure is non-fatal: fall back to treating all files as new
             logger.warning("Could not checkout base commit — treating all files as new")
         finally:
             if base_clone.exists():
@@ -900,7 +900,7 @@ def _log_git_stderr_errors(stderr: str | None) -> None:
     if stderr:
         for line in stderr.strip().split("\n"):
             line = line.strip()
-            if line and (line.startswith("fatal:") or line.startswith("error:")):
+            if line and (line.startswith(("fatal:", "error:"))):
                 logger.error(line)
 
 
