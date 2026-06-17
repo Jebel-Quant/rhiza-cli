@@ -131,6 +131,7 @@ class TestResolveDependencies:
     """Tests for RhizaBundles.resolve_dependencies."""
 
     def _make_bundles(self):
+        """Build a RhizaBundles instance for this test."""
         return RhizaBundles.from_config(
             {
                 "bundles": {
@@ -155,6 +156,7 @@ class TestResolveToPaths:
     """Tests for RhizaBundles.resolve_to_paths."""
 
     def _make_bundles(self):
+        """Build a RhizaBundles instance for this test."""
         return RhizaBundles.from_config(
             {
                 "bundles": {
@@ -238,6 +240,7 @@ class TestProfileDefinition:
     """Tests for ProfileDefinition parsing and RhizaBundles.profiles."""
 
     def _make_bundles_with_profiles(self):
+        """Build a RhizaBundles instance with profiles for this test."""
         return RhizaBundles.from_config(
             {
                 "bundles": {
@@ -387,6 +390,7 @@ class TestDirectoryBasedResolution:
     """Tests for bundles without explicit files resolved via bundles/<name>/ directories."""
 
     def _make_dir_bundles(self):
+        """Build a directory-based RhizaBundles instance for this test."""
         return RhizaBundles.from_config(
             {
                 "bundles": {
@@ -552,6 +556,7 @@ class TestResolveToPathsWithRemappedEntries:
     """Tests for resolve_to_paths and resolve_to_path_map with remapped files."""
 
     def _make_bundles(self):
+        """Build a RhizaBundles instance for this test."""
         return RhizaBundles.from_config(
             {
                 "bundles": {
@@ -621,6 +626,7 @@ class TestResolveProfileToPaths:
     """Tests for RhizaBundles.resolve_profile_to_paths."""
 
     def _make_bundles(self):
+        """Build a RhizaBundles instance for this test."""
         return RhizaBundles.from_config(
             {
                 "bundles": {

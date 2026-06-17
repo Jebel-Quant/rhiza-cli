@@ -640,7 +640,7 @@ class TestLoadModel:
         p.write_text("key: value\n")
 
         class NoFromConfig:
-            pass
+            """Stub class that does not implement ``from_config``."""
 
         with pytest.raises(TypeError, match="does not implement from_config"):
             load_model(NoFromConfig, p)
