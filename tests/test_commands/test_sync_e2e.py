@@ -292,7 +292,7 @@ class TestSyncE2EOrphanedFiles:
         materialized_v2 = [Path("file_a.txt")]
 
         def populate_base(git_url, sha, dest, include_paths):
-            """Populate the base snapshot directory with fixture files for the merge."""
+            """Populate the base snapshot with fixture content."""
             (dest / "file_a.txt").write_text("content a\n")
             (dest / "file_b.txt").write_text("content b\n")
 
@@ -360,7 +360,7 @@ class TestSyncE2EThreeWayMerge:
         (upstream_v2 / "config.py").write_text("version = 2\napi = 'default'\n")
 
         def populate_base(git_url, sha, dest, include_paths):
-            """Populate the base snapshot directory with fixture files for the merge."""
+            """Populate the base snapshot with fixture content."""
             (dest / "config.py").write_text(template_v1)
 
         with patch("rhiza.models._git_utils.GitContext.clone_at_sha", side_effect=populate_base):
@@ -462,7 +462,7 @@ class TestSyncE2EExcludedFiles:
         materialized_v2 = [Path("file_a.txt")]  # file_b excluded from materialized
 
         def populate_base(git_url, sha, dest, include_paths):
-            """Populate the base snapshot directory with fixture files for the merge."""
+            """Populate the base snapshot with fixture content."""
             (dest / "file_a.txt").write_text("content a\n")
             (dest / "file_b.txt").write_text("content b\n")
 
@@ -530,7 +530,7 @@ class TestSyncE2EUpdatedTemplateYml:
         (upstream_dir_v1 / "file_b.txt").write_text("content b\n")
 
         def clone_v1(template, git_ctx_, branch="main"):
-            """Stub clone returning the v1 upstream snapshot for this test."""
+            """Simulate the first upstream clone for the test."""
             return upstream_dir_v1, "sha_v1", list(template.include), {}
 
         with patch("rhiza.commands.sync._clone_template", side_effect=clone_v1):
@@ -562,7 +562,7 @@ class TestSyncE2EUpdatedTemplateYml:
         (upstream_dir_v2 / "file_c.txt").write_text("content c\n")
 
         def clone_v2(template, git_ctx_, branch="main"):
-            """Stub clone returning the v2 upstream snapshot for this test."""
+            """Simulate the second upstream clone for the test."""
             return upstream_dir_v2, "sha_v2", list(template.include), {}
 
         def populate_base(git_url, sha, dest, include_paths):
@@ -611,7 +611,7 @@ class TestSyncE2EUpdatedTemplateYml:
         (upstream_dir_v1 / "file_b.txt").write_text("content b\n")
 
         def clone_v1(template, git_ctx_, branch="main"):
-            """Stub clone returning the v1 upstream snapshot for this test."""
+            """Simulate the first upstream clone for the test."""
             return upstream_dir_v1, "sha_v1", list(template.include), {}
 
         with patch("rhiza.commands.sync._clone_template", side_effect=clone_v1):
@@ -639,14 +639,14 @@ class TestSyncE2EUpdatedTemplateYml:
         (upstream_dir_v2 / "file_a.txt").write_text("content a\n")
 
         def clone_v2(template, git_ctx_, branch="main"):
-            """Stub clone returning the v2 upstream snapshot for this test."""
             # Only file_a.txt is in the updated include list from template.yml.
+            """Simulate the second upstream clone for the test."""
             return upstream_dir_v2, "sha_v2", list(template.include), {}
 
         def populate_base(git_url, sha, dest, include_paths):
-            """Populate the base snapshot directory with fixture files for the merge."""
             # Orphan cleanup uses the lock's ``files`` field, not the diff,
             # so only the currently-included file needs to be in the base.
+            """Populate the base snapshot with fixture content."""
             (dest / "file_a.txt").write_text("content a\n")
 
         with (
@@ -695,7 +695,7 @@ class TestSyncE2ECustomPaths:
         (upstream / "special.txt").write_text("from custom template\n")
 
         def clone_upstream(template, git_ctx_, branch="main"):
-            """Stub clone returning the upstream snapshot for this test."""
+            """Simulate cloning the upstream template for the test."""
             return upstream, "sha_custom", list(template.include), {}
 
         with patch("rhiza.commands.sync._clone_template", side_effect=clone_upstream):
@@ -735,7 +735,7 @@ class TestSyncE2ECustomPaths:
         (upstream / "app.txt").write_text("root level\n")
 
         def clone_upstream(template, git_ctx_, branch="main"):
-            """Stub clone returning the upstream snapshot for this test."""
+            """Simulate cloning the upstream template for the test."""
             return upstream, "sha_root", list(template.include), {}
 
         with patch("rhiza.commands.sync._clone_template", side_effect=clone_upstream):
@@ -776,7 +776,7 @@ class TestSyncE2ECustomPaths:
         (upstream_v1 / "data.txt").write_text("version 1\n")
 
         def clone_v1(template, git_ctx_, branch="main"):
-            """Stub clone returning the v1 upstream snapshot for this test."""
+            """Simulate the first upstream clone for the test."""
             return upstream_v1, "sha_v1", list(template.include), {}
 
         with patch("rhiza.commands.sync._clone_template", side_effect=clone_v1):
@@ -801,11 +801,11 @@ class TestSyncE2ECustomPaths:
         (upstream_v2 / "data.txt").write_text("version 2\n")
 
         def clone_v2(template, git_ctx_, branch="main"):
-            """Stub clone returning the v2 upstream snapshot for this test."""
+            """Simulate the second upstream clone for the test."""
             return upstream_v2, "sha_v2", list(template.include), {}
 
         def populate_base(git_url, sha, dest, include_paths):
-            """Populate the base snapshot directory with fixture files for the merge."""
+            """Populate the base snapshot with fixture content."""
             (dest / "data.txt").write_text("version 1\n")
 
         with (
@@ -845,7 +845,7 @@ class TestSyncE2ECustomPaths:
         (upstream / "cli_test.txt").write_text("cli driven\n")
 
         def clone_upstream(template, git_ctx_, branch="main"):
-            """Stub clone returning the upstream snapshot for this test."""
+            """Simulate cloning the upstream template for the test."""
             return upstream, "sha_cli", list(template.include), {}
 
         runner = CliRunner()
@@ -878,7 +878,7 @@ class TestSyncE2ECustomPaths:
         (upstream / "Makefile").write_text("install:\n\tpip install .\n")
 
         def clone_upstream(template, git_ctx_, branch="main"):
-            """Stub clone returning the upstream snapshot for this test."""
+            """Simulate cloning the upstream template for the test."""
             return upstream, "sha_dot", list(template.include), {}
 
         runner = CliRunner()

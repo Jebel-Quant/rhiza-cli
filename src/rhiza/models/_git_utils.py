@@ -774,7 +774,7 @@ class GitContext:
         self,
         target: Path,
         upstream_snapshot: Path,
-        upstream_sha: str,  # noqa: ARG002 — part of the merge-context signature (mirrors clone call sites); lock.sha carries it
+        upstream_sha: str,  # noqa: ARG002  # part of the merge-call signature; lock carries the sha
         base_sha: str,
         base_snapshot: Path,
         template: "RhizaTemplate",
@@ -809,7 +809,7 @@ class GitContext:
         try:
             self.clone_at_sha(template.git_url, base_sha, base_clone, template.include)
             _prepare_snapshot(base_clone, template.include, excludes, base_snapshot, path_map=path_map)
-        except Exception:  # noqa: BLE001 — any base-checkout failure is non-fatal: fall back to treating all files as new
+        except Exception:  # noqa: BLE001  # clone/snapshot can fail many ways; on any failure treat all files as new
             logger.warning("Could not checkout base commit — treating all files as new")
         finally:
             if base_clone.exists():

@@ -107,7 +107,7 @@ class TestMainEntry:
 
         # Create a mock entry_points function that returns our failing entry
         def mock_entry_points(group):
-            """Return the stub plugin entry for the rhiza.plugins group."""
+            """Return the mocked plugin entry points."""
             if group == "rhiza.plugins":
                 return [mock_entry]
             return []
@@ -144,7 +144,7 @@ class TestMainEntry:
 
         # Create a mock entry_points function that returns our successful entry
         def mock_entry_points(group):
-            """Return the stub plugin entry for the rhiza.plugins group."""
+            """Return the mocked plugin entry points."""
             if group == "rhiza.plugins":
                 return [mock_entry]
             return []

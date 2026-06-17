@@ -22,7 +22,7 @@ def load_plugins(app: typer.Typer) -> None:
             plugin_app = entry.load()
             # This adds the plugin as a subcommand, e.g., 'rhiza tools bump'
             app.add_typer(plugin_app, name=entry.name)
-        except Exception as e:  # noqa: BLE001 — a broken third-party plugin must not crash the CLI; log and skip
+        except Exception as e:  # noqa: BLE001  # third-party plugin code may raise anything; a broken plugin must not crash the CLI
             logger.warning(f"Failed to load plugin {entry.name}: {e}")
 
 

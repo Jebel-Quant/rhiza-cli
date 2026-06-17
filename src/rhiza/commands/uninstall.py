@@ -77,10 +77,10 @@ def _remove_files(files_to_remove: list[Path], target: Path) -> tuple[int, int, 
                 full_path.unlink()
                 logger.success(f"[DEL] {file_path}")
                 removed_count += 1
-            except Exception as e:  # noqa: BLE001 — uninstall continues past any single failed deletion, tallying errors
+            except OSError as e:
                 logger.error(f"Failed to delete {file_path}: {e}")
                 error_count += 1
-        except Exception as e:  # noqa: BLE001 — uninstall continues past any single failed deletion, tallying errors
+        except OSError as e:
             logger.error(f"Failed to delete {file_path}: {e}")
             error_count += 1
 
@@ -113,7 +113,7 @@ def _cleanup_empty_directories(files_to_remove: list[Path], target: Path) -> int
                     parent = parent.parent
                 else:
                     break
-            except Exception:  # noqa: BLE001 — stop pruning on any error (e.g. non-empty/permission); not fatal
+            except OSError:
                 break
 
     return empty_dirs_removed
@@ -132,7 +132,7 @@ def _remove_history_file(history_file: Path, target: Path) -> tuple[int, int]:
     try:
         history_file.unlink()
         logger.success(f"[DEL] {history_file.relative_to(target)}")
-    except Exception as e:  # noqa: BLE001 — best-effort history removal; report failure via the error count
+    except OSError as e:
         logger.error(f"Failed to delete {history_file.relative_to(target)}: {e}")
         return 0, 1
     else:
@@ -185,7 +185,7 @@ def uninstall(target: Path, force: bool) -> None:
         lock = TemplateLock.from_yaml(lock_file)
         files_to_remove = [Path(f) for f in lock.files] if lock.files else []
         logger.debug(f"Reading file list from template.lock ({len(files_to_remove)} files)")
-    except Exception as e:  # noqa: BLE001 — a missing/corrupt lock means nothing to uninstall; report and bail
+    except Exception as e:  # noqa: BLE001  # any malformed/unreadable lock aborts uninstall cleanly rather than crashing
         logger.error(f"Failed to read template.lock: {e}")
         return
 

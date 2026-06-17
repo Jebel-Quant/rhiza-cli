@@ -1313,8 +1313,8 @@ class TestThreeWayMergeWithBase:
         (upstream_snapshot / "Makefile").write_text("test:\n\tpytest\n\nlint:\n\truff check .\n")
 
         def populate_base_clone(git_url, sha, dest, include_paths):
-            """Populate the base clone directory with fixture files for the merge."""
             # Populate the clone directory so _prepare_snapshot can copy files
+            """Populate the base clone with snapshot fixture content."""
             (dest / "pyproject.toml").write_text('[project]\nname = "myapp"\nversion = "0.1.0"\n')
             (dest / "Makefile").write_text("test:\n\tpytest\n")
 
@@ -1352,7 +1352,7 @@ class TestThreeWayMergeWithBase:
         (upstream_snapshot / "ci.yml").write_text(identical_content)
 
         def populate_base_clone(git_url, sha, dest, include_paths):
-            """Populate the base clone directory with fixture files for the merge."""
+            """Populate the base clone with snapshot fixture content."""
             (dest / "ci.yml").write_text(identical_content)
 
         mock_clone.side_effect = populate_base_clone
@@ -1388,7 +1388,7 @@ class TestThreeWayMergeWithBase:
         (upstream_snapshot / "new_workflow.yml").write_text("name: deploy\n")
 
         def populate_base_clone(git_url, sha, dest, include_paths):
-            """Populate the base clone directory with fixture files for the merge."""
+            """Populate the base clone with snapshot fixture content."""
             (dest / "existing.yml").write_text("key: value\n")
 
         mock_clone.side_effect = populate_base_clone
@@ -1424,7 +1424,7 @@ class TestThreeWayMergeWithBase:
         (upstream_snapshot / "main.cfg").write_text("current: setting\n")
 
         def populate_base_clone(git_url, sha, dest, include_paths):
-            """Populate the base clone directory with fixture files for the merge."""
+            """Populate the base clone with snapshot fixture content."""
             (dest / "legacy.cfg").write_text("old: setting\n")
             (dest / "main.cfg").write_text("current: setting\n")
 
@@ -1508,7 +1508,7 @@ class TestThreeWayMergeSyncMergeStrategy:
 
         # base_snapshot is populated by the mock_clone side_effect
         def populate_base(git_url, sha, dest, include_paths):
-            """Populate the base snapshot directory with fixture files for the merge."""
+            """Populate the base snapshot with fixture content."""
             (dest / "Makefile").write_text(makefile_v1)
 
         mock_clone.side_effect = populate_base
@@ -1604,7 +1604,7 @@ class TestThreeWayMergeSyncMergeStrategy:
 
         # The base clone will also contain both files (no diff → nothing to apply).
         def populate_base(git_url, sha, dest, include_paths):
-            """Populate the base snapshot directory with fixture files for the merge."""
+            """Populate the base snapshot with fixture content."""
             (dest / "Makefile").write_text(makefile_content)
             (dest / "LICENSE").write_text(license_content)
 
@@ -1645,7 +1645,7 @@ class TestHandleTargetBranch:
         """When the branch does not exist, ``checkout -b`` is called."""
 
         def _side_effect(*args, **kwargs):
-            """Stub subprocess.run side effect for this test."""
+            """Return the patched call's side effect."""
             cmd = args[0] if args else kwargs.get("args", [])
             result = Mock()
             if "rev-parse" in cmd:
@@ -1664,7 +1664,7 @@ class TestHandleTargetBranch:
         """When the branch already exists, a plain ``checkout`` is called."""
 
         def _side_effect(*args, **kwargs):
-            """Stub subprocess.run side effect for this test."""
+            """Return the patched call's side effect."""
             result = Mock()
             result.returncode = 0  # branch found
             return result
@@ -1679,7 +1679,7 @@ class TestHandleTargetBranch:
         """A CalledProcessError during checkout is re-raised."""
 
         def _side_effect(*args, **kwargs):
-            """Stub subprocess.run side effect for this test."""
+            """Return the patched call's side effect."""
             cmd = args[0] if args else kwargs.get("args", [])
             if "rev-parse" in cmd:
                 r = Mock()
@@ -1719,7 +1719,7 @@ class TestCloneTemplateRepository:
         """A clone failure logs the error and re-raises the exception."""
 
         def _side_effect(*args, **kwargs):
-            """Stub subprocess.run side effect for this test."""
+            """Return the patched call's side effect."""
             cmd = args[0] if args else kwargs.get("args", [])
             if "clone" in cmd:
                 raise subprocess.CalledProcessError(128, cmd, stderr="fatal: repository not found")

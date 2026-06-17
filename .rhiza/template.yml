@@ -6,3 +6,13 @@ profiles:
 
 templates:
   - legal
+
+# Excluded from sync: the v0.19.1 mutation workflow enforces a 100% mutation-score
+# gate unconditionally on every PR (the enforcement step runs `if: always()`,
+# despite the stub documenting it as opt-in). That bar is unrealistic for a
+# downstream repo, and no repo variable disables it. Tracking the upstream fix
+# (gate enforcement should be behind MUTATION_ENABLED); remove this once shipped.
+# Exclude paths are matched against the template repo's source layout (the
+# bundle tree), not the destination path.
+exclude:
+  - bundles/github-tests/.github/workflows/rhiza_mutation.yml

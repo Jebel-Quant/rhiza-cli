@@ -1,16 +1,16 @@
-sha: 99827da43cc32c135388641897fede359dfce4a4
+sha: a1ed3dfa30b461413bfee24a784cff718f7b944f
 repo: jebel-quant/rhiza
 host: github
-ref: v0.19.3
+ref: v0.19.1
 include: []
-exclude: []
+exclude:
+- bundles/github-tests/.github/workflows/rhiza_mutation.yml
 templates:
 - legal
 files:
 - .bandit
-- .claude/commands/rhiza_book.md
-- .claude/commands/rhiza_quality.md
-- .claude/commands/rhiza_update.md
+- .claude/commands/book.md
+- .claude/commands/rhiza.md
 - .editorconfig
 - .github/CONFIG.md
 - .github/DISCUSSION_TEMPLATE/help-wanted.yml
@@ -28,7 +28,6 @@ files:
 - .github/workflows/rhiza_codeql.yml
 - .github/workflows/rhiza_fuzzing.yml
 - .github/workflows/rhiza_marimo.yml
-- .github/workflows/rhiza_mutation.yml
 - .github/workflows/rhiza_release.yml
 - .github/workflows/rhiza_scorecard.yml
 - .github/workflows/rhiza_sync.yml
@@ -102,5 +101,5 @@ files:
 - ruff.toml
 profiles:
 - github-project
-synced_at: '2026-06-17T06:28:34Z'
+synced_at: '2026-06-15T15:46:48Z'
 strategy: merge
