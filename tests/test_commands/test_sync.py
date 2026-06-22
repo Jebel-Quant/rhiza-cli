@@ -686,7 +686,7 @@ class TestMergeWithBasePaths:
 
     @patch("rhiza.models._git_utils.GitContext.get_diff")
     @patch("rhiza.models._git_utils.GitContext.clone_at_sha")
-    @patch("rhiza.models._git_utils._prepare_snapshot")
+    @patch("rhiza.models._git.merge._prepare_snapshot")
     def test_merge_with_base_no_diff(self, mock_prepare, mock_clone, mock_get_diff, tmp_path, git_ctx):
         """When diff is empty, lock is updated and function returns early."""
         mock_get_diff.return_value = ""  # empty diff → no changes
@@ -717,7 +717,7 @@ class TestMergeWithBasePaths:
     @patch("rhiza.models._git_utils.GitContext._apply_diff")
     @patch("rhiza.models._git_utils.GitContext.get_diff")
     @patch("rhiza.models._git_utils.GitContext.clone_at_sha")
-    @patch("rhiza.models._git_utils._prepare_snapshot")
+    @patch("rhiza.models._git.merge._prepare_snapshot")
     def test_merge_with_base_clean_apply(
         self, mock_prepare, mock_clone, mock_get_diff, mock_apply, tmp_path, git_project, git_ctx
     ):
@@ -749,7 +749,7 @@ class TestMergeWithBasePaths:
     @patch("rhiza.models._git_utils.GitContext._apply_diff")
     @patch("rhiza.models._git_utils.GitContext.get_diff")
     @patch("rhiza.models._git_utils.GitContext.clone_at_sha")
-    @patch("rhiza.models._git_utils._prepare_snapshot")
+    @patch("rhiza.models._git.merge._prepare_snapshot")
     def test_merge_with_base_conflict_returns_false(
         self, mock_prepare, mock_clone, mock_get_diff, mock_apply, tmp_path, git_project, git_ctx
     ):
@@ -1765,7 +1765,7 @@ class TestLogGitStderrErrors:
     )
     def test_stderr_logging(self, stderr, expected_calls):
         """Appropriate lines are logged as errors; irrelevant lines and None are ignored."""
-        with patch("rhiza.models._git_utils.logger") as mock_logger:
+        with patch("rhiza.models._git.helpers.logger") as mock_logger:
             _log_git_stderr_errors(stderr)
         assert mock_logger.error.call_count == len(expected_calls)
         for expected in expected_calls:

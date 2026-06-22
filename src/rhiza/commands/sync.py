@@ -26,7 +26,7 @@ from pathlib import Path
 from loguru import logger
 
 from rhiza.models import GitContext, RhizaTemplate, TemplateLock
-from rhiza.models._git_utils import _excluded_set, _prepare_snapshot
+from rhiza.models._git.snapshot import _excluded_set, _prepare_snapshot
 
 __all__ = ["sync"]
 

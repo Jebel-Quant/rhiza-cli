@@ -5,7 +5,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from rhiza.models._base import YamlSerializable
-from rhiza.models._git_utils import _normalize_to_list
+from rhiza.models._git.helpers import _normalize_to_list
 
 if TYPE_CHECKING:
     pass
