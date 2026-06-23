@@ -55,6 +55,7 @@ docs_dir: docs  # must not be '.' (project root) — _book would then be inside 
 
 nav:
   - Home: index.md
+  - Architecture: architecture.md
   - Decisions:
       - Overview: adr/README.md
       - ADR-0001 — Inline get_diff: adr/0001-inline-get-diff-instead-of-cruft.md
