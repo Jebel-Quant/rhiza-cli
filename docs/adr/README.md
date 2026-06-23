@@ -21,7 +21,8 @@ Each ADR follows this structure:
 | [ADR-0001](0001-inline-get-diff-instead-of-cruft.md) | Inline `get_diff` instead of depending on `cruft` | Accepted |
 | [ADR-0002](0002-repository-ref-as-canonical-keys.md) | Make `repository`/`ref` canonical keys in `template.yml` | Accepted |
 | [ADR-0003](0003-lock-file-concurrency.md) | Concurrency-safe lock file I/O with fcntl and atomic rename | Accepted |
-| [ADR-0004](0004-keep-git-utils-as-single-module.md) | Keep `models/_git_utils.py` as a single module | Accepted |
+| [ADR-0004](0004-keep-git-utils-as-single-module.md) | Keep `models/_git_utils.py` as a single module | Superseded by ADR-0005 |
+| [ADR-0005](0005-split-git-engine-into-subpackage.md) | Split the git engine into a `models/_git/` subpackage | Accepted |
 
 ## Creating a New ADR
 
