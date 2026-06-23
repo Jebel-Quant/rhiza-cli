@@ -62,6 +62,7 @@ nav:
       - ADR-0002 — Repository/ref keys: adr/0002-repository-ref-as-canonical-keys.md
       - ADR-0003 — Lock file concurrency: adr/0003-lock-file-concurrency.md
       - ADR-0004 — Single git_utils module: adr/0004-keep-git-utils-as-single-module.md
+      - ADR-0005 — Split git engine: adr/0005-split-git-engine-into-subpackage.md
   - Reports:
       - Test Report: reports/html-report/report.html
       - Coverage Report: reports/html-coverage/index.html

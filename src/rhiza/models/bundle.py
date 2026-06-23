@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from rhiza.models._base import YamlSerializable
-from rhiza.models._git_utils import _normalize_to_list
+from rhiza.models._git.helpers import _normalize_to_list
 
 
 @dataclass(frozen=True)

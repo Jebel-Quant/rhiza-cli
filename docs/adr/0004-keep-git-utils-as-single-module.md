@@ -1,6 +1,6 @@
 # ADR-0004: Keep `models/_git_utils.py` as a single module
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-0005](0005-split-git-engine-into-subpackage.md)
 
 ## Context
 
