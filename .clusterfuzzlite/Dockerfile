@@ -4,6 +4,6 @@
 # changes through reviewed updates.
 FROM gcr.io/oss-fuzz-base/base-builder-python@sha256:9c97273c8de83d22a40462fdda4371d1ff16eac065c72ee03bef7fdb1aaaf458
 
-COPY . $SRC/rhiza-cli
-WORKDIR $SRC/rhiza-cli
+COPY . $SRC
+WORKDIR $SRC
 COPY .clusterfuzzlite/build.sh $SRC/build.sh
