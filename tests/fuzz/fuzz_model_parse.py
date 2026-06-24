@@ -38,7 +38,12 @@ from rhiza.models.template import RhizaTemplate  # noqa: E402
 
 # Exceptions that represent a well-formed rejection of malformed input, as
 # documented on the parsers (read_yaml / from_config / BundleFileEntry).
-_EXPECTED_PARSE_ERRORS = (yaml.YAMLError, ValueError, TypeError, KeyError, AttributeError)
+#
+# RecursionError is included because PyYAML rejects pathologically nested input
+# (e.g. ``[[[[...``) by exhausting the Python recursion limit rather than raising
+# a yaml.YAMLError. That is a documented limit of the parser, not a crash in
+# rhiza, so we treat it the same as any other malformed-input rejection.
+_EXPECTED_PARSE_ERRORS = (yaml.YAMLError, ValueError, TypeError, KeyError, AttributeError, RecursionError)
 
 
 def test_one_input(data: bytes) -> None:
@@ -46,7 +51,7 @@ def test_one_input(data: bytes) -> None:
     text = data.decode("utf-8", errors="replace")
     try:
         parsed = yaml.safe_load(text)
-    except yaml.YAMLError:
+    except (yaml.YAMLError, RecursionError):
         return
     if not isinstance(parsed, dict):
         return
