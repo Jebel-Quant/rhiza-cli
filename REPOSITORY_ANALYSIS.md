@@ -202,3 +202,71 @@ The repository continues to demonstrate strong engineering fundamentals with com
 **8.0/10**
 
 **Justification**: Score maintained at 8.0/10 from previous analysis. Positive developments include significant sync logic reduction (58% reduction from 846 to 353 lines) demonstrating ongoing refactoring discipline. However, core weaknesses persist unchanged: Python version inconsistency across three configuration files creates deployment risk; no type checking enforcement after mypy removal; deprecated `migrate` command retained. The project demonstrates production-grade engineering with comprehensive CI/CD, security awareness, excellent documentation, and modern tooling choices, but missing critical quality gates prevents higher scoring. The 353-line sync implementation is much improved but remains the highest-complexity module. CI runs only on Ubuntu despite cross-platform goals. Score would improve to 8.5+ with: (1) Python version alignment across all config files, (2) mypy integration in pre-commit and CI, (3) removal of deprecated `migrate` command, (4) coverage threshold enforcement (minimum 80%), and (5) Windows/macOS CI matrix testing.
+
+---
+
+## 2026-06-28 — Current-State Reassessment (corrects earlier entries)
+
+> The three 2026-03-08 entries above are retained as a historical record, but
+> several of their figures and "weaknesses" are now stale or were never
+> accurate. This entry supersedes them and reconciles the record against the
+> repository as it actually stands (template `v0.19.9`).
+
+### Corrections to earlier entries
+
+- **Source/test counts.** Earlier entries variously claimed "1,211 test
+  files", "~3,520 lines of Python source", "21 source files (~4,886 lines)"
+  and "20 Python modules (~2,600 lines)". The actual figures today:
+  **29 source files / ~5,955 LOC under `src/`** and **23 test files / ~11,320
+  LOC under `tests/`** (646 collected test cases).
+- **Nonexistent files.** Earlier entries referenced `src/rhiza/models.py` and
+  `src/rhiza/bundle_resolver.py`. Neither exists: models live in the
+  `src/rhiza/models/` subpackage, and bundle resolution is
+  `RhizaBundles.resolve_to_paths` in `src/rhiza/models/bundle.py`.
+- **Type checking is now enforced.** The "mypy explicitly removed" / "no type
+  checking enforcement" weakness is resolved: `make typecheck` runs both `ty`
+  and `mypy --strict` over `src/` and `.rhiza/utils/` and passes cleanly
+  (`Success: no issues found in 33 source files`).
+- **Coverage threshold is enforced.** The "no coverage threshold" /
+  "coverage could regress silently" risk is resolved: `make test` enforces a
+  90% floor and the suite currently reports **100% line coverage** (646 tests).
+  Docstring coverage (interrogate) is likewise enforced at **100%**.
+- **Git engine has been decomposed.** The old monolithic `_git_utils.py` is now
+  a thin backwards-compatible re-export shim; the engine lives in the
+  `src/rhiza/models/_git/` subpackage (`context.py`, `diff.py`, `merge.py`,
+  `remote.py`, `snapshot.py`, `helpers.py`) per ADR-0005.
+
+### Current state
+
+- **Gates.** `fmt`, `typecheck`, `docs-coverage`, `deptry`, `security`
+  (pip-audit + bandit), `validate`, `rhiza-test`, and `test` all pass on the
+  current checkout.
+- **Documentation.** 5 ADRs (`docs/adr/0001`–`0005`), an `architecture.md`
+  overview, and the published MkDocs site. ~34 Markdown files repo-wide.
+- **Security.** Subprocess usage is confined to Git/`uv` invocations with
+  argument lists (never `shell=True`); each call carries a justified
+  `# nosec`/`# noqa: S603` annotation. pip-audit reports no known
+  vulnerabilities.
+
+### Remaining, genuinely-open items
+
+- **Function complexity.** Six functions in `src/` exceed the ruff `C901`
+  complexity threshold of 10 (e.g. `_merge_file_fallback`,
+  `_parse_diff_filenames` in `models/_git/`, `resolve_to_paths`/`config` in
+  `models/bundle.py`). `C901` is not in the enforced ruff rule set, so these
+  are not caught by `make fmt` today.
+- **`TRY003` suppressions.** 16 inline-exception-message suppressions remain;
+  tracked for conversion to custom exceptions / message constants.
+- **Deprecated `migrate` command** is still present (intentionally retained for
+  backwards compatibility, with a deprecation notice).
+
+### Score
+
+**9/10**
+
+**Justification**: Every quality gate is green, with 100% test and docstring
+coverage, strict dual type checking, clean dependency and security audits, and
+a clean modular architecture. The earlier deductions (no mypy, no coverage
+floor, monolithic git utils) have all been addressed. The remaining gap to a
+perfect score is modest: a handful of `C901`-complex functions and some
+`TRY003` inline-message suppressions, neither of which affects correctness.
