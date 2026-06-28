@@ -128,6 +128,33 @@ class RhizaBundles(YamlSerializable):
     bundles: dict[str, BundleDefinition] = field(default_factory=dict)
     profiles: dict[str, ProfileDefinition] = field(default_factory=dict)
 
+    @staticmethod
+    def _bundle_to_entry(bundle: BundleDefinition) -> dict[str, Any]:
+        """Serialise a single bundle definition into its config dict, omitting falsy fields."""
+        entry: dict[str, Any] = {"description": bundle.description}
+        if bundle.required:
+            entry["required"] = bundle.required
+        if bundle.standalone:
+            entry["standalone"] = bundle.standalone
+        if bundle.requires:
+            entry["requires"] = bundle.requires
+        if bundle.recommends:
+            entry["recommends"] = bundle.recommends
+        if bundle.files:
+            entry["files"] = [f.to_config_entry() for f in bundle.files]
+        if bundle.notes:
+            entry["notes"] = bundle.notes
+        return entry
+
+    @staticmethod
+    def _profile_to_entry(profile: ProfileDefinition) -> dict[str, Any]:
+        """Serialise a single profile definition into its config dict."""
+        entry: dict[str, Any] = {}
+        if profile.description:
+            entry["description"] = profile.description
+        entry["bundles"] = profile.bundles
+        return entry
+
     @property
     def config(self) -> dict[str, Any]:
         """Return the bundles' current state as a configuration dictionary."""
@@ -136,34 +163,10 @@ class RhizaBundles(YamlSerializable):
         if self.version is not None:
             config["version"] = self.version
 
-        bundles_dict: dict[str, Any] = {}
-        for name, bundle in self.bundles.items():
-            bundle_entry: dict[str, Any] = {"description": bundle.description}
-            if bundle.required:
-                bundle_entry["required"] = bundle.required
-            if bundle.standalone:
-                bundle_entry["standalone"] = bundle.standalone
-            if bundle.requires:
-                bundle_entry["requires"] = bundle.requires
-            if bundle.recommends:
-                bundle_entry["recommends"] = bundle.recommends
-            if bundle.files:
-                bundle_entry["files"] = [f.to_config_entry() for f in bundle.files]
-            if bundle.notes:
-                bundle_entry["notes"] = bundle.notes
-            bundles_dict[name] = bundle_entry
-
-        config["bundles"] = bundles_dict
+        config["bundles"] = {name: self._bundle_to_entry(bundle) for name, bundle in self.bundles.items()}
 
         if self.profiles:
-            profiles_dict: dict[str, Any] = {}
-            for name, profile in self.profiles.items():
-                profile_entry: dict[str, Any] = {}
-                if profile.description:
-                    profile_entry["description"] = profile.description
-                profile_entry["bundles"] = profile.bundles
-                profiles_dict[name] = profile_entry
-            config["profiles"] = profiles_dict
+            config["profiles"] = {name: self._profile_to_entry(profile) for name, profile in self.profiles.items()}
 
         return config
 
@@ -231,6 +234,50 @@ class RhizaBundles(YamlSerializable):
 
         return cls(version=version, bundles=bundles, profiles=profiles)
 
+    def _resolve_bundle_order(self, bundle_names: list[str], *, strict: bool) -> list[str]:
+        """Return *bundle_names* and their ``requires`` dependencies in topological order.
+
+        Args:
+            bundle_names: Bundle names to resolve.
+            strict: When True, raise ``ValueError`` for unknown bundles or
+                circular dependencies; when False, silently skip them.
+
+        Returns:
+            Dependency-first ordering of the resolved bundle names.
+
+        Raises:
+            ValueError: If ``strict`` and a bundle is missing or forms a cycle.
+        """
+        order: list[str] = []
+        resolved: set[str] = set()
+        resolving: set[str] = set()
+
+        def _collect(name: str) -> None:
+            """Recursively resolve a single bundle's dependencies in topological order."""
+            if name not in self.bundles:
+                if strict:
+                    msg = f"Bundle '{name}' does not exist"
+                    raise ValueError(msg)
+                return
+            if name in resolving:
+                if strict:
+                    msg = f"Circular dependency detected for bundle '{name}'"
+                    raise ValueError(msg)
+                return
+            if name in resolved:
+                return
+
+            resolving.add(name)
+            for dependency in self.bundles[name].requires:
+                _collect(dependency)
+            resolving.remove(name)
+            resolved.add(name)
+            order.append(name)
+
+        for name in bundle_names:
+            _collect(name)
+        return order
+
     def resolve_to_paths(self, bundle_names: list[str]) -> list[str]:
         """Convert bundle names to deduplicated file paths.
 
@@ -243,45 +290,22 @@ class RhizaBundles(YamlSerializable):
         Raises:
             ValueError: If a bundle doesn't exist or circular dependency detected.
         """
-        bundles: list[str] = []
-        resolved: set[str] = set()
-        resolving: set[str] = set()
         paths: list[str] = []
         seen: set[str] = set()
 
-        def _collect(bundle_name: str) -> None:
-            """Recursively resolve bundle dependencies in topological order."""
-            if bundle_name not in self.bundles:
-                msg = f"Bundle '{bundle_name}' does not exist"
-                raise ValueError(msg)
-            if bundle_name in resolving:
-                msg = f"Circular dependency detected for bundle '{bundle_name}'"
-                raise ValueError(msg)
-            if bundle_name in resolved:
-                return
+        def _add(path: str) -> None:
+            """Append a path once, tracking it in the dedup set."""
+            if path not in seen:
+                paths.append(path)
+                seen.add(path)
 
-            resolving.add(bundle_name)
-            for dependency in self.bundles[bundle_name].requires:
-                _collect(dependency)
-            resolving.remove(bundle_name)
-            resolved.add(bundle_name)
-            bundles.append(bundle_name)
-
-        for bundle_name in bundle_names:
-            _collect(bundle_name)
-
-        for bundle_name in bundles:
+        for bundle_name in self._resolve_bundle_order(bundle_names, strict=True):
             bundle = self.bundles[bundle_name]
             if bundle.files:
                 for entry in bundle.files:
-                    if entry.source not in seen:
-                        paths.append(entry.source)
-                        seen.add(entry.source)
+                    _add(entry.source)
             else:
-                dir_path = f"bundles/{bundle_name}/"
-                if dir_path not in seen:
-                    paths.append(dir_path)
-                    seen.add(dir_path)
+                _add(f"bundles/{bundle_name}/")
 
         return paths
 
@@ -301,25 +325,7 @@ class RhizaBundles(YamlSerializable):
         resolved = self.resolve_to_paths(bundle_names)
         resolved_set = set(resolved)
 
-        seen: set[str] = set()
-        bundle_order: list[str] = []
-        resolving: set[str] = set()
-
-        def _collect(name: str) -> None:
-            """Recursively collect bundle dependency order, skipping already-seen entries."""
-            if name not in self.bundles or name in resolving or name in seen:
-                return
-            resolving.add(name)
-            for dep in self.bundles[name].requires:
-                _collect(dep)
-            resolving.remove(name)
-            seen.add(name)
-            bundle_order.append(name)
-
-        for name in bundle_names:
-            _collect(name)
-
-        for bundle_name in bundle_order:
+        for bundle_name in self._resolve_bundle_order(bundle_names, strict=False):
             bundle = self.bundles[bundle_name]
             if bundle.files:
                 for entry in bundle.files:

@@ -120,6 +120,35 @@ def _parse_yaml_file(template_file: Path) -> tuple[bool, dict[str, Any] | None]:
     return True, config
 
 
+def _validate_profiles_field(config: dict[str, Any]) -> bool | None:
+    """Validate the optional ``profiles`` field.
+
+    Args:
+        config: Configuration dictionary.
+
+    Returns:
+        ``None`` if no ``profiles`` field is present, ``True`` if it is present
+        and valid, ``False`` if it is present but invalid.
+    """
+    if "profiles" not in config:
+        return None
+
+    profiles = config["profiles"]
+    if not isinstance(profiles, list):
+        logger.error(f"profiles must be a list, got {type(profiles).__name__}")
+        logger.error("Example: profiles: [github-project]")
+        return False
+    if not profiles:
+        logger.error("profiles list cannot be empty")
+        logger.error("Example: profiles: [github-project]")
+        return False
+    for p in profiles:
+        if not isinstance(p, str) or not p.strip():
+            logger.error(f"Each entry in profiles must be a non-empty string, got: {p!r}")
+            return False
+    return True
+
+
 def _validate_configuration_mode(config: dict[str, Any]) -> bool:
     """Validate that at least one of profile, templates, or include is specified.
 
@@ -132,23 +161,11 @@ def _validate_configuration_mode(config: dict[str, Any]) -> bool:
     logger.debug("Validating configuration mode")
     has_templates = "templates" in config and config["templates"]
     has_include = "include" in config and config["include"]
-    has_profiles = False
 
-    if "profiles" in config:
-        profiles = config["profiles"]
-        if not isinstance(profiles, list):
-            logger.error(f"profiles must be a list, got {type(profiles).__name__}")
-            logger.error("Example: profiles: [github-project]")
-            return False
-        if not profiles:
-            logger.error("profiles list cannot be empty")
-            logger.error("Example: profiles: [github-project]")
-            return False
-        for p in profiles:
-            if not isinstance(p, str) or not p.strip():
-                logger.error(f"Each entry in profiles must be a non-empty string, got: {p!r}")
-                return False
-        has_profiles = True
+    profiles_valid = _validate_profiles_field(config)
+    if profiles_valid is False:
+        return False
+    has_profiles = profiles_valid is True
 
     # Error if old "bundles" field is used
     if "bundles" in config:

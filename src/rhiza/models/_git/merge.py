@@ -3,6 +3,7 @@
 import shutil
 import subprocess  # nosec B404
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -17,8 +18,72 @@ if TYPE_CHECKING:
     from rhiza.models.template import RhizaTemplate
 
 
+@dataclass(frozen=True)
+class _MergePaths:
+    """The three on-disk locations for a single file in a 3-way merge."""
+
+    target: Path
+    upstream: Path
+    base: Path
+
+
 class MergeMixin(RemoteOpsMixin, DiffMixin):
     """Apply template changes to the target via a cruft-style 3-way merge."""
+
+    def _apply_non_merge(self, rel_path: str, paths: "_MergePaths", *, is_new: bool, is_deleted: bool) -> None:
+        """Handle the non-3-way cases: additions, deletions, and overwrite-from-upstream."""
+        if is_deleted:
+            if paths.target.exists():
+                paths.target.unlink()
+                logger.debug(f"[merge-file] Deleted: {rel_path}")
+            return
+
+        # New, missing-in-target, or no-base: just take upstream when it exists.
+        if paths.upstream.exists():
+            target_existed = paths.target.exists()
+            paths.target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(paths.upstream, paths.target)
+            if is_new:
+                logger.debug(f"[merge-file] Added: {rel_path}")
+            elif not target_existed:
+                logger.debug(f"[merge-file] Created (missing in target): {rel_path}")
+            else:
+                logger.debug(f"[merge-file] Overwrite (no base): {rel_path}")
+
+    def _git_merge_file(self, rel_path: str, paths: "_MergePaths") -> tuple[bool, bool]:
+        """Run ``git merge-file`` for one modified file.
+
+        Returns:
+            A ``(is_clean, is_conflict)`` tuple. ``is_clean`` is False on either
+            a conflict or a merge error; ``is_conflict`` is True only when
+            conflict markers were written and need manual resolution.
+        """
+        result = subprocess.run(  # nosec B603  # noqa: S603
+            [
+                self.executable,
+                "merge-file",
+                "-L",
+                "HEAD",
+                "-L",
+                "base",
+                "-L",
+                "rhiza-template",
+                str(paths.target),
+                str(paths.base),
+                str(paths.upstream),
+            ],
+            capture_output=True,
+            env=self.env,
+        )
+
+        if result.returncode > 0:
+            logger.warning(f"[merge-file] Conflict in {rel_path} — resolve markers manually")
+            return False, True
+        if result.returncode < 0:
+            logger.warning(f"[merge-file] Error merging {rel_path}: {result.stderr.decode().strip()}")
+            return False, False
+        logger.debug(f"[merge-file] Clean merge: {rel_path}")
+        return True, False
 
     def _merge_file_fallback(
         self,
@@ -50,65 +115,26 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
         conflict_files: list[str] = []
 
         for rel_path, is_new, is_deleted in file_entries:
-            target_file = target / rel_path
-            upstream_file = upstream_snapshot / rel_path
-            base_file = base_snapshot / rel_path
-
-            if is_new:
-                if upstream_file.exists():
-                    target_file.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(upstream_file, target_file)
-                    logger.debug(f"[merge-file] Added: {rel_path}")
-                continue
-
-            if is_deleted:
-                if target_file.exists():
-                    target_file.unlink()
-                    logger.debug(f"[merge-file] Deleted: {rel_path}")
-                continue
-
-            # Modified file — attempt a 3-way merge using the on-disk snapshots.
-            if not target_file.exists():
-                if upstream_file.exists():
-                    target_file.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(upstream_file, target_file)
-                    logger.debug(f"[merge-file] Created (missing in target): {rel_path}")
-                continue
-
-            if not base_file.exists() or not upstream_file.exists():
-                # Cannot 3-way-merge without both sides; just take upstream.
-                if upstream_file.exists():
-                    shutil.copy2(upstream_file, target_file)
-                    logger.debug(f"[merge-file] Overwrite (no base): {rel_path}")
-                continue
-
-            result = subprocess.run(  # nosec B603  # noqa: S603
-                [
-                    self.executable,
-                    "merge-file",
-                    "-L",
-                    "HEAD",
-                    "-L",
-                    "base",
-                    "-L",
-                    "rhiza-template",
-                    str(target_file),
-                    str(base_file),
-                    str(upstream_file),
-                ],
-                capture_output=True,
-                env=self.env,
+            paths = _MergePaths(
+                target=target / rel_path,
+                upstream=upstream_snapshot / rel_path,
+                base=base_snapshot / rel_path,
             )
 
-            if result.returncode > 0:
+            if (
+                is_new
+                or is_deleted
+                or not paths.target.exists()
+                or not (paths.base.exists() and paths.upstream.exists())
+            ):
+                self._apply_non_merge(rel_path, paths, is_new=is_new, is_deleted=is_deleted)
+                continue
+
+            is_clean, is_conflict = self._git_merge_file(rel_path, paths)
+            if not is_clean:
+                all_clean = False
+            if is_conflict:
                 conflict_files.append(rel_path)
-                all_clean = False
-                logger.warning(f"[merge-file] Conflict in {rel_path} — resolve markers manually")
-            elif result.returncode < 0:
-                logger.warning(f"[merge-file] Error merging {rel_path}: {result.stderr.decode().strip()}")
-                all_clean = False
-            else:
-                logger.debug(f"[merge-file] Clean merge: {rel_path}")
 
         if conflict_files:
             detail = "\n".join(f"  {f}" for f in conflict_files)
@@ -221,28 +247,30 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
 
             # Scan and report any conflict artifacts left behind so users know
             # exactly which files need attention.
-            rej_files, marker_files = self._scan_conflict_artifacts(target)
-            if rej_files:
-                rej_detail = "\n".join(
-                    f"  {f.removesuffix('.rej')}  (unresolved hunks saved to {f})" for f in rej_files
-                )
-                logger.warning(
-                    f"The following file(s) have unresolved hunks:\n{rej_detail}\n"
-                    "  Open each .rej file, manually apply the diff hunks to the source file,\n"
-                    "  then delete the .rej file before committing."
-                )
-            if marker_files:
-                marker_detail = "\n".join(f"  {f}" for f in marker_files)
-                logger.warning(
-                    f"The following file(s) contain conflict markers:\n{marker_detail}\n"
-                    "  Resolve each <<<<<<< / ======= / >>>>>>> block and remove the markers\n"
-                    "  before committing."
-                )
-            if not rej_files and not marker_files:
-                logger.warning("Some changes could not be applied cleanly — check the working tree for partial edits.")
+            self._report_conflict_artifacts(target)
             return False
         else:
             return True
+
+    def _report_conflict_artifacts(self, target: Path) -> None:
+        """Scan *target* and emit guidance for any ``.rej`` files or conflict markers left behind."""
+        rej_files, marker_files = self._scan_conflict_artifacts(target)
+        if rej_files:
+            rej_detail = "\n".join(f"  {f.removesuffix('.rej')}  (unresolved hunks saved to {f})" for f in rej_files)
+            logger.warning(
+                f"The following file(s) have unresolved hunks:\n{rej_detail}\n"
+                "  Open each .rej file, manually apply the diff hunks to the source file,\n"
+                "  then delete the .rej file before committing."
+            )
+        if marker_files:
+            marker_detail = "\n".join(f"  {f}" for f in marker_files)
+            logger.warning(
+                f"The following file(s) contain conflict markers:\n{marker_detail}\n"
+                "  Resolve each <<<<<<< / ======= / >>>>>>> block and remove the markers\n"
+                "  before committing."
+            )
+        if not rej_files and not marker_files:
+            logger.warning("Some changes could not be applied cleanly — check the working tree for partial edits.")
 
     def _copy_files_to_target(self, snapshot_dir: Path, target: Path, materialized: list[Path]) -> None:
         """Copy all materialized files from a snapshot into the target project.

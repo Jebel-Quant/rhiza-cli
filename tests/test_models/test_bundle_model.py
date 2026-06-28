@@ -230,6 +230,26 @@ class TestResolveToPaths:
         assert result.count("Makefile") == 1
         assert result.count("pyproject.toml") == 1
 
+    def test_resolve_bundle_order_non_strict_skips_unknown_bundle(self):
+        """Non-strict resolution silently skips an unknown bundle instead of raising."""
+        bundles = self._make_bundles()
+        order = bundles._resolve_bundle_order(["core", "nonexistent-bundle"], strict=False)
+        assert order == ["core"]
+
+    def test_resolve_bundle_order_non_strict_skips_cycle(self):
+        """Non-strict resolution breaks a dependency cycle instead of raising."""
+        bundles = RhizaBundles.from_config(
+            {
+                "bundles": {
+                    "a": {"description": "A", "files": ["a.txt"], "requires": ["b"]},
+                    "b": {"description": "B", "files": ["b.txt"], "requires": ["a"]},
+                }
+            }
+        )
+        # Both bundles are still ordered; the cycle is broken rather than raised.
+        order = bundles._resolve_bundle_order(["a"], strict=False)
+        assert sorted(order) == ["a", "b"]
+
 
 # ---------------------------------------------------------------------------
 # ProfileDefinition and profiles support
