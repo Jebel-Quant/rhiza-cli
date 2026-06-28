@@ -1,11 +1,58 @@
 """Diff computation and parsing for the sync engine."""
 
 import subprocess  # nosec B404
+from dataclasses import dataclass
 from pathlib import Path
 
 from loguru import logger
 
 from rhiza.models._git._base import GitContextBase
+
+_SRC_PREFIX = "upstream-template-old/"
+_DST_PREFIX = "upstream-template-new/"
+
+
+def _path_after(line: str, marker: str, prefix: str) -> str | None:
+    """Return the diff path on a ``---``/``+++`` header line, stripped of *prefix*."""
+    raw = line[len(marker) :].strip().strip('"').split("\t")[0]
+    if raw != "/dev/null" and raw.startswith(prefix):
+        return raw[len(prefix) :]
+    return None
+
+
+@dataclass
+class _DiffFileState:
+    """Accumulates the per-file flags/paths seen while scanning one ``diff --git`` block."""
+
+    is_new: bool = False
+    is_deleted: bool = False
+    src_path: str | None = None
+    dst_path: str | None = None
+    started: bool = False
+
+    def reset(self) -> None:
+        """Begin a new file block, clearing all accumulated state."""
+        self.is_new = False
+        self.is_deleted = False
+        self.src_path = None
+        self.dst_path = None
+        self.started = True
+
+    def update(self, line: str) -> None:
+        """Update state from a single non-``diff --git`` header line."""
+        if line.startswith("new file mode"):
+            self.is_new = True
+        elif line.startswith("deleted file mode"):
+            self.is_deleted = True
+        elif line.startswith("--- "):
+            self.src_path = _path_after(line, "--- ", _SRC_PREFIX) or self.src_path
+        elif line.startswith("+++ "):
+            self.dst_path = _path_after(line, "+++ ", _DST_PREFIX) or self.dst_path
+
+    def entry(self) -> tuple[str, bool, bool] | None:
+        """Return the ``(rel_path, is_new, is_deleted)`` entry for this block, if a path was captured."""
+        rel = self.src_path if self.is_deleted else self.dst_path
+        return (rel, self.is_new, self.is_deleted) if rel else None
 
 
 class DiffMixin(GitContextBase):
@@ -80,45 +127,24 @@ class DiffMixin(GitContextBase):
         Returns:
             List of ``(rel_path, is_new, is_deleted)`` tuples, one per changed file.
         """
-        src_prefix = "upstream-template-old/"
-        dst_prefix = "upstream-template-new/"
-
         results: list[tuple[str, bool, bool]] = []
-        is_new = False
-        is_deleted = False
-        src_path: str | None = None
-        dst_path: str | None = None
-        in_diff = False
+        state = _DiffFileState()
 
         def _flush() -> None:
             """Emit the current file entry into results if a path was captured."""
-            rel = dst_path if not is_deleted else src_path
-            if rel:
-                results.append((rel, is_new, is_deleted))
+            entry = state.entry()
+            if entry:
+                results.append(entry)
 
         for line in diff.splitlines():
             if line.startswith("diff --git "):
-                if in_diff:
+                if state.started:
                     _flush()
-                is_new = False
-                is_deleted = False
-                src_path = None
-                dst_path = None
-                in_diff = True
-            elif line.startswith("new file mode"):
-                is_new = True
-            elif line.startswith("deleted file mode"):
-                is_deleted = True
-            elif line.startswith("--- "):
-                raw = line[4:].strip().strip('"').split("\t")[0]
-                if raw != "/dev/null" and raw.startswith(src_prefix):
-                    src_path = raw[len(src_prefix) :]
-            elif line.startswith("+++ "):
-                raw = line[4:].strip().strip('"').split("\t")[0]
-                if raw != "/dev/null" and raw.startswith(dst_prefix):
-                    dst_path = raw[len(dst_prefix) :]
+                state.reset()
+            else:
+                state.update(line)
 
-        if in_diff:
+        if state.started:
             _flush()
 
         return results
