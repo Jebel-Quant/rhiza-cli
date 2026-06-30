@@ -118,7 +118,9 @@ def _check_template_repository_reachable(template_repository: str, git_host: Git
                 logger.error(f"git ls-remote stderr: {stderr_output}")
             else:
                 logger.error("git ls-remote returned no stderr output.")
-            logger.error("Please check that the repository exists, your network connection, and your access permissions.")
+            logger.error(
+                "Please check that the repository exists, your network connection, and your access permissions."
+            )
             return False
     except subprocess.TimeoutExpired:
         logger.error(f"Timed out while checking repository reachability: {repo_url}")
