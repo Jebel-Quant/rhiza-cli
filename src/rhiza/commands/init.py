@@ -109,8 +109,16 @@ def _check_template_repository_reachable(template_repository: str, git_host: Git
             logger.success(f"Template repository is reachable: {template_repository}")
             return True
         else:
-            logger.error(f"Template repository '{template_repository}' is not accessible at {repo_url}")
-            logger.error("Please check that the repository exists and you have access to it.")
+            stderr_output = (result.stderr or b"").decode(errors="replace").strip()
+            logger.error(
+                f"Template repository '{template_repository}' is not accessible at {repo_url} "
+                f"(git exit code: {result.returncode})."
+            )
+            if stderr_output:
+                logger.error(f"git ls-remote stderr: {stderr_output}")
+            else:
+                logger.error("git ls-remote returned no stderr output.")
+            logger.error("Please check that the repository exists, your network connection, and your access permissions.")
             return False
     except subprocess.TimeoutExpired:
         logger.error(f"Timed out while checking repository reachability: {repo_url}")
