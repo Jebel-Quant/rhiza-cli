@@ -189,7 +189,7 @@ def _create_python_package(target: Path, project_name: str, package_name: str) -
     main_file.write_text(code)
     logger.success(f"Created Python package structure in {src_folder}")
 
-    # Create main.py
+    # Create test_main.py
     test_file = test_folder / "test_main.py"
     logger.debug(f"Creating {test_file} with example code")
     test_file.touch()
@@ -198,7 +198,6 @@ def _create_python_package(target: Path, project_name: str, package_name: str) -
     template = Template(template_content, keep_trailing_newline=True)
     code = template.render(project_name=package_name)
     test_file.write_text(code)
-    # logger.success(f"Created Python package structure in {src_folder}")
 
 
 def _create_pyproject_toml(
