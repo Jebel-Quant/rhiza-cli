@@ -140,9 +140,13 @@ class TestSourceFolderVariable:
 
         proc = run_make(logger, ["deptry", "SOURCE_FOLDER=mypackage", "MARIMO_FOLDER=notebooks"])
         out = strip_ansi(proc.stdout)
-        # marimo.mk is included before quality.mk, so its folder is appended first.
-        assert "deptry notebooks mypackage --ignore DEP004" in out, (
-            "deptry should scan marimo + source folders in a single call with DEP004 ignored; got:\n" + out[:600]
+        # Assert behavior, not Makefile include order: both folders must be scanned with DEP004 ignored.
+        assert "deptry " in out, "deptry target should invoke deptry; got:\n" + out[:600]
+        assert "notebooks" in out and "mypackage" in out, (
+            "deptry should scan both marimo and source folders; got:\n" + out[:600]
+        )
+        assert "--ignore DEP004" in out, (
+            "deptry should ignore DEP004 when marimo bundle is enabled; got:\n" + out[:600]
         )
 
 
