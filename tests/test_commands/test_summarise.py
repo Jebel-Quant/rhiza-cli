@@ -438,7 +438,7 @@ class TestSummariseCommand:
         from rhiza.commands.summarise import get_staged_changes
 
         # Mock run_git_command to return malformed output
-        with patch("rhiza.commands.summarise.run_git_command") as mock_git:
+        with patch("rhiza.commands.summarise._gather.run_git_command") as mock_git:
             # Include a line without tab separator
             mock_git.return_value = "A\tfile1.txt\nMALFORMED_LINE\nM\tfile2.txt"
 
@@ -455,7 +455,7 @@ class TestSummariseCommand:
         from rhiza.commands.summarise import get_staged_changes
 
         # Mock run_git_command to return output with unusual status codes
-        with patch("rhiza.commands.summarise.run_git_command") as mock_git:
+        with patch("rhiza.commands.summarise._gather.run_git_command") as mock_git:
             # Include various status codes including unusual ones
             mock_git.return_value = "A\tfile1.txt\nM\tfile2.txt\nT\tfile3.txt\nX\tfile4.txt"
 
@@ -576,7 +576,7 @@ class TestSummariseCommand:
 
         from rhiza.commands.summarise import get_last_sync_date
 
-        with patch("rhiza.commands.summarise.run_git_command") as mock_git:
+        with patch("rhiza.commands.summarise._gather.run_git_command") as mock_git:
             mock_git.return_value = "2025-03-01T12:00:00+00:00"
 
             result = get_last_sync_date(git_repo, template_repo="my-org/my-template")
@@ -865,7 +865,7 @@ class TestSummariseCommand:
         rhiza_dir.mkdir()
         (rhiza_dir / "template.lock").write_text("not: valid: yaml: [\n")
 
-        with patch("rhiza.commands.summarise.run_git_command", return_value="2025-01-01T00:00:00Z"):
+        with patch("rhiza.commands.summarise._gather.run_git_command", return_value="2025-01-01T00:00:00Z"):
             result = get_last_sync_date(git_repo)
 
         assert result == "2025-01-01T00:00:00Z"
