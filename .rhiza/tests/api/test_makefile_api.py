@@ -113,8 +113,8 @@ def test_minimal_setup_works(logger, setup_api_env):
         if p.exists():
             shutil.rmtree(p)
 
-    # Also remove files that might be copied if they were in the root?
-    # Just mainly folders.
+    # Keep required root files (Makefile, pyproject.toml, README.md) in place.
+    # This test only verifies that missing optional folders do not break `make help`.
 
     # Run make help
     result = run_make(logger, ["help"], dry_run=False)
