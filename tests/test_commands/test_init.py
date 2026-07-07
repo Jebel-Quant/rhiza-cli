@@ -658,6 +658,17 @@ class TestCheckTemplateRepositoryReachable:
         assert result is False
 
     @patch("rhiza.commands.init.subprocess.run")
+    def test_unreachable_repository_with_empty_stderr_returns_false(self, mock_run):
+        """Test that a non-zero exit with no stderr still returns False.
+
+        Covers the branch where git ls-remote fails but emits no stderr, so the
+        function logs the "no stderr output" message rather than the stderr text.
+        """
+        mock_run.return_value = MagicMock(returncode=128, stderr=b"")
+        result = _check_template_repository_reachable("typo/nonexistent", "github")
+        assert result is False
+
+    @patch("rhiza.commands.init.subprocess.run")
     def test_gitlab_host_uses_gitlab_url(self, mock_run):
         """Test that gitlab host uses gitlab.com URL."""
         mock_run.return_value = MagicMock(returncode=0)
