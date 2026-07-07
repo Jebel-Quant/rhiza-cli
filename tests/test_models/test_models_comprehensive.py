@@ -34,6 +34,18 @@ _text = st.text(alphabet=_safe_alpha, min_size=0, max_size=40)
 _nonempty = st.text(alphabet=_safe_alpha, min_size=1, max_size=40)
 _path_list = st.lists(_nonempty, max_size=6)
 
+# Bundle file entries are validated by BundleFileEntry, which rejects absolute
+# paths, drive letters, and '..' traversal (path-traversal hardening, #579).
+# Build safe relative paths from slash-free segments so the generator honours
+# that invariant instead of producing values the model must reject.
+_path_segment = st.text(
+    alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="-_"),
+    min_size=1,
+    max_size=12,
+)
+_safe_rel_path = st.lists(_path_segment, min_size=1, max_size=3).map("/".join)
+_safe_path_list = st.lists(_safe_rel_path, max_size=6)
+
 # ============================================================================
 # TemplateLock
 # ============================================================================
@@ -435,7 +447,7 @@ class TestRhizaTemplateHypothesis:
 _bundle_def_st = st.builds(
     dict,
     description=_text,
-    files=st.one_of(st.none(), _path_list),
+    files=st.one_of(st.none(), _safe_path_list),
     workflows=st.one_of(st.none(), _path_list),
 )
 
