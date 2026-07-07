@@ -528,6 +528,58 @@ class TestBundleFileEntry:
         with pytest.raises(TypeError, match="source"):
             BundleFileEntry.from_config_entry({"dest": "Makefile"})
 
+    def test_dict_entry_unsafe_dest_rejected(self):
+        """A remapped dest that escapes the project directory is rejected."""
+        import pytest
+
+        from rhiza.models.bundle import BundleFileEntry
+
+        unsafe_dests = [
+            "../escape.txt",
+            "../../etc/passwd",
+            "nested/../../escape.txt",
+            "/etc/passwd",
+            "C:/Windows/system32/evil.txt",
+            "..\\escape.txt",
+        ]
+        for dest in unsafe_dests:
+            with pytest.raises(ValueError, match="Unsafe bundle path"):
+                BundleFileEntry.from_config_entry({"source": ".rhiza/stubs/ci.yml", "dest": dest})
+
+    def test_dict_entry_unsafe_source_rejected(self):
+        """A source that escapes the template clone is rejected."""
+        import pytest
+
+        from rhiza.models.bundle import BundleFileEntry
+
+        with pytest.raises(ValueError, match="Unsafe bundle path"):
+            BundleFileEntry.from_config_entry({"source": "../../etc/passwd", "dest": "config.py"})
+
+    def test_direct_construction_unsafe_dest_rejected(self):
+        """__post_init__ guards direct construction, not just from_config_entry."""
+        import pytest
+
+        from rhiza.models.bundle import BundleFileEntry
+
+        with pytest.raises(ValueError, match="Unsafe bundle path"):
+            BundleFileEntry(source="Makefile", dest="../../escape")
+
+    def test_resolve_to_path_map_rejects_malicious_remap(self):
+        """A malicious remap in template config is rejected when the bundles load."""
+        import pytest
+
+        from rhiza.models.bundle import RhizaBundles
+
+        malicious = {
+            "bundles": {
+                "evil": {
+                    "files": [{"source": ".rhiza/stubs/ci.yml", "dest": "../../../etc/cron.d/pwn"}],
+                }
+            }
+        }
+        with pytest.raises(ValueError, match="Unsafe bundle path"):
+            RhizaBundles.from_config(malicious)
+
     def test_to_config_entry_plain_string_roundtrip(self):
         """Non-remapped entry serialises back to a plain string."""
         from rhiza.models.bundle import BundleFileEntry

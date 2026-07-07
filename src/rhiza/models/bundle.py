@@ -1,10 +1,39 @@
 """Bundle models for Rhiza configuration."""
 
 from dataclasses import dataclass, field
+from pathlib import PurePosixPath
 from typing import Any
 
 from rhiza.models._base import YamlSerializable
 from rhiza.models._git.helpers import _normalize_to_list
+
+
+def _ensure_safe_bundle_path(value: str) -> None:
+    """Reject a bundle path that could escape the project directory.
+
+    ``template.yml`` is effectively untrusted input (it is fetched from the
+    template repository), and a remapped ``dest`` is joined onto the target
+    directory to decide where a file is written.  An absolute path, a Windows
+    drive letter, or a ``..`` traversal component could therefore write outside
+    the project.  This validates both ``source`` and ``dest`` at the trust
+    boundary so no such path can reach the materialize step.
+
+    Args:
+        value: A ``source`` or ``dest`` path from bundle config.
+
+    Raises:
+        ValueError: If *value* is absolute, uses a drive letter, or contains a
+            ``..`` traversal component.
+    """
+    # Normalise separators so a Windows-style path cannot slip past the checks.
+    normalized = value.replace("\\", "/")
+    pure = PurePosixPath(normalized)
+    has_drive = len(normalized) >= 2 and normalized[0].isalpha() and normalized[1] == ":"
+    if pure.is_absolute() or has_drive or ".." in pure.parts:
+        raise ValueError(  # noqa: TRY003
+            f"Unsafe bundle path {value!r}: paths must be relative to the project "
+            "root (no absolute paths, drive letters, or '..' traversal)."
+        )
 
 
 @dataclass(frozen=True)
@@ -21,6 +50,11 @@ class BundleFileEntry:
 
     source: str
     dest: str
+
+    def __post_init__(self) -> None:
+        """Validate that both paths stay within the project (no escape)."""
+        _ensure_safe_bundle_path(self.source)
+        _ensure_safe_bundle_path(self.dest)
 
     @property
     def is_remapped(self) -> bool:
