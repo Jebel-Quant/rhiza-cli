@@ -184,7 +184,14 @@ def _validate_configuration_mode(config: dict[str, Any]) -> bool:
         logger.error("  • Hybrid: specify both templates and include")
         return False
 
-    # Log what mode is being used
+    _log_configuration_mode(config, has_profiles=has_profiles, has_templates=has_templates, has_include=has_include)
+    return True
+
+
+def _log_configuration_mode(
+    config: dict[str, Any], *, has_profiles: bool, has_templates: bool, has_include: bool
+) -> None:
+    """Log which configuration mode (profile / template / path / hybrid) is in use."""
     if has_profiles:
         logger.success(f"Using profile mode (profiles: {config['profiles']})")
     elif has_templates and has_include:
@@ -193,8 +200,6 @@ def _validate_configuration_mode(config: dict[str, Any]) -> bool:
         logger.success("Using template-based mode")
     else:
         logger.success("Using path-based mode")
-
-    return True
 
 
 def _validate_templates(config: dict[str, Any]) -> bool:
@@ -454,19 +459,37 @@ def validate(target: Path, template_file: Path | None = None) -> bool:
     target = target.resolve()
     logger.info(f"Validating template configuration in: {target}")
 
+    config = _run_preflight_checks(target, template_file)
+    if config is None:
+        return False
+
+    validation_passed = _validate_config_fields(config)
+
+    # Final verdict
+    logger.debug("Validation complete, determining final result")
+    if validation_passed:
+        logger.success("✓ Validation passed: template.yml is valid")
+        return True
+    logger.error("✗ Validation failed: template.yml has errors")
+    logger.error("Fix the errors above and run 'rhiza validate' again")
+    return False
+
+
+def _run_preflight_checks(target: Path, template_file: Path | None) -> dict[str, Any] | None:
+    """Run early-exit structural checks; return the parsed config, or None on failure."""
     # Check if target is a git repository
     if not _check_git_repository(target):
-        return False
+        return None
 
     # Check for template file first to get the language
     exists, template_file = _check_template_file_exists(target, template_file)
     if not exists:
-        return False
+        return None
 
     # Parse YAML file
     success, config = _parse_yaml_file(template_file)
     if not success or config is None:
-        return False
+        return None
 
     # Get the language from config (default to "python" for backward compatibility)
     language = config.get("language", "python")
@@ -474,12 +497,17 @@ def validate(target: Path, template_file: Path | None = None) -> bool:
 
     # Check for language-specific project structure
     if not _check_project_structure(target, language):
-        return False
+        return None
 
     # Validate configuration mode (templates OR include)
     if not _validate_configuration_mode(config):
-        return False
+        return None
 
+    return config
+
+
+def _validate_config_fields(config: dict[str, Any]) -> bool:
+    """Validate all fields (non-short-circuiting so every error surfaces); True when all pass."""
     # Validate required fields
     validation_passed = _validate_required_fields(config)
 
@@ -498,12 +526,4 @@ def validate(target: Path, template_file: Path | None = None) -> bool:
     # Validate optional fields
     _validate_optional_fields(config)
 
-    # Final verdict
-    logger.debug("Validation complete, determining final result")
-    if validation_passed:
-        logger.success("✓ Validation passed: template.yml is valid")
-        return True
-    else:
-        logger.error("✗ Validation failed: template.yml has errors")
-        logger.error("Fix the errors above and run 'rhiza validate' again")
-        return False
+    return validation_passed

@@ -85,6 +85,18 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
         logger.debug(f"[merge-file] Clean merge: {rel_path}")
         return True, False
 
+    @staticmethod
+    def _needs_plain_apply(paths: "_MergePaths", *, is_new: bool, is_deleted: bool) -> bool:
+        """Return True when a file should be copied/deleted outright rather than 3-way merged.
+
+        A real merge requires an existing target plus both base and upstream
+        snapshot versions; anything else (additions, deletions, missing target,
+        or a missing snapshot side) is handled by :meth:`_apply_non_merge`.
+        """
+        return (
+            is_new or is_deleted or not paths.target.exists() or not (paths.base.exists() and paths.upstream.exists())
+        )
+
     def _merge_file_fallback(
         self,
         diff: str,
@@ -121,12 +133,7 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
                 base=base_snapshot / rel_path,
             )
 
-            if (
-                is_new
-                or is_deleted
-                or not paths.target.exists()
-                or not (paths.base.exists() and paths.upstream.exists())
-            ):
+            if self._needs_plain_apply(paths, is_new=is_new, is_deleted=is_deleted):
                 self._apply_non_merge(rel_path, paths, is_new=is_new, is_deleted=is_deleted)
                 continue
 
@@ -180,6 +187,26 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
                     pass
         return rej_files, marker_files
 
+    @staticmethod
+    def _decode_stream(data: "bytes | str | None") -> str:
+        """Decode a subprocess stdout/stderr stream (bytes/str/None) to a string."""
+        return data.decode() if isinstance(data, bytes) else (data or "")
+
+    def _git_apply(self, extra_args: list[str], diff: str, target: Path) -> None:
+        """Run ``git apply <extra_args>`` feeding *diff* on stdin.
+
+        Raises:
+            subprocess.CalledProcessError: If git exits non-zero.
+        """
+        subprocess.run(  # nosec B603  # noqa: S603
+            [self.executable, "apply", *extra_args],
+            input=diff.encode() if isinstance(diff, str) else diff,
+            cwd=target,
+            check=True,
+            capture_output=True,
+            env=self.env,
+        )
+
     def _apply_diff(
         self,
         diff: str,
@@ -207,50 +234,50 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
         """
         if not diff.strip():
             return True
-
         try:
-            subprocess.run(  # nosec B603  # noqa: S603
-                [self.executable, "apply", "-3"],
-                input=diff.encode() if isinstance(diff, str) else diff,
-                cwd=target,
-                check=True,
-                capture_output=True,
-                env=self.env,
-            )
+            self._git_apply(["-3"], diff, target)
         except subprocess.CalledProcessError as e:
-            stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
-
-            # git apply -3 cannot do a real 3-way merge when the template blobs are
-            # not present in the target repository's object store.  If we have the
-            # snapshot directories on disk, use git merge-file instead — it works
-            # directly on file content and needs no shared git history.
-            if "lacks the necessary blob" in stderr and base_snapshot is not None and upstream_snapshot is not None:
-                logger.debug("git apply -3 lacks blob objects; switching to git merge-file fallback")
-                return self._merge_file_fallback(diff, target, base_snapshot, upstream_snapshot)
-
-            if stderr:
-                logger.warning(f"3-way merge had conflicts:\n{stderr.strip()}")
-            # Fall back to --reject for conflict files
-            try:
-                subprocess.run(  # nosec B603  # noqa: S603
-                    [self.executable, "apply", "--reject"],
-                    input=diff.encode() if isinstance(diff, str) else diff,
-                    cwd=target,
-                    check=True,
-                    capture_output=True,
-                    env=self.env,
-                )
-            except subprocess.CalledProcessError as e2:
-                stderr2 = e2.stderr.decode() if isinstance(e2.stderr, bytes) else (e2.stderr or "")
-                if stderr2:
-                    logger.warning(stderr2.strip())
-
-            # Scan and report any conflict artifacts left behind so users know
-            # exactly which files need attention.
-            self._report_conflict_artifacts(target)
-            return False
+            return self._handle_apply_failure(e, diff, target, base_snapshot, upstream_snapshot)
         else:
             return True
+
+    def _handle_apply_failure(
+        self,
+        error: "subprocess.CalledProcessError",
+        diff: str,
+        target: Path,
+        base_snapshot: Path | None,
+        upstream_snapshot: Path | None,
+    ) -> bool:
+        """Recover from a failed ``git apply -3``: merge-file fallback or ``--reject``.
+
+        Returns:
+            True if the merge-file fallback applied cleanly, False otherwise.
+        """
+        stderr = self._decode_stream(error.stderr)
+
+        # git apply -3 cannot do a real 3-way merge when the template blobs are
+        # not present in the target repository's object store.  If we have the
+        # snapshot directories on disk, use git merge-file instead — it works
+        # directly on file content and needs no shared git history.
+        if "lacks the necessary blob" in stderr and base_snapshot is not None and upstream_snapshot is not None:
+            logger.debug("git apply -3 lacks blob objects; switching to git merge-file fallback")
+            return self._merge_file_fallback(diff, target, base_snapshot, upstream_snapshot)
+
+        if stderr:
+            logger.warning(f"3-way merge had conflicts:\n{stderr.strip()}")
+        # Fall back to --reject for conflict files
+        try:
+            self._git_apply(["--reject"], diff, target)
+        except subprocess.CalledProcessError as e2:
+            stderr2 = self._decode_stream(e2.stderr)
+            if stderr2:
+                logger.warning(stderr2.strip())
+
+        # Scan and report any conflict artifacts left behind so users know
+        # exactly which files need attention.
+        self._report_conflict_artifacts(target)
+        return False
 
     def _report_conflict_artifacts(self, target: Path) -> None:
         """Scan *target* and emit guidance for any ``.rej`` files or conflict markers left behind."""

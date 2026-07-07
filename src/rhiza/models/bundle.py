@@ -170,6 +170,50 @@ class RhizaBundles(YamlSerializable):
 
         return config
 
+    @staticmethod
+    def _parse_files(raw_files: Any) -> list[BundleFileEntry]:
+        """Parse a bundle's ``files`` value (list, string, or absent) into entries."""
+        if isinstance(raw_files, list):
+            return [BundleFileEntry.from_config_entry(e) for e in raw_files]
+        if isinstance(raw_files, str):
+            return [BundleFileEntry.from_config_entry(e) for e in _normalize_to_list(raw_files)]
+        return []
+
+    @classmethod
+    def _parse_bundle(cls, bundle_name: str, bundle_data: Any) -> BundleDefinition:
+        """Parse a single bundle entry into a :class:`BundleDefinition`.
+
+        Raises:
+            TypeError: If *bundle_data* is not a dictionary.
+        """
+        if not isinstance(bundle_data, dict):
+            msg = f"Bundle '{bundle_name}' must be a dictionary"
+            raise TypeError(msg)
+        return BundleDefinition(
+            description=bundle_data.get("description", ""),
+            files=cls._parse_files(bundle_data.get("files")),
+            requires=_normalize_to_list(bundle_data.get("requires")),
+            recommends=_normalize_to_list(bundle_data.get("recommends")),
+            standalone=bundle_data.get("standalone", True),
+            required=bool(bundle_data.get("required", False)),
+            notes=bundle_data.get("notes") or "",
+        )
+
+    @staticmethod
+    def _parse_profile(profile_name: str, profile_data: Any) -> ProfileDefinition:
+        """Parse a single profile entry into a :class:`ProfileDefinition`.
+
+        Raises:
+            TypeError: If *profile_data* is not a dictionary.
+        """
+        if not isinstance(profile_data, dict):
+            msg = f"Profile '{profile_name}' must be a dictionary"
+            raise TypeError(msg)
+        return ProfileDefinition(
+            description=profile_data.get("description", ""),
+            bundles=_normalize_to_list(profile_data.get("bundles")),
+        )
+
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> "RhizaBundles":
         """Create a RhizaBundles instance from a configuration dictionary.
@@ -183,37 +227,11 @@ class RhizaBundles(YamlSerializable):
         Raises:
             TypeError: If bundle data has invalid types.
         """
-        version = config.get("version")
-
         bundles_config = config.get("bundles", {})
         if not isinstance(bundles_config, dict):
             msg = "Bundles must be a dictionary"
             raise TypeError(msg)
-
-        bundles: dict[str, BundleDefinition] = {}
-        for bundle_name, bundle_data in bundles_config.items():
-            if not isinstance(bundle_data, dict):
-                msg = f"Bundle '{bundle_name}' must be a dictionary"
-                raise TypeError(msg)
-
-            raw_files = bundle_data.get("files")
-            if isinstance(raw_files, list):
-                files = [BundleFileEntry.from_config_entry(e) for e in raw_files]
-            elif isinstance(raw_files, str):
-                files = [BundleFileEntry.from_config_entry(e) for e in _normalize_to_list(raw_files)]
-            else:
-                files = []
-            requires = _normalize_to_list(bundle_data.get("requires"))
-
-            bundles[bundle_name] = BundleDefinition(
-                description=bundle_data.get("description", ""),
-                files=files,
-                requires=requires,
-                recommends=_normalize_to_list(bundle_data.get("recommends")),
-                standalone=bundle_data.get("standalone", True),
-                required=bool(bundle_data.get("required", False)),
-                notes=bundle_data.get("notes") or "",
-            )
+        bundles = {name: cls._parse_bundle(name, data) for name, data in bundles_config.items()}
 
         profiles_config = config.get("profiles", {})
         if profiles_config is None:
@@ -221,18 +239,9 @@ class RhizaBundles(YamlSerializable):
         elif not isinstance(profiles_config, dict):
             msg = "Profiles must be a dictionary"
             raise TypeError(msg)
+        profiles = {name: cls._parse_profile(name, data) for name, data in profiles_config.items()}
 
-        profiles: dict[str, ProfileDefinition] = {}
-        for profile_name, profile_data in profiles_config.items():
-            if not isinstance(profile_data, dict):
-                msg = f"Profile '{profile_name}' must be a dictionary"
-                raise TypeError(msg)
-            profiles[profile_name] = ProfileDefinition(
-                description=profile_data.get("description", ""),
-                bundles=_normalize_to_list(profile_data.get("bundles")),
-            )
-
-        return cls(version=version, bundles=bundles, profiles=profiles)
+        return cls(version=config.get("version"), bundles=bundles, profiles=profiles)
 
     def _resolve_bundle_order(self, bundle_names: list[str], *, strict: bool) -> list[str]:
         """Return *bundle_names* and their ``requires`` dependencies in topological order.

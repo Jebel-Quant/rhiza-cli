@@ -21,12 +21,17 @@ import dataclasses
 import datetime
 import shutil
 import tempfile
+from collections.abc import Mapping
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
 from rhiza.models import GitContext, RhizaTemplate, TemplateLock
 from rhiza.models._git.snapshot import _excluded_set, _prepare_snapshot
+
+if TYPE_CHECKING:
+    from rhiza.models.bundle import RhizaBundles
 
 __all__ = ["sync"]
 
@@ -134,8 +139,6 @@ def _clone_template(
             unsupported, or no include paths / templates are configured.
         subprocess.CalledProcessError: If a git operation fails.
     """
-    from rhiza.models.bundle import RhizaBundles
-
     if not template.template_repository:
         raise ValueError("template_repository is not configured in template.yml")  # noqa: TRY003
     if not template.templates and not template.include and not template.profiles:
@@ -146,42 +149,7 @@ def _clone_template(
     upstream_dir = Path(tempfile.mkdtemp())
 
     if template.profiles or template.templates:
-        # Checkout the bundle definitions file from template_repository @ template_branch
-        bundles_path = template.template_bundles_path
-        git_ctx.clone_repository(template.git_url, upstream_dir, rhiza_branch, [bundles_path])
-
-        # Load bundle definitions
-        bundles = RhizaBundles.from_yaml(upstream_dir / bundles_path)
-
-        # Resolve profiles → bundle names, then merge with explicit templates list
-        if template.profiles:
-            available_profiles = bundles.profiles or {}
-            profile_bundle_names: list[str] = []
-            for profile_name in template.profiles:
-                if profile_name not in available_profiles:
-                    sorted_available = sorted(available_profiles)
-                    if sorted_available:
-                        available_text = ", ".join(sorted_available)
-                        raise ValueError(  # noqa: TRY003
-                            f"Profile '{profile_name}' was not found in {bundles_path}. "
-                            f"Available profiles: {available_text}"
-                        )
-                    raise ValueError(  # noqa: TRY003
-                        f"Profile '{profile_name}' was not found in {bundles_path}. No profiles are defined."
-                    )
-                for bundle in available_profiles[profile_name].bundles:
-                    if bundle not in profile_bundle_names:
-                        profile_bundle_names.append(bundle)
-            all_bundle_names = list(dict.fromkeys(profile_bundle_names + template.templates))
-        else:
-            all_bundle_names = template.templates
-
-        resolved_paths = bundles.resolve_to_paths(all_bundle_names)
-        path_map = bundles.resolve_to_path_map(all_bundle_names)
-        # Merge resolved bundle paths with any explicit include: paths (hybrid mode)
-        merged_paths = list(dict.fromkeys(resolved_paths + include_paths))
-        git_ctx.update_sparse_checkout(upstream_dir, merged_paths)
-        include_paths = merged_paths
+        include_paths, path_map = _clone_bundle_paths(template, git_ctx, rhiza_branch, upstream_dir, include_paths)
     else:
         path_map = {}
         git_ctx.clone_repository(template.git_url, upstream_dir, rhiza_branch, include_paths)
@@ -190,6 +158,69 @@ def _clone_template(
     logger.info(f"Upstream HEAD: {upstream_sha[:12]}")
 
     return upstream_dir, upstream_sha, include_paths, path_map
+
+
+def _profile_not_found_error(
+    profile_name: str, bundles_path: str, available_profiles: Mapping[str, object]
+) -> ValueError:
+    """Build a helpful ``ValueError`` for a profile missing from the bundle definitions."""
+    sorted_available = sorted(available_profiles)
+    if sorted_available:
+        available_text = ", ".join(sorted_available)
+        return ValueError(
+            f"Profile '{profile_name}' was not found in {bundles_path}. Available profiles: {available_text}"
+        )
+    return ValueError(f"Profile '{profile_name}' was not found in {bundles_path}. No profiles are defined.")
+
+
+def _resolve_bundle_names(template: RhizaTemplate, bundles: "RhizaBundles", bundles_path: str) -> list[str]:
+    """Resolve configured profiles → bundle names, merged with the explicit templates list.
+
+    Raises:
+        ValueError: If a configured profile is not present in the bundle definitions.
+    """
+    if not template.profiles:
+        return template.templates
+
+    available_profiles = bundles.profiles or {}
+    profile_bundle_names: list[str] = []
+    for profile_name in template.profiles:
+        if profile_name not in available_profiles:
+            raise _profile_not_found_error(profile_name, bundles_path, available_profiles)
+        for bundle in available_profiles[profile_name].bundles:
+            if bundle not in profile_bundle_names:
+                profile_bundle_names.append(bundle)
+    return list(dict.fromkeys(profile_bundle_names + template.templates))
+
+
+def _clone_bundle_paths(
+    template: RhizaTemplate,
+    git_ctx: GitContext,
+    rhiza_branch: str,
+    upstream_dir: Path,
+    include_paths: list[str],
+) -> tuple[list[str], dict[str, str]]:
+    """Clone bundle definitions, resolve bundle/profile paths, and sparse-checkout them.
+
+    Returns:
+        A ``(merged_include_paths, path_map)`` tuple where the include paths are
+        the resolved bundle paths merged with any explicit ``include:`` paths.
+    """
+    from rhiza.models.bundle import RhizaBundles
+
+    # Checkout the bundle definitions file from template_repository @ template_branch
+    bundles_path = template.template_bundles_path
+    git_ctx.clone_repository(template.git_url, upstream_dir, rhiza_branch, [bundles_path])
+
+    bundles = RhizaBundles.from_yaml(upstream_dir / bundles_path)
+    all_bundle_names = _resolve_bundle_names(template, bundles, bundles_path)
+
+    resolved_paths = bundles.resolve_to_paths(all_bundle_names)
+    path_map = bundles.resolve_to_path_map(all_bundle_names)
+    # Merge resolved bundle paths with any explicit include: paths (hybrid mode)
+    merged_paths = list(dict.fromkeys(resolved_paths + include_paths))
+    git_ctx.update_sparse_checkout(upstream_dir, merged_paths)
+    return merged_paths, path_map
 
 
 def sync(

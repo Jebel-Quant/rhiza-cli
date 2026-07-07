@@ -131,6 +131,20 @@ def _check_template_repository_reachable(template_repository: str, git_host: Git
         return True  # Don't block init if git is unavailable
 
 
+def _parse_version_tags(ls_remote_output: str) -> list[str]:
+    r"""Extract version-like tag names (``v?\\d+.\\d+...``) from ``git ls-remote --tags`` output."""
+    version_tags: list[str] = []
+    for line in ls_remote_output.splitlines():
+        if "^{}" in line:  # skip dereferenced annotated-tag objects
+            continue
+        parts = line.split("\t")
+        if len(parts) == 2 and parts[1].startswith("refs/tags/"):
+            tag = parts[1][len("refs/tags/") :]
+            if re.match(r"^v?\d+\.\d+", tag):
+                version_tags.append(tag)
+    return version_tags
+
+
 def _get_latest_tag(template_repository: str, git_host: GitHost | str = GitHost.GITHUB) -> str | None:
     """Fetch the latest version tag from the template repository via git ls-remote.
 
@@ -161,16 +175,7 @@ def _get_latest_tag(template_repository: str, git_host: GitHost | str = GitHost.
             logger.debug(f"git ls-remote --tags failed for {repo_url}")
             return None
 
-        version_tags = []
-        for line in result.stdout.splitlines():
-            if "^{}" in line:  # skip dereferenced annotated-tag objects
-                continue
-            parts = line.split("\t")
-            if len(parts) == 2 and parts[1].startswith("refs/tags/"):
-                tag = parts[1][len("refs/tags/") :]
-                if re.match(r"^v?\d+\.\d+", tag):
-                    version_tags.append(tag)
-
+        version_tags = _parse_version_tags(result.stdout)
         if not version_tags:
             logger.debug(f"No version tags found in {repo_url}")
             return None
@@ -400,12 +405,7 @@ def init(
     rhiza_dir.mkdir(parents=True, exist_ok=True)
 
     # Determine git host: explicit arg > remote URL detection > interactive prompt
-    if git_host is None:
-        git_host = _detect_git_host(target)
-        if git_host is not None:
-            logger.info(f"Detected git host from remote URL: {git_host}")
-        else:
-            git_host = _prompt_git_host()
+    git_host = _resolve_git_host(target, git_host)
 
     # When no template repository is specified and no config file exists yet,
     # offer the user an interactive selection from discovered rhiza repos.
@@ -421,23 +421,45 @@ def init(
     _create_template_file(target, git_host, language, template_repository, template_branch, template_file)
 
     # Bootstrap project structure based on language
+    _bootstrap_project_structure(
+        target,
+        language,
+        project_name,
+        package_name,
+        with_dev_dependencies=with_dev_dependencies,
+        git_host=git_host,
+    )
+
+    # Validate the template file
+    logger.debug("Validating template configuration")
+    return validate(target, template_file=template_file)
+
+
+def _resolve_git_host(target: Path, git_host: GitHost | None) -> GitHost:
+    """Resolve the git host: keep an explicit value, else detect from remote, else prompt."""
+    if git_host is not None:
+        return git_host
+    detected = _detect_git_host(target)
+    if detected is not None:
+        logger.info(f"Detected git host from remote URL: {detected}")
+        return detected
+    return _prompt_git_host()
+
+
+def _bootstrap_project_structure(
+    target: Path,
+    language: str,
+    project_name: str | None,
+    package_name: str | None,
+    *,
+    with_dev_dependencies: bool,
+    git_host: GitHost | None,
+) -> None:
+    """Create the initial project files for *language* (python, go, or minimal fallback)."""
     if language == "python":
-        # Python-specific setup
-        if project_name is None:
-            project_name = target.name
-        if package_name is None:
-            package_name = _normalize_package_name(project_name)
-
-        logger.debug(f"Project name: {project_name}")
-        logger.debug(f"Package name: {package_name}")
-
-        github_username = _get_github_username(target)
-        _create_python_package(target, project_name, package_name)
-        _create_pyproject_toml(target, project_name, package_name, with_dev_dependencies, github_username)
-        _create_uv_lock(target)
-        _create_makefile(target)
-        _create_mkdocs_yml(target, project_name, github_username, git_host)
-        _create_readme(target)
+        _bootstrap_python_project(
+            target, project_name, package_name, with_dev_dependencies=with_dev_dependencies, git_host=git_host
+        )
     elif language == "go":
         # Go-specific setup - just create README, user should run go mod init
         _create_readme(target)
@@ -447,6 +469,28 @@ def init(
         logger.warning(f"Unknown language '{language}', creating minimal structure")
         _create_readme(target)
 
-    # Validate the template file
-    logger.debug("Validating template configuration")
-    return validate(target, template_file=template_file)
+
+def _bootstrap_python_project(
+    target: Path,
+    project_name: str | None,
+    package_name: str | None,
+    *,
+    with_dev_dependencies: bool,
+    git_host: GitHost | None,
+) -> None:
+    """Create the Python project scaffolding (package, pyproject, lock, Makefile, docs, README)."""
+    if project_name is None:
+        project_name = target.name
+    if package_name is None:
+        package_name = _normalize_package_name(project_name)
+
+    logger.debug(f"Project name: {project_name}")
+    logger.debug(f"Package name: {package_name}")
+
+    github_username = _get_github_username(target)
+    _create_python_package(target, project_name, package_name)
+    _create_pyproject_toml(target, project_name, package_name, with_dev_dependencies, github_username)
+    _create_uv_lock(target)
+    _create_makefile(target)
+    _create_mkdocs_yml(target, project_name, github_username, git_host)
+    _create_readme(target)
