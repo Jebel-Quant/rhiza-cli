@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from rhiza.models._git._merge_conflicts import ConflictArtifactMixin
 from rhiza.models._git.diff import DiffMixin
 from rhiza.models._git.remote import RemoteOpsMixin
 from rhiza.models._git.snapshot import _prepare_snapshot
@@ -27,7 +28,7 @@ class _MergePaths:
     base: Path
 
 
-class MergeMixin(RemoteOpsMixin, DiffMixin):
+class MergeMixin(ConflictArtifactMixin, RemoteOpsMixin, DiffMixin):
     """Apply template changes to the target via a cruft-style 3-way merge."""
 
     def _apply_non_merge(self, rel_path: str, paths: "_MergePaths", *, is_new: bool, is_deleted: bool) -> None:
@@ -153,40 +154,6 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
 
         return all_clean
 
-    def _scan_conflict_artifacts(self, target: Path) -> tuple[list[str], list[str]]:
-        """Scan *target* for merge-conflict artifacts left by git.
-
-        Looks for:
-
-        - ``*.rej`` files produced by ``git apply --reject``.
-        - Text files that contain ``<<<<<<<`` conflict markers (from
-          ``git apply -3`` or ``git merge-file``).
-
-        Args:
-            target: Root of the working tree to scan.
-
-        Returns:
-            A ``(rej_files, marker_files)`` tuple, each a sorted list of
-            paths relative to *target*.
-        """
-        rej_files: list[str] = []
-        marker_files: list[str] = []
-        for path in sorted(target.rglob("*")):
-            if not path.is_file():
-                continue
-            rel = str(path.relative_to(target))
-            if path.suffix == ".rej":
-                rej_files.append(rel)
-            else:
-                try:
-                    # Read up to 1 MB to avoid stalling on large binary files.
-                    content = path.read_bytes()[:1_048_576]
-                    if b"<<<<<<<" in content:
-                        marker_files.append(rel)
-                except OSError:
-                    pass
-        return rej_files, marker_files
-
     @staticmethod
     def _decode_stream(data: "bytes | str | None") -> str:
         """Decode a subprocess stdout/stderr stream (bytes/str/None) to a string."""
@@ -278,26 +245,6 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
         # exactly which files need attention.
         self._report_conflict_artifacts(target)
         return False
-
-    def _report_conflict_artifacts(self, target: Path) -> None:
-        """Scan *target* and emit guidance for any ``.rej`` files or conflict markers left behind."""
-        rej_files, marker_files = self._scan_conflict_artifacts(target)
-        if rej_files:
-            rej_detail = "\n".join(f"  {f.removesuffix('.rej')}  (unresolved hunks saved to {f})" for f in rej_files)
-            logger.warning(
-                f"The following file(s) have unresolved hunks:\n{rej_detail}\n"
-                "  Open each .rej file, manually apply the diff hunks to the source file,\n"
-                "  then delete the .rej file before committing."
-            )
-        if marker_files:
-            marker_detail = "\n".join(f"  {f}" for f in marker_files)
-            logger.warning(
-                f"The following file(s) contain conflict markers:\n{marker_detail}\n"
-                "  Resolve each <<<<<<< / ======= / >>>>>>> block and remove the markers\n"
-                "  before committing."
-            )
-        if not rej_files and not marker_files:
-            logger.warning("Some changes could not be applied cleanly — check the working tree for partial edits.")
 
     def _copy_files_to_target(self, snapshot_dir: Path, target: Path, materialized: list[Path]) -> None:
         """Copy all materialized files from a snapshot into the target project.

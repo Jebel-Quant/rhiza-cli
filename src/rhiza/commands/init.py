@@ -32,6 +32,7 @@ from rhiza.commands._init_helpers import (
     _get_default_profile_for_host,
     _normalize_package_name,
 )
+from rhiza.commands._init_host import _parse_version_tags, _prompt_git_host, _validate_git_host
 from rhiza.commands.list_repos import _DESC_WIDTH, _fetch_repos
 from rhiza.commands.validate import validate
 from rhiza.models import GitContext, GitHost
@@ -56,27 +57,6 @@ __all__ = [
     "_validate_git_host",
     "init",
 ]
-
-
-def _validate_git_host(git_host: str | None) -> GitHost | None:
-    """Validate git_host parameter.
-
-    Args:
-        git_host: Git hosting platform.
-
-    Returns:
-        Validated GitHost enum value or None.
-
-    Raises:
-        ValueError: If git_host is invalid.
-    """
-    if git_host is None:
-        return None
-    try:
-        return GitHost(git_host.lower())
-    except ValueError:
-        logger.error(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'")
-        raise ValueError(f"Invalid git-host: {git_host}. Must be 'github' or 'gitlab'") from None  # noqa: TRY003
 
 
 def _check_template_repository_reachable(template_repository: str, git_host: GitHost = GitHost.GITHUB) -> bool:
@@ -129,20 +109,6 @@ def _check_template_repository_reachable(template_repository: str, git_host: Git
     except RuntimeError as e:
         logger.warning(f"Could not verify template repository reachability: {e}")
         return True  # Don't block init if git is unavailable
-
-
-def _parse_version_tags(ls_remote_output: str) -> list[str]:
-    r"""Extract version-like tag names (``v?\\d+.\\d+...``) from ``git ls-remote --tags`` output."""
-    version_tags: list[str] = []
-    for line in ls_remote_output.splitlines():
-        if "^{}" in line:  # skip dereferenced annotated-tag objects
-            continue
-        parts = line.split("\t")
-        if len(parts) == 2 and parts[1].startswith("refs/tags/"):
-            tag = parts[1][len("refs/tags/") :]
-            if re.match(r"^v?\d+\.\d+", tag):
-                version_tags.append(tag)
-    return version_tags
 
 
 def _get_latest_tag(template_repository: str, git_host: GitHost | str = GitHost.GITHUB) -> str | None:
@@ -267,34 +233,6 @@ def _detect_git_host(target: Path) -> GitHost | None:
         return None
     else:
         return None
-
-
-def _prompt_git_host() -> GitHost:
-    """Prompt user for git hosting platform.
-
-    Returns:
-        Git hosting platform choice as a GitHost enum value.
-    """
-    if sys.stdin.isatty():
-        logger.info("Where will your project be hosted?")
-        git_host = typer.prompt(
-            "Target Git hosting platform (github/gitlab)",
-            type=str,
-            default="github",
-        ).lower()
-
-        while git_host not in GitHost._value2member_map_:
-            logger.warning(f"Invalid choice: {git_host}. Please choose 'github' or 'gitlab'")
-            git_host = typer.prompt(
-                "Target Git hosting platform (github/gitlab)",
-                type=str,
-                default="github",
-            ).lower()
-    else:
-        git_host = "github"
-        logger.debug("Non-interactive mode detected, defaulting to github")
-
-    return GitHost(git_host)
 
 
 def _prompt_template_repository() -> str | None:
