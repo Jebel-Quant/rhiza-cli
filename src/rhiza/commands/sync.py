@@ -21,12 +21,17 @@ import dataclasses
 import datetime
 import shutil
 import tempfile
+from collections.abc import Mapping
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
 from rhiza.models import GitContext, RhizaTemplate, TemplateLock
 from rhiza.models._git.snapshot import _excluded_set, _prepare_snapshot
+
+if TYPE_CHECKING:
+    from rhiza.models.bundle import RhizaBundles
 
 __all__ = ["sync"]
 
@@ -106,6 +111,77 @@ def _load_template_from_project(target: Path, template_file: Path | None = None)
     return template
 
 
+def _validate_clone_config(template: RhizaTemplate) -> None:
+    """Validate that *template* carries enough configuration to clone.
+
+    Args:
+        template: The template configuration.
+
+    Raises:
+        ValueError: If ``template_repository`` is not set, or no templates,
+            profile, or include paths are configured.
+    """
+    if not template.template_repository:
+        raise ValueError("template_repository is not configured in template.yml")  # noqa: TRY003
+    if not template.templates and not template.include and not template.profiles:
+        raise ValueError("No templates, profile, or include paths found in template.yml")  # noqa: TRY003
+
+
+def _raise_unknown_profile(profile_name: str, bundles_path: str, available_profiles: Mapping[str, object]) -> None:
+    """Raise a ``ValueError`` describing a profile that is not defined.
+
+    Args:
+        profile_name: The profile that could not be found.
+        bundles_path: Path to the bundle definitions file (used in the message).
+        available_profiles: Mapping of the profiles that *are* defined.
+
+    Raises:
+        ValueError: Always — lists the available profiles when any exist.
+    """
+    sorted_available = sorted(available_profiles)
+    if sorted_available:
+        available_text = ", ".join(sorted_available)
+        raise ValueError(  # noqa: TRY003
+            f"Profile '{profile_name}' was not found in {bundles_path}. Available profiles: {available_text}"
+        )
+    raise ValueError(  # noqa: TRY003
+        f"Profile '{profile_name}' was not found in {bundles_path}. No profiles are defined."
+    )
+
+
+def _resolve_bundle_names(template: RhizaTemplate, bundles: "RhizaBundles", bundles_path: str) -> list[str]:
+    """Resolve configured profiles and templates to a deduplicated bundle-name list.
+
+    Profiles are expanded to their constituent bundle names (preserving order and
+    dropping duplicates) and then merged with any explicitly configured
+    ``templates``.  When no profiles are configured, the explicit ``templates``
+    list is returned unchanged.
+
+    Args:
+        template: The template configuration.
+        bundles: Parsed bundle definitions from the template repository.
+        bundles_path: Path to the bundle definitions file (used in error messages).
+
+    Returns:
+        The ordered, deduplicated list of bundle names to check out.
+
+    Raises:
+        ValueError: If a configured profile is not defined in *bundles*.
+    """
+    if not template.profiles:
+        return template.templates
+
+    available_profiles = bundles.profiles or {}
+    profile_bundle_names: list[str] = []
+    for profile_name in template.profiles:
+        if profile_name not in available_profiles:
+            _raise_unknown_profile(profile_name, bundles_path, available_profiles)
+        for bundle in available_profiles[profile_name].bundles:
+            if bundle not in profile_bundle_names:
+                profile_bundle_names.append(bundle)
+    return list(dict.fromkeys(profile_bundle_names + template.templates))
+
+
 def _clone_template(
     template: RhizaTemplate,
     git_ctx: GitContext,
@@ -136,10 +212,7 @@ def _clone_template(
     """
     from rhiza.models.bundle import RhizaBundles
 
-    if not template.template_repository:
-        raise ValueError("template_repository is not configured in template.yml")  # noqa: TRY003
-    if not template.templates and not template.include and not template.profiles:
-        raise ValueError("No templates, profile, or include paths found in template.yml")  # noqa: TRY003
+    _validate_clone_config(template)
 
     rhiza_branch = template.template_branch or branch
     include_paths = list(template.include)
@@ -154,27 +227,7 @@ def _clone_template(
         bundles = RhizaBundles.from_yaml(upstream_dir / bundles_path)
 
         # Resolve profiles → bundle names, then merge with explicit templates list
-        if template.profiles:
-            available_profiles = bundles.profiles or {}
-            profile_bundle_names: list[str] = []
-            for profile_name in template.profiles:
-                if profile_name not in available_profiles:
-                    sorted_available = sorted(available_profiles)
-                    if sorted_available:
-                        available_text = ", ".join(sorted_available)
-                        raise ValueError(  # noqa: TRY003
-                            f"Profile '{profile_name}' was not found in {bundles_path}. "
-                            f"Available profiles: {available_text}"
-                        )
-                    raise ValueError(  # noqa: TRY003
-                        f"Profile '{profile_name}' was not found in {bundles_path}. No profiles are defined."
-                    )
-                for bundle in available_profiles[profile_name].bundles:
-                    if bundle not in profile_bundle_names:
-                        profile_bundle_names.append(bundle)
-            all_bundle_names = list(dict.fromkeys(profile_bundle_names + template.templates))
-        else:
-            all_bundle_names = template.templates
+        all_bundle_names = _resolve_bundle_names(template, bundles, bundles_path)
 
         resolved_paths = bundles.resolve_to_paths(all_bundle_names)
         path_map = bundles.resolve_to_path_map(all_bundle_names)

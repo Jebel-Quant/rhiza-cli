@@ -210,48 +210,78 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
             return True
 
         try:
-            subprocess.run(  # nosec B603  # noqa: S603
-                [self.executable, "apply", "-3"],
-                input=diff.encode() if isinstance(diff, str) else diff,
-                cwd=target,
-                check=True,
-                capture_output=True,
-                env=self.env,
-            )
+            self._git_apply(["apply", "-3"], diff, target)
         except subprocess.CalledProcessError as e:
-            stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
+            stderr = self._decode_stderr(e.stderr)
 
             # git apply -3 cannot do a real 3-way merge when the template blobs are
             # not present in the target repository's object store.  If we have the
             # snapshot directories on disk, use git merge-file instead — it works
             # directly on file content and needs no shared git history.
-            if "lacks the necessary blob" in stderr and base_snapshot is not None and upstream_snapshot is not None:
+            if base_snapshot is not None and upstream_snapshot is not None and "lacks the necessary blob" in stderr:
                 logger.debug("git apply -3 lacks blob objects; switching to git merge-file fallback")
                 return self._merge_file_fallback(diff, target, base_snapshot, upstream_snapshot)
 
             if stderr:
                 logger.warning(f"3-way merge had conflicts:\n{stderr.strip()}")
-            # Fall back to --reject for conflict files
-            try:
-                subprocess.run(  # nosec B603  # noqa: S603
-                    [self.executable, "apply", "--reject"],
-                    input=diff.encode() if isinstance(diff, str) else diff,
-                    cwd=target,
-                    check=True,
-                    capture_output=True,
-                    env=self.env,
-                )
-            except subprocess.CalledProcessError as e2:
-                stderr2 = e2.stderr.decode() if isinstance(e2.stderr, bytes) else (e2.stderr or "")
-                if stderr2:
-                    logger.warning(stderr2.strip())
-
-            # Scan and report any conflict artifacts left behind so users know
-            # exactly which files need attention.
-            self._report_conflict_artifacts(target)
-            return False
+            return self._apply_reject(diff, target)
         else:
             return True
+
+    @staticmethod
+    def _decode_stderr(stderr: bytes | str | None) -> str:
+        """Decode subprocess stderr to a string, treating ``None`` as empty.
+
+        Args:
+            stderr: Captured stderr as bytes, str, or None.
+
+        Returns:
+            The decoded stderr, or an empty string when there was none.
+        """
+        return stderr.decode() if isinstance(stderr, bytes) else (stderr or "")
+
+    def _git_apply(self, mode_args: list[str], diff: str, target: Path) -> None:
+        """Run ``git apply`` with *mode_args*, feeding *diff* on stdin.
+
+        Args:
+            mode_args: Git apply arguments (e.g. ``["apply", "-3"]``).
+            diff: Unified diff string.
+            target: Path to the target repository.
+
+        Raises:
+            subprocess.CalledProcessError: If the git apply invocation exits non-zero.
+        """
+        subprocess.run(  # nosec B603  # noqa: S603
+            [self.executable, *mode_args],
+            input=diff.encode() if isinstance(diff, str) else diff,
+            cwd=target,
+            check=True,
+            capture_output=True,
+            env=self.env,
+        )
+
+    def _apply_reject(self, diff: str, target: Path) -> bool:
+        """Apply *diff* with ``git apply --reject`` and report conflict artifacts.
+
+        Args:
+            diff: Unified diff string.
+            target: Path to the target repository.
+
+        Returns:
+            Always False — a ``--reject`` apply means the 3-way merge did not
+            apply cleanly.
+        """
+        try:
+            self._git_apply(["apply", "--reject"], diff, target)
+        except subprocess.CalledProcessError as e2:
+            stderr2 = self._decode_stderr(e2.stderr)
+            if stderr2:
+                logger.warning(stderr2.strip())
+
+        # Scan and report any conflict artifacts left behind so users know
+        # exactly which files need attention.
+        self._report_conflict_artifacts(target)
+        return False
 
     def _report_conflict_artifacts(self, target: Path) -> None:
         """Scan *target* and emit guidance for any ``.rej`` files or conflict markers left behind."""

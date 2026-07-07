@@ -33,7 +33,7 @@ class LanguageValidator(ABC):
         Returns:
             Language name (e.g., "python", "go").
         """
-        raise NotImplementedError
+        ...
 
 
 class PythonValidator(LanguageValidator):
