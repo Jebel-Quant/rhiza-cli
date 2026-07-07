@@ -149,7 +149,7 @@ class TestSyncE2ETypicalWorkflow:
         assert "version = 1" in (project / "config.py").read_text()
         assert TemplateLock.from_yaml(project / ".rhiza" / "template.lock").config["sha"] == "sha_v1"
 
-    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    @patch("rhiza.models._git.lock_io._warn_about_workflow_files")
     def test_subsequent_sync_applies_template_changes(self, mock_warn, project, git_ctx, tmp_path):
         """After first sync, a second sync applies upstream changes and removes orphaned files.
 
@@ -254,7 +254,7 @@ class TestSyncE2ETypicalWorkflow:
 class TestSyncE2EOrphanedFiles:
     """End-to-end tests verifying orphaned-file removal when the template changes."""
 
-    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    @patch("rhiza.models._git.lock_io._warn_about_workflow_files")
     def test_orphaned_files_removed_when_template_removes_a_file(self, mock_warn, project, git_ctx, tmp_path):
         """Files tracked in the previous lock but absent from the new template are deleted.
 
@@ -322,7 +322,7 @@ class TestSyncE2EOrphanedFiles:
 class TestSyncE2EThreeWayMerge:
     """End-to-end tests verifying that local user changes survive a sync."""
 
-    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    @patch("rhiza.models._git.lock_io._warn_about_workflow_files")
     def test_user_changes_not_overwritten_by_sync(self, mock_warn, project, git_ctx, tmp_path):
         """Local modifications to a file are preserved when the template also changes it.
 
@@ -392,7 +392,7 @@ class TestSyncE2EThreeWayMerge:
 class TestSyncE2EExcludedFiles:
     """End-to-end tests verifying that excluded files are never removed."""
 
-    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    @patch("rhiza.models._git.lock_io._warn_about_workflow_files")
     def test_local_only_file_not_removed_when_not_tracked(self, mock_warn, project, git_ctx, tmp_path):
         """A file that was never tracked by the template is never deleted by sync.
 
@@ -420,7 +420,7 @@ class TestSyncE2EExcludedFiles:
 
         assert (project / "secrets.env").exists(), "local-only file must never be deleted by sync"
 
-    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    @patch("rhiza.models._git.lock_io._warn_about_workflow_files")
     def test_previously_tracked_file_excluded_is_not_removed(self, mock_warn, project, git_ctx, tmp_path):
         """A file that was synced before but is now excluded must not be deleted.
 
@@ -501,7 +501,7 @@ class TestSyncE2EUpdatedTemplateYml:
     base snapshot is populated correctly without a real git clone.
     """
 
-    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    @patch("rhiza.models._git.lock_io._warn_about_workflow_files")
     def test_adding_include_entry_syncs_new_file(self, mock_warn, project, git_ctx, tmp_path):
         """Adding a path to include: in template.yml causes the file to appear after the next sync.
 
@@ -581,7 +581,7 @@ class TestSyncE2EUpdatedTemplateYml:
         assert (project / "file_c.txt").exists(), "file_c.txt must be added after it is included in template.yml"
         assert TemplateLock.from_yaml(project / ".rhiza" / "template.lock").config["sha"] == "sha_v2"
 
-    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    @patch("rhiza.models._git.lock_io._warn_about_workflow_files")
     def test_removing_include_entry_removes_orphaned_file(self, mock_warn, project, git_ctx, tmp_path):
         """Removing a path from include: in template.yml causes it to be deleted on the next sync.
 
@@ -675,7 +675,7 @@ class TestSyncE2ECustomPaths:
     option.  Both files are always expected to live in the same directory.
     """
 
-    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    @patch("rhiza.models._git.lock_io._warn_about_workflow_files")
     def test_custom_path_reads_template_and_writes_lock(self, mock_warn, project, git_ctx, tmp_path):
         """Both template.yml and template.lock are resolved from the custom path.
 
@@ -716,7 +716,7 @@ class TestSyncE2ECustomPaths:
         # Default .rhiza/template.lock must NOT have been created.
         assert not (project / ".rhiza" / "template.lock").exists()
 
-    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    @patch("rhiza.models._git.lock_io._warn_about_workflow_files")
     def test_path_to_template_dot_uses_project_root(self, mock_warn, project, git_ctx, tmp_path):
         """``--path-to-template .`` places template.yml and template.lock in the project root.
 
@@ -753,7 +753,7 @@ class TestSyncE2ECustomPaths:
         assert TemplateLock.from_yaml(project / "template.lock").config["sha"] == "sha_root"
         assert not (project / ".rhiza" / "template.lock").exists()
 
-    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    @patch("rhiza.models._git.lock_io._warn_about_workflow_files")
     def test_subsequent_sync_reads_custom_path_lock(self, mock_warn, project, git_ctx, tmp_path):
         """A second sync with a custom path correctly reads the previous SHA.
 

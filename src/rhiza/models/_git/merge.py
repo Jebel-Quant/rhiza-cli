@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from rhiza.models._git import lock_io
 from rhiza.models._git.diff import DiffMixin
 from rhiza.models._git.remote import RemoteOpsMixin
 from rhiza.models._git.snapshot import _prepare_snapshot
@@ -323,18 +324,11 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
         Returns:
             True if all changes applied cleanly, False if any conflicts remain.
         """
-        from rhiza.commands._sync_helpers import (
-            _clean_orphaned_files,
-            _read_previously_tracked_files,
-            _warn_about_workflow_files,
-            _write_lock,
-        )
-
         # Snapshot the currently-tracked files before the merge runs.  The merge
         # may write a new lock (e.g. on the "template unchanged" early-return path
         # in _merge_with_base), so we must read the old state first to ensure
         # orphan cleanup compares against the previous sync, not the new one.
-        old_tracked_files = _read_previously_tracked_files(target, lock_file=lock_file)
+        old_tracked_files = lock_io._read_previously_tracked_files(target, lock_file=lock_file)
 
         base_snapshot = Path(tempfile.mkdtemp())
         clean = True
@@ -366,8 +360,8 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
                 logger.info(f"Restoring {len(missing_from_target)} template file(s) missing from target")
                 self._copy_files_to_target(upstream_snapshot, target, missing_from_target)
 
-            _warn_about_workflow_files(materialized)
-            _clean_orphaned_files(
+            lock_io._warn_about_workflow_files(materialized)
+            lock_io._clean_orphaned_files(
                 target,
                 materialized,
                 excludes=excludes,
@@ -375,7 +369,7 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
                 previously_tracked_files=old_tracked_files if old_tracked_files else None,
                 lock_file=lock_file,
             )
-            _write_lock(target, lock, lock_file=lock_file)
+            lock_io._write_lock(target, lock, lock_file=lock_file)
             logger.success(f"Sync complete — {len(materialized)} file(s) processed")
         finally:
             if base_snapshot.exists():
@@ -415,8 +409,6 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
         Returns:
             True if all changes applied cleanly, False if any conflicts remain.
         """
-        from rhiza.commands._sync_helpers import _write_lock
-
         logger.info(f"Cloning base snapshot at {base_sha[:12]}")
         base_clone = Path(tempfile.mkdtemp())
         try:
@@ -432,7 +424,7 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
 
         if not diff.strip():
             logger.success("Template unchanged since last sync — nothing to apply")
-            _write_lock(target, lock, lock_file=lock_file)
+            lock_io._write_lock(target, lock, lock_file=lock_file)
             return True
 
         logger.info("Applying template changes via 3-way merge (cruft)...")

@@ -187,7 +187,7 @@ class TestLockFile:
 
     def test_write_lock_without_fcntl(self, tmp_path):
         """_write_lock logs debug when fcntl is not available."""
-        with patch("rhiza.commands._sync_helpers._FCNTL_AVAILABLE", False):
+        with patch("rhiza.models._git.lock_io._FCNTL_AVAILABLE", False):
             _write_lock(tmp_path, TemplateLock(sha="cafebabe12345678"))
 
         assert TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock").config["sha"] == "cafebabe12345678"
@@ -1481,7 +1481,7 @@ class TestThreeWayMergeSyncMergeStrategy:
         return project
 
     @patch("rhiza.models._git_utils.GitContext.clone_at_sha")
-    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    @patch("rhiza.models._git.lock_io._warn_about_workflow_files")
     def test_sync_merge_subsequent_applies_diff(
         self,
         mock_warn,
@@ -1531,7 +1531,7 @@ class TestThreeWayMergeSyncMergeStrategy:
         assert TemplateLock.from_yaml(target / ".rhiza" / "template.lock").config["sha"] == "upstream_sha_456"
 
     @patch("rhiza.models._git_utils.GitContext.clone_at_sha")
-    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    @patch("rhiza.models._git.lock_io._warn_about_workflow_files")
     def test_sync_merge_first_run_copies_without_merge(
         self,
         mock_warn,
@@ -1568,7 +1568,7 @@ class TestThreeWayMergeSyncMergeStrategy:
         mock_clone.assert_not_called()
 
     @patch("rhiza.models._git_utils.GitContext.clone_at_sha")
-    @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
+    @patch("rhiza.models._git.lock_io._warn_about_workflow_files")
     def test_sync_merge_restores_files_missing_from_target(
         self,
         mock_warn,
@@ -1696,13 +1696,13 @@ class TestWarnAboutWorkflowFiles:
 
     def test_no_warning_without_workflow_files(self):
         """No warning is emitted when there are no workflow files."""
-        with patch("rhiza.commands._sync_helpers.logger") as mock_logger:
+        with patch("rhiza.models._git.lock_io.logger") as mock_logger:
             _warn_about_workflow_files([Path("Makefile"), Path(".github/CODEOWNERS")])
         mock_logger.warning.assert_not_called()
 
     def test_warning_with_workflow_files(self):
         """A warning is emitted when workflow files are present."""
-        with patch("rhiza.commands._sync_helpers.logger") as mock_logger:
+        with patch("rhiza.models._git.lock_io.logger") as mock_logger:
             _warn_about_workflow_files([Path(".github/workflows/ci.yml")])
         mock_logger.warning.assert_called_once()
         assert "workflow" in mock_logger.warning.call_args[0][0].lower()
@@ -1895,7 +1895,7 @@ class TestCleanOrphanedFiles:
         history_file.write_text("Makefile\n")
 
         # Force TemplateLock.from_yaml to raise
-        with patch("rhiza.commands._sync_helpers.TemplateLock.from_yaml", side_effect=Exception("corrupt lock")):
+        with patch("rhiza.models._git.lock_io.TemplateLock.from_yaml", side_effect=Exception("corrupt lock")):
             files = _read_previously_tracked_files(tmp_path)
 
         assert Path("Makefile") in files
