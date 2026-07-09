@@ -149,6 +149,87 @@ class BundleDefinition:
     notes: str = ""
 
 
+def _parse_bundle_files(raw_files: Any) -> list[BundleFileEntry]:
+    """Coerce a bundle's raw ``files`` field into a list of file entries.
+
+    Args:
+        raw_files: The raw value of the ``files`` key (list, string, or absent).
+
+    Returns:
+        Parsed file entries; an empty list when *raw_files* is neither a list
+        nor a string.
+    """
+    if isinstance(raw_files, list):
+        return [BundleFileEntry.from_config_entry(e) for e in raw_files]
+    if isinstance(raw_files, str):
+        return [BundleFileEntry.from_config_entry(e) for e in _normalize_to_list(raw_files)]
+    return []
+
+
+def _parse_bundle_definitions(bundles_config: Any) -> dict[str, BundleDefinition]:
+    """Parse the ``bundles`` mapping of a config dict into definitions.
+
+    Args:
+        bundles_config: The raw ``bundles`` value from the configuration.
+
+    Returns:
+        Mapping of bundle name to :class:`BundleDefinition`.
+
+    Raises:
+        TypeError: If *bundles_config* or any entry is not a dictionary.
+    """
+    if not isinstance(bundles_config, dict):
+        msg = "Bundles must be a dictionary"
+        raise TypeError(msg)
+
+    bundles: dict[str, BundleDefinition] = {}
+    for bundle_name, bundle_data in bundles_config.items():
+        if not isinstance(bundle_data, dict):
+            msg = f"Bundle '{bundle_name}' must be a dictionary"
+            raise TypeError(msg)
+        bundles[bundle_name] = BundleDefinition(
+            description=bundle_data.get("description", ""),
+            files=_parse_bundle_files(bundle_data.get("files")),
+            requires=_normalize_to_list(bundle_data.get("requires")),
+            recommends=_normalize_to_list(bundle_data.get("recommends")),
+            standalone=bundle_data.get("standalone", True),
+            required=bool(bundle_data.get("required", False)),
+            notes=bundle_data.get("notes") or "",
+        )
+    return bundles
+
+
+def _parse_profile_definitions(profiles_config: Any) -> dict[str, ProfileDefinition]:
+    """Parse the ``profiles`` mapping of a config dict into definitions.
+
+    Args:
+        profiles_config: The raw ``profiles`` value from the configuration
+            (``None`` is treated as an empty mapping).
+
+    Returns:
+        Mapping of profile name to :class:`ProfileDefinition`.
+
+    Raises:
+        TypeError: If *profiles_config* or any entry is not a dictionary.
+    """
+    if profiles_config is None:
+        profiles_config = {}
+    elif not isinstance(profiles_config, dict):
+        msg = "Profiles must be a dictionary"
+        raise TypeError(msg)
+
+    profiles: dict[str, ProfileDefinition] = {}
+    for profile_name, profile_data in profiles_config.items():
+        if not isinstance(profile_data, dict):
+            msg = f"Profile '{profile_name}' must be a dictionary"
+            raise TypeError(msg)
+        profiles[profile_name] = ProfileDefinition(
+            description=profile_data.get("description", ""),
+            bundles=_normalize_to_list(profile_data.get("bundles")),
+        )
+    return profiles
+
+
 @dataclass(frozen=True, kw_only=True)
 class RhizaBundles(YamlSerializable):
     """Represents the structure of template-bundles.yml.
@@ -218,54 +299,8 @@ class RhizaBundles(YamlSerializable):
             TypeError: If bundle data has invalid types.
         """
         version = config.get("version")
-
-        bundles_config = config.get("bundles", {})
-        if not isinstance(bundles_config, dict):
-            msg = "Bundles must be a dictionary"
-            raise TypeError(msg)
-
-        bundles: dict[str, BundleDefinition] = {}
-        for bundle_name, bundle_data in bundles_config.items():
-            if not isinstance(bundle_data, dict):
-                msg = f"Bundle '{bundle_name}' must be a dictionary"
-                raise TypeError(msg)
-
-            raw_files = bundle_data.get("files")
-            if isinstance(raw_files, list):
-                files = [BundleFileEntry.from_config_entry(e) for e in raw_files]
-            elif isinstance(raw_files, str):
-                files = [BundleFileEntry.from_config_entry(e) for e in _normalize_to_list(raw_files)]
-            else:
-                files = []
-            requires = _normalize_to_list(bundle_data.get("requires"))
-
-            bundles[bundle_name] = BundleDefinition(
-                description=bundle_data.get("description", ""),
-                files=files,
-                requires=requires,
-                recommends=_normalize_to_list(bundle_data.get("recommends")),
-                standalone=bundle_data.get("standalone", True),
-                required=bool(bundle_data.get("required", False)),
-                notes=bundle_data.get("notes") or "",
-            )
-
-        profiles_config = config.get("profiles", {})
-        if profiles_config is None:
-            profiles_config = {}
-        elif not isinstance(profiles_config, dict):
-            msg = "Profiles must be a dictionary"
-            raise TypeError(msg)
-
-        profiles: dict[str, ProfileDefinition] = {}
-        for profile_name, profile_data in profiles_config.items():
-            if not isinstance(profile_data, dict):
-                msg = f"Profile '{profile_name}' must be a dictionary"
-                raise TypeError(msg)
-            profiles[profile_name] = ProfileDefinition(
-                description=profile_data.get("description", ""),
-                bundles=_normalize_to_list(profile_data.get("bundles")),
-            )
-
+        bundles = _parse_bundle_definitions(config.get("bundles", {}))
+        profiles = _parse_profile_definitions(config.get("profiles", {}))
         return cls(version=version, bundles=bundles, profiles=profiles)
 
     def _resolve_bundle_order(self, bundle_names: list[str], *, strict: bool) -> list[str]:

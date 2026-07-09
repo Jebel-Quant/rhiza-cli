@@ -116,22 +116,14 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
         conflict_files: list[str] = []
 
         for rel_path, is_new, is_deleted in file_entries:
-            paths = _MergePaths(
-                target=target / rel_path,
-                upstream=upstream_snapshot / rel_path,
-                base=base_snapshot / rel_path,
+            is_clean, is_conflict = self._merge_one_file(
+                rel_path,
+                target,
+                base_snapshot,
+                upstream_snapshot,
+                is_new=is_new,
+                is_deleted=is_deleted,
             )
-
-            if (
-                is_new
-                or is_deleted
-                or not paths.target.exists()
-                or not (paths.base.exists() and paths.upstream.exists())
-            ):
-                self._apply_non_merge(rel_path, paths, is_new=is_new, is_deleted=is_deleted)
-                continue
-
-            is_clean, is_conflict = self._git_merge_file(rel_path, paths)
             if not is_clean:
                 all_clean = False
             if is_conflict:
@@ -146,6 +138,47 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
             )
 
         return all_clean
+
+    def _merge_one_file(
+        self,
+        rel_path: str,
+        target: Path,
+        base_snapshot: Path,
+        upstream_snapshot: Path,
+        *,
+        is_new: bool,
+        is_deleted: bool,
+    ) -> tuple[bool, bool]:
+        """Merge a single file, returning ``(is_clean, is_conflict)``.
+
+        Files that were added, deleted, are absent from the target, or lack a
+        base/upstream counterpart cannot be three-way merged and are applied
+        wholesale via :meth:`_apply_non_merge`; everything else goes through
+        ``git merge-file``.
+
+        Args:
+            rel_path: Path of the file relative to the repository root.
+            target: Path to the target repository.
+            base_snapshot: Directory containing files at the previously-synced SHA.
+            upstream_snapshot: Directory containing files at the new upstream SHA.
+            is_new: Whether the diff marks this file as newly added.
+            is_deleted: Whether the diff marks this file as deleted.
+
+        Returns:
+            ``(is_clean, is_conflict)`` — ``is_clean`` is ``False`` when the
+            merge failed, ``is_conflict`` is ``True`` when markers were written.
+        """
+        paths = _MergePaths(
+            target=target / rel_path,
+            upstream=upstream_snapshot / rel_path,
+            base=base_snapshot / rel_path,
+        )
+
+        if is_new or is_deleted or not paths.target.exists() or not (paths.base.exists() and paths.upstream.exists()):
+            self._apply_non_merge(rel_path, paths, is_new=is_new, is_deleted=is_deleted)
+            return True, False
+
+        return self._git_merge_file(rel_path, paths)
 
     def _scan_conflict_artifacts(self, target: Path) -> tuple[list[str], list[str]]:
         """Scan *target* for merge-conflict artifacts left by git.
