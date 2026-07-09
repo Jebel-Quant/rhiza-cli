@@ -924,3 +924,33 @@ class TestSummariseCommand:
         summarise(git_repo, options=SummariseOptions(output_format="plain"))
 
         assert "Last sync: 2024-11-01T10:00:00Z" in capsys.readouterr().out
+
+    def test_summarise_format_plain_no_header(self, git_repo, capsys):
+        """Plain format with include_header=False omits the title/template block."""
+        git_cmd = shutil.which("git") or "git"
+
+        (git_repo / "added.txt").write_text("new file")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
+
+        summarise(git_repo, options=SummariseOptions(output_format="plain", include_header=False))
+
+        output = capsys.readouterr().out
+        assert "Template Synchronization" not in output
+        # Change summary and files still render.
+        assert "1 added" in output
+        assert "added.txt" in output
+
+    def test_summarise_format_plain_no_footer(self, git_repo, capsys):
+        """Plain format with include_footer=False omits the sync-date footer."""
+        git_cmd = shutil.which("git") or "git"
+
+        (git_repo / "added.txt").write_text("new file")
+        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
+
+        summarise(git_repo, options=SummariseOptions(output_format="plain", include_footer=False))
+
+        output = capsys.readouterr().out
+        assert "Sync date:" not in output
+        assert "Last sync:" not in output
+        # Change summary still renders.
+        assert "1 added" in output

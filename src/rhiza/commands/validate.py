@@ -184,7 +184,25 @@ def _validate_configuration_mode(config: dict[str, Any]) -> bool:
         logger.error("  • Hybrid: specify both templates and include")
         return False
 
-    # Log what mode is being used
+    _log_configuration_mode(config, has_profiles=has_profiles, has_templates=has_templates, has_include=has_include)
+    return True
+
+
+def _log_configuration_mode(
+    config: dict[str, Any],
+    *,
+    has_profiles: bool,
+    has_templates: bool,
+    has_include: bool,
+) -> None:
+    """Log which configuration mode the validated config is using.
+
+    Args:
+        config: Configuration dictionary (read for the ``profiles`` value).
+        has_profiles: Whether a valid ``profiles`` field is present.
+        has_templates: Whether a non-empty ``templates`` field is present.
+        has_include: Whether a non-empty ``include`` field is present.
+    """
     if has_profiles:
         logger.success(f"Using profile mode (profiles: {config['profiles']})")
     elif has_templates and has_include:
@@ -193,8 +211,6 @@ def _validate_configuration_mode(config: dict[str, Any]) -> bool:
         logger.success("Using template-based mode")
     else:
         logger.success("Using path-based mode")
-
-    return True
 
 
 def _validate_templates(config: dict[str, Any]) -> bool:
@@ -454,49 +470,13 @@ def validate(target: Path, template_file: Path | None = None) -> bool:
     target = target.resolve()
     logger.info(f"Validating template configuration in: {target}")
 
-    # Check if target is a git repository
-    if not _check_git_repository(target):
+    # Hard-stop preconditions: parse the config and check structure/mode.
+    config = _load_valid_config(target, template_file)
+    if config is None:
         return False
 
-    # Check for template file first to get the language
-    exists, template_file = _check_template_file_exists(target, template_file)
-    if not exists:
-        return False
-
-    # Parse YAML file
-    success, config = _parse_yaml_file(template_file)
-    if not success or config is None:
-        return False
-
-    # Get the language from config (default to "python" for backward compatibility)
-    language = config.get("language", "python")
-    logger.info(f"Project language: {language}")
-
-    # Check for language-specific project structure
-    if not _check_project_structure(target, language):
-        return False
-
-    # Validate configuration mode (templates OR include)
-    if not _validate_configuration_mode(config):
-        return False
-
-    # Validate required fields
-    validation_passed = _validate_required_fields(config)
-
-    # Validate specific field formats
-    if not _validate_repository_format(config):
-        validation_passed = False
-
-    # Validate templates if present
-    if config.get("templates") and not _validate_templates(config):
-        validation_passed = False
-
-    # Validate include if present
-    if config.get("include") and not _validate_include_paths(config):
-        validation_passed = False
-
-    # Validate optional fields
-    _validate_optional_fields(config)
+    # Accumulate field-level validation results.
+    validation_passed = _validate_config_fields(config)
 
     # Final verdict
     logger.debug("Validation complete, determining final result")
@@ -507,3 +487,73 @@ def validate(target: Path, template_file: Path | None = None) -> bool:
         logger.error("✗ Validation failed: template.yml has errors")
         logger.error("Fix the errors above and run 'rhiza validate' again")
         return False
+
+
+def _load_valid_config(target: Path, template_file: Path | None) -> dict[str, Any] | None:
+    """Run the hard-stop preconditions and return the parsed config.
+
+    Checks (in order): git repository, template-file existence, YAML syntax,
+    language-specific project structure, and configuration mode.  Any failure
+    short-circuits to ``None``.
+
+    Args:
+        target: Resolved path to the target Git repository directory.
+        template_file: Optional explicit path to the template file.
+
+    Returns:
+        The parsed configuration dict when every precondition passes, else
+        ``None``.
+    """
+    if not _check_git_repository(target):
+        return None
+
+    # Check for template file first to get the language
+    exists, template_file = _check_template_file_exists(target, template_file)
+    if not exists:
+        return None
+
+    # Parse YAML file
+    success, config = _parse_yaml_file(template_file)
+    if not success or config is None:
+        return None
+
+    # Get the language from config (default to "python" for backward compatibility)
+    language = config.get("language", "python")
+    logger.info(f"Project language: {language}")
+
+    # Check for language-specific project structure
+    if not _check_project_structure(target, language):
+        return None
+
+    # Validate configuration mode (templates OR include)
+    if not _validate_configuration_mode(config):
+        return None
+
+    return config
+
+
+def _validate_config_fields(config: dict[str, Any]) -> bool:
+    """Run the field-level validators, accumulating a single pass/fail result.
+
+    Unlike the preconditions, these checks do not short-circuit: every field is
+    validated so that all errors surface in one run.
+
+    Args:
+        config: The parsed configuration dictionary.
+
+    Returns:
+        ``True`` when every field validates, ``False`` if any check fails.
+    """
+    validation_passed = _validate_required_fields(config)
+
+    if not _validate_repository_format(config):
+        validation_passed = False
+
+    if config.get("templates") and not _validate_templates(config):
+        validation_passed = False
+
+    if config.get("include") and not _validate_include_paths(config):
+        validation_passed = False
+
+    _validate_optional_fields(config)
+    return validation_passed
