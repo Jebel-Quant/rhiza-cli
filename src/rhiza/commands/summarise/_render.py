@@ -210,12 +210,7 @@ def _generate_plain_output(
     """
     lines: list[str] = []
 
-    if options.include_header:
-        heading = options.title or "Template Synchronization"
-        lines.extend([heading, "=" * len(heading), ""])
-        if tmpl.repo:
-            lines.append(f"Template: {tmpl.repo}@{tmpl.branch}")
-            lines.append("")
+    _plain_header(lines, tmpl, options)
 
     total = sum(len(v) for v in changes.values())
     if not total:
@@ -229,6 +224,43 @@ def _generate_plain_output(
     )
     lines.append("")
 
+    _plain_change_body(lines, changes, categories, options)
+    _plain_footer(lines, tmpl, options)
+
+    return "\n".join(lines)
+
+
+def _plain_header(lines: list[str], tmpl: _TemplateInfo, options: SummariseOptions) -> None:
+    """Append the plain-text header (title + template line) to *lines*.
+
+    Args:
+        lines: Output line accumulator, mutated in place.
+        tmpl: Template metadata container.
+        options: Output customisation options.
+    """
+    if not options.include_header:
+        return
+    heading = options.title or "Template Synchronization"
+    lines.extend([heading, "=" * len(heading), ""])
+    if tmpl.repo:
+        lines.append(f"Template: {tmpl.repo}@{tmpl.branch}")
+        lines.append("")
+
+
+def _plain_change_body(
+    lines: list[str],
+    changes: dict[str, list[str]],
+    categories: dict[str, list[str]],
+    options: SummariseOptions,
+) -> None:
+    """Append the per-category or per-change-type file listing to *lines*.
+
+    Args:
+        lines: Output line accumulator, mutated in place.
+        changes: Dictionary of changes by type.
+        categories: Files grouped by category.
+        options: Output customisation options.
+    """
     if options.include_categories:
         for category, files in sorted(categories.items()):
             lines.append(f"{category}:")
@@ -242,12 +274,20 @@ def _generate_plain_output(
         ]:
             _plain_file_section(lines, label, files)
 
-    if options.include_footer:
-        if tmpl.last_sync:
-            lines.append(f"Last sync: {tmpl.last_sync}")
-        lines.append(f"Sync date: {datetime.now().astimezone().isoformat()}")
 
-    return "\n".join(lines)
+def _plain_footer(lines: list[str], tmpl: _TemplateInfo, options: SummariseOptions) -> None:
+    """Append the plain-text footer (last-sync + sync-date) to *lines*.
+
+    Args:
+        lines: Output line accumulator, mutated in place.
+        tmpl: Template metadata container.
+        options: Output customisation options.
+    """
+    if not options.include_footer:
+        return
+    if tmpl.last_sync:
+        lines.append(f"Last sync: {tmpl.last_sync}")
+    lines.append(f"Sync date: {datetime.now().astimezone().isoformat()}")
 
 
 def _generate_jinja2_output(template_path: Path, context: dict[str, Any]) -> str:

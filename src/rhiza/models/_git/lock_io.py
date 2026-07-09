@@ -12,6 +12,7 @@ import contextlib
 import dataclasses
 import os
 from pathlib import Path
+from typing import Any
 
 try:
     import fcntl
@@ -92,31 +93,66 @@ def _read_previously_tracked_files(
     """
     if lock_file is None:
         lock_file = target / ".rhiza" / "template.lock"
-    if lock_file.exists():
-        try:
-            lock = TemplateLock.from_yaml(lock_file)
-            if lock.files:
-                files = {Path(f) for f in lock.files}
-                logger.debug(f"Reading previous file list from template.lock ({len(files)} files)")
-                return files
-            # Lock exists but has no files list - try to reconstruct from the
-            # base snapshot that was already fetched during this sync run.
-            if base_snapshot is not None and base_snapshot.is_dir():
-                snapshot_files = _files_from_snapshot(base_snapshot)
-                if snapshot_files:
-                    logger.debug(f"Reconstructing previous file list from base snapshot ({len(snapshot_files)} files)")
-                    return snapshot_files
-        except Exception as e:  # noqa: BLE001  # best-effort lock read; any parse/IO error falls through to the history fallback below
-            logger.debug(f"Could not read template.lock for orphan cleanup: {e}")
 
-    history_file = target / ".rhiza" / "history"
+    from_lock = _files_from_lock(lock_file, base_snapshot)
+    if from_lock is not None:
+        return from_lock
 
-    if history_file.exists():
-        logger.debug(f"Reading existing history file: {history_file.relative_to(target)}")
-    else:
+    return _files_from_history(target / ".rhiza" / "history", target)
+
+
+def _files_from_lock(lock_file: Path, base_snapshot: Path | None) -> set[Path] | None:
+    """Return the tracked-file set recorded in *lock_file*, or ``None``.
+
+    Resolution: the lock's ``files`` field when present, otherwise the
+    *base_snapshot* directory listing when the lock predates that field.
+
+    Args:
+        lock_file: Path to the ``template.lock`` file.
+        base_snapshot: Optional template snapshot at the previously-synced SHA,
+            used to reconstruct the file list when the lock has no ``files``.
+
+    Returns:
+        The tracked-file set, or ``None`` when the lock yields no usable list
+        (missing/unreadable lock, or empty with no snapshot fallback).
+    """
+    if not lock_file.exists():
+        return None
+    try:
+        lock = TemplateLock.from_yaml(lock_file)
+    except Exception as e:  # noqa: BLE001  # best-effort lock read; any parse/IO error falls through to the history fallback
+        logger.debug(f"Could not read template.lock for orphan cleanup: {e}")
+        return None
+
+    if lock.files:
+        files = {Path(f) for f in lock.files}
+        logger.debug(f"Reading previous file list from template.lock ({len(files)} files)")
+        return files
+    # Lock exists but has no files list - try to reconstruct from the base
+    # snapshot that was already fetched during this sync run.
+    if base_snapshot is not None and base_snapshot.is_dir():
+        snapshot_files = _files_from_snapshot(base_snapshot)
+        if snapshot_files:
+            logger.debug(f"Reconstructing previous file list from base snapshot ({len(snapshot_files)} files)")
+            return snapshot_files
+    return None
+
+
+def _files_from_history(history_file: Path, target: Path) -> set[Path]:
+    """Return the tracked-file set from the legacy ``.rhiza/history`` file.
+
+    Args:
+        history_file: Path to the legacy history file.
+        target: Target repository path, used only for relative-path logging.
+
+    Returns:
+        The set of tracked file paths, or an empty set when no history exists.
+    """
+    if not history_file.exists():
         logger.debug("No previous file tracking found")
         return set()
 
+    logger.debug(f"Reading existing history file: {history_file.relative_to(target)}")
     files = set()
     with history_file.open("r", encoding="utf-8") as f:
         for line in f:
@@ -234,16 +270,29 @@ def _lock_content_unchanged(lock: TemplateLock, lock_path: Path) -> bool:
         existing = TemplateLock.from_yaml(lock_path)
     except Exception:  # noqa: BLE001  # any malformed/unreadable lock means "not equal" — a safe default
         return False
+    return _lock_identity(existing) == _lock_identity(lock)
+
+
+def _lock_identity(lock: TemplateLock) -> tuple[Any, ...]:
+    """Return the content-comparison key for *lock*, excluding ``synced_at``.
+
+    Args:
+        lock: The lock whose effective content should be summarised.
+
+    Returns:
+        A tuple of every field that participates in the content comparison, so
+        two locks are content-equal iff their identities are equal.
+    """
     return (
-        existing.sha == lock.sha
-        and existing.repo == lock.repo
-        and str(existing.host) == str(lock.host)
-        and existing.ref == lock.ref
-        and existing.include == lock.include
-        and existing.exclude == lock.exclude
-        and existing.templates == lock.templates
-        and existing.files == lock.files
-        and existing.strategy == lock.strategy
+        lock.sha,
+        lock.repo,
+        str(lock.host),
+        lock.ref,
+        lock.include,
+        lock.exclude,
+        lock.templates,
+        lock.files,
+        lock.strategy,
     )
 
 

@@ -131,6 +131,30 @@ def _check_template_repository_reachable(template_repository: str, git_host: Git
         return True  # Don't block init if git is unavailable
 
 
+def _parse_version_tags(ls_remote_stdout: str) -> list[str]:
+    """Extract version tag names from ``git ls-remote --tags`` output.
+
+    Skips dereferenced annotated-tag objects (``^{}`` lines) and keeps only
+    refs under ``refs/tags/`` whose names look like versions (``vN.N`` / ``N.N``).
+
+    Args:
+        ls_remote_stdout: Raw stdout from ``git ls-remote --tags``.
+
+    Returns:
+        The list of matching version tag names (unsorted).
+    """
+    version_tags: list[str] = []
+    for line in ls_remote_stdout.splitlines():
+        if "^{}" in line:  # skip dereferenced annotated-tag objects
+            continue
+        parts = line.split("\t")
+        if len(parts) == 2 and parts[1].startswith("refs/tags/"):
+            tag = parts[1][len("refs/tags/") :]
+            if re.match(r"^v?\d+\.\d+", tag):
+                version_tags.append(tag)
+    return version_tags
+
+
 def _get_latest_tag(template_repository: str, git_host: GitHost | str = GitHost.GITHUB) -> str | None:
     """Fetch the latest version tag from the template repository via git ls-remote.
 
@@ -161,16 +185,7 @@ def _get_latest_tag(template_repository: str, git_host: GitHost | str = GitHost.
             logger.debug(f"git ls-remote --tags failed for {repo_url}")
             return None
 
-        version_tags = []
-        for line in result.stdout.splitlines():
-            if "^{}" in line:  # skip dereferenced annotated-tag objects
-                continue
-            parts = line.split("\t")
-            if len(parts) == 2 and parts[1].startswith("refs/tags/"):
-                tag = parts[1][len("refs/tags/") :]
-                if re.match(r"^v?\d+\.\d+", tag):
-                    version_tags.append(tag)
-
+        version_tags = _parse_version_tags(result.stdout)
         if not version_tags:
             logger.debug(f"No version tags found in {repo_url}")
             return None
@@ -421,8 +436,44 @@ def init(
     _create_template_file(target, git_host, language, template_repository, template_branch, template_file)
 
     # Bootstrap project structure based on language
+    _bootstrap_project_structure(
+        target,
+        language,
+        project_name=project_name,
+        package_name=package_name,
+        with_dev_dependencies=with_dev_dependencies,
+        git_host=git_host,
+    )
+
+    # Validate the template file
+    logger.debug("Validating template configuration")
+    return validate(target, template_file=template_file)
+
+
+def _bootstrap_project_structure(
+    target: Path,
+    language: str,
+    *,
+    project_name: str | None,
+    package_name: str | None,
+    with_dev_dependencies: bool,
+    git_host: GitHost | None,
+) -> None:
+    """Create the language-specific project scaffolding under *target*.
+
+    Python projects get the full package layout (package, ``pyproject.toml``,
+    ``uv.lock``, Makefile, mkdocs, README); Go and unknown languages get only a
+    README (Go additionally logs the ``go mod init`` hint).
+
+    Args:
+        target: Repository root directory.
+        language: Project language (``python``, ``go``, or other).
+        project_name: Custom project name; defaults to the target directory name.
+        package_name: Custom package name; defaults to the normalized project name.
+        with_dev_dependencies: Include development dependencies in ``pyproject.toml``.
+        git_host: Resolved Git hosting platform, used for mkdocs generation.
+    """
     if language == "python":
-        # Python-specific setup
         if project_name is None:
             project_name = target.name
         if package_name is None:
@@ -446,7 +497,3 @@ def init(
         # Unknown language - just create README
         logger.warning(f"Unknown language '{language}', creating minimal structure")
         _create_readme(target)
-
-    # Validate the template file
-    logger.debug("Validating template configuration")
-    return validate(target, template_file=template_file)
