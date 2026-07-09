@@ -8,6 +8,8 @@ This module tests:
 import shutil
 import subprocess  # nosec B404
 import sys
+import urllib.error
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -16,6 +18,44 @@ from typer.testing import CliRunner
 
 from rhiza import __version__
 from rhiza.cli import app, version_callback
+
+
+@pytest.fixture
+def loguru_messages():
+    """Capture loguru log messages emitted during the test.
+
+    loguru writes to the stderr reference bound at import time, which neither
+    ``capsys`` nor ``capfd`` reliably intercept under ``CliRunner``.  A
+    dedicated in-process sink is the robust way to assert on log output.
+
+    Yields:
+        A list that accumulates each log record's message text.
+    """
+    from loguru import logger
+
+    messages: list[str] = []
+    sink_id = logger.add(messages.append, level="TRACE", format="{message}")
+    try:
+        yield messages
+    finally:
+        logger.remove(sink_id)
+
+
+def _init_git_repo(path: Path) -> Path:
+    """Initialise a minimal git repository at *path* for CLI failure tests.
+
+    Args:
+        path: Directory to turn into a git repository (created if absent).
+
+    Returns:
+        The repository path, for convenient chaining.
+    """
+    path.mkdir(parents=True, exist_ok=True)
+    git_cmd = shutil.which("git") or "git"
+    subprocess.run([git_cmd, "init"], cwd=path, check=True)  # nosec B603
+    subprocess.run([git_cmd, "config", "user.email", "test@test.com"], cwd=path, check=True)  # nosec B603
+    subprocess.run([git_cmd, "config", "user.name", "Test"], cwd=path, check=True)  # nosec B603
+    return path
 
 
 class TestCliApp:
@@ -237,3 +277,114 @@ class TestCLIExceptionHandling:
         with patch("rhiza.cli.summarise_cmd", side_effect=RuntimeError("summarise failed")):
             result = self.runner.invoke(app, ["summarise", str(tmp_path)])
         assert result.exit_code == 1
+
+
+class TestCommandFailureMessages:
+    """Each command's realistic failure path exits non-zero with an actionable message.
+
+    Messages emitted through ``typer.echo`` land in ``result.output``; messages
+    logged via loguru are captured through the ``loguru_messages`` sink fixture
+    (CliRunner's stream capture does not see loguru output).
+    """
+
+    runner = CliRunner()
+
+    def test_sync_invalid_strategy_reports_message(self, tmp_path):
+        """Sync with an unknown --strategy exits non-zero and names the valid options."""
+        result = self.runner.invoke(app, ["sync", str(tmp_path), "--strategy", "bogus"])
+        assert result.exit_code != 0
+        assert "Unknown strategy: bogus" in result.output
+        assert "merge" in result.output
+        assert "diff" in result.output
+
+    def test_init_non_git_directory_reports_message(self, tmp_path, loguru_messages):
+        """Init on a non-git directory exits 1 and tells the user to run git init."""
+        result = self.runner.invoke(app, ["init", str(tmp_path), "--git-host", "github"])
+        assert result.exit_code == 1
+        assert any("is not a git repository" in m for m in loguru_messages)
+
+    def test_validate_invalid_template_reports_message(self, tmp_path, loguru_messages):
+        """Validate on an empty template.yml exits 1 and lists the required keys."""
+        repo = _init_git_repo(tmp_path / "repo")
+        (repo / "src").mkdir()
+        (repo / "tests").mkdir()
+        (repo / "pyproject.toml").write_text("[project]\nname = 'x'\n")
+        rhiza_dir = repo / ".rhiza"
+        rhiza_dir.mkdir()
+        (rhiza_dir / "template.yml").write_text("{}")
+
+        result = self.runner.invoke(app, ["validate", str(repo)])
+        assert result.exit_code == 1
+        assert any("Must specify at least one of 'profiles', 'templates', or 'include'" in m for m in loguru_messages)
+
+    def test_list_fetch_failure_reports_message(self, loguru_messages):
+        """List exits 1 and reports the failure when the GitHub API is unreachable."""
+        with patch(
+            "rhiza.commands.list_repos._fetch_repos",
+            side_effect=urllib.error.URLError("no network"),
+        ):
+            result = self.runner.invoke(app, ["list"])
+        assert result.exit_code == 1
+        assert any("Failed to fetch repositories" in m for m in loguru_messages)
+
+    def test_summarise_non_git_directory_reports_message(self, tmp_path, loguru_messages):
+        """Summarise on a non-git directory exits 1 and suggests git init."""
+        result = self.runner.invoke(app, ["summarise", str(tmp_path)])
+        assert result.exit_code == 1
+        assert any("not a git repository" in m for m in loguru_messages)
+        assert any("git init" in m for m in loguru_messages)
+
+    def test_uninstall_deletion_error_reports_message(self, tmp_path, loguru_messages):
+        """Uninstall exits 1 and reports per-file errors when a listed path cannot be removed."""
+        repo = _init_git_repo(tmp_path / "repo")
+        rhiza_dir = repo / ".rhiza"
+        rhiza_dir.mkdir()
+        # A lock listing a *directory* path: unlink() raises IsADirectoryError,
+        # which _remove_files records as an error and surfaces as a RuntimeError.
+        (repo / "tracked_dir").mkdir()
+        (rhiza_dir / "template.lock").write_text(
+            "sha: abc123\nrepo: my-org/t\nref: main\nsynced_at: '2024-11-01T10:00:00Z'\nfiles:\n  - tracked_dir\n"
+        )
+
+        result = self.runner.invoke(app, ["uninstall", str(repo), "--force"])
+        assert result.exit_code == 1
+        assert any("Failed to delete" in m for m in loguru_messages)
+
+    def test_status_corrupt_lock_exits_one(self, tmp_path):
+        """Status exits 1 when template.lock is present but unparseable."""
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir()
+        (rhiza_dir / "template.lock").write_text("key: [unterminated\n")
+        result = self.runner.invoke(app, ["status", str(tmp_path)])
+        assert result.exit_code == 1
+
+    def test_status_missing_lock_reports_actionable_warning(self, tmp_path, loguru_messages):
+        """Status with no lock file guides the user to run sync (exit 0, actionable message)."""
+        result = self.runner.invoke(app, ["status", str(tmp_path)])
+        assert result.exit_code == 0
+        assert any("run `rhiza sync` first" in m for m in loguru_messages)
+
+    def test_tree_corrupt_lock_exits_one(self, tmp_path):
+        """Tree exits 1 when template.lock is present but unparseable."""
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir()
+        (rhiza_dir / "template.lock").write_text("key: [unterminated\n")
+        result = self.runner.invoke(app, ["tree", str(tmp_path)])
+        assert result.exit_code == 1
+
+    def test_tree_missing_lock_reports_actionable_warning(self, tmp_path, loguru_messages):
+        """Tree with no lock file guides the user to run sync (exit 0, actionable message)."""
+        result = self.runner.invoke(app, ["tree", str(tmp_path)])
+        assert result.exit_code == 0
+        assert any("run `rhiza sync` first" in m for m in loguru_messages)
+
+    def test_migrate_has_no_failure_exit_path(self, tmp_path):
+        """Migrate is best-effort and idempotent: it exits 0 even with nothing to migrate.
+
+        Unlike the other commands, ``rhiza migrate`` deliberately has no
+        non-zero exit path — it skips files that already exist and reports what
+        it did. This test documents that contract so a future change that adds
+        a failure exit is a conscious decision, not an accident.
+        """
+        result = self.runner.invoke(app, ["migrate", str(_init_git_repo(tmp_path / "repo"))])
+        assert result.exit_code == 0
