@@ -63,16 +63,6 @@ def _commit_all(project, git_ctx, message="add files"):
     )
 
 
-def _write_history(tmp_path, files):
-    """Write a history file listing tracked files."""
-    history_file = tmp_path / ".rhiza" / "history"
-    history_file.parent.mkdir(parents=True, exist_ok=True)
-    with history_file.open("w") as f:
-        f.write("# Rhiza Template History\n")
-        for name in files:
-            f.write(f"{name}\n")
-
-
 class TestLockFile:
     """Tests for lock-file helpers."""
 
@@ -397,57 +387,6 @@ class TestSyncCommand:
 
 class TestSyncOrphanedFiles:
     """Tests verifying that orphaned files are deleted when template.yml changes during sync."""
-
-    @patch("subprocess.run")
-    @patch("rhiza.commands.sync.shutil.rmtree")
-    @patch("rhiza.models._git.context.GitContext.clone_repository")
-    @patch("rhiza.commands.sync.tempfile.mkdtemp")
-    @patch("rhiza.models._git.context.GitContext.get_head_sha")
-    def test_merge_first_sync_deletes_orphaned_files(
-        self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, mock_run, tmp_path
-    ):
-        """Merge strategy (first sync) removes files no longer present in the updated template."""
-        # Setup git status check mock to return clean
-        mock_result = MagicMock()
-        mock_result.stdout = ""
-        mock_run.return_value = mock_result
-
-        # Template now only includes new.txt (old.txt was removed from template.yml)
-        _setup_project(tmp_path, include=["new.txt"])
-
-        # History from a previous sync tracked both files
-        _write_history(tmp_path, ["old.txt", "new.txt"])
-
-        # Both files exist in the project
-        (tmp_path / "old.txt").write_text("old content")
-        (tmp_path / "new.txt").write_text("existing content")
-
-        mock_sha.return_value = "first111"
-
-        # Upstream clone only provides new.txt
-        clone_dir = tmp_path / "upstream_clone"
-        clone_dir.mkdir()
-        (clone_dir / "new.txt").write_text("new template content\n")
-
-        snapshot_dir = tmp_path / "upstream_snapshot"
-        snapshot_dir.mkdir()
-
-        # merge also creates base_snapshot dir
-        base_snapshot_dir = tmp_path / "base_snapshot"
-        base_snapshot_dir.mkdir()
-
-        mock_mkdtemp.side_effect = [str(clone_dir), str(snapshot_dir), str(base_snapshot_dir)]
-
-        sync(tmp_path, "main", None, "merge")
-
-        # new.txt should be present
-        assert (tmp_path / "new.txt").exists()
-        # old.txt should be deleted as it is no longer in the template
-        assert not (tmp_path / "old.txt").exists()
-
-        # template.lock should record the currently synced files
-        lock_content = TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock")
-        assert lock_content.files == ["new.txt"]
 
 
 class TestSyncCLI:
@@ -1449,8 +1388,8 @@ class TestThreeWayMergeSyncMergeStrategy:
     """Integration tests for ``_sync_merge`` end-to-end (the merge strategy entry point).
 
     Tests the full merge pipeline from first-sync to subsequent-sync, verifying
-    that lock files, history files, and orphan cleanup all work correctly
-    alongside the 3-way merge.
+    that lock files and orphan cleanup all work correctly alongside the
+    3-way merge.
     """
 
     @pytest.fixture
@@ -1829,15 +1768,12 @@ class TestCleanOrphanedFiles:
 
         assert template_yml.exists(), ".rhiza/template.yml must never be auto-deleted"
 
-    def test_read_previously_tracked_files_legacy_history(self, tmp_path):
-        """Falls back to .rhiza/history when no template.lock files list."""
+    def test_returns_empty_when_no_lock(self, tmp_path):
+        """Returns an empty set when there is no template.lock to read."""
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
-        (rhiza_dir / "history").write_text("Makefile\n.github/workflows/ci.yml\n# comment\n")
 
-        files = _read_previously_tracked_files(tmp_path)
-        assert Path("Makefile") in files
-        assert Path(".github/workflows/ci.yml") in files
+        assert _read_previously_tracked_files(tmp_path) == set()
 
     def test_skips_nonexistent_file(self, tmp_path):
         """When file does not exist, a debug message is logged and nothing raises."""
@@ -1859,8 +1795,9 @@ class TestCleanOrphanedFiles:
         """When all tracked files are still provided by the template, no deletions happen."""
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
-        history_file = rhiza_dir / "history"
-        history_file.write_text("file_a.txt\nfile_b.txt\n")
+        (rhiza_dir / "template.lock").write_text(
+            "sha: abc123\nrepo: owner/repo\nfiles:\n  - file_a.txt\n  - file_b.txt\n"
+        )
 
         # All tracked files are also in template_files → no orphans
         template_files = [Path("file_a.txt"), Path("file_b.txt")]
@@ -1881,8 +1818,8 @@ class TestCleanOrphanedFiles:
         assert Path(".github/workflows/ci.yml") in files
         assert len(files) == 2
 
-    def test_falls_back_to_history_when_lock_raises(self, tmp_path):
-        """When template.lock is unreadable, falls back to history file."""
+    def test_returns_empty_when_lock_unreadable(self, tmp_path):
+        """When template.lock is unreadable, returns an empty set (no tracking info)."""
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
 
@@ -1890,15 +1827,11 @@ class TestCleanOrphanedFiles:
         lock_file = rhiza_dir / "template.lock"
         lock_file.write_text("sha: abc\n")
 
-        # Write a history file as fallback
-        history_file = rhiza_dir / "history"
-        history_file.write_text("Makefile\n")
-
         # Force TemplateLock.from_yaml to raise
         with patch("rhiza.models._git.lock_io.TemplateLock.from_yaml", side_effect=Exception("corrupt lock")):
             files = _read_previously_tracked_files(tmp_path)
 
-        assert Path("Makefile") in files
+        assert files == set()
 
 
 class TestFilesFromSnapshot:
@@ -1964,20 +1897,19 @@ class TestReadPreviouslyTrackedFilesWithBaseSnapshot:
         assert Path("from-snapshot.txt") not in files
 
     def test_ignores_empty_base_snapshot(self, tmp_path):
-        """An empty base_snapshot does not override fallback to history."""
+        """An empty base_snapshot with a files-less lock yields an empty set."""
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         (rhiza_dir / "template.lock").write_text(
             "sha: abc123\nrepo: owner/repo\nhost: github\nref: main\n",
         )
-        (rhiza_dir / "history").write_text("from-history.txt\n")
 
         empty_snapshot = tmp_path / "empty_snapshot"
         empty_snapshot.mkdir()
 
         files = _read_previously_tracked_files(tmp_path, base_snapshot=empty_snapshot)
 
-        assert Path("from-history.txt") in files
+        assert files == set()
 
     def test_clean_orphaned_files_passes_base_snapshot_through(self, tmp_path):
         """_clean_orphaned_files passes base_snapshot to _read_previously_tracked_files."""
