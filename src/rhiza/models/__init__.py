@@ -5,14 +5,14 @@ existing code importing from ``rhiza.models`` continues to work unchanged.
 
 Sub-modules
 -----------
-- :mod:`rhiza.models._base`      - :class:`YamlSerializable` protocol, :func:`load_model`
+- :mod:`rhiza.models._base`      - :class:`YamlSerializable` protocol, :func:`read_yaml`
 - :mod:`rhiza.models._git`       - the git engine (:class:`GitContext`) and ``get_git_executable``
 - :mod:`rhiza.models.bundle`     - :class:`BundleDefinition`, :class:`ProfileDefinition`, :class:`RhizaBundles`
 - :mod:`rhiza.models.template`   - :class:`GitHost`, :class:`RhizaTemplate`
 - :mod:`rhiza.models.lock`       - :class:`TemplateLock`
 """
 
-from rhiza.models._base import YamlSerializable, load_model
+from rhiza.models._base import YamlSerializable
 from rhiza.models._git import GitContext, get_git_executable
 from rhiza.models.bundle import BundleDefinition, ProfileDefinition, RhizaBundles
 from rhiza.models.lock import TemplateLock
@@ -28,5 +28,4 @@ __all__ = [
     "TemplateLock",
     "YamlSerializable",
     "get_git_executable",
-    "load_model",
 ]
