@@ -53,7 +53,7 @@ jinja2 = "jinja2"
 rhiza-tools = "rhiza_tools"
 
 [project.scripts]
-rhiza = "rhiza.__main__:app"
+rhiza = "rhiza.__main__:main"
 
 [tool.deptry.per_rule_ignores]
 DEP002 = ["rhiza-tools"]

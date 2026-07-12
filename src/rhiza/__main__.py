@@ -26,7 +26,16 @@ def load_plugins(app: typer.Typer) -> None:
             logger.warning(f"Failed to load plugin {entry.name}: {e}")
 
 
-if __name__ == "__main__":
-    load_plugins(app)
+def main() -> None:
+    """Console-script entry point: load plugins, then run the CLI.
 
+    Used by both the ``rhiza`` console script (``project.scripts``) and
+    ``python -m rhiza`` so that entry-point plugins load identically for
+    either invocation.
+    """
+    load_plugins(app)
     app()
+
+
+if __name__ == "__main__":
+    main()
