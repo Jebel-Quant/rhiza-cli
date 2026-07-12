@@ -525,7 +525,6 @@ class TestRhizaTemplateSnapshot:
         assert not (snapshot_dir / "skip.txt").exists()
         assert "skip.txt" in excludes
         assert ".rhiza/template.yml" in excludes
-        assert ".rhiza/history" in excludes
 
     def test_snapshot_returns_excludes_for_downstream_use(self, tmp_path):
         """_excluded_set returns the excludes set so callers can pass it to merge helpers."""

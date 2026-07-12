@@ -315,30 +315,6 @@ class TestSummariseCommand:
         # Should indicate no changes
         assert "No changes" in output or "0 file" in output
 
-    def test_summarise_with_history_file(self, git_repo, capsys):
-        """Test summarise with .rhiza/history file for last sync date."""
-        git_cmd = shutil.which("git") or "git"
-
-        # Create .rhiza/history file
-        rhiza_dir = git_repo / ".rhiza"
-        rhiza_dir.mkdir(parents=True)
-        history_file = rhiza_dir / "history"
-        history_file.write_text("some history")
-
-        # Create and stage a file
-        test_file = git_repo / "test.txt"
-        test_file.write_text("test")
-        subprocess.run([git_cmd, "add", "."], cwd=git_repo, check=True)  # nosec B603
-
-        # Run summarise
-        summarise(git_repo)
-
-        captured = capsys.readouterr()
-        output = captured.out
-
-        # Should include last sync date
-        assert "Last sync" in output or "Sync date" in output
-
     def test_summarise_with_output_file(self, git_repo, tmp_path):
         """Test summarise writes to output file."""
         git_cmd = shutil.which("git") or "git"

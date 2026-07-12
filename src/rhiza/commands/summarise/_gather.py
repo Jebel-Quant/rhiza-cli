@@ -7,7 +7,6 @@ rendering — see :mod:`rhiza.commands.summarise._render` for output formatting.
 
 import subprocess  # nosec B404
 from collections import defaultdict
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
 
@@ -269,12 +268,5 @@ def get_last_sync_date(repo_path: Path, template_repo: str = "") -> str | None:
     output = run_git_command(grep_args, cwd=repo_path)
     if output:
         return output
-
-    # Fallback: try to get date from history file if it exists
-    history_file = repo_path / ".rhiza" / "history"
-    if history_file.exists():
-        # Get the file modification time
-        stat = history_file.stat()
-        return datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat()
 
     return None

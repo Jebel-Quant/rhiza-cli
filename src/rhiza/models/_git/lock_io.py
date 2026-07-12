@@ -76,7 +76,6 @@ def _read_previously_tracked_files(
     1. ``template.lock.files`` when the field is present and non-empty.
     2. *base_snapshot* directory listing when provided and non-empty (used as a
        fallback for lock files that pre-date the ``files`` field).
-    3. Legacy ``.rhiza/history`` file for backward compatibility.
 
     Args:
         target: Target repository path.
@@ -95,10 +94,7 @@ def _read_previously_tracked_files(
         lock_file = target / ".rhiza" / "template.lock"
 
     from_lock = _files_from_lock(lock_file, base_snapshot)
-    if from_lock is not None:
-        return from_lock
-
-    return _files_from_history(target / ".rhiza" / "history", target)
+    return from_lock if from_lock is not None else set()
 
 
 def _files_from_lock(lock_file: Path, base_snapshot: Path | None) -> set[Path] | None:
@@ -120,7 +116,7 @@ def _files_from_lock(lock_file: Path, base_snapshot: Path | None) -> set[Path] |
         return None
     try:
         lock = TemplateLock.from_yaml(lock_file)
-    except Exception as e:  # noqa: BLE001  # best-effort lock read; any parse/IO error falls through to the history fallback
+    except Exception as e:  # noqa: BLE001  # best-effort lock read; any parse/IO error yields no tracked-file list
         logger.debug(f"Could not read template.lock for orphan cleanup: {e}")
         return None
 
@@ -136,30 +132,6 @@ def _files_from_lock(lock_file: Path, base_snapshot: Path | None) -> set[Path] |
             logger.debug(f"Reconstructing previous file list from base snapshot ({len(snapshot_files)} files)")
             return snapshot_files
     return None
-
-
-def _files_from_history(history_file: Path, target: Path) -> set[Path]:
-    """Return the tracked-file set from the legacy ``.rhiza/history`` file.
-
-    Args:
-        history_file: Path to the legacy history file.
-        target: Target repository path, used only for relative-path logging.
-
-    Returns:
-        The set of tracked file paths, or an empty set when no history exists.
-    """
-    if not history_file.exists():
-        logger.debug("No previous file tracking found")
-        return set()
-
-    logger.debug(f"Reading existing history file: {history_file.relative_to(target)}")
-    files = set()
-    with history_file.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith("#"):
-                files.add(Path(line))
-    return files
 
 
 def _delete_orphaned_file(target: Path, file_path: Path) -> None:

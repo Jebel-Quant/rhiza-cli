@@ -47,7 +47,6 @@ def _excluded_set(base_dir: Path, excluded_paths: list[str]) -> set[str]:
     for f in _expand_paths(base_dir, excluded_paths):
         result.add(str(f.relative_to(base_dir)))
     result.add(".rhiza/template.yml")
-    result.add(".rhiza/history")
     return result
 
 
