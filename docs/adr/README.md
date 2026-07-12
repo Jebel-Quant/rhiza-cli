@@ -23,6 +23,7 @@ Each ADR follows this structure:
 | [ADR-0003](0003-lock-file-concurrency.md) | Concurrency-safe lock file I/O with fcntl and atomic rename | Accepted |
 | [ADR-0004](0004-keep-git-utils-as-single-module.md) | Keep `models/_git_utils.py` as a single module | Superseded by ADR-0005 |
 | [ADR-0005](0005-split-git-engine-into-subpackage.md) | Split the git engine into a `models/_git/` subpackage | Accepted |
+| [ADR-0006](0006-rhiza-cli-as-claude-plugin.md) | Make `rhiza-cli` the home of the Claude Code plugin | Proposed |
 
 ## Creating a New ADR
 
