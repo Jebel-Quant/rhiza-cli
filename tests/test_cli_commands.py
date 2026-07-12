@@ -186,6 +186,27 @@ class TestMainEntry:
         # Verify add_typer was called with the plugin app
         add_typer_mock.assert_called_once_with(mock_plugin_app, name="good_plugin")
 
+    def test_main_loads_plugins_then_runs_app(self):
+        """main() must load plugins before invoking the Typer app.
+
+        This guards the console-script entry point (project.scripts →
+        ``rhiza.__main__:main``) so plugins load for the ``rhiza`` command,
+        not only for ``python -m rhiza``.
+        """
+        from unittest.mock import MagicMock, call
+
+        from rhiza.__main__ import main
+
+        manager = MagicMock()
+        with (
+            patch("rhiza.__main__.load_plugins", manager.load_plugins),
+            patch("rhiza.__main__.app", manager.app),
+        ):
+            main()
+
+        # load_plugins(app) is called exactly once, before app() is invoked.
+        assert manager.mock_calls == [call.load_plugins(manager.app), call.app()]
+
 
 class TestSummariseCommand:
     """Tests for the summarise command."""
