@@ -296,10 +296,10 @@ def sync(
         upstream_snapshot = Path(tempfile.mkdtemp())
         try:
             excludes = _excluded_set(upstream_dir, template.exclude)
-            materialized = _prepare_snapshot(
+            template_files = _prepare_snapshot(
                 upstream_dir, resolved_include, excludes, upstream_snapshot, path_map=path_map
             )
-            logger.info(f"Upstream: {len(materialized)} file(s) to consider")
+            logger.info(f"Upstream: {len(template_files)} file(s) to consider")
             lock = TemplateLock(
                 sha=upstream_sha,
                 repo=template.template_repository,
@@ -309,7 +309,7 @@ def sync(
                 exclude=template.exclude,
                 templates=template.templates,
                 profiles=template.profiles,
-                files=[str(p) for p in materialized],
+                files=[str(p) for p in template_files],
                 synced_at=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 strategy=strategy,
             )
@@ -328,7 +328,7 @@ def sync(
                     upstream_snapshot=upstream_snapshot,
                     upstream_sha=upstream_sha,
                     base_sha=base_sha,
-                    materialized=materialized,
+                    template_files=template_files,
                     template=resolved_template,
                     excludes=excludes,
                     lock=lock,

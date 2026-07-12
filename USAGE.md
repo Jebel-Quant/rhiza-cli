@@ -82,7 +82,7 @@ include:
 
 This tells Rhiza to fetch these files from the `jebel-quant/rhiza` repository.
 
-### Materializing Templates
+### Syncing Templates
 
 Apply the templates to your project:
 
@@ -106,7 +106,7 @@ git commit -m "chore: initialize project with rhiza templates"
 
 ### Understanding the History File
 
-After materialization, Rhiza creates a `.rhiza.history` file that tracks all files under template control:
+After syncing, Rhiza creates a `.rhiza.history` file that tracks all files under template control:
 
 ```bash
 cat .rhiza.history
@@ -150,7 +150,7 @@ git init
 # 2. Initialize Rhiza
 rhiza init
 
-# 3. Materialize templates
+# 3. Sync templates
 rhiza sync
 
 # 4. Review and commit
@@ -183,7 +183,7 @@ rhiza init
 # 5. Review generated template.yml and customize if needed
 vim .rhiza/template.yml
 
-# 6. Materialize templates (use --force carefully!)
+# 6. Sync templates
 rhiza sync
 
 # 7. Review changes carefully
@@ -250,7 +250,7 @@ git init
 # Initialize with your organization's template
 rhiza init --template-repository mycompany/python-templates --template-branch stable
 
-# Materialize templates
+# Sync templates
 rhiza sync
 ```
 
@@ -274,7 +274,7 @@ exclude:
   - .github/workflows/experimental.yml
 ```
 
-**Materialize:**
+**Sync:**
 
 ```bash
 rhiza sync
@@ -313,7 +313,7 @@ exclude:
   - .gitlab-ci.yml  # Example exclusion
 ```
 
-**Materialize:**
+**Sync:**
 
 ```bash
 rhiza sync
@@ -420,7 +420,7 @@ mkdir -p pkg/mypackage
 # 3. Validate
 rhiza validate
 
-# 4. Materialize Go templates
+# 4. Sync Go templates
 rhiza sync
 ```
 

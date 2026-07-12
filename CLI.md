@@ -10,8 +10,6 @@ This document provides a quick reference for the Rhiza command-line interface.
 |---------|-------------|
 | `rhiza init` | Initialize or validate `.rhiza/template.yml` |
 | `rhiza sync` | Sync templates (first-time copy **or** 3-way merge on updates) |
-| `rhiza materialize` | *(Deprecated)* Use `rhiza sync` instead |
-| `rhiza migrate` | Migrate to the new `.rhiza` folder structure |
 | `rhiza validate` | Validate template configuration |
 
 ## Common Usage Patterns
@@ -114,49 +112,6 @@ rhiza sync --target-branch update-templates # Work in a dedicated branch
 
 ---
 
-### rhiza materialize *(Deprecated)*
-
-> **Deprecated.** Use `rhiza sync` instead.
->
-> | Old command | Equivalent new command |
-> |-------------|----------------------|
-> | `rhiza materialize` | `rhiza sync` |
-> | `rhiza materialize --force` | `rhiza sync` |
-
----
-
-### rhiza migrate
-
-**Purpose:** Migrate project to the new `.rhiza` folder structure
-
-**Syntax:**
-```bash
-rhiza migrate [TARGET]
-```
-
-**Parameters:**
-- `TARGET` - Target repository directory (default: current directory)
-
-**Examples:**
-```bash
-rhiza migrate                    # Migrate current directory
-rhiza migrate /path/to/project   # Migrate specific directory
-```
-
-**What It Does:**
-- Creates the `.rhiza/` directory in the project root
-- Moves `template.yml` from `.github/rhiza/` or `.github/` to `.rhiza/template.yml`
-- Moves `.rhiza.history` to `.rhiza/history`
-- Provides instructions for next steps
-- Skips files that already exist in `.rhiza/` (leaves old files in place for manual cleanup)
-
-**When to Use:**
-- Transitioning to the new `.rhiza/` folder structure
-- Organizing Rhiza configuration separately from `.github/`
-- Cleaning up project structure
-
----
-
 ### rhiza validate
 
 **Purpose:** Validate `.rhiza/template.yml` configuration
@@ -213,7 +168,7 @@ It records the full state of the last successful sync as a YAML file, enabling i
 | `include` | Paths included from the template repository |
 | `exclude` | Paths excluded from the template repository |
 | `templates` | Bundle names used (empty when using path-based mode) |
-| `files` | Sorted list of every file materialized in this sync |
+| `files` | Sorted list of every file synced in this sync |
 
 **Example:**
 ```yaml

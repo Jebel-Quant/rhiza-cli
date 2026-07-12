@@ -16,7 +16,7 @@ def _ensure_safe_bundle_path(value: str) -> None:
     directory to decide where a file is written.  An absolute path, a Windows
     drive letter, or a ``..`` traversal component could therefore write outside
     the project.  This validates both ``source`` and ``dest`` at the trust
-    boundary so no such path can reach the materialize step.
+    boundary so no such path can reach the copy step.
 
     Args:
         value: A ``source`` or ``dest`` path from bundle config.

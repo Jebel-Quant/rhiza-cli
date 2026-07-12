@@ -1,7 +1,7 @@
 ## Makefile (repo-owned)
 # Keep this file small. It can be edited without breaking template sync.
 
-# Bootstrap sync: active only before .rhiza/rhiza.mk is materialized by first sync
+# Bootstrap sync: active only before .rhiza/rhiza.mk is written by first sync
 ifeq ($(wildcard .rhiza/rhiza.mk),)
 .PHONY: sync
 sync: ## Sync with template repository as defined in .rhiza/template.yml

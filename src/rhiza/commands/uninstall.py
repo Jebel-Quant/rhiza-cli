@@ -2,7 +2,7 @@
 
 This module implements the `uninstall` command. It reads the
 `.rhiza/template.lock` file and removes all files that were previously
-materialized by Rhiza templates. This provides a clean way to remove all
+synced by Rhiza templates. This provides a clean way to remove all
 template-managed files from a project.
 """
 
@@ -163,7 +163,7 @@ def uninstall(target: Path, force: bool) -> None:
     """Uninstall Rhiza templates from the target repository.
 
     Reads `.rhiza/template.lock` and removes all files listed in it.
-    This effectively removes all files that were materialized by Rhiza.
+    This effectively removes all files that were synced by Rhiza.
 
     Args:
         target (Path): Path to the target repository.
@@ -176,7 +176,7 @@ def uninstall(target: Path, force: bool) -> None:
 
     if not lock_file.exists():
         logger.warning(f"No lock file found at: {(target / '.rhiza' / 'template.lock').relative_to(target)}")
-        logger.info("Nothing to uninstall. This repository may not have Rhiza templates materialized.")
+        logger.info("Nothing to uninstall. This repository may not have Rhiza templates synced.")
         return
 
     try:

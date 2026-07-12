@@ -61,7 +61,7 @@ _lock_st = st.builds(
     templates=st.lists(_nonempty, max_size=5),
     files=_path_list,
     synced_at=st.one_of(st.just(""), _nonempty),
-    strategy=st.one_of(st.just(""), st.sampled_from(["merge", "diff", "materialize"])),
+    strategy=st.one_of(st.just(""), st.sampled_from(["merge", "diff"])),
 )
 
 

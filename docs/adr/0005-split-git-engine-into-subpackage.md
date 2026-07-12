@@ -23,7 +23,7 @@ methods cluster into three independent concerns that share only the
 - **the 3-way merge strategy** — `sync_merge`, `_merge_with_base`, `_apply_diff`,
   `_merge_file_fallback`, `_scan_conflict_artifacts`, `_copy_files_to_target`.
 
-Plus a band of module-level helpers (snapshot materialization and small
+Plus a band of module-level helpers (snapshot preparation and small
 git/text utilities) that are not methods at all. The single file made it hard to
 navigate to a concern and meant every change touched the same 1000-line module.
 
@@ -35,7 +35,7 @@ the public surface and the cohesion of `GitContext`:
 - `remote.py` — `RemoteOpsMixin`
 - `diff.py` — `DiffMixin`
 - `merge.py` — `MergeMixin` (composes the remote + diff mixins)
-- `snapshot.py` — snapshot materialization helpers
+- `snapshot.py` — snapshot preparation helpers
 - `helpers.py` — module-level git/text helpers (`get_git_executable`, …)
 - `_base.py` — shared `executable`/`env` attribute declarations for the mixins
 - `context.py` — the public `GitContext` dataclass, composed from the mixins

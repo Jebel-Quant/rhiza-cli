@@ -309,17 +309,17 @@ and entries are generated from [Conventional Commits](https://www.conventionalco
 - *(models)* Increase test coverage to 100%
 
 ### Other Changes
-- Deprecate the `migrate` command (#377)
+- Deprecate the legacy folder-structure command (#377)
 - Move clone/snapshot logic onto RhizaTemplate; remove redundant _sync_helpers functions (#379)
 - Analysis
 - Remove mypy configuration from pyproject.toml
-- Migrate template helpers from `_sync_helpers` to `RhizaTemplate` private methods (#383)
+- Move template helpers from `_sync_helpers` to `RhizaTemplate` private methods (#383)
 - Remove `rhiza welcome` command (#391)
 - Inline bundle_resolver.py into models.py (#392)
 - Move `get_git_executable` from `subprocess_utils` into `models` (#393)
 - Refactor CLI error handling with `_exit_on_error` context manager (#394)
 - Trim verbose docstring in `commands/__init__.py` (#398)
-- Remove deprecated `materialize` command (#399)
+- Remove deprecated legacy sync command (#399)
 - Standardise YAML serialization behind a shared Protocol and generic helper (#405)
 - Replace stringly-typed `git_host` with `GitHost` StrEnum (#407)
 - Revisit tests: rename test_subprocess_utils.py, split test_models.py, add write_yaml fixture (#411)
@@ -414,8 +414,8 @@ and entries are generated from [Conventional Commits](https://www.conventionalco
 - *(sync)* Concurrency-safe lock file I/O with fcntl + atomic rename (#315)
 
 ### Bug Fixes
-- Loosen PyYAML pin and migrate materialize to sync (#303)
-- Migrate rhiza_sync.yml from deprecated `materialize --force` to `rhiza sync` (#305)
+- Loosen PyYAML pin and move the legacy command to sync (#303)
+- Move rhiza_sync.yml from the deprecated legacy command to `rhiza sync` (#305)
 
 ### Documentation
 - Reorder REPOSITORY_ANALYSIS.md newest-first
@@ -432,7 +432,7 @@ and entries are generated from [Conventional Commits](https://www.conventionalco
 - Updated REPOSITORY ANALYSIS
 - Initial plan (#301)
 - Delete .rhiza/history (#302)
-- Retire materialize.py: consolidate shared helpers into sync.py (#299)
+- Retire the legacy command module: consolidate shared helpers into sync.py (#299)
 - Validate template repository reachability before writing config in `rhiza init` (#307)
 - Analysis
 - Add rhiza sync smoke test CI workflow (#321)
@@ -485,7 +485,7 @@ and entries are generated from [Conventional Commits](https://www.conventionalco
 - Delete orphaned files during sync when template.yml changes (#271)
 
 ### Other Changes
-- Deprecate `materialize` — collapse into `sync` (#273)
+- Deprecate the legacy command — collapse into `sync` (#273)
 - Remove `--strategy overwrite` from `rhiza sync` (#276)
 - Enhance template.lock to structured YAML with full sync metadata (#278)
 - Bump version 0.11.3 → 0.11.4-rc.1
@@ -648,7 +648,7 @@ and entries are generated from [Conventional Commits](https://www.conventionalco
 - Add deptry package_module_name_map entries to silence assumption warnings (#178)
 - Achieve 100% statement coverage (#188)
 - Add doctests to resolve test_docstrings skip (#190)
-- Suppress stack traces in materialize command for expected git errors (#169)
+- Suppress stack traces in the sync command for expected git errors (#169)
 - Bump version 0.9.0 → 0.9.1
 
 ## [0.9.0] - 2026-01-18
@@ -752,8 +752,8 @@ and entries are generated from [Conventional Commits](https://www.conventionalco
 ## [0.8.1] - 2025-12-26
 
 ### Other Changes
-- Replace init with validate in materialize command (#117)
-- Ensure .rhiza folder is included in template.yml during migration (#119)
+- Replace init with validate in the sync command (#117)
+- Ensure .rhiza folder is included in template.yml during the folder-structure move (#119)
 
 ## [0.8.0] - 2025-12-26
 
@@ -761,7 +761,7 @@ and entries are generated from [Conventional Commits](https://www.conventionalco
 - Add src, tests, and pyproject.toml validation to validate command (#106)
 - Achieve 100% test coverage (#111)
 - Add uninstall command to remove Rhiza-managed files (#109)
-- Add migrate command and update existing commands for .rhiza folder structure (#113)
+- Add .rhiza folder-structure support and update existing commands (#113)
 
 ## [0.7.2] - 2025-12-24
 
@@ -780,7 +780,7 @@ and entries are generated from [Conventional Commits](https://www.conventionalco
 ## [0.7.0] - 2025-12-24
 
 ### New Features
-- Auto-cleanup orphaned files during materialize (#95)
+- Auto-cleanup orphaned files during sync (#95)
 
 ### Other Changes
 - Rhiza notebook
@@ -822,7 +822,7 @@ and entries are generated from [Conventional Commits](https://www.conventionalco
 
 ### Other Changes
 - Hide expand_paths better (#66)
-- Fix materialize command hanging on sparse checkout operations (#68)
+- Fix sync command hanging on sparse checkout operations (#68)
 
 ## [0.5.4] - 2025-12-18
 
@@ -837,14 +837,14 @@ and entries are generated from [Conventional Commits](https://www.conventionalco
 - Better comments
 - Fmt
 - Empty lines for better display
-- [WIP] Add branch option to materialize changes (#62)
+- [WIP] Add branch option to sync changes (#62)
 - Markdown for pdoc?
 - Markdown for pdoc?
 - Markdown for pdoc?
 - Fmt
 - Fmt
 - Fmt
-- Add sym2 workflow for rhiza template materialization from update_rhiza branch (#64)
+- Add sym2 workflow for rhiza template sync from update_rhiza branch (#64)
 
 ## [0.5.3] - 2025-12-18
 
@@ -859,7 +859,7 @@ and entries are generated from [Conventional Commits](https://www.conventionalco
 
 ### Other Changes
 - Don't delete the unused branch?
-- Materialize with rhiza history
+- Sync with rhiza history
 - Rhiza.history
 
 ## [0.5.1] - 2025-12-17

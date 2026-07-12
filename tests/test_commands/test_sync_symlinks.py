@@ -1,4 +1,4 @@
-"""Tests that ``rhiza sync`` never materializes a symlink in a downstream project.
+"""Tests that ``rhiza sync`` never writes a symlink in a downstream project.
 
 The upstream Rhiza template repo dogfoods its own templates via symlinks at the repo
 root, and a future bundle could in principle contain a symlink too. Downstream
@@ -79,16 +79,16 @@ class TestPrepareSnapshotDereferencesSymlinks:
 
         snapshot = tmp_path / "snapshot"
         include = ["real.txt", "link.txt", "pkg", "dirlink"]
-        materialized = _prepare_snapshot(clone, include, set(), snapshot)
+        template_files = _prepare_snapshot(clone, include, set(), snapshot)
 
         # The file symlink was resolved to a real file with its target's content.
         link_out = snapshot / "link.txt"
-        assert not link_out.is_symlink(), "file symlink must be materialized as a real file"
+        assert not link_out.is_symlink(), "file symlink must be written as a real file"
         assert link_out.read_text() == "real content\n"
 
         # The symlink nested inside the included directory was resolved too.
         nested_out = snapshot / "pkg" / "mod_link.txt"
-        assert not nested_out.is_symlink(), "nested symlink must be materialized as a real file"
+        assert not nested_out.is_symlink(), "nested symlink must be written as a real file"
         assert nested_out.read_text() == "module content\n"
 
         # Files reached via the directory symlink are real files as well.
@@ -100,17 +100,17 @@ class TestPrepareSnapshotDereferencesSymlinks:
         surviving = [p for p in snapshot.rglob("*") if p.is_symlink()]
         assert not surviving, f"snapshot must contain no symlinks, found: {surviving}"
 
-        # The symlink entries were included in the materialized set.
-        materialized_str = {str(p) for p in materialized}
-        assert "link.txt" in materialized_str
-        assert str(Path("pkg") / "mod_link.txt") in materialized_str
+        # The symlink entries were included in the template file set.
+        template_files_str = {str(p) for p in template_files}
+        assert "link.txt" in template_files_str
+        assert str(Path("pkg") / "mod_link.txt") in template_files_str
 
 
 class TestSyncEndToEndDereferencesSymlinks:
     """Drive the full sync entry-point and assert the target receives a real file."""
 
     @patch("rhiza.commands._sync_helpers._warn_about_workflow_files")
-    def test_sync_materializes_symlink_as_real_file(self, mock_warn, git_project, git_ctx, tmp_path) -> None:
+    def test_sync_writes_symlink_as_real_file(self, mock_warn, git_project, git_ctx, tmp_path) -> None:
         """A symlinked template file lands in the target project as a real, dereferenced file.
 
         Only the network clone (``_clone_template``) is mocked; the real
@@ -146,5 +146,5 @@ class TestSyncEndToEndDereferencesSymlinks:
 
         synced = project / "link.txt"
         assert synced.exists(), "symlinked template file must be synced into the target"
-        assert not synced.is_symlink(), "sync must materialize a real file, never a symlink"
+        assert not synced.is_symlink(), "sync must write a real file, never a symlink"
         assert synced.read_text() == "dereferenced content\n"
