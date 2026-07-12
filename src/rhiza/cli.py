@@ -13,8 +13,6 @@ from typing import Annotated
 import typer
 
 from rhiza import __version__
-from rhiza.commands import init as init_cmd
-from rhiza.commands.list_repos import list_repos as list_repos_cmd
 from rhiza.commands.summarise import SummariseOptions
 from rhiza.commands.summarise import summarise as summarise_cmd
 from rhiza.commands.sync import sync as sync_cmd
@@ -80,111 +78,6 @@ def main(
     Args:
         version: Version flag (handled by callback).
     """
-
-
-@app.command()
-def init(
-    target: Annotated[
-        Path,
-        typer.Argument(
-            exists=True,
-            file_okay=False,
-            dir_okay=True,
-            help="Target directory (defaults to current directory)",
-        ),
-    ] = Path("."),
-    project_name: str = typer.Option(
-        None,
-        "--project-name",
-        help="Custom project name (defaults to directory name)",
-    ),
-    package_name: str = typer.Option(
-        None,
-        "--package-name",
-        help="Custom package name (defaults to normalized project name)",
-    ),
-    with_dev_dependencies: bool = typer.Option(
-        False,
-        "--with-dev-dependencies",
-        help="Include development dependencies in pyproject.toml",
-    ),
-    git_host: str = typer.Option(
-        None,
-        "--git-host",
-        help="Target Git hosting platform (github or gitlab). Determines which CI/CD files to include. "
-        "If not provided, will prompt interactively.",
-    ),
-    language: str = typer.Option(
-        "python",
-        "--language",
-        help="Programming language for the project (python, go, etc.). Defaults to 'python'.",
-    ),
-    template_repository: str = typer.Option(
-        None,
-        "--template-repository",
-        help=(
-            "Custom template repository (format: owner/repo). "
-            "Defaults to 'jebel-quant/rhiza' for Python or 'jebel-quant/rhiza-go' for Go."
-        ),
-    ),
-    template_branch: str = typer.Option(
-        None,
-        "--template-branch",
-        help="Custom template branch. Defaults to 'main'.",
-    ),
-    path_to_template: Annotated[
-        Path | None,
-        typer.Option(
-            "--path-to-template",
-            help=(
-                "Directory where template.yml will be created "
-                "(defaults to <TARGET>/.rhiza). "
-                "Use '.' to keep the file in the project root."
-            ),
-        ),
-    ] = None,
-) -> None:
-    r"""Initialize or validate .rhiza/template.yml.
-
-    Creates a default `.rhiza/template.yml` configuration file if one
-    doesn't exist, or validates the existing configuration.
-
-    The default template includes common project files based on the language.
-    The --git-host option determines which CI/CD configuration to include:
-    - github: includes .github folder (GitHub Actions workflows)
-    - gitlab: includes .gitlab-ci.yml (GitLab CI configuration)
-
-    The --language option determines the project type and files created:
-    - python: creates pyproject.toml, src/, and Python project structure
-    - go: creates minimal structure (you'll need to run 'go mod init')
-
-    Examples:
-      rhiza init
-      rhiza init --language go
-      rhiza init --language python --git-host github
-      rhiza init --git-host gitlab
-      rhiza init --template-repository myorg/my-templates
-      rhiza init --template-repository myorg/my-templates --template-branch develop
-      rhiza init /path/to/project
-      rhiza init .. --language go
-      rhiza init --path-to-template /custom/rhiza
-      rhiza init --path-to-template .
-    """
-    template_file = None
-    if path_to_template is not None:
-        template_file = path_to_template / "template.yml"
-    if not init_cmd(
-        target,
-        project_name=project_name,
-        package_name=package_name,
-        with_dev_dependencies=with_dev_dependencies,
-        git_host=git_host,
-        language=language,
-        template_repository=template_repository,
-        template_branch=template_branch,
-        template_file=template_file,
-    ):
-        raise typer.Exit(code=1)
 
 
 @app.command()
@@ -270,31 +163,6 @@ def sync(
         lock_file = path_to_template / "template.lock"
     with _exit_on_error(subprocess.CalledProcessError, RuntimeError, ValueError):
         sync_cmd(target, branch, target_branch, strategy, template_file=template_file, lock_file=lock_file)
-
-
-@app.command(name="list")
-def list_repos(
-    topic: str = typer.Option(
-        "rhiza",
-        "--topic",
-        "-t",
-        help="GitHub topic to search for (default: 'rhiza')",
-    ),
-) -> None:
-    r"""List GitHub repositories tagged with a given topic.
-
-    Queries the GitHub Search API for repositories tagged with the
-    specified topic and displays them in a formatted table with the
-    repository name, description, and last-updated date.
-
-    Set the ``GITHUB_TOKEN`` environment variable to avoid API rate limits.
-
-    Examples:
-        rhiza list
-        rhiza list --topic rhiza-go
-    """
-    if not list_repos_cmd(topic):
-        raise typer.Exit(code=1)
 
 
 @app.command()

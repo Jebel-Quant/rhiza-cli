@@ -26,19 +26,35 @@ This lists all available commands and options.
 
 ### Connect a project to an anchor repository
 
-```bash
-uvx rhiza init --anchor <ANCHOR_REPO_URL>
+Create a `.rhiza/template.yml` file in your project by hand. It points at your
+anchor repository and lists what to pull from it. At a minimum it needs a
+`template-repository` and one of `include`, `templates`, or `profiles`:
+
+```yaml
+# .rhiza/template.yml
+template-repository: jebel-quant/rhiza
+include:
+  - .github
+  - .editorconfig
+  - .gitignore
+  - .pre-commit-config.yaml
+  - Makefile
 ```
 
-Replace <ANCHOR_REPO_URL> with the URL of your anchor repository, for example:
-
-```
-uvx rhiza init --anchor https://github.com/jebel-quant/rhiza
-```
-
-This sets up your project to track and synchronize with the anchor repository.
+Replace `jebel-quant/rhiza` with your own anchor repository (in `owner/repo`
+form) if you maintain your own templates. This sets up your project to track and
+synchronize with the anchor repository.
 
 ### Sync templates
+
+Before applying anything, you can validate your configuration and preview the
+changes with a dry-run:
+
+```bash
+uvx rhiza sync --strategy diff
+```
+
+When you are happy, apply the changes:
 
 ```bash
 uvx rhiza sync
@@ -66,4 +82,5 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: uvx rhiza sync
+```
 

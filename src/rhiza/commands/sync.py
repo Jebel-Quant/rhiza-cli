@@ -25,6 +25,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import yaml
 from loguru import logger
 
 from rhiza.models import GitContext, RhizaTemplate, TemplateLock
@@ -52,11 +53,10 @@ def _log_list(header: str, items: list[str]) -> None:
 
 
 def _load_template_from_project(target: Path, template_file: Path | None = None) -> RhizaTemplate:
-    """Validate and load a :class:`RhizaTemplate` from a project directory.
+    """Load a :class:`RhizaTemplate` from a project directory.
 
-    Validates the project's ``template.yml`` via :func:`~rhiza.commands.validate.validate`,
-    then loads the configuration with :meth:`~rhiza.models.RhizaTemplate.from_yaml` and
-    checks that the required fields are present.
+    Loads the configuration with :meth:`~rhiza.models.RhizaTemplate.from_yaml`
+    and checks that the required fields are present.
 
     Args:
         target: Path to the target repository (must contain ``.git`` and
@@ -65,22 +65,22 @@ def _load_template_from_project(target: Path, template_file: Path | None = None)
             ``None`` the default ``<target>/.rhiza/template.yml`` is used.
 
     Returns:
-        The loaded and validated :class:`RhizaTemplate`.
+        The loaded :class:`RhizaTemplate`.
 
     Raises:
-        RuntimeError: If validation fails or required fields are missing.
+        RuntimeError: If the template file is missing, malformed, or missing
+            required fields.
     """
-    from rhiza.commands.validate import validate
-
-    valid = validate(target, template_file=template_file)
-    if not valid:
-        logger.error(f"Rhiza template is invalid in: {target}")
-        logger.error("Please fix validation errors and try again")
-        raise RuntimeError("Rhiza template validation failed")  # noqa: TRY003
-
     if template_file is None:
         template_file = target / ".rhiza" / "template.yml"
-    template = RhizaTemplate.from_yaml(template_file)
+
+    try:
+        template = RhizaTemplate.from_yaml(template_file)
+    except (FileNotFoundError, yaml.YAMLError, ValueError, TypeError) as exc:
+        logger.error(f"Rhiza template is invalid in: {target}")
+        logger.error(f"{exc}")
+        logger.error("Fix the errors above and run 'rhiza sync' again")
+        raise RuntimeError("Rhiza template validation failed") from exc  # noqa: TRY003
 
     # When template_bundles_path is at its default and the template file is not at
     # the default location, derive the bundles path from the template file's directory
