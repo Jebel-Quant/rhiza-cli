@@ -483,7 +483,7 @@ def validate(target: Path, template_file: Path | None = None) -> bool:
         return True
     else:
         logger.error("✗ Validation failed: template.yml has errors")
-        logger.error("Fix the errors above and run 'rhiza validate' again")
+        logger.error("Fix the errors above and run 'rhiza sync' or 'rhiza init' again")
         return False
 
 

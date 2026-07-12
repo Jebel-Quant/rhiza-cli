@@ -34,7 +34,6 @@ Rhiza is a CLI tool that helps you maintain consistent configuration across mult
 - [Commands](#commands)
   - [init](#rhiza-init)
   - [sync](#rhiza-sync)
-  - [validate](#rhiza-validate)
 - [Configuration](#configuration)
 - [Examples](#examples)
 - [Development](#development)
@@ -79,7 +78,6 @@ With uvx, you don't need to install rhiza globally. Each time you run `uvx rhiza
 # Always uses the latest version
 uvx rhiza init
 uvx rhiza sync
-uvx rhiza validate
 ```
 
 If you want to use a specific version:
@@ -132,14 +130,6 @@ rhiza --help
    ```
 
    This fetches and copies template files into your project (first run) or applies updates via 3-way merge (subsequent runs).
-
-4. **Validate your configuration:**
-
-   ```bash
-   rhiza validate
-   ```
-
-   This checks that your `.rhiza/template.yml` is correctly formatted and valid.
 
 ## Commands
 
@@ -310,93 +300,6 @@ rhiza sync --target-branch update-templates
 
 ---
 
-### `rhiza validate`
-
-Validate Rhiza template configuration.
-
-**Usage:**
-
-```bash
-rhiza validate [TARGET] [OPTIONS]
-```
-
-**Arguments:**
-
-- `TARGET` - Target git repository directory (defaults to current directory)
-
-**Options:**
-
-- `--path-to-template DIRECTORY` - Directory containing `template.yml` (defaults to `<TARGET>/.rhiza`). Use `.` to keep the file in the project root.
-
-**Description:**
-
-Validates the `.rhiza/template.yml` file to ensure it is syntactically correct and semantically valid. This performs authoritative validation including:
-
-- Checking if the file exists
-- Validating YAML syntax
-- Verifying required fields are present
-- Checking field types and formats
-- Validating repository name format
-- Ensuring include paths are not empty
-
-**Examples:**
-
-```bash
-# Validate configuration in current directory
-rhiza validate
-
-# Validate configuration in a specific directory
-rhiza validate /path/to/project
-
-# Validate parent directory
-rhiza validate ..
-
-# Validate using a custom template directory
-rhiza validate --path-to-template /custom/rhiza
-
-# Validate with template.yml in the project root
-rhiza validate --path-to-template .
-```
-
-**Exit codes:**
-
-- `0` - Validation passed
-- `1` - Validation failed
-
-**Output (success):**
-
-```
-[INFO] Validating template configuration in: /path/to/project
-✓ Found template file: /path/to/project/.rhiza/template.yml
-✓ YAML syntax is valid
-✓ Field 'template-repository' is present and valid
-✓ Field 'include' is present and valid
-✓ template-repository format is valid: jebel-quant/rhiza
-✓ include list has 6 path(s)
-  - .github
-  - .editorconfig
-  - .gitignore
-  - .pre-commit-config.yaml
-  - Makefile
-  - pytest.ini
-✓ Validation passed: template.yml is valid
-```
-
-**Output (failure):**
-
-```
-[ERROR] Target directory is not a git repository: /path/to/project
-```
-
-or
-
-```
-[ERROR] Template file not found: /path/to/project/.rhiza/template.yml
-[INFO] Run 'rhiza sync' or 'rhiza init' to create a default template.yml
-```
-
----
-
 ## Configuration
 
 Rhiza uses a `.rhiza/template.yml` file to define template sources and what to include in your project.
@@ -559,9 +462,6 @@ git commit -m "chore: initialize project with rhiza templates"
 # Navigate to your project
 cd existing-project
 
-# Validate current configuration
-rhiza validate
-
 # Update templates
 rhiza sync
 
@@ -615,30 +515,6 @@ Then sync:
 
 ```bash
 rhiza sync
-```
-
-### Example 5: Validating before CI/CD
-
-Add to your CI pipeline:
-
-```yaml
-# .github/workflows/validate-rhiza.yml
-name: Validate Rhiza Configuration
-
-on: [push, pull_request]
-
-jobs:
-  validate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install rhiza
-        run: pip install rhiza
-      - name: Validate configuration
-        run: rhiza validate
 ```
 
 ## Development
@@ -783,7 +659,7 @@ src/rhiza/
     ├── __init__.py
     ├── init.py         # Initialize template.yml
     ├── sync.py         # Sync templates (primary command)
-    └── validate.py     # Validate configuration
+    └── validate.py     # Validate configuration (internal helper for init/sync)
 ```
 
 ### Design Principles
@@ -814,7 +690,7 @@ Check that:
 3. Required fields (`template-repository` and `include`) are present
 4. The repository format is `owner/repo`
 
-Run `rhiza validate` for detailed error messages.
+Run `rhiza sync` for detailed error messages — it validates the configuration before syncing.
 
 ### Git clone fails during sync
 

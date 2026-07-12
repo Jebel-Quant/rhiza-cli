@@ -22,12 +22,9 @@ The package lives under `src/rhiza/` and splits cleanly into three layers:
 | `sync.py` | `rhiza sync` | Primary command — orchestrates the 3-way template merge. |
 | `_sync_helpers.py` | — | Internal helpers for `sync`: lock I/O, orphan cleanup, workflow-file warnings. |
 | `init.py` | `rhiza init` | Scaffold `.rhiza/template.yml` in a new project; verifies the template repo is reachable. |
-| `validate.py` | `rhiza validate` | Validate project structure and `template.yml` against the schema. |
-| `status.py` | `rhiza status` | Report the current sync state from the lock file. |
-| `tree.py` | `rhiza tree` | Show the resolved file tree a sync would manage. |
+| `validate.py` | — | Internal helper: validate project structure and `template.yml` against the schema. Used by `sync` and `init`. |
 | `list_repos.py` | `rhiza list` | List bundles/profiles available in the template repo. |
 | `summarise.py` | `rhiza summarise` | Summarise template/bundle contents. |
-| `uninstall.py` | `rhiza uninstall` | Remove Rhiza-managed files from a project. |
 
 ### Models (`src/rhiza/models/`)
 

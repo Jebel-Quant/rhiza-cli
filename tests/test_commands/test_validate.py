@@ -1,7 +1,8 @@
-"""Tests for the validate command and CLI wiring.
+"""Tests for the internal validate helper.
 
-This module verifies that `validate` checks `.rhiza/template.yml` and that
-the Typer CLI entry `rhiza validate` behaves as expected across scenarios.
+This module verifies that `validate` checks `.rhiza/template.yml` across
+scenarios. It backs `rhiza sync` and `rhiza init` rather than a standalone
+CLI command.
 """
 
 import tempfile
@@ -9,9 +10,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from typer.testing import CliRunner
 
-from rhiza import cli
 from rhiza.commands.validate import (
     _validate_configuration_mode,
     _validate_include_paths,
@@ -206,30 +205,6 @@ class TestValidateCommand:
         result = validate(git_path)
         assert result is True
 
-    def test_cli_validate_command(self, git_path):
-        """Test the CLI validate command via Typer runner."""
-        runner = CliRunner()
-
-        # Create pyproject.toml
-        pyproject_file = git_path / "pyproject.toml"
-        pyproject_file.write_text("[project]\nname = 'test'\n")
-
-        rhiza_dir = git_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True)
-        template_file = rhiza_dir / "template.yml"
-
-        with open(template_file, "w") as f:
-            yaml.dump(
-                {
-                    "template-repository": "owner/repo",
-                    "include": [".github"],
-                },
-                f,
-            )
-
-        result = runner.invoke(cli.app, ["validate", str(git_path)])
-        assert result.exit_code == 0
-
     def test_validate_warns_on_missing_src_folder(self, git_path):
         """Test that validate warns when src folder doesn't exist."""
         # Create pyproject.toml
@@ -307,19 +282,6 @@ class TestValidateCommand:
 
         result = validate(git_path)
         assert result is True
-
-    def test_cli_validate_command_fails(self, git_path):
-        """Test the CLI validate command fails on invalid template."""
-        runner = CliRunner()
-
-        # Setup git repo with invalid template (missing required fields)
-        rhiza_dir = git_path / ".rhiza"
-        rhiza_dir.mkdir(parents=True)
-        template_file = rhiza_dir / "template.yml"
-        template_file.write_text("{}")
-
-        result = runner.invoke(cli.app, ["validate", str(git_path)])
-        assert result.exit_code == 1
 
     def test_validate_fails_on_wrong_type_template_repository(self, git_path):
         """Test that validate fails when template-repository is not a string."""
@@ -1024,43 +986,31 @@ class TestValidateCustomTemplatePath:
             result = validate(git_path, template_file=external_missing)
         assert result is False
 
-    def test_cli_path_to_template_option_uses_custom_directory(self, git_path, tmp_path):
-        """CLI --path-to-template passes template.yml from the given directory."""
+    def test_validate_with_custom_template_file_in_subdirectory(self, git_path, tmp_path):
+        """validate() accepts a template file in a custom directory under the target."""
         (git_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
 
-        custom_dir = tmp_path / "custom-rhiza"
+        custom_dir = git_path / "custom-rhiza"
         custom_dir.mkdir()
-        (custom_dir / "template.yml").write_text("template-repository: owner/repo\ninclude:\n  - .github\n")
+        custom_config = custom_dir / "template.yml"
+        custom_config.write_text("template-repository: owner/repo\ninclude:\n  - .github\n")
 
-        runner = CliRunner()
-        result = runner.invoke(
-            cli.app,
-            ["validate", str(git_path), "--path-to-template", str(custom_dir)],
-        )
-        assert result.exit_code == 0
+        result = validate(git_path, template_file=custom_config)
+        assert result is True
 
-    def test_cli_path_to_template_missing_file_exits_nonzero(self, git_path, tmp_path):
-        """CLI --path-to-template exits with code 1 when template.yml is absent."""
+    def test_validate_fails_when_custom_template_file_missing_in_subdirectory(self, git_path):
+        """validate() fails when a custom template file under the target is absent."""
         (git_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
 
-        empty_dir = tmp_path / "empty"
-        empty_dir.mkdir()
+        missing_config = git_path / "empty" / "template.yml"
+        result = validate(git_path, template_file=missing_config)
+        assert result is False
 
-        runner = CliRunner()
-        result = runner.invoke(
-            cli.app,
-            ["validate", str(git_path), "--path-to-template", str(empty_dir)],
-        )
-        assert result.exit_code == 1
-
-    def test_cli_path_to_template_dot_uses_project_root(self, git_path):
-        """CLI --path-to-template <TARGET> resolves template.yml from the project root."""
+    def test_validate_with_custom_template_file_in_project_root(self, git_path):
+        """validate() resolves a template.yml kept in the project root."""
         (git_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
-        (git_path / "template.yml").write_text("template-repository: owner/repo\ninclude:\n  - .github\n")
+        root_config = git_path / "template.yml"
+        root_config.write_text("template-repository: owner/repo\ninclude:\n  - .github\n")
 
-        runner = CliRunner()
-        result = runner.invoke(
-            cli.app,
-            ["validate", str(git_path), "--path-to-template", str(git_path)],
-        )
-        assert result.exit_code == 0
+        result = validate(git_path, template_file=root_config)
+        assert result is True

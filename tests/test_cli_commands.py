@@ -9,7 +9,6 @@ import shutil
 import subprocess  # nosec B404
 import sys
 import urllib.error
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -39,23 +38,6 @@ def loguru_messages():
         yield messages
     finally:
         logger.remove(sink_id)
-
-
-def _init_git_repo(path: Path) -> Path:
-    """Initialise a minimal git repository at *path* for CLI failure tests.
-
-    Args:
-        path: Directory to turn into a git repository (created if absent).
-
-    Returns:
-        The repository path, for convenient chaining.
-    """
-    path.mkdir(parents=True, exist_ok=True)
-    git_cmd = shutil.which("git") or "git"
-    subprocess.run([git_cmd, "init"], cwd=path, check=True)  # nosec B603
-    subprocess.run([git_cmd, "config", "user.email", "test@test.com"], cwd=path, check=True)  # nosec B603
-    subprocess.run([git_cmd, "config", "user.name", "Test"], cwd=path, check=True)  # nosec B603
-    return path
 
 
 class TestCliApp:
@@ -260,18 +242,6 @@ class TestCLIExceptionHandling:
 
     runner = CliRunner()
 
-    def test_status_exits_with_code_1_on_exception(self, tmp_path):
-        """Status command exits with code 1 when any Exception is raised."""
-        with patch("rhiza.cli.status_cmd", side_effect=RuntimeError("status failed")):
-            result = self.runner.invoke(app, ["status", str(tmp_path)])
-        assert result.exit_code == 1
-
-    def test_uninstall_exits_with_code_1_on_runtime_error(self, tmp_path):
-        """Uninstall command exits with code 1 when RuntimeError is raised."""
-        with patch("rhiza.cli.uninstall_cmd", side_effect=RuntimeError("uninstall failed")):
-            result = self.runner.invoke(app, ["uninstall", str(tmp_path), "--force"])
-        assert result.exit_code == 1
-
     def test_summarise_exits_with_code_1_on_runtime_error(self, tmp_path):
         """Summarise command exits with code 1 when RuntimeError is raised."""
         with patch("rhiza.cli.summarise_cmd", side_effect=RuntimeError("summarise failed")):
@@ -303,20 +273,6 @@ class TestCommandFailureMessages:
         assert result.exit_code == 1
         assert any("is not a git repository" in m for m in loguru_messages)
 
-    def test_validate_invalid_template_reports_message(self, tmp_path, loguru_messages):
-        """Validate on an empty template.yml exits 1 and lists the required keys."""
-        repo = _init_git_repo(tmp_path / "repo")
-        (repo / "src").mkdir()
-        (repo / "tests").mkdir()
-        (repo / "pyproject.toml").write_text("[project]\nname = 'x'\n")
-        rhiza_dir = repo / ".rhiza"
-        rhiza_dir.mkdir()
-        (rhiza_dir / "template.yml").write_text("{}")
-
-        result = self.runner.invoke(app, ["validate", str(repo)])
-        assert result.exit_code == 1
-        assert any("Must specify at least one of 'profiles', 'templates', or 'include'" in m for m in loguru_messages)
-
     def test_list_fetch_failure_reports_message(self, loguru_messages):
         """List exits 1 and reports the failure when the GitHub API is unreachable."""
         with patch(
@@ -333,47 +289,3 @@ class TestCommandFailureMessages:
         assert result.exit_code == 1
         assert any("not a git repository" in m for m in loguru_messages)
         assert any("git init" in m for m in loguru_messages)
-
-    def test_uninstall_deletion_error_reports_message(self, tmp_path, loguru_messages):
-        """Uninstall exits 1 and reports per-file errors when a listed path cannot be removed."""
-        repo = _init_git_repo(tmp_path / "repo")
-        rhiza_dir = repo / ".rhiza"
-        rhiza_dir.mkdir()
-        # A lock listing a *directory* path: unlink() raises IsADirectoryError,
-        # which _remove_files records as an error and surfaces as a RuntimeError.
-        (repo / "tracked_dir").mkdir()
-        (rhiza_dir / "template.lock").write_text(
-            "sha: abc123\nrepo: my-org/t\nref: main\nsynced_at: '2024-11-01T10:00:00Z'\nfiles:\n  - tracked_dir\n"
-        )
-
-        result = self.runner.invoke(app, ["uninstall", str(repo), "--force"])
-        assert result.exit_code == 1
-        assert any("Failed to delete" in m for m in loguru_messages)
-
-    def test_status_corrupt_lock_exits_one(self, tmp_path):
-        """Status exits 1 when template.lock is present but unparseable."""
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir()
-        (rhiza_dir / "template.lock").write_text("key: [unterminated\n")
-        result = self.runner.invoke(app, ["status", str(tmp_path)])
-        assert result.exit_code == 1
-
-    def test_status_missing_lock_reports_actionable_warning(self, tmp_path, loguru_messages):
-        """Status with no lock file guides the user to run sync (exit 0, actionable message)."""
-        result = self.runner.invoke(app, ["status", str(tmp_path)])
-        assert result.exit_code == 0
-        assert any("run `rhiza sync` first" in m for m in loguru_messages)
-
-    def test_tree_corrupt_lock_exits_one(self, tmp_path):
-        """Tree exits 1 when template.lock is present but unparseable."""
-        rhiza_dir = tmp_path / ".rhiza"
-        rhiza_dir.mkdir()
-        (rhiza_dir / "template.lock").write_text("key: [unterminated\n")
-        result = self.runner.invoke(app, ["tree", str(tmp_path)])
-        assert result.exit_code == 1
-
-    def test_tree_missing_lock_reports_actionable_warning(self, tmp_path, loguru_messages):
-        """Tree with no lock file guides the user to run sync (exit 0, actionable message)."""
-        result = self.runner.invoke(app, ["tree", str(tmp_path)])
-        assert result.exit_code == 0
-        assert any("run `rhiza sync` first" in m for m in loguru_messages)
