@@ -681,22 +681,23 @@ def _write_template_yml(target: Path, config: dict) -> None:
 class TestFromProject:
     """Tests for _load_template_from_project branch coverage."""
 
-    def test_validation_failure_raises(self, tmp_path):
-        """RuntimeError is raised when validate() returns False."""
-        _write_template_yml(tmp_path, {"template-repository": "owner/repo", "include": ["Makefile"]})
-        with (
-            patch("rhiza.commands.validate.validate", return_value=False),
-            pytest.raises(RuntimeError, match="validation failed"),
-        ):
+    def test_malformed_template_raises(self, tmp_path):
+        """RuntimeError is raised when template.yml cannot be parsed."""
+        rhiza_dir = tmp_path / ".rhiza"
+        rhiza_dir.mkdir(parents=True)
+        (rhiza_dir / "template.yml").write_text("key: [unterminated\n")
+        with pytest.raises(RuntimeError, match="validation failed"):
+            _load_template_from_project(tmp_path)
+
+    def test_missing_template_file_raises(self, tmp_path):
+        """RuntimeError is raised when template.yml does not exist."""
+        with pytest.raises(RuntimeError, match="validation failed"):
             _load_template_from_project(tmp_path)
 
     def test_missing_template_repository_raises(self, tmp_path):
         """RuntimeError is raised when template_repository is not set."""
         _write_template_yml(tmp_path, {"include": ["Makefile"]})
-        with (
-            patch("rhiza.commands.validate.validate", return_value=True),
-            pytest.raises(RuntimeError, match="template-repository is required"),
-        ):
+        with pytest.raises(RuntimeError, match="template-repository is required"):
             _load_template_from_project(tmp_path)
 
     def test_missing_template_branch_uses_fallback(self, tmp_path):
@@ -704,17 +705,13 @@ class TestFromProject:
         _write_template_yml(
             tmp_path, {"template-repository": "owner/repo", "template-branch": "develop", "include": ["Makefile"]}
         )
-        with patch("rhiza.commands.validate.validate", return_value=True):
-            template = _load_template_from_project(tmp_path)
+        template = _load_template_from_project(tmp_path)
         assert template.template_branch == "develop"
 
     def test_no_include_or_templates_raises(self, tmp_path):
         """RuntimeError is raised when neither include, templates, nor profile are configured."""
         _write_template_yml(tmp_path, {"template-repository": "owner/repo", "template-branch": "main"})
-        with (
-            patch("rhiza.commands.validate.validate", return_value=True),
-            pytest.raises(RuntimeError, match="No templates, profile, or include paths"),
-        ):
+        with pytest.raises(RuntimeError, match="No templates, profile, or include paths"):
             _load_template_from_project(tmp_path)
 
     def test_profiles_is_loaded_and_logged(self, tmp_path):
@@ -723,8 +720,7 @@ class TestFromProject:
             tmp_path,
             {"template-repository": "owner/repo", "template-branch": "main", "profiles": ["github-project"]},
         )
-        with patch("rhiza.commands.validate.validate", return_value=True):
-            template = _load_template_from_project(tmp_path)
+        template = _load_template_from_project(tmp_path)
         assert template.profiles == ["github-project"]
 
     def test_templates_list_is_logged(self, tmp_path):
@@ -733,8 +729,7 @@ class TestFromProject:
             tmp_path,
             {"template-repository": "owner/repo", "template-branch": "main", "templates": ["core"]},
         )
-        with patch("rhiza.commands.validate.validate", return_value=True):
-            template = _load_template_from_project(tmp_path)
+        template = _load_template_from_project(tmp_path)
         assert template.templates == ["core"]
 
     def test_exclude_list_is_logged(self, tmp_path):
@@ -748,8 +743,7 @@ class TestFromProject:
                 "exclude": ["secret.txt"],
             },
         )
-        with patch("rhiza.commands.validate.validate", return_value=True):
-            template = _load_template_from_project(tmp_path)
+        template = _load_template_from_project(tmp_path)
         assert template.exclude == ["secret.txt"]
 
 

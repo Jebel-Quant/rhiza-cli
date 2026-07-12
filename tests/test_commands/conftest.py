@@ -9,24 +9,10 @@ Security Notes:
 """
 
 import subprocess  # nosec B404
-from unittest.mock import patch
 
 import pytest
 
 from rhiza.models import GitContext
-
-
-@pytest.fixture(autouse=True)
-def stub_get_latest_tag():
-    """Stub out the remote ls-remote call so unit tests never hit the network.
-
-    Tests that need a specific tag value can override with their own patch.
-    Tests that need the real network call (e2e) can un-stub with
-    ``@patch('rhiza.commands.init._get_latest_tag', wraps=...)`` or by
-    marking the test with ``@pytest.mark.network``.
-    """
-    with patch("rhiza.commands.init._get_latest_tag", return_value=None):
-        yield
 
 
 @pytest.fixture

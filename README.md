@@ -21,10 +21,9 @@ Command-line interface for managing reusable configuration templates for modern 
 
 Rhiza is a CLI tool that helps you maintain consistent configuration across multiple Python projects by using templates stored in a central repository. It allows you to:
 
-- Initialize projects with standard configuration templates
 - Sync (inject) templates into target repositories
-- Validate template configurations
 - Keep project configurations synchronized with template repositories
+- Preview changes with a validating dry-run before applying them
 
 ## Table of Contents
 
@@ -32,7 +31,6 @@ Rhiza is a CLI tool that helps you maintain consistent configuration across mult
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Commands](#commands)
-  - [init](#rhiza-init)
   - [sync](#rhiza-sync)
 - [Configuration](#configuration)
 - [Examples](#examples)
@@ -76,7 +74,6 @@ With uvx, you don't need to install rhiza globally. Each time you run `uvx rhiza
 
 ```bash
 # Always uses the latest version
-uvx rhiza init
 uvx rhiza sync
 ```
 
@@ -110,18 +107,31 @@ rhiza --help
 
 ## Quick Start
 
-1. **Initialize a project with Rhiza templates:**
+1. **Create the template configuration:**
 
-   ```bash
-   cd your-project
-   rhiza init
+   Create a `.rhiza/template.yml` file in your project by hand. At a minimum it
+   must specify a `template-repository` and one of `include`, `templates`, or
+   `profiles`:
+
+   ```yaml
+   template-repository: jebel-quant/rhiza
+   include:
+     - .github
+     - .editorconfig
+     - .gitignore
+     - .pre-commit-config.yaml
+     - Makefile
+     - pytest.ini
    ```
 
-   This creates a `.rhiza/template.yml` file with default configuration.
+2. **Preview what would change (optional):**
 
-2. **Customize the template configuration:**
+   ```bash
+   rhiza sync --strategy diff
+   ```
 
-   Edit `.rhiza/template.yml` to specify which files/directories to include from your template repository.
+   This validates your configuration and shows what would change without
+   modifying any files.
 
 3. **Sync templates into your project:**
 
@@ -132,91 +142,6 @@ rhiza --help
    This fetches and copies template files into your project (first run) or applies updates via 3-way merge (subsequent runs).
 
 ## Commands
-
-### `rhiza init`
-
-Initialize or validate `.rhiza/template.yml` in a target directory.
-
-**Usage:**
-
-```bash
-rhiza init [OPTIONS] [TARGET]
-```
-
-**Arguments:**
-
-- `TARGET` - Target directory (defaults to current directory)
-
-**Options:**
-
-- `--project-name <name>` - Custom project name (defaults to directory name)
-- `--package-name <name>` - Custom package name (defaults to normalized project name)
-- `--with-dev-dependencies` - Include development dependencies in pyproject.toml
-- `--git-host <host>` - Target Git hosting platform (github or gitlab). Determines which CI/CD files to include. If not provided, will prompt interactively.
-- `--template-repository <owner/repo>` - Custom template repository (format: owner/repo). Defaults to 'jebel-quant/rhiza'.
-- `--template-branch <branch>` - Custom template branch. Defaults to 'main'.
-- `--path-to-template <directory>` - Directory where `template.yml` will be created (defaults to `<TARGET>/.rhiza`). Use `.` to keep the file in the project root.
-
-**Description:**
-
-Creates a default `.rhiza/template.yml` file if it doesn't exist, or validates an existing one. The default configuration includes common Python project files like `.github`, `.editorconfig`, `.gitignore`, `.pre-commit-config.yaml`, `Makefile`, and `pytest.ini`.
-
-You can customize the template source by specifying your own template repository and branch using the `--template-repository` and `--template-branch` options.
-
-**Examples:**
-
-```bash
-# Initialize in current directory
-rhiza init
-
-# Initialize in a specific directory
-rhiza init /path/to/project
-
-# Initialize with GitLab CI configuration
-rhiza init --git-host gitlab
-
-# Use a custom template repository
-rhiza init --template-repository myorg/my-templates
-
-# Use a custom template repository and branch
-rhiza init --template-repository myorg/my-templates --template-branch develop
-
-# Initialize in parent directory
-rhiza init ..
-
-# Create template.yml in a custom directory
-rhiza init --path-to-template /custom/rhiza
-
-# Create template.yml in the project root
-rhiza init --path-to-template .
-```
-
-**Output:**
-
-When creating a new template file:
-```
-[INFO] Initializing Rhiza configuration in: /path/to/project
-[INFO] Creating default .rhiza/template.yml
-✓ Created .rhiza/template.yml
-
-Next steps:
-  1. Review and customize .rhiza/template.yml to match your project needs
-  2. Run 'rhiza sync' to inject templates into your repository
-```
-
-When validating an existing file:
-```
-[INFO] Validating template configuration in: /path/to/project
-✓ Found template file: /path/to/project/.rhiza/template.yml
-✓ YAML syntax is valid
-✓ Field 'template-repository' is present and valid
-✓ Field 'include' is present and valid
-✓ template-repository format is valid: jebel-quant/rhiza
-✓ include list has 6 path(s)
-✓ Validation passed: template.yml is valid
-```
-
----
 
 ### `rhiza sync`
 
@@ -241,10 +166,16 @@ rhiza sync [OPTIONS] [TARGET]
 
 **Description:**
 
-Keeps your project in sync with the template repository:
+Keeps your project in sync with the template repository. It first loads and
+validates `.rhiza/template.yml`, raising a clear error if the file is missing,
+malformed, or missing required fields (`template-repository` and one of
+`include`/`templates`/`profiles`), then:
 
 - **First run (no lock file):** copies all template files and writes `.rhiza/template.lock`
 - **Subsequent runs:** computes diff (base → upstream) and applies it via `git apply -3` — local edits are preserved
+
+Use `rhiza sync --strategy diff` for a validating dry-run that shows what would
+change without modifying any files.
 
 `.rhiza/template.lock` is a YAML file that records the full state of the last sync:
 
@@ -439,11 +370,12 @@ cd my-python-project
 # Initialize git
 git init
 
-# Initialize Rhiza
-rhiza init
+# Create .rhiza/template.yml by hand (see the Configuration section)
+mkdir -p .rhiza
+$EDITOR .rhiza/template.yml
 
-# Review the generated template.yml
-cat .rhiza/template.yml
+# Preview what would be added (validating dry-run)
+rhiza sync --strategy diff
 
 # Sync templates
 rhiza sync
@@ -654,12 +586,11 @@ src/rhiza/
 ├── __init__.py         # Package initialization
 ├── __main__.py         # Entry point for python -m rhiza
 ├── cli.py              # Typer app and CLI command definitions
-├── models.py           # Data models (RhizaTemplate)
+├── models/             # Data models (RhizaTemplate, TemplateLock, …)
 └── commands/           # Command implementations
     ├── __init__.py
-    ├── init.py         # Initialize template.yml
     ├── sync.py         # Sync templates (primary command)
-    └── validate.py     # Validate configuration (internal helper for init/sync)
+    └── summarise.py    # Summarise template/bundle contents
 ```
 
 ### Design Principles
@@ -733,9 +664,9 @@ include:
 
 A: Not directly. However, you can run `rhiza sync` multiple times with different configurations, or combine templates manually.
 
-**Q: What's the difference between `rhiza init` and `rhiza sync`?**
+**Q: How do I create the `.rhiza/template.yml` configuration file?**
 
-A: `init` creates or validates the `.rhiza/template.yml` configuration file. `sync` reads that configuration and actually copies the template files into your project (and performs 3-way merges on subsequent runs).
+A: Create it by hand in the `.rhiza/` directory of your project. At a minimum it needs `template-repository` and one of `include`/`templates`/`profiles` (see the [Configuration](#configuration) section). Run `rhiza sync --strategy diff` for a validating dry-run to confirm it is correct before applying.
 
 **Q: How do I update my project's templates?**
 

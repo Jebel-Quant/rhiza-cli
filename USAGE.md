@@ -48,26 +48,17 @@ cd my-awesome-project
 # Initialize git repository
 git init
 
-# Initialize Rhiza
-rhiza init
-```
-
-You should see output like:
-```
-[INFO] Initializing Rhiza configuration in: /path/to/my-awesome-project
-[INFO] Creating default .rhiza/template.yml
-✓ Created .rhiza/template.yml
+# Create the Rhiza configuration by hand
+mkdir -p .rhiza
+$EDITOR .rhiza/template.yml
 ```
 
 ### Understanding the Configuration
 
-View the created configuration:
+Rhiza is driven by `.rhiza/template.yml`, which you create by hand. A minimal
+configuration must set `template-repository` and one of `include`, `templates`,
+or `profiles`:
 
-```bash
-cat .rhiza/template.yml
-```
-
-You'll see:
 ```yaml
 template-repository: jebel-quant/rhiza
 template-branch: main
@@ -81,6 +72,8 @@ include:
 ```
 
 This tells Rhiza to fetch these files from the `jebel-quant/rhiza` repository.
+`rhiza sync` validates this file every time it runs and reports a clear error if
+it is missing, malformed, or missing a required field.
 
 ### Syncing Templates
 
@@ -147,8 +140,9 @@ mkdir new-python-lib
 cd new-python-lib
 git init
 
-# 2. Initialize Rhiza
-rhiza init
+# 2. Create .rhiza/template.yml by hand (see "Understanding the Configuration")
+mkdir -p .rhiza
+$EDITOR .rhiza/template.yml
 
 # 3. Sync templates
 rhiza sync
@@ -174,11 +168,12 @@ git status
 # 3. Create feature branch
 git checkout -b add-rhiza-templates
 
-# 4. Initialize Rhiza
-rhiza init
-
-# 5. Review generated template.yml and customize if needed
+# 4. Create .rhiza/template.yml by hand and customize it
+mkdir -p .rhiza
 vim .rhiza/template.yml
+
+# 5. Preview what would change (validating dry-run)
+rhiza sync --strategy diff
 
 # 6. Sync templates
 rhiza sync
@@ -217,36 +212,6 @@ git checkout .
 ```
 
 ## Advanced Usage
-
-### Specifying Template Repository at Init
-
-By default, `rhiza init` creates a configuration that uses the `jebel-quant/rhiza` repository. You can specify your own template repository during initialization using the `--template-repository` option:
-
-```bash
-# Initialize with a custom template repository
-rhiza init --template-repository myorg/python-standards
-
-# Use a custom repository and branch
-rhiza init --template-repository myorg/python-standards --template-branch v2.0
-
-# Combine with other options
-rhiza init --git-host gitlab --template-repository myorg/gitlab-templates --template-branch production
-```
-
-This automatically creates a `.rhiza/template.yml` file configured to use your custom template, eliminating the need to manually edit the file afterwards.
-
-**Example workflow:**
-```bash
-mkdir my-project
-cd my-project
-git init
-
-# Initialize with your organization's template
-rhiza init --template-repository mycompany/python-templates --template-branch stable
-
-# Sync templates
-rhiza sync
-```
 
 ### Custom Template Repository
 
@@ -537,10 +502,7 @@ chmod +x .git/hooks/pre-commit
 Add Rhiza commands to your Makefile:
 
 ```makefile
-.PHONY: template-init template-update template-check
-
-template-init: ## Initialize Rhiza templates
-	rhiza init
+.PHONY: template-update template-check
 
 template-update: ## Update templates from repository
 	rhiza sync
@@ -553,7 +515,6 @@ template-check: ## Check template configuration (dry-run)
 Usage:
 
 ```bash
-make template-init
 make template-update
 make template-check
 ```
@@ -575,10 +536,7 @@ RUN pip install rhiza
 # Copy project
 COPY . .
 
-# Initialize templates if needed
-RUN if [ ! -f .rhiza/template.yml ]; then rhiza init; fi
-
-# Check configuration (dry-run)
+# Check configuration (validating dry-run)
 RUN rhiza sync --strategy diff
 
 CMD ["/bin/bash"]
