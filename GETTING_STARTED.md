@@ -8,7 +8,7 @@
 
 Think of it as **an autopilot for syncing hundreds of repos with one or more anchor repositories**. You decide which template repositories act as your anchor repositories — the default `jebel-quant/rhiza`, your organization’s custom templates, your personal hub, or a combination of sources.
 
-When your anchor templates evolve — new workflows, updated linting rules, or security improvements — Rhiza ensures all your projects stay in sync with **a single command** or automatically via scheduled materializations.
+When your anchor templates evolve — new workflows, updated linting rules, or security improvements — Rhiza ensures all your projects stay in sync with **a single command** or automatically via scheduled syncs.
 
 ---
 

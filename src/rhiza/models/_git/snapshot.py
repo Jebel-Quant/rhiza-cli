@@ -1,4 +1,4 @@
-"""Snapshot preparation helpers: expand, exclude, remap, and materialize files."""
+"""Snapshot preparation helpers: expand, exclude, remap, and copy files."""
 
 import os
 import shutil
@@ -102,7 +102,7 @@ def _prepare_snapshot(
         List of relative destination file paths that were copied.
     """
     effective_map = path_map or {}
-    materialized: list[Path] = []
+    template_files: list[Path] = []
     for f in _expand_paths(clone_dir, include_paths):
         rel_source = str(f.relative_to(clone_dir))
         if rel_source not in excludes:
@@ -110,5 +110,5 @@ def _prepare_snapshot(
             dst = snapshot_dir / rel_dest
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(f, dst)
-            materialized.append(Path(rel_dest))
-    return materialized
+            template_files.append(Path(rel_dest))
+    return template_files

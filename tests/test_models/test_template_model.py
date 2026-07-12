@@ -480,7 +480,7 @@ class TestRhizaTemplateSnapshot:
     """Tests for the _excluded_set and _prepare_snapshot module-level functions."""
 
     def test_snapshot_copies_included_files(self, tmp_path):
-        """_prepare_snapshot copies included files into snapshot_dir and returns them as materialized."""
+        """_prepare_snapshot copies included files into snapshot_dir and returns their paths."""
         upstream_dir = tmp_path / "upstream"
         upstream_dir.mkdir()
         (upstream_dir / "a.txt").write_text("content-a")
@@ -495,9 +495,9 @@ class TestRhizaTemplateSnapshot:
         )
 
         excludes = _excluded_set(upstream_dir, template.exclude)
-        materialized = _prepare_snapshot(upstream_dir, template.include, excludes, snapshot_dir)
+        template_files = _prepare_snapshot(upstream_dir, template.include, excludes, snapshot_dir)
 
-        assert len(materialized) == 2
+        assert len(template_files) == 2
         assert (snapshot_dir / "a.txt").read_text() == "content-a"
         assert (snapshot_dir / "b.txt").read_text() == "content-b"
 
@@ -518,9 +518,9 @@ class TestRhizaTemplateSnapshot:
         )
 
         excludes = _excluded_set(upstream_dir, template.exclude)
-        materialized = _prepare_snapshot(upstream_dir, template.include, excludes, snapshot_dir)
+        template_files = _prepare_snapshot(upstream_dir, template.include, excludes, snapshot_dir)
 
-        assert len(materialized) == 1
+        assert len(template_files) == 1
         assert (snapshot_dir / "keep.txt").exists()
         assert not (snapshot_dir / "skip.txt").exists()
         assert "skip.txt" in excludes

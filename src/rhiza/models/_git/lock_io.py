@@ -37,17 +37,17 @@ LOCK_FILE = ".rhiza/template.lock"
 # ---------------------------------------------------------------------------
 
 
-def _warn_about_workflow_files(materialized_files: list[Path]) -> None:
-    """Warn if workflow files were materialized.
+def _warn_about_workflow_files(template_files: list[Path]) -> None:
+    """Warn if the template provides workflow files.
 
     Args:
-        materialized_files: List of materialized file paths.
+        template_files: List of synced template file paths.
     """
-    workflow_files = [p for p in materialized_files if p.parts[:2] == (".github", "workflows")]
+    workflow_files = [p for p in template_files if p.parts[:2] == (".github", "workflows")]
 
     if workflow_files:
         logger.warning(
-            "Workflow files were materialized. Updating these files requires "
+            "Workflow files were synced. Updating these files requires "
             "a token with the 'workflow' permission in GitHub Actions."
         )
         logger.info(f"Workflow files affected: {len(workflow_files)}")
@@ -182,7 +182,7 @@ def _delete_orphaned_file(target: Path, file_path: Path) -> None:
 
 def _clean_orphaned_files(
     target: Path,
-    materialized_files: list[Path],
+    template_files: list[Path],
     base_snapshot: Path | None = None,
     excludes: set[str] | None = None,
     previously_tracked_files: set[Path] | None = None,
@@ -192,11 +192,11 @@ def _clean_orphaned_files(
 
     Files that are explicitly excluded via the ``exclude:`` setting in
     ``template.yml`` are never deleted even if they appear in a previous lock
-    but are absent from *materialized_files*.
+    but are absent from *template_files*.
 
     Args:
         target: Target repository path.
-        materialized_files: List of currently materialized files.
+        template_files: List of files currently provided by the template.
         base_snapshot: Optional directory containing the template snapshot at
             the previously-synced SHA.  Passed through to
             :func:`_read_previously_tracked_files` as a fallback when the lock
@@ -221,7 +221,7 @@ def _clean_orphaned_files(
 
     logger.debug(f"Found {len(previously_tracked_files)} file(s) in previous tracking")
 
-    orphaned_files = previously_tracked_files - set(materialized_files)
+    orphaned_files = previously_tracked_files - set(template_files)
 
     # Don't delete files that the user has explicitly excluded — they have
     # opted those files out of template management and want to keep them.

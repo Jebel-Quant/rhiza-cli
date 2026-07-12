@@ -415,7 +415,7 @@ class TestSyncOrphanedFiles:
         # Template now only includes new.txt (old.txt was removed from template.yml)
         _setup_project(tmp_path, include=["new.txt"])
 
-        # History from a previous materialize tracked both files
+        # History from a previous sync tracked both files
         _write_history(tmp_path, ["old.txt", "new.txt"])
 
         # Both files exist in the project
@@ -445,7 +445,7 @@ class TestSyncOrphanedFiles:
         # old.txt should be deleted as it is no longer in the template
         assert not (tmp_path / "old.txt").exists()
 
-        # template.lock should record the currently materialized files
+        # template.lock should record the currently synced files
         lock_content = TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock")
         assert lock_content.files == ["new.txt"]
 
@@ -1518,7 +1518,7 @@ class TestThreeWayMergeSyncMergeStrategy:
             upstream_snapshot=upstream_snapshot,
             upstream_sha="upstream_sha_456",
             base_sha="base_sha_123",
-            materialized=[Path("Makefile")],
+            template_files=[Path("Makefile")],
             template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
             excludes=set(),
             lock=TemplateLock(sha="upstream_sha_456"),
@@ -1555,7 +1555,7 @@ class TestThreeWayMergeSyncMergeStrategy:
             upstream_snapshot=upstream_snapshot,
             upstream_sha="first_sha_abc",
             base_sha=None,
-            materialized=[Path("Makefile")],
+            template_files=[Path("Makefile")],
             template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
             excludes=set(),
             lock=TemplateLock(sha="first_sha_abc"),
@@ -1577,7 +1577,7 @@ class TestThreeWayMergeSyncMergeStrategy:
         project_with_template,
         git_ctx,
     ):
-        """Files in materialized but absent from target are restored after merge.
+        """Files in template_files but absent from target are restored after merge.
 
         This covers the scenario where the template snapshot is unchanged since
         the last sync (no diff to apply) but some template-managed files do not
@@ -1615,7 +1615,7 @@ class TestThreeWayMergeSyncMergeStrategy:
             upstream_snapshot=upstream_snapshot,
             upstream_sha="upstream_sha_456",
             base_sha="base_sha_123",
-            materialized=[Path("Makefile"), Path("LICENSE")],
+            template_files=[Path("Makefile"), Path("LICENSE")],
             template=RhizaTemplate(template_repository="example/repo", include=["Makefile", "LICENSE"]),
             excludes=set(),
             lock=TemplateLock(sha="upstream_sha_456", files=["Makefile", "LICENSE"]),
@@ -1781,7 +1781,7 @@ class TestCleanOrphanedFiles:
         # Should complete without error and delete nothing
 
     def test_deletes_orphaned_files(self, tmp_path):
-        """Files in the lock but not in materialized are deleted."""
+        """Files in the lock but not in template_files are deleted."""
         # Create a file that was previously tracked
         old_file = tmp_path / "old-file.txt"
         old_file.write_text("old content")
@@ -1856,17 +1856,17 @@ class TestCleanOrphanedFiles:
             _delete_orphaned_file(tmp_path, file_path)
 
     def test_no_orphaned_files_returns_early(self, tmp_path):
-        """When all tracked files are still materialized, no deletions happen."""
+        """When all tracked files are still provided by the template, no deletions happen."""
         rhiza_dir = tmp_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         history_file = rhiza_dir / "history"
         history_file.write_text("file_a.txt\nfile_b.txt\n")
 
-        # All tracked files are also in materialized_files → no orphans
-        materialized = [Path("file_a.txt"), Path("file_b.txt")]
+        # All tracked files are also in template_files → no orphans
+        template_files = [Path("file_a.txt"), Path("file_b.txt")]
 
         # Should not raise or delete anything
-        _clean_orphaned_files(tmp_path, materialized)
+        _clean_orphaned_files(tmp_path, template_files)
 
     def test_returns_files_from_template_lock(self, tmp_path):
         """Files listed in template.lock are returned."""
@@ -1997,7 +1997,7 @@ class TestReadPreviouslyTrackedFilesWithBaseSnapshot:
         base_snapshot.mkdir()
         (base_snapshot / "old-template-file.txt").write_text("old content")
 
-        # Materialize does NOT include old-template-file.txt → it's an orphan
+        # The template file set does NOT include old-template-file.txt → it's an orphan
         _clean_orphaned_files(tmp_path, [Path("Makefile")], base_snapshot=base_snapshot)
 
         assert not old_file.exists(), "orphaned file should have been deleted via base_snapshot reconstruction"

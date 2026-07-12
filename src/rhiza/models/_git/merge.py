@@ -336,15 +336,15 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
         if not rej_files and not marker_files:
             logger.warning("Some changes could not be applied cleanly — check the working tree for partial edits.")
 
-    def _copy_files_to_target(self, snapshot_dir: Path, target: Path, materialized: list[Path]) -> None:
-        """Copy all materialized files from a snapshot into the target project.
+    def _copy_files_to_target(self, snapshot_dir: Path, target: Path, template_files: list[Path]) -> None:
+        """Copy all template files from a snapshot into the target project.
 
         Args:
             snapshot_dir: Directory containing the snapshot files.
             target: Path to the target repository.
-            materialized: List of relative file paths to copy.
+            template_files: List of relative file paths to copy.
         """
-        for rel_path in sorted(materialized):
+        for rel_path in sorted(template_files):
             src = snapshot_dir / rel_path
             dst = target / rel_path
             dst.parent.mkdir(parents=True, exist_ok=True)
@@ -357,7 +357,7 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
         upstream_snapshot: Path,
         upstream_sha: str,
         base_sha: str | None,
-        materialized: list[Path],
+        template_files: list[Path],
         template: "RhizaTemplate",
         excludes: set[str],
         lock: "TemplateLock",
@@ -375,7 +375,7 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
             upstream_snapshot: Path to the upstream snapshot directory.
             upstream_sha: HEAD SHA of the upstream template.
             base_sha: Previously synced commit SHA, or None for first sync.
-            materialized: List of relative file paths.
+            template_files: List of relative file paths.
             template: The :class:`~rhiza.models.RhizaTemplate` driving this sync.
             excludes: Set of relative paths to exclude.
             lock: Pre-built :class:`~rhiza.models.TemplateLock` for this sync.
@@ -411,29 +411,29 @@ class MergeMixin(RemoteOpsMixin, DiffMixin):
                 )
             else:
                 logger.info("First sync — copying all template files")
-                self._copy_files_to_target(upstream_snapshot, target, materialized)
+                self._copy_files_to_target(upstream_snapshot, target, template_files)
 
             # Restore any template-managed files that are absent from the target.
             # This can happen when files tracked by the template do not exist in the
             # downstream repository — for example when the template snapshot was
             # unchanged since the last sync so no diff was applied, but the files
             # were never present or were manually deleted.
-            missing_from_target = [p for p in materialized if not (target / p).exists()]
+            missing_from_target = [p for p in template_files if not (target / p).exists()]
             if missing_from_target:
                 logger.info(f"Restoring {len(missing_from_target)} template file(s) missing from target")
                 self._copy_files_to_target(upstream_snapshot, target, missing_from_target)
 
-            lock_io._warn_about_workflow_files(materialized)
+            lock_io._warn_about_workflow_files(template_files)
             lock_io._clean_orphaned_files(
                 target,
-                materialized,
+                template_files,
                 excludes=excludes,
                 base_snapshot=base_snapshot,
                 previously_tracked_files=old_tracked_files if old_tracked_files else None,
                 lock_file=lock_file,
             )
             lock_io._write_lock(target, lock, lock_file=lock_file)
-            logger.success(f"Sync complete — {len(materialized)} file(s) processed")
+            logger.success(f"Sync complete — {len(template_files)} file(s) processed")
         finally:
             if base_snapshot.exists():
                 shutil.rmtree(base_snapshot)

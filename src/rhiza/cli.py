@@ -17,7 +17,6 @@ from rhiza import __version__
 from rhiza.commands import init as init_cmd
 from rhiza.commands import validate as validate_cmd
 from rhiza.commands.list_repos import list_repos as list_repos_cmd
-from rhiza.commands.migrate import migrate as migrate_cmd
 from rhiza.commands.status import status as status_cmd
 from rhiza.commands.summarise import SummariseOptions
 from rhiza.commands.summarise import summarise as summarise_cmd
@@ -232,7 +231,7 @@ def sync(
     r"""Sync templates using diff/merge, preserving local customisations.
 
     This is the primary command for keeping your project up to date with
-    the template repository. It replaces the deprecated ``materialize`` command.
+    the template repository.
 
     On **first sync** (no lock file) the command copies all template files and
     records the current template HEAD in `.rhiza/template.lock`.  On
@@ -365,42 +364,6 @@ def validate(
         template_file = path_to_template / "template.yml"
     if not validate_cmd(target, template_file=template_file):
         raise typer.Exit(code=1)
-
-
-@app.command()
-def migrate(
-    target: Annotated[
-        Path,
-        typer.Argument(
-            exists=True,
-            file_okay=False,
-            dir_okay=True,
-            help="Target git repository (defaults to current directory)",
-        ),
-    ] = Path("."),
-) -> None:
-    r"""Migrate project to the new .rhiza folder structure.
-
-    This command helps transition projects to use the new `.rhiza/` folder
-    structure for storing Rhiza state and configuration files. It performs
-    the following migrations:
-
-    - Creates the `.rhiza/` directory in the project root
-    - Moves `.github/rhiza/template.yml` or `.github/template.yml` to `.rhiza/template.yml`
-    - Moves `.rhiza.history` to `.rhiza/history`
-
-    The new `.rhiza/` folder structure separates Rhiza's state and configuration
-    from the `.github/` directory, providing better organization.
-
-    If files already exist in `.rhiza/`, the migration will skip them and leave
-    the old files in place. You can manually remove old files after verifying
-    the migration was successful.
-
-    Examples:
-        rhiza migrate
-        rhiza migrate /path/to/project
-    """
-    migrate_cmd(target)
 
 
 @app.command(name="list")
