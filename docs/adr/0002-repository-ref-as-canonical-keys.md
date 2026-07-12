@@ -51,7 +51,7 @@ compatibility with existing `.rhiza/template.yml` files in downstream projects.
 - Internal model attributes, CLI flags, and YAML keys share the same vocabulary,
   reducing cognitive load.
 - `ref` correctly signals that tags and SHAs are valid values, not just branch names.
-- Existing projects continue to work without any migration step.
+- Existing projects continue to work without any conversion step.
 
 **Negative**
 

@@ -3,13 +3,13 @@
 Rhiza is a command-line interface (CLI) that helps you maintain consistent
 configuration across multiple Python projects using templates stored in a
 central repository. It can initialize projects with standard configuration,
-materialize (inject) template files into a target repository, and validate the
+sync (inject) template files into a target repository, and validate the
 template configuration.
 
 ## Key features
 
 - Template initialization for new or existing projects.
-- Template materialization with selective include/exclude support.
+- Template sync with selective include/exclude support.
 - Configuration validation (syntax and basic semantics).
 - Multi-host support (GitHub and GitLab).
 

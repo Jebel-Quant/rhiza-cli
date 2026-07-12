@@ -6,7 +6,7 @@ This package decomposes what was historically a single ~1000-LOC
 - :mod:`rhiza.models._git.remote` — clone / sparse-checkout / HEAD resolution
 - :mod:`rhiza.models._git.diff` — diff computation and parsing
 - :mod:`rhiza.models._git.merge` — the 3-way merge strategy
-- :mod:`rhiza.models._git.snapshot` — snapshot materialization helpers
+- :mod:`rhiza.models._git.snapshot` — snapshot preparation helpers
 - :mod:`rhiza.models._git.helpers` — module-level git/text helpers
 - :mod:`rhiza.models._git.context` — the public :class:`GitContext` facade
 """

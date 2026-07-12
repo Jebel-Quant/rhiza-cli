@@ -135,7 +135,7 @@ endef
 export RHIZA_LOGO
 
 # Declare phony targets for Rhiza Core
-.PHONY: print-logo sync sync-experimental materialize validate readme pre-sync post-sync pre-validate post-validate _apply-sync-schedule
+.PHONY: print-logo sync sync-experimental validate readme pre-sync post-sync pre-validate post-validate _apply-sync-schedule
 
 # Hook targets (double-colon rules allow multiple definitions)
 # Note: pre-install/post-install are defined in bootstrap.mk
@@ -172,11 +172,6 @@ _apply-sync-schedule: ## (internal) apply RHIZA_SYNC_SCHEDULE override to GitHub
 		sed -i.bak "s|cron: '[^']*'|cron: '$(RHIZA_SYNC_SCHEDULE)'|" .github/workflows/rhiza_sync.yml && rm -f .github/workflows/rhiza_sync.yml.bak; \
 		printf "${BLUE}[INFO] Applied custom sync schedule: $(RHIZA_SYNC_SCHEDULE)${RESET}\n"; \
 	fi
-
-materialize: ## [DEPRECATED] use 'make sync' instead — materialize --force is now sync
-	@printf "${YELLOW}[WARN] 'make materialize' is deprecated and will be removed in a future release.${RESET}\n"
-	@printf "${YELLOW}[WARN] Please use 'make sync' instead (e.g. 'materialize --force' is now 'make sync').${RESET}\n"
-	@$(MAKE) sync
 
 summarise-sync: install-uv ## summarise differences created by sync with template repository
 	@if [ -n "$(IS_MOTHER_REPO)" ]; then \

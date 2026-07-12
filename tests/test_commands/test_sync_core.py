@@ -206,7 +206,7 @@ class TestSyncCore:
         # clone() resolves "core" to ["Makefile", "pyproject.toml"] and would mutate
         # template.include; those resolved paths must NOT appear here.
         assert lock.include == []
-        # The resolved file paths should appear in files: (materialized from snapshot)
+        # The resolved file paths should appear in files: (copied from snapshot)
         assert "Makefile" in lock.files
 
     @patch("rhiza.commands.sync.shutil.rmtree")

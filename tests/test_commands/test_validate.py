@@ -182,13 +182,13 @@ class TestValidateCommand:
         result = validate(git_path)
         assert result is True
 
-    def test_validate_succeeds_with_migrated_location(self, git_path):
-        """Test that validate succeeds when template.yml is in migrated .rhiza location."""
+    def test_validate_succeeds_with_rhiza_location(self, git_path):
+        """Test that validate succeeds when template.yml is in the .rhiza location."""
         # Create pyproject.toml
         pyproject_file = git_path / "pyproject.toml"
         pyproject_file.write_text("[project]\nname = 'test'\n")
 
-        # Create valid template in migrated location (.rhiza/template.yml)
+        # Create valid template in the .rhiza location (.rhiza/template.yml)
         rhiza_dir = git_path / ".rhiza"
         rhiza_dir.mkdir(parents=True)
         template_file = rhiza_dir / "template.yml"

@@ -2,7 +2,7 @@
 
 This module holds the project-scaffolding helpers used by
 :func:`rhiza.commands.init.init` — naming/profile utilities and the
-``_create_*`` functions that materialise individual project files
+``_create_*`` functions that create individual project files
 (package structure, ``pyproject.toml``, ``Makefile``, ``mkdocs.yml``,
 ``README.md``) and the ``template.yml`` file itself.
 

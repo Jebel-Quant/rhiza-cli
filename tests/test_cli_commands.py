@@ -377,14 +377,3 @@ class TestCommandFailureMessages:
         result = self.runner.invoke(app, ["tree", str(tmp_path)])
         assert result.exit_code == 0
         assert any("run `rhiza sync` first" in m for m in loguru_messages)
-
-    def test_migrate_has_no_failure_exit_path(self, tmp_path):
-        """Migrate is best-effort and idempotent: it exits 0 even with nothing to migrate.
-
-        Unlike the other commands, ``rhiza migrate`` deliberately has no
-        non-zero exit path — it skips files that already exist and reports what
-        it did. This test documents that contract so a future change that adds
-        a failure exit is a conscious decision, not an accident.
-        """
-        result = self.runner.invoke(app, ["migrate", str(_init_git_repo(tmp_path / "repo"))])
-        assert result.exit_code == 0

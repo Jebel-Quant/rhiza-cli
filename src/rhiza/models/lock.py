@@ -22,7 +22,7 @@ class TemplateLock(YamlSerializable):
         templates: List of template bundle names.
         files: List of file paths that were synced.
         synced_at: ISO 8601 UTC timestamp of when the sync was performed.
-        strategy: The sync strategy used (e.g., "merge", "diff", "materialize").
+        strategy: The sync strategy used (e.g., "merge", "diff").
     """
 
     sha: str

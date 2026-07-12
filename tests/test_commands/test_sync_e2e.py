@@ -119,14 +119,14 @@ class TestSyncE2ETypicalWorkflow:
     """End-to-end tests for the typical first-then-subsequent-sync workflow."""
 
     def test_first_sync_copies_all_template_files(self, project, git_ctx, tmp_path):
-        """First sync (no lock file) copies every materialized template file into target."""
+        """First sync (no lock file) copies every template file into target."""
         upstream = tmp_path / "upstream"
         upstream.mkdir()
         (upstream / "Makefile").write_text("install:\n\tpip install .\n")
         (upstream / "config.py").write_text("version = 1\n")
         (upstream / "README.md").write_text("# My Project\n")
 
-        materialized = [Path("Makefile"), Path("config.py"), Path("README.md")]
+        template_files = [Path("Makefile"), Path("config.py"), Path("README.md")]
 
         with patch("rhiza.models._git_utils.GitContext.clone_at_sha"):
             git_ctx.sync_merge(
@@ -134,12 +134,12 @@ class TestSyncE2ETypicalWorkflow:
                 upstream_snapshot=upstream,
                 upstream_sha="sha_v1",
                 base_sha=None,
-                materialized=materialized,
+                template_files=template_files,
                 template=RhizaTemplate(
                     template_repository="example/repo", include=["Makefile", "config.py", "README.md"]
                 ),
                 excludes=set(),
-                lock=_make_lock("sha_v1", [str(p) for p in materialized]),
+                lock=_make_lock("sha_v1", [str(p) for p in template_files]),
             )
 
         assert (project / "Makefile").exists()
@@ -174,7 +174,7 @@ class TestSyncE2ETypicalWorkflow:
         (upstream_v1 / "config.py").write_text("version = 1\napi = 'default'\n")
         (upstream_v1 / "README.md").write_text("# My Project\n")
 
-        materialized_v1 = [Path("Makefile"), Path("config.py"), Path("README.md")]
+        template_files_v1 = [Path("Makefile"), Path("config.py"), Path("README.md")]
 
         with patch("rhiza.models._git_utils.GitContext.clone_at_sha"):
             git_ctx.sync_merge(
@@ -182,12 +182,12 @@ class TestSyncE2ETypicalWorkflow:
                 upstream_snapshot=upstream_v1,
                 upstream_sha="sha_v1",
                 base_sha=None,
-                materialized=materialized_v1,
+                template_files=template_files_v1,
                 template=RhizaTemplate(
                     template_repository="example/repo", include=["Makefile", "config.py", "README.md"]
                 ),
                 excludes=set(),
-                lock=_make_lock("sha_v1", [str(p) for p in materialized_v1]),
+                lock=_make_lock("sha_v1", [str(p) for p in template_files_v1]),
             )
 
         assert (project / "README.md").exists()
@@ -207,7 +207,7 @@ class TestSyncE2ETypicalWorkflow:
         (upstream_v2 / "config.py").write_text("version = 1\napi = 'default'\n")
         (upstream_v2 / "new.yml").write_text("feature: enabled\n")
 
-        materialized_v2 = [Path("Makefile"), Path("config.py"), Path("new.yml")]
+        template_files_v2 = [Path("Makefile"), Path("config.py"), Path("new.yml")]
 
         def populate_base(git_url, sha, dest, include_paths):
             """Populate the base-snapshot directory with template v1 content."""
@@ -221,12 +221,12 @@ class TestSyncE2ETypicalWorkflow:
                 upstream_snapshot=upstream_v2,
                 upstream_sha="sha_v2",
                 base_sha="sha_v1",
-                materialized=materialized_v2,
+                template_files=template_files_v2,
                 template=RhizaTemplate(
                     template_repository="example/repo", include=["Makefile", "config.py", "new.yml"]
                 ),
                 excludes=set(),
-                lock=_make_lock("sha_v2", [str(p) for p in materialized_v2]),
+                lock=_make_lock("sha_v2", [str(p) for p in template_files_v2]),
             )
 
         # Template added a ``test`` target to Makefile.
@@ -267,7 +267,7 @@ class TestSyncE2EOrphanedFiles:
         (upstream_v1 / "file_a.txt").write_text("content a\n")
         (upstream_v1 / "file_b.txt").write_text("content b\n")
 
-        materialized_v1 = [Path("file_a.txt"), Path("file_b.txt")]
+        template_files_v1 = [Path("file_a.txt"), Path("file_b.txt")]
 
         with patch("rhiza.models._git_utils.GitContext.clone_at_sha"):
             git_ctx.sync_merge(
@@ -275,7 +275,7 @@ class TestSyncE2EOrphanedFiles:
                 upstream_snapshot=upstream_v1,
                 upstream_sha="sha_v1",
                 base_sha=None,
-                materialized=materialized_v1,
+                template_files=template_files_v1,
                 template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
                 excludes=set(),
                 lock=_make_lock("sha_v1", ["file_a.txt", "file_b.txt"]),
@@ -289,7 +289,7 @@ class TestSyncE2EOrphanedFiles:
         upstream_v2.mkdir()
         (upstream_v2 / "file_a.txt").write_text("content a updated\n")
 
-        materialized_v2 = [Path("file_a.txt")]
+        template_files_v2 = [Path("file_a.txt")]
 
         def populate_base(git_url, sha, dest, include_paths):
             """Populate the base snapshot with fixture content."""
@@ -302,7 +302,7 @@ class TestSyncE2EOrphanedFiles:
                 upstream_snapshot=upstream_v2,
                 upstream_sha="sha_v2",
                 base_sha="sha_v1",
-                materialized=materialized_v2,
+                template_files=template_files_v2,
                 template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt"]),
                 excludes=set(),
                 lock=_make_lock("sha_v2", ["file_a.txt"]),
@@ -342,7 +342,7 @@ class TestSyncE2EThreeWayMerge:
                 upstream_snapshot=upstream_v1,
                 upstream_sha="sha_v1",
                 base_sha=None,
-                materialized=[Path("config.py")],
+                template_files=[Path("config.py")],
                 template=RhizaTemplate(template_repository="example/repo", include=["config.py"]),
                 excludes=set(),
                 lock=_make_lock("sha_v1", ["config.py"]),
@@ -369,7 +369,7 @@ class TestSyncE2EThreeWayMerge:
                 upstream_snapshot=upstream_v2,
                 upstream_sha="sha_v2",
                 base_sha="sha_v1",
-                materialized=[Path("config.py")],
+                template_files=[Path("config.py")],
                 template=RhizaTemplate(template_repository="example/repo", include=["config.py"]),
                 excludes=set(),
                 lock=_make_lock("sha_v2", ["config.py"]),
@@ -412,7 +412,7 @@ class TestSyncE2EExcludedFiles:
                 upstream_snapshot=upstream,
                 upstream_sha="sha_v1",
                 base_sha=None,
-                materialized=[Path("Makefile")],
+                template_files=[Path("Makefile")],
                 template=RhizaTemplate(template_repository="example/repo", include=["Makefile"]),
                 excludes=set(),
                 lock=_make_lock("sha_v1", ["Makefile"]),
@@ -427,7 +427,7 @@ class TestSyncE2EExcludedFiles:
         Timeline:
         - Sync 1 (no excludes): file_a.txt and file_b.txt both tracked.
         - User adds file_b.txt to the ``exclude:`` list.
-        - Sync 2: file_b.txt is excluded (not in materialized), but it is
+        - Sync 2: file_b.txt is excluded (not in template_files), but it is
           also in ``excludes``, so the orphan-cleanup must leave it alone.
         """
         # First sync: both files tracked.
@@ -436,7 +436,7 @@ class TestSyncE2EExcludedFiles:
         (upstream_v1 / "file_a.txt").write_text("content a\n")
         (upstream_v1 / "file_b.txt").write_text("content b\n")
 
-        materialized_v1 = [Path("file_a.txt"), Path("file_b.txt")]
+        template_files_v1 = [Path("file_a.txt"), Path("file_b.txt")]
 
         with patch("rhiza.models._git_utils.GitContext.clone_at_sha"):
             git_ctx.sync_merge(
@@ -444,7 +444,7 @@ class TestSyncE2EExcludedFiles:
                 upstream_snapshot=upstream_v1,
                 upstream_sha="sha_v1",
                 base_sha=None,
-                materialized=materialized_v1,
+                template_files=template_files_v1,
                 template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
                 excludes=set(),
                 lock=_make_lock("sha_v1", ["file_a.txt", "file_b.txt"]),
@@ -459,7 +459,7 @@ class TestSyncE2EExcludedFiles:
         (upstream_v2 / "file_a.txt").write_text("content a updated\n")
         (upstream_v2 / "file_b.txt").write_text("content b\n")  # still in template
 
-        materialized_v2 = [Path("file_a.txt")]  # file_b excluded from materialized
+        template_files_v2 = [Path("file_a.txt")]  # file_b excluded from template_files
 
         def populate_base(git_url, sha, dest, include_paths):
             """Populate the base snapshot with fixture content."""
@@ -472,7 +472,7 @@ class TestSyncE2EExcludedFiles:
                 upstream_snapshot=upstream_v2,
                 upstream_sha="sha_v2",
                 base_sha="sha_v1",
-                materialized=materialized_v2,
+                template_files=template_files_v2,
                 template=RhizaTemplate(template_repository="example/repo", include=["file_a.txt", "file_b.txt"]),
                 excludes={"file_b.txt"},  # user excluded file_b.txt
                 lock=_make_lock("sha_v2", ["file_a.txt"]),
@@ -589,7 +589,7 @@ class TestSyncE2EUpdatedTemplateYml:
         - template.yml v1: ``include: [file_a.txt, file_b.txt]``
         - Sync 1: both files copied into project.
         - User edits template.yml: ``include: [file_a.txt]``  (``file_b.txt`` removed)
-        - Sync 2: ``file_b.txt`` is no longer in the materialized set; orphan
+        - Sync 2: ``file_b.txt`` is no longer in the template file set; orphan
           cleanup deletes it from the project.
 
         Expected after sync 2: ``file_b.txt`` is gone; ``file_a.txt`` remains.

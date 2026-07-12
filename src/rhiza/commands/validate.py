@@ -1,7 +1,7 @@
 """Command for validating Rhiza template configuration.
 
 This module provides functionality to validate template.yml files in the
-.rhiza/template.yml location (new standard location after migration).
+.rhiza/template.yml location (the standard location).
 """
 
 from pathlib import Path
@@ -79,10 +79,8 @@ def _check_template_file_exists(target: Path, template_file: Path | None = None)
         logger.info("")
         logger.info("To fix this:")
         logger.info("  • If you're starting fresh, run: rhiza init")
-        logger.info("  • If you have an existing configuration, run: rhiza migrate")
-        logger.info("")
-        logger.info("The 'rhiza migrate' command will move your configuration from")
-        logger.info("  the old location → .rhiza/template.yml")
+        logger.info("  • If you have an existing configuration in an old location,")
+        logger.info("    move it to .rhiza/template.yml")
         return False, template_file
 
     try:
@@ -233,7 +231,7 @@ def _validate_templates(config: dict[str, Any]) -> bool:
         return False
     elif len(templates) == 0:
         logger.error("templates list cannot be empty")
-        logger.error("Add at least one template to materialize")
+        logger.error("Add at least one template to sync")
         return False
     else:
         logger.success(f"templates list has {len(templates)} template(s)")
@@ -337,7 +335,7 @@ def _validate_include_paths(config: dict[str, Any]) -> bool:
         return False
     elif len(include) == 0:
         logger.error("include list cannot be empty")
-        logger.error("Add at least one path to materialize")
+        logger.error("Add at least one path to sync")
         return False
     else:
         logger.success(f"include list has {len(include)} path(s)")

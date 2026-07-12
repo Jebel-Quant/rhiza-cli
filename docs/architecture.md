@@ -27,7 +27,6 @@ The package lives under `src/rhiza/` and splits cleanly into three layers:
 | `tree.py` | `rhiza tree` | Show the resolved file tree a sync would manage. |
 | `list_repos.py` | `rhiza list` | List bundles/profiles available in the template repo. |
 | `summarise.py` | `rhiza summarise` | Summarise template/bundle contents. |
-| `migrate.py` | `rhiza migrate` | Migrate older config layouts to the current schema. |
 | `uninstall.py` | `rhiza uninstall` | Remove Rhiza-managed files from a project. |
 
 ### Models (`src/rhiza/models/`)
@@ -66,7 +65,7 @@ sequenceDiagram
     Cmd->>G: _clone_template() — sparse clone @ ref
     G->>T: resolve profiles → bundles → paths
     Cmd->>L: read base SHA from template.lock
-    Cmd->>G: _prepare_snapshot() — materialise upstream files
+    Cmd->>G: _prepare_snapshot() — copy upstream files
     Cmd->>L: build new TemplateLock
     alt strategy == "diff"
         Cmd->>G: sync_diff() — dry-run, show changes
@@ -96,7 +95,7 @@ Step by step:
      concrete paths** via `RhizaBundles`, then narrows the sparse checkout to
      exactly those paths.
    - The previously-synced **base SHA** is read from `TemplateLock`, and
-     `_prepare_snapshot` materialises the upstream files (applying `exclude`
+     `_prepare_snapshot` copies the upstream files (applying `exclude`
      paths and any path remaps) into a temp snapshot.
 3. **The merge engine** — `GitContext.sync_merge` (`models/_git_utils.py:471`)
    does the 3-way merge: `_merge_with_base` clones the base snapshot at
