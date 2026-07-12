@@ -11,18 +11,13 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-import yaml
 
 from rhiza import __version__
 from rhiza.commands import init as init_cmd
-from rhiza.commands import validate as validate_cmd
 from rhiza.commands.list_repos import list_repos as list_repos_cmd
-from rhiza.commands.status import status as status_cmd
 from rhiza.commands.summarise import SummariseOptions
 from rhiza.commands.summarise import summarise as summarise_cmd
 from rhiza.commands.sync import sync as sync_cmd
-from rhiza.commands.tree import tree as tree_cmd
-from rhiza.commands.uninstall import uninstall as uninstall_cmd
 
 
 @contextmanager
@@ -277,95 +272,6 @@ def sync(
         sync_cmd(target, branch, target_branch, strategy, template_file=template_file, lock_file=lock_file)
 
 
-@app.command()
-def status(
-    target: Annotated[
-        Path,
-        typer.Argument(
-            help="Path to target repository",
-        ),
-    ] = Path("."),
-) -> None:
-    """Show the current sync status from template.lock."""
-    with _exit_on_error(FileNotFoundError, ValueError, TypeError, yaml.YAMLError):
-        status_cmd(target.resolve())
-
-
-@app.command()
-def tree(
-    target: Annotated[
-        Path,
-        typer.Argument(
-            help="Path to target repository",
-        ),
-    ] = Path("."),
-) -> None:
-    r"""List files managed by Rhiza in a tree-style view.
-
-    Reads .rhiza/template.lock and displays the files that were synced
-    from the template repository as a directory tree.
-
-    Examples:
-        rhiza tree
-        rhiza tree /path/to/project
-    """
-    with _exit_on_error(FileNotFoundError, ValueError, TypeError, yaml.YAMLError):
-        tree_cmd(target.resolve())
-
-
-@app.command()
-def validate(
-    target: Annotated[
-        Path,
-        typer.Argument(
-            exists=True,
-            file_okay=False,
-            dir_okay=True,
-            help="Target git repository (defaults to current directory)",
-        ),
-    ] = Path("."),
-    path_to_template: Annotated[
-        Path | None,
-        typer.Option(
-            "--path-to-template",
-            help=(
-                "Directory containing template.yml "
-                "(defaults to <TARGET>/.rhiza). "
-                "Use '.' to keep the file in the project root."
-            ),
-        ),
-    ] = None,
-) -> None:
-    r"""Validate Rhiza template configuration.
-
-    Validates the .rhiza/template.yml file to ensure it is syntactically
-    correct and semantically valid.
-
-    Performs comprehensive validation:
-    - Checks if template.yml exists
-    - Validates YAML syntax
-    - Verifies required fields are present (template-repository, include)
-    - Validates field types and formats
-    - Ensures repository name follows owner/repo format
-    - Confirms include paths are not empty
-
-
-    Returns exit code 0 on success, 1 on validation failure.
-
-    Examples:
-        rhiza validate
-        rhiza validate /path/to/project
-        rhiza validate ..
-        rhiza validate --path-to-template /custom/rhiza
-        rhiza validate --path-to-template .
-    """
-    template_file = None
-    if path_to_template is not None:
-        template_file = path_to_template / "template.yml"
-    if not validate_cmd(target, template_file=template_file):
-        raise typer.Exit(code=1)
-
-
 @app.command(name="list")
 def list_repos(
     topic: str = typer.Option(
@@ -389,50 +295,6 @@ def list_repos(
     """
     if not list_repos_cmd(topic):
         raise typer.Exit(code=1)
-
-
-@app.command()
-def uninstall(
-    target: Annotated[
-        Path,
-        typer.Argument(
-            exists=True,
-            file_okay=False,
-            dir_okay=True,
-            help="Target git repository (defaults to current directory)",
-        ),
-    ] = Path("."),
-    force: bool = typer.Option(
-        False,
-        "--force",
-        "-y",
-        help="Skip confirmation prompt and proceed with deletion",
-    ),
-) -> None:
-    r"""Remove all Rhiza-managed files from the repository.
-
-    Reads the `.rhiza/history` file and removes all files that were
-    previously synced by Rhiza templates. This provides a clean
-    way to uninstall all template-managed files from a project.
-
-    The command will:
-    - Read the list of files from `.rhiza.history`
-    - Prompt for confirmation (unless --force is used)
-    - Delete all listed files that exist
-    - Remove empty directories left behind
-    - Delete the `.rhiza.history` file itself
-
-    Use this command when you want to completely remove Rhiza templates
-    from your project.
-
-    Examples:
-        rhiza uninstall
-        rhiza uninstall --force
-        rhiza uninstall /path/to/project
-        rhiza uninstall /path/to/project -y
-    """
-    with _exit_on_error(RuntimeError):
-        uninstall_cmd(target, force)
 
 
 @app.command()

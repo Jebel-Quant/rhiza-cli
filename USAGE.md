@@ -158,9 +158,6 @@ git status
 git diff
 git add .
 git commit -m "feat: initial project setup with rhiza"
-
-# 5. Validate everything is correct
-rhiza validate
 ```
 
 ### Workflow 2: Updating Existing Project
@@ -205,20 +202,17 @@ Periodically update your project's templates:
 # 1. Create update branch
 git checkout -b update-templates
 
-# 2. Validate current configuration
-rhiza validate
-
-# 3. Update templates
+# 2. Update templates (validates the configuration before applying changes)
 rhiza sync
 
-# 4. Review changes
+# 3. Review changes
 git diff
 
-# 5. If changes look good, commit
+# 4. If changes look good, commit
 git add .
 git commit -m "chore: update rhiza templates to latest"
 
-# 6. If not, revert
+# 5. If not, revert
 git checkout .
 ```
 
@@ -347,13 +341,14 @@ include:
   - Makefile
 ```
 
-**Validate your Go project:**
+**Sync your Go project:**
 
 ```bash
-rhiza validate
+rhiza sync
 ```
 
-You'll see language-specific validation:
+`rhiza sync` validates the configuration first, so you'll see
+language-specific validation:
 
 ```
 [INFO] Project language: go
@@ -417,10 +412,7 @@ go mod init example.com/myproject
 mkdir -p cmd/myapp
 mkdir -p pkg/mypackage
 
-# 3. Validate
-rhiza validate
-
-# 4. Sync Go templates
+# 3. Sync Go templates (validates the configuration first)
 rhiza sync
 ```
 
@@ -476,14 +468,15 @@ done
 
 ## Integration Examples
 
-### GitHub Actions Validation
+### GitHub Actions Check
 
-Validate Rhiza configuration in CI:
+Check Rhiza configuration in CI. `rhiza sync --strategy diff` validates the
+configuration and reports what would change without modifying any files:
 
-**`.github/workflows/validate-rhiza.yml`:**
+**`.github/workflows/check-rhiza.yml`:**
 
 ```yaml
-name: Validate Rhiza Configuration
+name: Check Rhiza Configuration
 
 on:
   push:
@@ -494,8 +487,8 @@ on:
       - '.rhiza/template.yml'
 
 jobs:
-  validate:
-    name: Validate Template Configuration
+  check:
+    name: Check Template Configuration
     runs-on: ubuntu-latest
     
     steps:
@@ -510,24 +503,24 @@ jobs:
       - name: Install Rhiza
         run: pip install rhiza
       
-      - name: Validate configuration
-        run: rhiza validate
+      - name: Check configuration
+        run: rhiza sync --strategy diff
 ```
 
 ### Pre-commit Hook
 
-Validate before every commit:
+Check before every commit:
 
 **`.git/hooks/pre-commit`:**
 
 ```bash
 #!/bin/sh
-# Validate Rhiza configuration before commit
+# Check Rhiza configuration before commit
 
 if [ -f .rhiza/template.yml ]; then
-    echo "Validating Rhiza configuration..."
-    rhiza validate || {
-        echo "ERROR: Rhiza validation failed"
+    echo "Checking Rhiza configuration..."
+    rhiza sync --strategy diff || {
+        echo "ERROR: Rhiza check failed"
         exit 1
     }
 fi
@@ -544,7 +537,7 @@ chmod +x .git/hooks/pre-commit
 Add Rhiza commands to your Makefile:
 
 ```makefile
-.PHONY: template-init template-update template-validate
+.PHONY: template-init template-update template-check
 
 template-init: ## Initialize Rhiza templates
 	rhiza init
@@ -553,10 +546,8 @@ template-update: ## Update templates from repository
 	rhiza sync
 	@echo "Review changes with: git diff"
 
-template-validate: ## Validate template configuration
-	rhiza validate
-
-sync-templates: template-validate template-update ## Validate and update templates
+template-check: ## Check template configuration (dry-run)
+	rhiza sync --strategy diff
 ```
 
 Usage:
@@ -564,8 +555,7 @@ Usage:
 ```bash
 make template-init
 make template-update
-make template-validate
-make sync-templates
+make template-check
 ```
 
 ### Docker Integration
@@ -588,8 +578,8 @@ COPY . .
 # Initialize templates if needed
 RUN if [ ! -f .rhiza/template.yml ]; then rhiza init; fi
 
-# Validate configuration
-RUN rhiza validate
+# Check configuration (dry-run)
+RUN rhiza sync --strategy diff
 
 CMD ["/bin/bash"]
 ```
@@ -604,9 +594,9 @@ Use with the pre-commit framework:
 repos:
   - repo: local
     hooks:
-      - id: rhiza-validate
-        name: Validate Rhiza Configuration
-        entry: rhiza validate
+      - id: rhiza-check
+        name: Check Rhiza Configuration
+        entry: rhiza sync --strategy diff
         language: system
         pass_filenames: false
         files: ^\.rhiza/template\.yml$
@@ -697,14 +687,16 @@ exclude:
   - .github/CODEOWNERS
 ```
 
-### 7. Validate in CI
+### 7. Check in CI
 
-Always validate in your CI pipeline:
+Always check your template configuration in your CI pipeline. `rhiza sync
+--strategy diff` validates the config and shows what would change without
+modifying files:
 
 ```yaml
 # In your CI workflow
-- name: Validate Rhiza
-  run: rhiza validate
+- name: Check Rhiza
+  run: rhiza sync --strategy diff
 ```
 
 ### 8. Keep Templates Minimal

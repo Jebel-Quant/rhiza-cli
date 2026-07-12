@@ -130,7 +130,9 @@ class TestInitE2E:
     # ------------------------------------------------------------------
 
     def test_init_then_validate(self, tmp_path):
-        """``rhiza validate`` must exit 0 immediately after ``rhiza init``."""
+        """The config produced by ``rhiza init`` must pass validation."""
+        from rhiza.commands.validate import validate
+
         _git_init(tmp_path)
         runner = CliRunner()
 
@@ -140,8 +142,7 @@ class TestInitE2E:
         )
         assert init_result.exit_code == 0, f"rhiza init failed:\n{init_result.stdout}"
 
-        validate_result = runner.invoke(cli.app, ["validate", str(tmp_path)])
-        assert validate_result.exit_code == 0, f"rhiza validate failed:\n{validate_result.stdout}"
+        assert validate(tmp_path) is True
 
     # ------------------------------------------------------------------
     # Idempotency

@@ -22,12 +22,6 @@ cd your-project
 rhiza init
 ```
 
-Validate your configuration:
-
-```bash
-rhiza validate
-```
-
 Customize `.rhiza/template.yml`, then sync templates into your project:
 
 ```bash

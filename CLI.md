@@ -10,7 +10,6 @@ This document provides a quick reference for the Rhiza command-line interface.
 |---------|-------------|
 | `rhiza init` | Initialize or validate `.rhiza/template.yml` |
 | `rhiza sync` | Sync templates (first-time copy **or** 3-way merge on updates) |
-| `rhiza validate` | Validate template configuration |
 
 ## Common Usage Patterns
 
@@ -29,11 +28,6 @@ rhiza sync
 ### Sync template files
 ```bash
 rhiza sync
-```
-
-### Validate before committing
-```bash
-rhiza validate && git add . && git commit
 ```
 
 ## Command Details
@@ -109,44 +103,6 @@ rhiza sync --target-branch update-templates # Work in a dedicated branch
 - **Subsequent runs:** computes diff (base → upstream) and applies it via `git apply -3`
 - Automatically removes orphaned files (files no longer in the template's `include` list)
 - Updates `.rhiza/history` with the current set of managed files
-
----
-
-### rhiza validate
-
-**Purpose:** Validate `.rhiza/template.yml` configuration
-
-**Syntax:**
-```bash
-rhiza validate [TARGET] [OPTIONS]
-```
-
-**Parameters:**
-- `TARGET` - Repository directory to validate (default: current directory)
-
-**Options:**
-- `--path-to-template DIRECTORY` - Directory containing `template.yml` (default: `<TARGET>/.rhiza`). Use `.` to keep the file in the project root.
-
-**Exit Codes:**
-- `0` - Validation passed
-- `1` - Validation failed
-
-**Examples:**
-```bash
-rhiza validate                                      # Validate current directory
-rhiza validate /path/to/project                     # Validate specific directory
-rhiza validate ..                                   # Validate parent directory
-rhiza validate --path-to-template /custom/rhiza     # Custom template directory
-rhiza validate --path-to-template .                 # Template in project root
-```
-
-**Validation Checks:**
-- ✓ File exists
-- ✓ Valid YAML syntax
-- ✓ Required fields present
-- ✓ Field types correct
-- ✓ Repository format (owner/repo)
-- ✓ Include list not empty
 
 ---
 
@@ -294,9 +250,6 @@ rhiza --show-completion
 Add to your git workflow:
 
 ```bash
-# Before making changes
-rhiza validate || exit 1
-
 # Update templates periodically
 git checkout -b update-templates
 rhiza sync
@@ -306,14 +259,15 @@ git commit -am "chore: update rhiza templates"
 
 ### CI/CD Integration
 
-Add validation to your CI pipeline:
+Add a template sync check to your CI pipeline (`rhiza sync` validates the
+configuration before applying any changes):
 
 ```yaml
-# .github/workflows/validate.yml
-- name: Validate Rhiza config
+# .github/workflows/sync.yml
+- name: Sync Rhiza templates
   run: |
     pip install rhiza
-    rhiza validate
+    rhiza sync
 ```
 
 ### Multiple Template Repositories
@@ -411,7 +365,6 @@ rhiza --help
 # Command-specific help
 rhiza init --help
 rhiza sync --help
-rhiza validate --help
 ```
 
 ---
