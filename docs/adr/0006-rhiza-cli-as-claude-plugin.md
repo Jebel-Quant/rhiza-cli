@@ -1,6 +1,35 @@
 # ADR-0006: Make `rhiza-cli` the home of the Claude Code plugin
 
-**Status:** Proposed
+**Status:** Rejected — reversed in practice (2026-07-12)
+
+> **Update (2026-07-12).** This proposal was **not** adopted; the opposite
+> direction was implemented. Rather than folding the plugin into `rhiza-cli` and
+> retiring `rhiza-config`, the two-repo split was kept and the *presentation /
+> utility* commands were moved **out** of `rhiza-cli` **into** `rhiza-config`:
+>
+> - `rhiza-cli` PR #599 (merged 2026-07-12) removed the `status`, `tree`,
+>   `uninstall`, and `validate` CLI commands. (`validate.py` stays only as an
+>   internal helper for `sync`/`init`; it is no longer a command.) The dependency
+>   `rich`, used only by the old `tree` output, was dropped.
+> - `rhiza-config` now carries those commands as standalone
+>   `scripts/{status,tree,uninstall,validate}.py` + `commands/*.md` slash
+>   commands, alongside `stats.py` and the agent commands
+>   (`/boost`, `/quality`, `/revisit`, `/stats`). It remains a separate Claude
+>   Code plugin marketplace, **not** retired.
+> - This is precisely the "port the CLI commands *into* `rhiza-config`"
+>   alternative that the Decision below rejected. The trade-off it warned about
+>   (engine logic drifting into the presentation layer, version-matching burden
+>   across two repos) is now accepted deliberately.
+>
+> What did **not** move: `sync` and `summarise` stay in `rhiza-cli` as the real
+> engine (`models/lock.py`, `models/template.py`, the `_git/` merge). The
+> upstream `jebel-quant/rhiza` `rhiza_sync.yml` still invokes them via
+> `uvx "rhiza>=…" sync` / `… summarise`, and `rhiza-config`'s `/boost` delegates
+> its mechanical sync step to `rhiza sync` rather than reimplementing it.
+>
+> The Context, Decision, and Alternatives below are retained as the historical
+> record of what was proposed. The command inventory in Context ("eight
+> commands") describes `rhiza-cli` as it stood when this ADR was written.
 
 ## Context
 
