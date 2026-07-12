@@ -19,12 +19,9 @@ The package lives under `src/rhiza/` and splits cleanly into three layers:
 
 | Module | Subcommand | Role |
 |--------|-----------|------|
-| `sync.py` | `rhiza sync` | Primary command — orchestrates the 3-way template merge. |
+| `sync.py` | `rhiza sync` | Primary command — loads and validates `.rhiza/template.yml`, then orchestrates the 3-way template merge. |
 | `_sync_helpers.py` | — | Internal helpers for `sync`: lock I/O, orphan cleanup, workflow-file warnings. |
-| `init.py` | `rhiza init` | Scaffold `.rhiza/template.yml` in a new project; verifies the template repo is reachable. |
-| `validate.py` | — | Internal helper: validate project structure and `template.yml` against the schema. Used by `sync` and `init`. |
-| `list_repos.py` | `rhiza list` | List bundles/profiles available in the template repo. |
-| `summarise.py` | `rhiza summarise` | Summarise template/bundle contents. |
+| `summarise/` | `rhiza summarise` | Summarise template/bundle contents. |
 
 ### Models (`src/rhiza/models/`)
 
@@ -35,9 +32,6 @@ The package lives under `src/rhiza/` and splits cleanly into three layers:
 | `bundle.py` | `RhizaBundles`, `ProfileDefinition`, `BundleDefinition` | Resolves profiles → bundle names → concrete file paths. |
 | `_git_utils.py` | `GitContext`, `get_git_executable` | The git engine — clone/sparse-checkout, snapshot prep, diff, and `git apply -3` 3-way merge. See [ADR-0004](adr/0004-keep-git-utils-as-single-module.md) for why it is one module. |
 | `_base.py` | `YamlSerializable`, `load_model` | Shared YAML (de)serialisation base for the models. |
-
-`language_validators.py` sits at the package root and provides per-language
-project-structure checks used by `validate`.
 
 ## How a `rhiza sync` flows through the modules
 
@@ -58,7 +52,7 @@ sequenceDiagram
     CLI->>Cmd: sync(target, branch, strategy, …)
     Cmd->>G: assert_status_clean(target)
     Cmd->>G: handle_target_branch(target, …)
-    Cmd->>T: validate() + RhizaTemplate.from_yaml()
+    Cmd->>T: RhizaTemplate.from_yaml() (loads + validates)
     Cmd->>G: _clone_template() — sparse clone @ ref
     G->>T: resolve profiles → bundles → paths
     Cmd->>L: read base SHA from template.lock
@@ -85,8 +79,9 @@ Step by step:
    - `GitContext.default()` builds the git driver.
    - `assert_status_clean` refuses to run on a dirty tree;
      `handle_target_branch` optionally creates/checks out a working branch.
-   - `_load_template_from_project` runs `validate()` then
-     `RhizaTemplate.from_yaml()` to get a validated config.
+   - `_load_template_from_project` calls `RhizaTemplate.from_yaml()`, which
+     loads and validates the config — raising a clear error if `template.yml` is
+     missing, malformed, or missing required fields.
    - `_clone_template` sparse-clones the template repo at the configured `ref`,
      and (in profile/template mode) resolves **profiles → bundle names →
      concrete paths** via `RhizaBundles`, then narrows the sparse checkout to

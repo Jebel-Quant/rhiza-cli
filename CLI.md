@@ -8,16 +8,17 @@ This document provides a quick reference for the Rhiza command-line interface.
 
 | Command | Description |
 |---------|-------------|
-| `rhiza init` | Initialize or validate `.rhiza/template.yml` |
 | `rhiza sync` | Sync templates (first-time copy **or** 3-way merge on updates) |
+| `rhiza summarise` | Summarise template/bundle contents |
 
 ## Common Usage Patterns
 
 ### First-time setup
 ```bash
 cd your-project
-rhiza init
-rhiza sync
+# Create .rhiza/template.yml by hand (see Configuration File Reference below)
+rhiza sync --strategy diff   # Validate config and preview changes
+rhiza sync                   # Apply
 ```
 
 ### Update templates (preserving local changes)
@@ -31,41 +32,6 @@ rhiza sync
 ```
 
 ## Command Details
-
-### rhiza init
-
-**Purpose:** Create or validate `.rhiza/template.yml`
-
-**Syntax:**
-```bash
-rhiza init [OPTIONS] [TARGET]
-```
-
-**Parameters:**
-- `TARGET` - Directory to initialize (default: current directory)
-
-**Options:**
-- `--project-name <name>` - Custom project name (default: directory name)
-- `--package-name <name>` - Custom package name (default: normalized project name)
-- `--with-dev-dependencies` - Include development dependencies in pyproject.toml
-- `--git-host <host>` - Target Git hosting platform (github or gitlab)
-- `--template-repository <owner/repo>` - Custom template repository (default: jebel-quant/rhiza)
-- `--template-branch <branch>` - Custom template branch (default: main)
-- `--path-to-template <directory>` - Directory where `template.yml` will be created (default: `<TARGET>/.rhiza`). Use `.` to keep the file in the project root.
-
-**Examples:**
-```bash
-rhiza init                                          # Initialize current directory
-rhiza init /path/to/project                         # Initialize specific directory
-rhiza init --git-host gitlab                        # Use GitLab CI configuration
-rhiza init --template-repository myorg/my-templates # Use custom template repository
-rhiza init --template-repository myorg/my-templates --template-branch develop  # Custom repo and branch
-rhiza init ..                                       # Initialize parent directory
-rhiza init --path-to-template /custom/rhiza         # Custom template directory
-rhiza init --path-to-template .                     # Template in project root
-```
-
----
 
 ### rhiza sync
 
@@ -99,6 +65,7 @@ rhiza sync --target-branch update-templates # Work in a dedicated branch
 ```
 
 **Behavior:**
+- Loads and validates `.rhiza/template.yml` before doing anything — errors clearly if it is missing, malformed, or missing required fields (`template-repository` and one of `include`/`templates`/`profiles`)
 - **First run (no lock):** copies all template files, writes `.rhiza/template.lock`
 - **Subsequent runs:** computes diff (base → upstream) and applies it via `git apply -3`
 - Automatically removes orphaned files (files no longer in the template's `include` list)
@@ -320,15 +287,12 @@ export PATH="$HOME/.local/bin:$PATH"
 **Solution:** Initialize git first:
 ```bash
 git init
-rhiza init
 ```
 
 ### "Template file not found"
 
-**Solution:** Run init first:
-```bash
-rhiza init
-```
+**Solution:** Create `.rhiza/template.yml` by hand (see the Configuration File
+Reference above), then run `rhiza sync`.
 
 ### Files not being copied
 
@@ -336,7 +300,6 @@ rhiza init
 - [ ] Paths in `include` are correct
 - [ ] Paths exist in template repository
 - [ ] Not filtered by `exclude` patterns
-- [ ] Using `--force` if files already exist
 
 ### Clone fails during sync
 
@@ -363,8 +326,8 @@ rhiza init
 rhiza --help
 
 # Command-specific help
-rhiza init --help
 rhiza sync --help
+rhiza summarise --help
 ```
 
 ---

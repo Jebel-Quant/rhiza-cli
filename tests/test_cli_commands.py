@@ -8,7 +8,6 @@ This module tests:
 import shutil
 import subprocess  # nosec B404
 import sys
-import urllib.error
 from unittest.mock import patch
 
 import pytest
@@ -266,22 +265,6 @@ class TestCommandFailureMessages:
         assert "Unknown strategy: bogus" in result.output
         assert "merge" in result.output
         assert "diff" in result.output
-
-    def test_init_non_git_directory_reports_message(self, tmp_path, loguru_messages):
-        """Init on a non-git directory exits 1 and tells the user to run git init."""
-        result = self.runner.invoke(app, ["init", str(tmp_path), "--git-host", "github"])
-        assert result.exit_code == 1
-        assert any("is not a git repository" in m for m in loguru_messages)
-
-    def test_list_fetch_failure_reports_message(self, loguru_messages):
-        """List exits 1 and reports the failure when the GitHub API is unreachable."""
-        with patch(
-            "rhiza.commands.list_repos._fetch_repos",
-            side_effect=urllib.error.URLError("no network"),
-        ):
-            result = self.runner.invoke(app, ["list"])
-        assert result.exit_code == 1
-        assert any("Failed to fetch repositories" in m for m in loguru_messages)
 
     def test_summarise_non_git_directory_reports_message(self, tmp_path, loguru_messages):
         """Summarise on a non-git directory exits 1 and suggests git init."""
