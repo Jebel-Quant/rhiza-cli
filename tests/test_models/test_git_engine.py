@@ -1,7 +1,7 @@
-"""Tests for the _git_utils module.
+"""Tests for the git engine basics (:mod:`rhiza.models._git`).
 
-Tests get_git_executable for normal operation and RuntimeError
-when git is not found in PATH.
+Covers ``get_git_executable`` (normal operation and RuntimeError when git is
+not found in PATH) and the :class:`GitContext` dataclass.
 """
 
 import os
@@ -9,7 +9,8 @@ from unittest.mock import patch
 
 import pytest
 
-from rhiza.models._git_utils import GitContext, get_git_executable
+from rhiza.models._git.context import GitContext
+from rhiza.models._git.helpers import get_git_executable
 
 
 class TestGetGitExecutable:
@@ -24,7 +25,7 @@ class TestGetGitExecutable:
     def test_raises_when_git_not_found(self):
         """Raises RuntimeError when git is not found in PATH."""
         with (
-            patch("rhiza.models._git_utils.shutil.which", return_value=None),
+            patch("rhiza.models._git.helpers.shutil.which", return_value=None),
             pytest.raises(RuntimeError, match="git executable not found in PATH"),
         ):
             get_git_executable()

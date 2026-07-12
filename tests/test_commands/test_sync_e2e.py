@@ -128,7 +128,7 @@ class TestSyncE2ETypicalWorkflow:
 
         template_files = [Path("Makefile"), Path("config.py"), Path("README.md")]
 
-        with patch("rhiza.models._git_utils.GitContext.clone_at_sha"):
+        with patch("rhiza.models._git.context.GitContext.clone_at_sha"):
             git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream,
@@ -176,7 +176,7 @@ class TestSyncE2ETypicalWorkflow:
 
         template_files_v1 = [Path("Makefile"), Path("config.py"), Path("README.md")]
 
-        with patch("rhiza.models._git_utils.GitContext.clone_at_sha"):
+        with patch("rhiza.models._git.context.GitContext.clone_at_sha"):
             git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v1,
@@ -215,7 +215,7 @@ class TestSyncE2ETypicalWorkflow:
             (dest / "config.py").write_text("version = 1\napi = 'default'\n")
             (dest / "README.md").write_text("# My Project\n")
 
-        with patch("rhiza.models._git_utils.GitContext.clone_at_sha", side_effect=populate_base):
+        with patch("rhiza.models._git.context.GitContext.clone_at_sha", side_effect=populate_base):
             git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v2,
@@ -269,7 +269,7 @@ class TestSyncE2EOrphanedFiles:
 
         template_files_v1 = [Path("file_a.txt"), Path("file_b.txt")]
 
-        with patch("rhiza.models._git_utils.GitContext.clone_at_sha"):
+        with patch("rhiza.models._git.context.GitContext.clone_at_sha"):
             git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v1,
@@ -296,7 +296,7 @@ class TestSyncE2EOrphanedFiles:
             (dest / "file_a.txt").write_text("content a\n")
             (dest / "file_b.txt").write_text("content b\n")
 
-        with patch("rhiza.models._git_utils.GitContext.clone_at_sha", side_effect=populate_base):
+        with patch("rhiza.models._git.context.GitContext.clone_at_sha", side_effect=populate_base):
             git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v2,
@@ -336,7 +336,7 @@ class TestSyncE2EThreeWayMerge:
         upstream_v1.mkdir()
         (upstream_v1 / "config.py").write_text(template_v1)
 
-        with patch("rhiza.models._git_utils.GitContext.clone_at_sha"):
+        with patch("rhiza.models._git.context.GitContext.clone_at_sha"):
             git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v1,
@@ -363,7 +363,7 @@ class TestSyncE2EThreeWayMerge:
             """Populate the base snapshot with fixture content."""
             (dest / "config.py").write_text(template_v1)
 
-        with patch("rhiza.models._git_utils.GitContext.clone_at_sha", side_effect=populate_base):
+        with patch("rhiza.models._git.context.GitContext.clone_at_sha", side_effect=populate_base):
             git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v2,
@@ -406,7 +406,7 @@ class TestSyncE2EExcludedFiles:
         upstream.mkdir()
         (upstream / "Makefile").write_text("install:\n\tpip install .\n")
 
-        with patch("rhiza.models._git_utils.GitContext.clone_at_sha"):
+        with patch("rhiza.models._git.context.GitContext.clone_at_sha"):
             git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream,
@@ -438,7 +438,7 @@ class TestSyncE2EExcludedFiles:
 
         template_files_v1 = [Path("file_a.txt"), Path("file_b.txt")]
 
-        with patch("rhiza.models._git_utils.GitContext.clone_at_sha"):
+        with patch("rhiza.models._git.context.GitContext.clone_at_sha"):
             git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v1,
@@ -466,7 +466,7 @@ class TestSyncE2EExcludedFiles:
             (dest / "file_a.txt").write_text("content a\n")
             (dest / "file_b.txt").write_text("content b\n")
 
-        with patch("rhiza.models._git_utils.GitContext.clone_at_sha", side_effect=populate_base):
+        with patch("rhiza.models._git.context.GitContext.clone_at_sha", side_effect=populate_base):
             git_ctx.sync_merge(
                 target=project,
                 upstream_snapshot=upstream_v2,
@@ -572,7 +572,7 @@ class TestSyncE2EUpdatedTemplateYml:
 
         with (
             patch("rhiza.commands.sync._clone_template", side_effect=clone_v2),
-            patch("rhiza.models._git_utils.GitContext.clone_at_sha", side_effect=populate_base),
+            patch("rhiza.models._git.context.GitContext.clone_at_sha", side_effect=populate_base),
         ):
             sync(target=project, branch="main", target_branch=None, strategy="merge")
 
@@ -651,7 +651,7 @@ class TestSyncE2EUpdatedTemplateYml:
 
         with (
             patch("rhiza.commands.sync._clone_template", side_effect=clone_v2),
-            patch("rhiza.models._git_utils.GitContext.clone_at_sha", side_effect=populate_base),
+            patch("rhiza.models._git.context.GitContext.clone_at_sha", side_effect=populate_base),
         ):
             sync(target=project, branch="main", target_branch=None, strategy="merge")
 
@@ -810,7 +810,7 @@ class TestSyncE2ECustomPaths:
 
         with (
             patch("rhiza.commands.sync._clone_template", side_effect=clone_v2),
-            patch("rhiza.models._git_utils.GitContext.clone_at_sha", side_effect=populate_base),
+            patch("rhiza.models._git.context.GitContext.clone_at_sha", side_effect=populate_base),
         ):
             sync(
                 target=project,

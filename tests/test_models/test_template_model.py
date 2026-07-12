@@ -15,8 +15,8 @@ import yaml
 
 from rhiza.commands.sync import _clone_template, _load_template_from_project
 from rhiza.models import GitContext
-from rhiza.models._base import YamlSerializable, load_model
-from rhiza.models._git_utils import _excluded_set, _expand_paths, _prepare_snapshot, _remap_path
+from rhiza.models._base import YamlSerializable
+from rhiza.models._git.snapshot import _excluded_set, _expand_paths, _prepare_snapshot, _remap_path
 from rhiza.models.template import RhizaTemplate
 
 
@@ -230,7 +230,7 @@ class TestRhizaTemplate:
 
     def test_normalize_to_list_with_unexpected_type(self, tmp_path):
         """Test that _normalize_to_list handles unexpected types gracefully."""
-        from rhiza.models._git_utils import _normalize_to_list
+        from rhiza.models._git.helpers import _normalize_to_list
 
         # Test with None
         assert _normalize_to_list(None) == []
@@ -335,8 +335,8 @@ class TestRhizaTemplateGitUrl:
 class TestRhizaTemplateClone:
     """Tests for the _clone_template function."""
 
-    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
-    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.models._git.context.GitContext.get_head_sha")
+    @patch("rhiza.models._git.context.GitContext.clone_repository")
     def test_clone_returns_upstream_dir_and_sha(self, mock_clone, mock_head_sha):
         """_clone_template returns (upstream_dir, upstream_sha, include) for a plain include-list template."""
         mock_head_sha.return_value = "abc123def456"
@@ -371,8 +371,8 @@ class TestRhizaTemplateClone:
             _clone_template(template, GitContext.default())
 
     @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
-    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
-    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.models._git.context.GitContext.get_head_sha")
+    @patch("rhiza.models._git.context.GitContext.clone_repository")
     def test_clone_raises_when_profile_not_found_with_alternatives(self, mock_clone, mock_head_sha, mock_from_yaml):
         """_clone_template raises ValueError listing available profiles when profile is missing."""
         from rhiza.models.bundle import RhizaBundles
@@ -395,8 +395,8 @@ class TestRhizaTemplateClone:
             _clone_template(template, GitContext.default())
 
     @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
-    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
-    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.models._git.context.GitContext.get_head_sha")
+    @patch("rhiza.models._git.context.GitContext.clone_repository")
     def test_clone_raises_when_profile_not_found_no_profiles_defined(self, mock_clone, mock_head_sha, mock_from_yaml):
         """_clone_template raises ValueError noting no profiles are defined when profiles is empty."""
         from rhiza.models.bundle import RhizaBundles
@@ -415,10 +415,10 @@ class TestRhizaTemplateClone:
         with pytest.raises(ValueError, match="No profiles are defined"):
             _clone_template(template, GitContext.default())
 
-    @patch("rhiza.models._git_utils.GitContext.update_sparse_checkout")
+    @patch("rhiza.models._git.context.GitContext.update_sparse_checkout")
     @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
-    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
-    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.models._git.context.GitContext.get_head_sha")
+    @patch("rhiza.models._git.context.GitContext.clone_repository")
     def test_clone_resolves_profile_to_paths(self, mock_clone, mock_head_sha, mock_from_yaml, mock_sparse):
         """_clone_template resolves a profile to bundle names then to file paths."""
         from rhiza.models.bundle import RhizaBundles
@@ -450,8 +450,8 @@ class TestRhizaTemplateClone:
         assert "docs/" in resolved
         shutil.rmtree(upstream_dir, ignore_errors=True)
 
-    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
-    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.models._git.context.GitContext.get_head_sha")
+    @patch("rhiza.models._git.context.GitContext.clone_repository")
     def test_clone_uses_template_branch_over_default(self, mock_clone, mock_head_sha):
         """_clone_template uses template_branch when set, ignoring the branch argument."""
         mock_head_sha.return_value = "sha_from_develop"
@@ -572,37 +572,6 @@ class TestYamlSerializableProtocol:
 
 
 # ---------------------------------------------------------------------------
-# load_model helper — template-related checks
-# ---------------------------------------------------------------------------
-
-
-class TestLoadModel:
-    """Tests for the load_model generic helper as it applies to RhizaTemplate."""
-
-    def test_load_model_returns_rhiza_template(self, tmp_path):
-        """load_model loads a RhizaTemplate and returns the correct type/values."""
-        import yaml
-
-        template_file = tmp_path / "template.yml"
-        template_file.write_text(yaml.dump({"repository": "owner/repo", "ref": "main"}))
-
-        result = load_model(RhizaTemplate, template_file)
-
-        assert isinstance(result, RhizaTemplate)
-        assert result.template_repository == "owner/repo"
-        assert result.template_branch == "main"
-
-    def test_load_model_raises_for_class_without_from_config(self):
-        """load_model raises TypeError when the class lacks from_config."""
-
-        class NoConfig:
-            """Stub model class without a from_config method."""
-
-        with pytest.raises(TypeError, match="NoConfig does not implement from_config"):
-            load_model(NoConfig, Path("irrelevant.yml"))
-
-
-# ---------------------------------------------------------------------------
 # Module-level helper functions — direct coverage
 # ---------------------------------------------------------------------------
 
@@ -630,7 +599,7 @@ class TestUpdateSparseCheckout:
         """Success path calls subprocess and logs completion."""
         git_ctx = GitContext.default()
         ok = MagicMock(returncode=0, stdout="", stderr="")
-        with patch("rhiza.models._git_utils.subprocess.run", return_value=ok) as mock_run:
+        with patch("subprocess.run", return_value=ok) as mock_run:
             git_ctx.update_sparse_checkout(tmp_path, [".github"])
         mock_run.assert_called_once()
 
@@ -640,7 +609,7 @@ class TestUpdateSparseCheckout:
         err = subprocess.CalledProcessError(1, ["git"])
         err.stderr = "error output"
         with (
-            patch("rhiza.models._git_utils.subprocess.run", side_effect=err),
+            patch("subprocess.run", side_effect=err),
             pytest.raises(subprocess.CalledProcessError),
         ):
             git_ctx.update_sparse_checkout(tmp_path, [".github"])
@@ -653,7 +622,7 @@ class TestGetHeadSha:
         """Returns the stdout stripped from git rev-parse HEAD."""
         git_ctx = GitContext.default()
         ok = MagicMock(returncode=0, stdout="abc123def456\n", stderr="")
-        with patch("rhiza.models._git_utils.subprocess.run", return_value=ok):
+        with patch("subprocess.run", return_value=ok):
             sha = git_ctx.get_head_sha(tmp_path)
         assert sha == "abc123def456"
 
@@ -665,7 +634,7 @@ class TestCloneRepositorySuccess:
         """When all three subprocess calls succeed, no exception is raised."""
         git_ctx = GitContext.default()
         ok = MagicMock(returncode=0, stdout="", stderr="")
-        with patch("rhiza.models._git_utils.subprocess.run", return_value=ok):
+        with patch("subprocess.run", return_value=ok):
             git_ctx.clone_repository("https://github.com/owner/repo.git", tmp_path, "main", [".github"])
 
 
@@ -678,7 +647,7 @@ class TestCloneAtShaErrors:
         err = subprocess.CalledProcessError(128, ["git", "clone"])
         err.stderr = "fatal: not found"
         with (
-            patch("rhiza.models._git_utils.subprocess.run", side_effect=err),
+            patch("subprocess.run", side_effect=err),
             pytest.raises(subprocess.CalledProcessError),
         ):
             git_ctx.clone_at_sha("https://github.com/owner/repo.git", "abc123", tmp_path / "dest", [".github"])
@@ -690,7 +659,7 @@ class TestCloneAtShaErrors:
         err = subprocess.CalledProcessError(1, ["git", "sparse-checkout"])
         err.stderr = "error"
         with (
-            patch("rhiza.models._git_utils.subprocess.run", side_effect=[ok, err]),
+            patch("subprocess.run", side_effect=[ok, err]),
             pytest.raises(subprocess.CalledProcessError),
         ):
             git_ctx.clone_at_sha("https://github.com/owner/repo.git", "abc123", tmp_path / "dest", [".github"])
