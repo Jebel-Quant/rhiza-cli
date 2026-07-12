@@ -1,19 +1,18 @@
 """Base abstractions for YAML-serializable Rhiza models.
 
 This module defines the :class:`YamlSerializable` :class:`~typing.Protocol` that all
-YAML-capable Rhiza model classes satisfy, plus the :func:`load_model` generic
-helper that can load any such model from a file path.
+YAML-capable Rhiza model classes satisfy, plus the :func:`read_yaml` helper used
+by their ``from_yaml`` classmethods.
 
 Example usage::
 
-    from rhiza.models._base import load_model
     from rhiza.models.template import RhizaTemplate
 
-    template = load_model(RhizaTemplate, Path(".rhiza/template.yml"))
+    template = RhizaTemplate.from_yaml(Path(".rhiza/template.yml"))
 """
 
 from pathlib import Path
-from typing import Any, Protocol, Self, TypeVar, cast, runtime_checkable
+from typing import Any, Protocol, Self, runtime_checkable
 
 import yaml
 
@@ -78,9 +77,6 @@ class YamlSerializable(Protocol):
             yaml.dump(self.config, f, default_flow_style=False, sort_keys=False)
 
 
-_T = TypeVar("_T")
-
-
 def read_yaml(path: Path) -> dict[str, Any]:
     """Open *path*, parse YAML, and return the config dict.
 
@@ -103,35 +99,3 @@ def read_yaml(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise TypeError(f"{path.name} does not contain a YAML mapping")  # noqa: TRY003
     return data
-
-
-def load_model(cls: type[_T], path: Path) -> _T:
-    """Load a YAML-serializable model from *path*.
-
-    This is a thin generic wrapper around ``cls.from_yaml(path)`` that
-    preserves the concrete return type so callers do not need a cast.
-
-    Args:
-        cls: A class that exposes a ``from_yaml(Path)`` classmethod,
-            such as :class:`~rhiza.models.template.RhizaTemplate`,
-            :class:`~rhiza.models.lock.TemplateLock`, or
-            :class:`~rhiza.models.bundle.RhizaBundles`.
-        path: Path to the YAML file to load.
-
-    Returns:
-        An instance of *cls* populated from *path*.
-
-    Raises:
-        TypeError: If *cls* does not implement ``from_yaml``.
-
-    Example::
-
-        from rhiza.models._base import load_model
-        from rhiza.models.lock import TemplateLock
-
-        lock = load_model(TemplateLock, Path(".rhiza/template.lock"))
-    """
-    from_config = getattr(cls, "from_config", None)
-    if not callable(from_config):
-        raise TypeError(f"{cls.__name__} does not implement from_config")  # noqa: TRY003
-    return cast(_T, from_config(read_yaml(path)))

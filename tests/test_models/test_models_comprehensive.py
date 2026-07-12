@@ -5,7 +5,7 @@ Coverage targets
 - TemplateLock  : config round-trip, YAML E2E, Hypothesis
 - RhizaTemplate : config round-trip, YAML E2E, Hypothesis
 - RhizaBundles  : config round-trip, YAML E2E, Hypothesis
-- _base helpers : read_yaml edge-cases, load_model errors
+- _base helpers : read_yaml edge-cases
 """
 
 import tempfile
@@ -16,7 +16,7 @@ import yaml
 from hypothesis import given
 from hypothesis import strategies as st
 
-from rhiza.models._base import YamlSerializable, load_model, read_yaml
+from rhiza.models._base import YamlSerializable, read_yaml
 from rhiza.models.bundle import BundleFileEntry, RhizaBundles
 from rhiza.models.lock import TemplateLock
 from rhiza.models.template import GitHost, RhizaTemplate
@@ -165,16 +165,6 @@ class TestTemplateLockE2E:
         p.write_text("- a\n- b\n")
         with pytest.raises(TypeError):
             TemplateLock.from_yaml(p)
-
-    def test_load_model_helper(self, tmp_path):
-        """Load model helper."""
-        lock = TemplateLock(sha="cafe", repo="x/y")
-        path = tmp_path / "template.lock"
-        lock.to_yaml(path)
-        result = load_model(TemplateLock, path)
-        assert isinstance(result, TemplateLock)
-        assert result.sha == "cafe"
-        assert result.repo == "x/y"
 
     def test_satisfies_protocol(self):
         """Satisfies protocol."""
@@ -353,15 +343,6 @@ class TestRhizaTemplateE2E:
         with pytest.raises(TypeError):
             RhizaTemplate.from_yaml(p)
 
-    def test_load_model_helper(self, tmp_path):
-        """Load model helper."""
-        t = RhizaTemplate(template_repository="x/y", template_branch="main")
-        path = tmp_path / "template.yml"
-        t.to_yaml(path)
-        result = load_model(RhizaTemplate, path)
-        assert isinstance(result, RhizaTemplate)
-        assert result.template_repository == "x/y"
-
     def test_satisfies_protocol(self):
         """Satisfies protocol."""
         assert isinstance(RhizaTemplate(), YamlSerializable)
@@ -528,15 +509,6 @@ class TestRhizaBundlesE2E:
         assert restored.bundles["core"].files == [BundleFileEntry(source="Makefile", dest="Makefile")]
         assert restored.bundles["ci"].requires == ["core"]
 
-    def test_load_model_helper(self, tmp_path):
-        """Load model helper."""
-        b = RhizaBundles.from_config({"bundles": {"core": {"description": "Core"}}})
-        path = tmp_path / "bundles.yml"
-        b.to_yaml(path)
-        result = load_model(RhizaBundles, path)
-        assert isinstance(result, RhizaBundles)
-        assert "core" in result.bundles
-
     def test_satisfies_protocol(self):
         """Satisfies protocol."""
         b = RhizaBundles.from_config({"bundles": {}})
@@ -641,36 +613,3 @@ class TestReadYaml:
         p.write_text("just a string\n")
         with pytest.raises(TypeError, match="does not contain a YAML mapping"):
             read_yaml(p)
-
-
-class TestLoadModel:
-    """Tests for the load_model helper."""
-
-    def test_raises_when_no_from_config(self, tmp_path):
-        """Raises when no from config."""
-        p = tmp_path / "data.yml"
-        p.write_text("key: value\n")
-
-        class NoFromConfig:
-            """Stub model class without a from_config method."""
-
-        with pytest.raises(TypeError, match="does not implement from_config"):
-            load_model(NoFromConfig, p)
-
-    def test_works_with_template_lock(self, tmp_path):
-        """Works with template lock."""
-        lock = TemplateLock(sha="abc")
-        p = tmp_path / "template.lock"
-        lock.to_yaml(p)
-        result = load_model(TemplateLock, p)
-        assert isinstance(result, TemplateLock)
-        assert result.sha == "abc"
-
-    def test_works_with_rhiza_bundles(self, tmp_path):
-        """Works with rhiza bundles."""
-        b = RhizaBundles.from_config({"bundles": {"core": {"description": "Core"}}})
-        p = tmp_path / "bundles.yml"
-        b.to_yaml(p)
-        result = load_model(RhizaBundles, p)
-        assert isinstance(result, RhizaBundles)
-        assert "core" in result.bundles

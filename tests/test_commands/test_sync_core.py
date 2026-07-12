@@ -92,9 +92,9 @@ class TestSyncCore:
     """Core scenario tests for sync()."""
 
     @patch("rhiza.commands.sync.shutil.rmtree")
-    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.models._git.context.GitContext.clone_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
-    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    @patch("rhiza.models._git.context.GitContext.get_head_sha")
     def test_first_merge_sync_copies_files_and_writes_lock(
         self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path
     ):
@@ -114,9 +114,9 @@ class TestSyncCore:
         assert TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock").config["sha"] == "first111"
 
     @patch("rhiza.commands.sync.shutil.rmtree")
-    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.models._git.context.GitContext.clone_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
-    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    @patch("rhiza.models._git.context.GitContext.get_head_sha")
     def test_diff_strategy_does_not_modify_files_or_write_lock(
         self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, tmp_path
     ):
@@ -135,12 +135,12 @@ class TestSyncCore:
         assert (tmp_path / "test.txt").read_text() == "local content"
         assert not (tmp_path / ".rhiza" / "template.lock").exists()
 
-    @patch("rhiza.models._git_utils.GitContext._apply_diff")
-    @patch("rhiza.models._git_utils.GitContext.get_diff")
+    @patch("rhiza.models._git.context.GitContext._apply_diff")
+    @patch("rhiza.models._git.context.GitContext.get_diff")
     @patch("rhiza.commands.sync.shutil.rmtree")
-    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.models._git.context.GitContext.clone_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
-    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    @patch("rhiza.models._git.context.GitContext.get_head_sha")
     def test_subsequent_merge_updates_lock_sha(
         self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, mock_get_diff, mock_apply, tmp_path
     ):
@@ -166,11 +166,11 @@ class TestSyncCore:
         assert TemplateLock.from_yaml(tmp_path / ".rhiza" / "template.lock").config["sha"] == "new222"
 
     @patch("rhiza.commands.sync.shutil.rmtree")
-    @patch("rhiza.models._git_utils.GitContext.update_sparse_checkout")
+    @patch("rhiza.models._git.context.GitContext.update_sparse_checkout")
     @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
-    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.models._git.context.GitContext.clone_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
-    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    @patch("rhiza.models._git.context.GitContext.get_head_sha")
     def test_templates_mode_lock_include_contains_original_not_resolved(
         self,
         mock_sha,
@@ -210,11 +210,11 @@ class TestSyncCore:
         assert "Makefile" in lock.files
 
     @patch("rhiza.commands.sync.shutil.rmtree")
-    @patch("rhiza.models._git_utils.GitContext.update_sparse_checkout")
+    @patch("rhiza.models._git.context.GitContext.update_sparse_checkout")
     @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
-    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.models._git.context.GitContext.clone_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
-    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    @patch("rhiza.models._git.context.GitContext.get_head_sha")
     def test_hybrid_mode_merges_bundle_and_include_paths(
         self,
         mock_sha,
@@ -261,11 +261,11 @@ class TestSyncCore:
         assert "extra.txt" in merged
 
     @patch("rhiza.commands.sync.shutil.rmtree")
-    @patch("rhiza.models._git_utils.GitContext.update_sparse_checkout")
+    @patch("rhiza.models._git.context.GitContext.update_sparse_checkout")
     @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
-    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.models._git.context.GitContext.clone_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
-    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    @patch("rhiza.models._git.context.GitContext.get_head_sha")
     def test_custom_template_bundles_path_is_used(
         self,
         mock_sha,
@@ -327,11 +327,11 @@ class TestSyncPathToTemplateBundlesDerived:
     """
 
     @patch("rhiza.commands.sync.shutil.rmtree")
-    @patch("rhiza.models._git_utils.GitContext.update_sparse_checkout")
+    @patch("rhiza.models._git.context.GitContext.update_sparse_checkout")
     @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
-    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.models._git.context.GitContext.clone_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
-    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    @patch("rhiza.models._git.context.GitContext.get_head_sha")
     def test_bundles_path_derived_from_custom_template_file_directory(
         self,
         mock_sha,
@@ -379,11 +379,11 @@ class TestSyncPathToTemplateBundlesDerived:
         assert Path(from_yaml_path).as_posix().endswith("my-rhiza/template-bundles.yml")
 
     @patch("rhiza.commands.sync.shutil.rmtree")
-    @patch("rhiza.models._git_utils.GitContext.update_sparse_checkout")
+    @patch("rhiza.models._git.context.GitContext.update_sparse_checkout")
     @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
-    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.models._git.context.GitContext.clone_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
-    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    @patch("rhiza.models._git.context.GitContext.get_head_sha")
     def test_bundles_path_derived_from_project_root_template_file(
         self,
         mock_sha,
@@ -427,11 +427,11 @@ class TestSyncPathToTemplateBundlesDerived:
         assert sparse_paths_arg == ["template-bundles.yml"]
 
     @patch("rhiza.commands.sync.shutil.rmtree")
-    @patch("rhiza.models._git_utils.GitContext.update_sparse_checkout")
+    @patch("rhiza.models._git.context.GitContext.update_sparse_checkout")
     @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
-    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.models._git.context.GitContext.clone_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
-    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    @patch("rhiza.models._git.context.GitContext.get_head_sha")
     def test_explicit_bundles_path_not_overridden_by_template_file_location(
         self,
         mock_sha,
@@ -478,11 +478,11 @@ class TestSyncPathToTemplateBundlesDerived:
         assert sparse_paths_arg == [explicit_bundles_path]
 
     @patch("rhiza.commands.sync.shutil.rmtree")
-    @patch("rhiza.models._git_utils.GitContext.update_sparse_checkout")
+    @patch("rhiza.models._git.context.GitContext.update_sparse_checkout")
     @patch("rhiza.models.bundle.RhizaBundles.from_yaml")
-    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.models._git.context.GitContext.clone_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
-    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    @patch("rhiza.models._git.context.GitContext.get_head_sha")
     def test_default_rhiza_dir_keeps_default_bundles_path(
         self,
         mock_sha,
@@ -516,11 +516,11 @@ class TestSyncPathToTemplateBundlesDerived:
         sparse_paths_arg = first_clone_call[0][3]
         assert sparse_paths_arg == [".rhiza/template-bundles.yml"]
 
-    @patch("rhiza.models._git_utils.GitContext.sync_merge")
+    @patch("rhiza.models._git.context.GitContext.sync_merge")
     @patch("rhiza.commands.sync.shutil.rmtree")
-    @patch("rhiza.models._git_utils.GitContext.clone_repository")
+    @patch("rhiza.models._git.context.GitContext.clone_repository")
     @patch("rhiza.commands.sync.tempfile.mkdtemp")
-    @patch("rhiza.models._git_utils.GitContext.get_head_sha")
+    @patch("rhiza.models._git.context.GitContext.get_head_sha")
     def test_sync_raises_runtime_error_on_merge_conflicts(
         self, mock_sha, mock_mkdtemp, mock_clone, mock_rmtree, mock_sync_merge, tmp_path
     ):

@@ -8,7 +8,7 @@ the YamlSerializable protocol.
 import pytest
 import yaml
 
-from rhiza.models._base import YamlSerializable, load_model
+from rhiza.models._base import YamlSerializable
 from rhiza.models.lock import TemplateLock
 
 
@@ -155,24 +155,3 @@ class TestYamlSerializableProtocol:
         """TemplateLock is a runtime-checkable instance of YamlSerializable."""
         lock = TemplateLock(sha="abc123")
         assert isinstance(lock, YamlSerializable)
-
-
-# ---------------------------------------------------------------------------
-# load_model helper — lock-related check
-# ---------------------------------------------------------------------------
-
-
-class TestLoadModel:
-    """Tests for the load_model generic helper as it applies to TemplateLock."""
-
-    def test_load_model_returns_template_lock(self, tmp_path):
-        """load_model loads a TemplateLock and returns the correct type/values."""
-        lock = TemplateLock(sha="deadbeef", repo="owner/repo", host="github", ref="main")
-        lock_path = tmp_path / "template.lock"
-        lock.to_yaml(lock_path)
-
-        result = load_model(TemplateLock, lock_path)
-
-        assert isinstance(result, TemplateLock)
-        assert result.sha == "deadbeef"
-        assert result.repo == "owner/repo"
