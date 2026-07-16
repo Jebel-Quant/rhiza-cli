@@ -14,13 +14,14 @@ from rhiza.cli import app
 
 def load_plugins(app: typer.Typer) -> None:
     """Load plugins from entry points."""
-    # 'rhiza.plugins' matches the group we defined in rhiza-tools
+    # Any installed package that registers a `rhiza.plugins` entry point is
+    # mounted as a subcommand.
     plugin_entries = entry_points(group="rhiza.plugins")
 
     for entry in plugin_entries:
         try:
             plugin_app = entry.load()
-            # This adds the plugin as a subcommand, e.g., 'rhiza tools bump'
+            # This adds the plugin as a subcommand, e.g., 'rhiza <plugin>'
             app.add_typer(plugin_app, name=entry.name)
         except Exception as e:  # noqa: BLE001  # third-party plugin code may raise anything; a broken plugin must not crash the CLI
             logger.warning(f"Failed to load plugin {entry.name}: {e}")
