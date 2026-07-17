@@ -221,7 +221,7 @@ jobs:
           version: "0.11.16"
 
       - name: Configure git auth for private packages
-        uses: jebel-quant/rhiza/.github/actions/configure-git-auth@v1.1.3
+        uses: jebel-quant/rhiza/.github/actions/configure-git-auth@v1.2.1
         with:
           token: ${{ secrets.GH_PAT }}
 
@@ -286,7 +286,7 @@ jobs:
         # The XML format is provided for compatibility but doesn't need separate attestation.
         id: attest-sbom
         if: hashFiles('pyproject.toml') != '' && github.event.repository.private == false
-        uses: actions/attest@v4.1.1
+        uses: actions/attest@v4.2.0
         with:
           subject-path: sbom.cdx.json
           sbom-path: sbom.cdx.json
